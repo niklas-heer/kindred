@@ -162,4 +162,5 @@ export default {
   "gdpr.accept_terms_agreement": "Ek aanvaar die voorwaardes en, vir die familie, die verwerkingsooreenkoms",
   "gdpr.accept_agreement": "Ek aanvaar die verwerkingsooreenkoms vir die familie",
   "gdpr.read_agreement": "Lees die verwerkingsooreenkoms",
+  "gdpr.notice_reach": "Die kennisgewing het {reached} van {total} rentmeesters per e-pos bereik.",
 } satisfies Strings<typeof en, "af">;

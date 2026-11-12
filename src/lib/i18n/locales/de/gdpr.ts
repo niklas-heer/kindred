@@ -162,4 +162,5 @@ export default {
   "gdpr.accept_terms_agreement": "Ich stimme den Nutzungsbedingungen und, für die Familie, dem Auftragsverarbeitungsvertrag zu",
   "gdpr.accept_agreement": "Ich stimme für die Familie dem Auftragsverarbeitungsvertrag zu",
   "gdpr.read_agreement": "Auftragsverarbeitungsvertrag lesen",
+  "gdpr.notice_reach": "Die Meldung hat {reached} von {total} Personen, die die Familie verwalten, per E-Mail erreicht.",
 } satisfies Strings<typeof en, "de">;

@@ -195,6 +195,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0054_email_reset.sql` | `password_reset.via`: `operator` (every row from before) or `email` (a link the holder asked for, sent to their confirmed address). |
 | `0055_backup_restore_guards.sql` | What a restore may hand to whom ([hosting-many-families.md](hosting-many-families.md#backups)): `family_backup.stewards` (the family's stewards when it was backed up), `.family_created` (which family held the id then) and `.pinned_until` (the backup from before a restore over a family or a rollback, kept a week), and `family_claim` (an address being made or restored into, and a restore's source for copying pictures). |
 | `0056_email_fixes.sql` | `email_send.sender` and `.network` (keyed hashes of who asked for a confirmation link or an invitation, for their daily limits) and the `notice` category; `steward_notice.emailed` and `.pushed` (how many stewards a notice reached each way: the lifecycle deletes by itself only after its final notice reached one). |
+| `0057_breach_notice_reach.sql` | `breach_mail`: one row per steward and affected family a breach's current notice is for, with when its email went out, how often it was tried and the last result, so the register shows how many it reached and the daily `breach-notices` job retries the rest. |
 
 ### Tables
 
@@ -427,7 +428,10 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   what happened, when the operator became aware (`aware_at`, the start of the 72-hour clock), the risk, when the authority and
   the people were told, the reasons for a late notification, a `notice` for the affected families' stewards until
   `notice_until` or `closed_at`, and the families affected (`breach_family.family`, an id, not a `tree` column: the register
-  outlives a family; none means every family). Kept while the server runs.
+  outlives a family; none means every family). Kept while the server runs. **`breach_mail`** (0057): one row per steward
+  (`user`, deleted with the account) and affected family (`family`, an id) the current notice is for: `at`, `sent_at` (NULL until
+  its email went out), `tries` and `result` (`sent`, `off`, `throttled`, `failed`, `invalid`, `no_address`, …). A changed notice
+  replaces the rows; deleted with the breach.
 - **`media_usage`** (0034): one row per file in a family's media storage, `tree`, `key`, `bytes`, `at`. Every upload reserves its
   row in a batch whose guard refuses it over the family's cap, before the file is written; a deletion removes it. A family's usage
   is the sum. `pending_at` (0036) is when the reservation was made, until the file is written (then NULL). The daily run recounts

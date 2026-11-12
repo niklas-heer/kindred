@@ -133,6 +133,11 @@ function Breaches({ data, families }: { data: PrivacyConsole; families: Operator
               <h3>{b.title}{b.closedAt && <span className="chip">{t('gdpr.closed')}</span>}</h3>
               <p className="muted">{t('gdpr.aware_on', { date: formatDate(b.awareAt, t.locale) })} · {t(`gdpr.risk_${b.risk}` as Key)}</p>
               <Clock b={b} />
+              {b.noticeReach && (
+                <p className={b.noticeReach.reached < b.noticeReach.total ? 'operator-soon' : 'muted'}>
+                  {t('gdpr.notice_reach', { reached: b.noticeReach.reached, total: b.noticeReach.total })}
+                </p>
+              )}
               <div className="families-row"><button type="button" className="btn" onClick={() => setEditing(b)}>{t('gdpr.breach_edit')}</button></div>
             </li>
           ))}

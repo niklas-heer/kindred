@@ -169,7 +169,9 @@ people at risk, the supervisory authority must be told **within 72 hours** of be
 deadline, and after it asks for the reasons for the delay. A high risk also means telling the people (Art. 34). A breach can carry a
 **notice** for the stewards of the families it affects (all, or those ticked), shown on their family's pages until a date or until
 it is closed. While the server sends email, a new or changed notice also goes by email to those families' stewards with a
-confirmed address.
+confirmed address. The register shows how many of them it reached (*reached 3 of 5 stewards by email*); those it did not reach
+(email off, a limit, the provider failing, no confirmed address yet) are tried again by the daily `breach-notices` job, up to 14
+times, while the breach is open and its notice shown.
 
 ## Email
 

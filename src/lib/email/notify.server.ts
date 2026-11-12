@@ -22,6 +22,7 @@ import { hashToken, safeEqual } from '../auth/tokens.server.ts';
 import { AuthError } from '../auth/errors.ts';
 import { mailDate, mailDay, mailName, sendLater, sendMail, type Body, type SendResult } from './send.server.ts';
 import type { MailCategory } from './shared.ts';
+import { q, type Query } from '../store/index.ts';
 import type { Key } from '../i18n/dictionary.ts';
 import type { Vars } from '../i18n/types.ts';
 
@@ -171,17 +172,70 @@ export const emailStewardsDataRequest = (tree: string, deadline: number, request
   }), { request });
 
 /**
- * A breach notice for the stewards of the families it affects (every family when `families` is null), with its text: the
- * operator's own words, which the law asks for. A `notice`: it cannot be unsubscribed.
+ * Sets a breach's notice for the stewards of the families it affects (every family when `families` is null), one row each in
+ * `breach_mail` (accounts migration 0057): a changed notice starts over, so each of them gets the new text. Call
+ * deliverBreachNotices to send them.
  */
-export function emailBreachNotice(families: string[] | null, notice: string, request?: Request): void {
-  sendLater(async () => {
-    const trees = families ?? (await accounts().all<{ tree: string }>("SELECT DISTINCT tree FROM membership WHERE role = 'steward'")).map((r) => r.tree);
-    for (const tree of trees) emailStewards(tree, (t, { server, origin, family }) => ({
-    subject: t('email.mail.breach_subject', { family }),
-    paragraphs: [t('email.mail.breach_body', { server, family })],
-    quote: notice,
-    action: { label: t('email.mail.breach_action'), url: `${origin}/${tree}` },
-    }), { request, category: 'notice' });
-  });
+export function queueBreachNotice(breach: string, families: string[] | null, now = Date.now()): Query[] {
+  return [
+    q('DELETE FROM breach_mail WHERE breach = ?', breach),
+    q(`INSERT INTO breach_mail (breach, user, family, at) SELECT DISTINCT ?, m.user, m.tree, ? FROM membership m
+       WHERE m.role = 'steward' AND (? IS NULL OR m.tree IN (SELECT value FROM json_each(?)))`,
+      breach, now, families ? 1 : null, JSON.stringify(families ?? [])),
+  ];
+}
+
+/** How many times a breach notice is tried for one steward before the daily job gives up on it. */
+export const BREACH_TRIES = 14;
+/** Results that no later try changes. */
+const FINAL: SendResult[] = ['invalid'];
+
+/**
+ * Sends the breach notices not sent yet (of one breach, or all), while their breach is open and its notice shown: the operator's
+ * own words, which the law asks for, as a `notice` that cannot be unsubscribed. Each row is claimed before it is sent, so two
+ * runs never send one twice. Records each result; returns how many went out and how many are left to try later (the daily
+ * `breach-notices` job). Never throws for one steward.
+ */
+export async function deliverBreachNotices(now = Date.now(), breach?: string, request?: Request): Promise<{ sent: number; left: number }> {
+  // A row still to try (`p` its table's alias and dot): not sent, tries left, no final result, its breach open and its notice shown.
+  const open = (p: string) => `${p}sent_at IS NULL AND ${p}tries < ${BREACH_TRIES} AND (${p}result IS NULL OR ${p}result NOT IN (${FINAL.map((r) => `'${r}'`).join(', ')}))
+    AND ${p}breach IN (SELECT id FROM breach WHERE notice <> '' AND closed_at IS NULL AND (notice_until IS NULL OR notice_until > ?))${breach ? ` AND ${p}breach = ?` : ''}`;
+  const args = [now, ...(breach ? [breach] : [])];
+  const rows = await accounts().all<{ breach: string; user: string; family: string; tries: number; notice: string; email: string | null; verified: number; name: string; locale: string | null }>(
+    `SELECT bm.breach, bm.user, bm.family, bm.tries, b.notice, u.email, u.email_verified AS verified, u.name, u.locale
+       FROM breach_mail bm JOIN breach b ON b.id = bm.breach JOIN user u ON u.id = bm.user
+      WHERE ${open('bm.')}
+      ORDER BY bm.at, bm.breach, bm.family, bm.user`, ...args);
+  let sent = 0;
+  const names = new Map<string, string>();
+  for (const r of rows) {
+    // Claimed: a parallel run finds the try counted and leaves the row alone.
+    const claim = await accounts().batch([q('UPDATE breach_mail SET tries = tries + 1 WHERE breach = ? AND user = ? AND family = ? AND tries = ? AND sent_at IS NULL RETURNING tries', r.breach, r.user, r.family, r.tries)]);
+    if (!(claim[0]?.rows as unknown[] | undefined)?.length) continue;
+    let result: SendResult | 'no_address' = 'no_address';
+    if (r.email && r.verified === 1) {
+      if (!names.has(r.family)) names.set(r.family, mailName(await familyName(r.family)));
+      const family = names.get(r.family)!;
+      const tree = r.family;
+      result = (await sendMail({
+        to: r.email, locale: localeOf(r.locale), category: 'notice', request,
+        body: (t, { server, origin }) => ({
+          greeting: t('email.mail.greeting', { name: mailName(r.name) }),
+          subject: t('email.mail.breach_subject', { family }),
+          paragraphs: [t('email.mail.breach_body', { server, family })],
+          quote: r.notice,
+          action: { label: t('email.mail.breach_action'), url: `${origin}/${tree}` },
+        }),
+      }, now)).result;
+    }
+    await accounts().run('UPDATE breach_mail SET result = ?, sent_at = ? WHERE breach = ? AND user = ? AND family = ?', result, result === 'sent' ? now : null, r.breach, r.user, r.family);
+    if (result === 'sent') sent++;
+  }
+  const left = await accounts().get<{ n: number }>(`SELECT count(*) AS n FROM breach_mail WHERE ${open('')}`, ...args);
+  return { sent, left: Number(left?.n ?? 0) };
+}
+
+/** deliverBreachNotices for one breach after the answer. Never throws. */
+export function emailBreachNotice(breach: string, now = Date.now(), request?: Request): void {
+  sendLater(() => deliverBreachNotices(now, breach, request));
 }

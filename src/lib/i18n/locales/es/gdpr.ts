@@ -162,4 +162,5 @@ export default {
   "gdpr.accept_terms_agreement": "Acepto las condiciones y, por la familia, el acuerdo de tratamiento de datos",
   "gdpr.accept_agreement": "Acepto el acuerdo de tratamiento de datos por la familia",
   "gdpr.read_agreement": "Leer el acuerdo de tratamiento de datos",
+  "gdpr.notice_reach": "El aviso llegó por correo a {reached} de {total} responsables.",
 } satisfies Strings<typeof en, "es">;

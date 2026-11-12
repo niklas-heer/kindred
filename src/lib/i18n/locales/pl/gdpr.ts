@@ -182,4 +182,5 @@ export default {
   "gdpr.read_agreement": "Przeczytaj umowę powierzenia przetwarzania",
   "gdpr.ret_kept": { one: "Zachowano {count} konto: po wybraniu było używane albo dołączyło do rodziny.", few: "Zachowano {count} konta: po wybraniu były używane albo dołączyły do rodziny.", many: "Zachowano {count} kont: po wybraniu były używane albo dołączyły do rodziny.", other: "Zachowano {count} konta: po wybraniu były używane albo dołączyły do rodziny." },
   "gdpr.ret_failed": { one: "Nie udało się usunąć {count} konta. Kolejna próba nastąpi jutro; powód podaje dziennik serwera.", few: "Nie udało się usunąć {count} kont. Kolejna próba nastąpi jutro; powód podaje dziennik serwera.", many: "Nie udało się usunąć {count} kont. Kolejna próba nastąpi jutro; powód podaje dziennik serwera.", other: "Nie udało się usunąć {count} konta. Kolejna próba nastąpi jutro; powód podaje dziennik serwera." },
+  "gdpr.notice_reach": "Komunikat dotarł e-mailem do {reached} z {total} opiekunów.",
 } satisfies Strings<typeof en, "pl">;

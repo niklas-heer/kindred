@@ -47,6 +47,8 @@ export interface Breach extends BreachInput {
   deadline: number;
   /** 'none' (no notification owed, or done), 'running' (owed, within 72 hours), 'late' (owed, past 72 hours). */
   clock: 'none' | 'running' | 'late';
+  /** How many of the stewards its current notice is for it reached by email (accounts `breach_mail`); null without a notice sent. */
+  noticeReach: { reached: number; total: number } | null;
 }
 
 type Row = {
@@ -61,22 +63,24 @@ export function clockOf(b: { awareAt: number; risk: BreachRisk; authorityAt: num
   return now > b.awareAt + NOTIFY_HOURS * HOUR ? 'late' : 'running';
 }
 
-const toBreach = (r: Row, families: string[], now: number): Breach => {
+const toBreach = (r: Row, families: string[], now: number, reach: Breach['noticeReach'] = null): Breach => {
   const b: BreachInput = {
     title: r.title, awareAt: r.aware_at, occurredAt: r.occurred_at, description: r.description, dataCategories: r.data_categories, subjects: r.subjects,
     consequences: r.consequences, measures: r.measures, risk: r.risk, authorityAt: r.authority_at, authorityRef: r.authority_ref ?? '', lateReason: r.late_reason ?? '',
     subjectsAt: r.subjects_at, notice: r.notice, noticeUntil: r.notice_until, closedAt: r.closed_at, families,
   };
-  return { ...b, id: r.id, createdAt: r.created_at, updatedAt: r.updated_at, deadline: r.aware_at + NOTIFY_HOURS * HOUR, clock: clockOf(b, now) };
+  return { ...b, id: r.id, createdAt: r.created_at, updatedAt: r.updated_at, deadline: r.aware_at + NOTIFY_HOURS * HOUR, clock: clockOf(b, now), noticeReach: reach };
 };
 
 /** Every breach, newest first. */
 export async function breaches(now = Date.now()): Promise<Breach[]> {
-  const [rows, fams] = (await accounts().readBatch([
+  const [rows, fams, reach] = (await accounts().readBatch([
     q('SELECT * FROM breach ORDER BY aware_at DESC'),
     q('SELECT breach, family FROM breach_family ORDER BY family'),
-  ])) as unknown as [Row[], { breach: string; family: string }[]];
-  return rows.map((r) => toBreach(r, fams.filter((f) => f.breach === r.id).map((f) => f.family), now));
+    q('SELECT breach, count(sent_at) AS reached, count(*) AS total FROM breach_mail GROUP BY breach'),
+  ])) as unknown as [Row[], { breach: string; family: string }[], { breach: string; reached: number; total: number }[]];
+  const reachOf = new Map(reach.map((x) => [x.breach, { reached: Number(x.reached), total: Number(x.total) }]));
+  return rows.map((r) => toBreach(r, fams.filter((f) => f.breach === r.id).map((f) => f.family), now, reachOf.get(r.id) ?? null));
 }
 
 const line = (s: string, max: number) => s.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -104,16 +108,20 @@ export async function saveBreach(op: { id: string; name: string }, input: Breach
         ...v, now, op.id, now, op.id, key)];
   const before = id ? await accounts().get<{ notice: string }>('SELECT notice FROM breach WHERE id = ?', id) : undefined;
   if (id && !before) throw new AuthError('invalid', translate('en', 'gdpr.err.breach_gone'));
+  // A new or changed notice of an open breach also goes to the affected families' stewards by email, when the server sends
+  // email (src/lib/email/notify.server.ts): one row each, so the register shows whom it reached and the daily job retries the
+  // rest. The banner shows it either way.
+  const notice = text(input.notice, 1000);
+  const mail = !!notice && !input.closedAt && notice !== before?.notice;
+  const notify = mail ? await import('../email/notify.server.ts') : null;
   await accounts().batch([
     ...writes,
     q('DELETE FROM breach_family WHERE breach = ?', key),
     ...(families.length ? [q('INSERT INTO breach_family (breach, family) SELECT ?, value FROM json_each(?)', key, JSON.stringify(families))] : []),
+    ...(notify ? notify.queueBreachNotice(key, families.length ? families : null, now) : []),
     audit(op, id ? 'breach.update' : 'breach.record', null, { breach: key, risk: input.risk, families: families.length || 'all' }, now),
   ]);
-  // A new or changed notice of an open breach also goes to the affected families' stewards by email, when the server sends
-  // email (src/lib/email/notify.server.ts). The banner shows it either way.
-  const notice = text(input.notice, 1000);
-  if (notice && !input.closedAt && notice !== before?.notice) (await import('../email/notify.server.ts')).emailBreachNotice(families.length ? families : null, notice);
+  notify?.emailBreachNotice(key, now);
   return key;
 }
 

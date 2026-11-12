@@ -247,7 +247,8 @@ is read-only, and while `KINDRED_AUTH_METHODS` is set it only shows what that se
 Kindred sends no email until you set it up on the console's **Email** tab (`src/lib/email/`). It needs `KINDRED_ORIGIN`, this
 server's public address ([self-host.md](self-host.md#settings)): every link in an email is built from it, never from the address
 a request names, which anyone can forge. Without it the tab says so and email cannot be turned on (a server on `localhost` may go
-without, for development). Choose how it sends:
+without, for development: outside production, or in production only for a request that really comes from this machine, a
+loopback peer no proxy forwarded; never on Workers). Choose how it sends:
 
 - **Resend**, **Postmark** or **Mailgun** (with its **EU** region, which keeps the messages in the EU): they speak HTTP, so they
   work on Node and on Cloudflare Workers alike. You need an account there, a sending domain it has verified, and its API key.

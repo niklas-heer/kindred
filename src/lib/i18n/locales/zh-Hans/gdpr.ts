@@ -162,4 +162,5 @@ export default {
   "gdpr.accept_terms_agreement": "我接受使用条款，以及代表家族接受数据处理协议",
   "gdpr.accept_agreement": "我代表家族接受数据处理协议",
   "gdpr.read_agreement": "阅读数据处理协议",
+  "gdpr.notice_reach": "这条通知已通过邮件送达 {total} 位负责人中的 {reached} 位。",
 } satisfies Strings<typeof en, "zh-Hans">;

@@ -162,4 +162,5 @@ export default {
   "gdpr.read_agreement": "Lees de verwerkersovereenkomst",
   "gdpr.ret_kept": { one: "{count} account is bewaard: het werd gebruikt of trad toe tot een familie nadat het was geselecteerd.", other: "{count} accounts zijn bewaard: ze werden gebruikt of traden toe tot een familie nadat ze waren geselecteerd." },
   "gdpr.ret_failed": { one: "{count} account kon niet worden verwijderd. Morgen wordt het opnieuw geprobeerd; het logboek van de server zegt waarom.", other: "{count} accounts konden niet worden verwijderd. Morgen wordt het opnieuw geprobeerd; het logboek van de server zegt waarom." },
+  "gdpr.notice_reach": "De melding heeft {reached} van de {total} beheerders per e-mail bereikt.",
 } satisfies Strings<typeof en, "nl">;

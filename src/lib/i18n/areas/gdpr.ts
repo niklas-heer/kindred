@@ -161,4 +161,5 @@ export const en = {
   "gdpr.accept_terms_agreement": "I accept the terms and, for the family, the processing agreement",
   "gdpr.accept_agreement": "I accept the processing agreement for the family",
   "gdpr.read_agreement": "Read the processing agreement",
+  "gdpr.notice_reach": "Its notice reached {reached} of {total} stewards by email.",
 };

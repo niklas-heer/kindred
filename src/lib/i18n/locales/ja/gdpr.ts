@@ -162,4 +162,5 @@ export default {
   "gdpr.accept_terms_agreement": "利用規約と、家族のためのデータ処理契約に同意します",
   "gdpr.accept_agreement": "家族のためのデータ処理契約に同意します",
   "gdpr.read_agreement": "データ処理契約を読む",
+  "gdpr.notice_reach": "この通知はメールで世話役{total}人のうち{reached}人に届きました。",
 } satisfies Strings<typeof en, "ja">;

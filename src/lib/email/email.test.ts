@@ -407,6 +407,21 @@ test('without KINDRED_ORIGIN no link is built from the request’s Host: email i
     assert.equal(send.mailOrigin(poisoned), undefined, 'a Host header names no origin');
     assert.equal(send.mailOrigin(), undefined, 'nor does a job');
     assert.equal(send.mailOrigin(new Request('http://localhost:4653/api/x')), 'http://localhost:4653', 'a local server (tests, development) may');
+    // In production a Host of localhost is believed only from a loopback peer that no proxy forwarded.
+    const env = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      const from = (peer: string | undefined, headers: Record<string, string> = {}) =>
+        Object.assign(new Request('http://localhost:4653/api/x', { headers }), peer === undefined ? {} : { runtime: { node: { req: { socket: { remoteAddress: peer } } } } });
+      assert.equal(send.mailOrigin(from(undefined)), undefined, 'no socket to ask');
+      assert.equal(send.mailOrigin(from('203.0.113.5')), undefined, 'a remote peer that set Host: localhost');
+      assert.equal(send.mailOrigin(from('127.0.0.1', { 'x-forwarded-for': '203.0.113.5' })), undefined, 'a proxy on this machine forwarding someone else');
+      assert.equal(send.mailOrigin(from('127.0.0.1')), 'http://localhost:4653');
+      assert.equal(send.mailOrigin(from('::ffff:127.0.0.1')), 'http://localhost:4653');
+      assert.equal(send.mailOrigin(from('::1')), 'http://localhost:4653');
+    } finally {
+      if (env === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = env;
+    }
     assert.equal(await send.emailOn(poisoned), false);
     assert.equal((await send.sendMail({ to: 'ada@example.org', locale: 'en', category: 'security', request: poisoned, body: (t) => ({ subject: 'x', paragraphs: [t('email.mail.test_body')] }) })).result, 'off');
     await assert.rejects(requestPasswordReset(poisoned, 'ada@example.org', ip), /email\.err\.off/, 'no reset link to a poisoned origin');
@@ -495,10 +510,15 @@ test('a data request’s receipt goes to one address at most once a day', async 
   assert.equal(sent.filter((m) => m.to === 'someone@example.org').length, 1);
 });
 
+const breachInput = (now: number, notice: string) => ({
+  title: 'Stolen disk', awareAt: now - 1000, occurredAt: null, description: '', dataCategories: '', subjects: '', consequences: '', measures: '', risk: 'risk' as const,
+  authorityAt: null, authorityRef: '', lateReason: '', subjectsAt: null, notice, noticeUntil: null, closedAt: null, families: ['testfield'],
+});
+
 test('a breach notice and the lifecycle’s final notice are notices that cannot be unsubscribed; the stewards’ email reports what it delivered', async () => {
   const ada = await account('Ada Example', { email: 'ada@example.org', verified: true });
   await store.accounts().batch([store.upsertMembership(ada.id, 'testfield', 'steward')]);
-  notify.emailBreachNotice(['testfield'], 'Our backup disk was stolen.');
+  await (await import('../gdpr/breach.server.ts')).saveBreach({ id: ada.id, name: 'Orla' }, breachInput(Date.now(), 'Our backup disk was stolen.'));
   await send.settleSends();
   assert.equal(sent.length, 1);
   assert.equal(sent[0]!.headers['List-Unsubscribe'], undefined, 'no unsubscribe on a breach notice');
@@ -507,4 +527,32 @@ test('a breach notice and the lifecycle’s final notice are notices that cannot
   const delivered = await notify.mailStewards('testfield', (t) => ({ subject: 'Final', paragraphs: [t('email.mail.test_body')] }), { category: 'notice' });
   assert.equal(delivered, 1, 'an unsubscribe from family notices does not stop a final notice');
   assert.equal(await notify.mailStewards('testfield', (t) => ({ subject: 'News', paragraphs: [t('email.mail.test_body')] }), { category: 'family' }), 0);
+});
+
+test('a breach notice records how many stewards it reached, and the daily job retries those it did not reach', async () => {
+  const breach = await import('../gdpr/breach.server.ts');
+  const ada = await account('Ada Example', { email: 'ada@example.org', verified: true });
+  const bo = await account('Bo Example', { email: 'bo@example.org', verified: true });
+  await store.accounts().batch([store.upsertMembership(ada.id, 'testfield', 'steward'), store.upsertMembership(bo.id, 'testfield', 'steward')]);
+  // Bo has had all their email for this hour already: the notice is throttled for them, not lost.
+  const r = await send.recipientHash('bo@example.org');
+  const now = Date.now();
+  for (let i = 0; i < send.RECIPIENT_PER_HOUR; i++) await store.accounts().run("INSERT INTO email_send (at, recipient, category, status) VALUES (?, ?, 'security', 'sent')", now - 1000, r);
+  const OP = { id: ada.id, name: 'Orla' };
+  const input = breachInput(now, 'Our backup disk was stolen.');
+  const id = await breach.saveBreach(OP, input, undefined, now);
+  await send.settleSends();
+  assert.deepEqual(sent.map((m) => m.to), ['ada@example.org']);
+  assert.deepEqual((await breach.breaches(now)).find((x) => x.id === id)!.noticeReach, { reached: 1, total: 2 });
+  // The next day the job sends the one left, and only that one.
+  const later = await notify.deliverBreachNotices(now + 2 * 3_600_000);
+  assert.deepEqual(later, { sent: 1, left: 0 });
+  assert.deepEqual(sent.map((m) => m.to), ['ada@example.org', 'bo@example.org']);
+  assert.deepEqual((await breach.breaches(now)).find((x) => x.id === id)!.noticeReach, { reached: 2, total: 2 });
+  assert.deepEqual(await notify.deliverBreachNotices(now + 3 * 3_600_000), { sent: 0, left: 0 });
+  // A changed notice starts over: every steward gets the new text.
+  await breach.saveBreach(OP, { ...input, notice: 'The disk was found again.' }, id, now + 4 * 3_600_000);
+  await send.settleSends();
+  assert.equal(sent.length, 4);
+  assert.deepEqual((await breach.breaches(now)).find((x) => x.id === id)!.noticeReach, { reached: 2, total: 2 });
 });
