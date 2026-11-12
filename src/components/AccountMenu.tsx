@@ -8,6 +8,7 @@ import { graphQuery } from '~/lib/api';
 import { Activity, ArrowLeftRight, BarChart3, Bell, Check, Compass, Eye, Fingerprint, Info, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus, Gamepad2, Landmark, History, Printer, Scale, ServerCog } from 'lucide-react';
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import { publicInstanceQuery } from '~/lib/operator/operator.functions';
+import { updateDotQuery } from '~/lib/operator/insight.functions';
 import { anyLegal } from '~/lib/operator/shared';
 import '~/components/assistant/ai-tasks.css';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
@@ -89,6 +90,8 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
   const remindersOn = useQuery({ queryKey: ['reminders', 'available'], queryFn: () => fetchRemindersAvailable(), staleTime: 5 * 60_000 });
   // The server's legal texts, when its operator wrote any: a link to them (src/routes/legal.tsx).
   const instance = useQuery({ ...publicInstanceQuery, enabled: open });
+  // A newer Kindred release, as the operator's daily check found it (src/lib/operator/updates.server.ts): a dot on the console's link.
+  const update = useQuery({ ...updateDotQuery, enabled: open && !!session?.user?.operator && !session?.demo });
   // The quiet badge: what waits for a steward, on the Access page and in AI activity (zero for everyone else).
   const attention = useQuery({ ...aiAttentionQuery(tree ?? ''), enabled: !!tree && !!m && can(m.role, 'manage-access') });
   // Changes in the family this member has not been shown yet: a dot beside History (history.functions.ts).
@@ -259,7 +262,8 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
               {!demo && signedIn.operator && (
                 <Link role="menuitem" className="acct-item" to="/operator" onClick={() => setOpen(false)}>
                   <ServerCog size={17} /> {t('operator.menu')}{' '}
-                  {operatorWaiting ? <span className="aitasks-count"><span aria-hidden>{operatorWaiting}</span><span className="sr-only">{t('operator.menu_waiting', { count: operatorWaiting })}</span></span> : null} </Link>
+                  {operatorWaiting ? <span className="aitasks-count"><span aria-hidden>{operatorWaiting}</span><span className="sr-only">{t('operator.menu_waiting', { count: operatorWaiting })}</span></span> : null}
+                  {update.data ? <span className="hist-dot" role="img" aria-label={t('ops.update_dot')} /> : null} </Link>
               )}
               {!demo && (
               <button role="menuitem" className="acct-item" onClick={() => void signOut(session?.accessLogout, !!preview)}>
@@ -296,6 +300,9 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
             </div>
             <button role="menuitem" className="acct-item acct-about" onClick={() => { setOpen(false); setAbout(true); }}>
               <Info size={17} /> {t('accountmenu.about')} </button>
+            {/* "New in Kindred": the highlights of each release (src/lib/releases/), not the family's own "What's new". */}
+            <Link role="menuitem" className="acct-item" to="/whats-new" onClick={() => setOpen(false)}>
+              <Sparkles size={17} /> {t('ops.new_in_kindred')} </Link>
             {instance.data && anyLegal(instance.data.legal) && (
               <Link role="menuitem" className="acct-item" to="/legal" onClick={() => setOpen(false)}>
                 <Scale size={17} /> {t('legal.title')} </Link>

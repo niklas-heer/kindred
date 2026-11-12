@@ -153,6 +153,8 @@ const ACTIONS: Record<string, Key> = {
   'operator.add': 'operator.audit_operator_add',
   'operator.remove': 'operator.audit_operator_remove',
   'operator.step_down': 'operator.audit_step_down',
+  'updates.on': 'ops.audit_updates_on',
+  'updates.off': 'ops.audit_updates_off',
 };
 
 export function AuditTab({ families }: { families: OperatorFamily[] }) {

@@ -325,6 +325,9 @@ const OPEN = new Set([
   // The server's own public pages (docs/hosting-many-families.md): its name and legal texts, and the two request forms anyone
   // may send. None reads a family (src/lib/operator/operator.test.ts holds their rules).
   'fetchPublicInstance', 'fetchLegal', 'sendFamilyRequest', 'sendDataRequest',
+  // "New in Kindred" (src/lib/releases/): who reads the highlights ('everyone' for a guest) and the card, which a guest never
+  // gets; the console's update dot, false for anyone but an operator. None reads a family (operator/insight.test.ts).
+  'fetchReleaseReader', 'fetchReleaseCard', 'fetchUpdateDot',
 ]);
 /** Everything a handler might read before its guard, so a failure can only be the guard's. */
 const DATA = { tree: TREE, id: 'ada', person: 'ada', personId: 'ada', key: 'k', house: 'h', mediaKey: 'gallery/x.jpg', locale: 'en', format: 'gedcom', name: 'x', text: 'x', user: STEWARD, role: 'viewer', confirm: true, token: 'x', endpoint: 'https://x/y', opKey: 'abcdefgh', people: [], links: [], places: [], items: [], photos: [], title: 'x', body: 'x', project: 'p1' };

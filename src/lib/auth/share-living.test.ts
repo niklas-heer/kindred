@@ -227,6 +227,9 @@ const ANSWERS_A_GUEST = new Set([
   'stopViewAs',
   // The server's public pages: its name, legal texts and request forms, which read no family (operator.test.ts).
   'fetchPublicInstance', 'fetchLegal', 'sendFamilyRequest', 'sendDataRequest',
+  // "New in Kindred" (src/lib/releases/): who reads the highlights ('everyone' for a guest) and the card, which a guest never
+  // gets; the console's update dot, false for anyone but an operator. None reads a family (operator/insight.test.ts).
+  'fetchReleaseReader', 'fetchReleaseCard', 'fetchUpdateDot',
 ]);
 
 /** Asks every server function as a guest, once about the child and once about her research, and returns what answered. */

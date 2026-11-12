@@ -87,6 +87,8 @@ export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): 
     };
   }
   const guestHost = onGuestHost(getRequest());
+  // "New in Kindred": when this server first ran its version, so only accounts older than that get the card (releases.server.ts).
+  await (await import('../releases/releases.server')).noteRunning();
   // First-time setup is no business of the guest host, which is open to the internet.
   const needs = guestHost ? false : await setup.needsSetup(getRequest());
   const needsFamily = needs && !(await (await import('./trees.server')).families()).length;

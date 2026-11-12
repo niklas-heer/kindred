@@ -201,6 +201,8 @@ invites the others.
 | `KINDRED_HISTORY_YEARS` | variable | How many years of each family's change history the daily run keeps. Default `3`; `0` keeps it for ever. |
 | `KINDRED_TURNSTILE_SITE_KEY` | variable | Cloudflare Turnstile's site key, for the public request forms (`/request`, `/privacy-request`) of a server that hosts families for others. Make a widget in the Cloudflare dashboard (Turnstile, free) for your Worker's host name. Needs the secret too. See [hosting-many-families.md](hosting-many-families.md). |
 | `KINDRED_TURNSTILE_SECRET` | secret | Turnstile's secret key: the Worker asks Cloudflare whether a form's token is good. Without both, the forms rely on a hidden field and a limit per network. |
+| `KINDRED_UPDATE_CHECK` | variable | `off` turns the operator console's update check off for good. Otherwise the Worker asks GitHub once a day, only after an operator agreed. See [hosting-many-families.md](hosting-many-families.md#updates). |
+| `KINDRED_UPDATE_REPO` | variable | The repository (`owner/name`) whose releases the update check reads, for a fork. Default `niklas-heer/kindred`. |
 
 ```sh
 npx wrangler secret put KINDRED_SECRET

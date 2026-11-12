@@ -17,6 +17,7 @@ import { openTours } from '~/components/tour/store';
 import { GuestChip } from '~/components/GuestChip';
 import { ViewAsBar, ViewAsHost } from '~/components/viewas/ViewAs';
 import { ClosedFamilyPage, SuspendedBar } from '~/components/operator/SuspendedBar';
+import { ReleaseCard } from '~/components/releases/ReleaseCard';
 import { JoinInvite } from '~/components/join/JoinInvite';
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import { FeedbackHost, openFeedback } from '~/components/feedback/FeedbackHost';
@@ -238,6 +239,7 @@ function TreeLayout() {
         <main id="main" className="shell-main" tabIndex={-1}><Outlet /></main>
       </MainContext.Provider>
       <PageFaces />
+      <ReleaseCard />
       {/* Phones: the sections move to a bar along the bottom edge. */}
       <nav className="tabbar" aria-label={t("shell.sections")}>
         {/* Five places. A member: Today (the family's feed), the tree, the Gallery, Contacts, and More, where the Chronicle

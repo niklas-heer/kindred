@@ -19,6 +19,7 @@ import { Route as RequestRouteImport } from './routes/request'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SigninRouteImport } from './routes/signin'
 import { Route as UiRouteImport } from './routes/ui'
+import { Route as WhatsNewRouteImport } from './routes/whats-new'
 import { Route as TreeIndexRouteImport } from './routes/$tree/index'
 import { Route as TreeAccessRouteImport } from './routes/$tree/access'
 import { Route as TreeAlmanacRouteImport } from './routes/$tree/almanac'
@@ -116,6 +117,11 @@ const SigninRoute = SigninRouteImport.update({
 const UiRoute = UiRouteImport.update({
   id: '/ui',
   path: '/ui',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WhatsNewRoute = WhatsNewRouteImport.update({
+  id: '/whats-new',
+  path: '/whats-new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TreeIndexRoute = TreeIndexRouteImport.update({
@@ -370,6 +376,7 @@ export interface FileRoutesByFullPath {
   '/setup': typeof SetupRoute
   '/signin': typeof SigninRoute
   '/ui': typeof UiRoute
+  '/whats-new': typeof WhatsNewRoute
   '/$tree/access': typeof TreeAccessRoute
   '/$tree/almanac': typeof TreeAlmanacRoute
   '/$tree/atlas': typeof TreeAtlasRoute
@@ -429,6 +436,7 @@ export interface FileRoutesByTo {
   '/setup': typeof SetupRoute
   '/signin': typeof SigninRoute
   '/ui': typeof UiRoute
+  '/whats-new': typeof WhatsNewRoute
   '/$tree/access': typeof TreeAccessRoute
   '/$tree/almanac': typeof TreeAlmanacRoute
   '/$tree/atlas': typeof TreeAtlasRoute
@@ -490,6 +498,7 @@ export interface FileRoutesById {
   '/setup': typeof SetupRoute
   '/signin': typeof SigninRoute
   '/ui': typeof UiRoute
+  '/whats-new': typeof WhatsNewRoute
   '/$tree/access': typeof TreeAccessRoute
   '/$tree/almanac': typeof TreeAlmanacRoute
   '/$tree/atlas': typeof TreeAtlasRoute
@@ -552,6 +561,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/signin'
     | '/ui'
+    | '/whats-new'
     | '/$tree/access'
     | '/$tree/almanac'
     | '/$tree/atlas'
@@ -611,6 +621,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/signin'
     | '/ui'
+    | '/whats-new'
     | '/$tree/access'
     | '/$tree/almanac'
     | '/$tree/atlas'
@@ -671,6 +682,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/signin'
     | '/ui'
+    | '/whats-new'
     | '/$tree/access'
     | '/$tree/almanac'
     | '/$tree/atlas'
@@ -732,6 +744,7 @@ export interface RootRouteChildren {
   SetupRoute: typeof SetupRoute
   SigninRoute: typeof SigninRoute
   UiRoute: typeof UiRoute
+  WhatsNewRoute: typeof WhatsNewRoute
   ApiCspReportRoute: typeof ApiCspReportRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiPresenceRoute: typeof ApiPresenceRoute
@@ -824,6 +837,13 @@ declare module '@tanstack/react-router' {
       path: '/ui'
       fullPath: '/ui'
       preLoaderRoute: typeof UiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/whats-new': {
+      id: '/whats-new'
+      path: '/whats-new'
+      fullPath: '/whats-new'
+      preLoaderRoute: typeof WhatsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$tree/': {
@@ -1240,6 +1260,7 @@ const rootRouteChildren: RootRouteChildren = {
   SetupRoute: SetupRoute,
   SigninRoute: SigninRoute,
   UiRoute: UiRoute,
+  WhatsNewRoute: WhatsNewRoute,
   ApiCspReportRoute: ApiCspReportRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiPresenceRoute: ApiPresenceRoute,

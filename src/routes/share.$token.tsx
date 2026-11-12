@@ -84,6 +84,8 @@ function SharePage() {
         {entry.status === 'open' && entry.measured && <p className="auth-device-hint">{t('join.measured_entry')}</p>}
         <button className="btn primary auth-go" disabled={busy || (needsPassword && !password.trim())}>{busy ? t('share.entering') : t('share.enter')}</button>
       </form>
+      {/* Quiet: what Kindred itself can do, the highlights meant for everyone (src/routes/whats-new.tsx). */}
+      <p className="auth-alt"><Link to="/whats-new">{t('ops.new_in_kindred')}</Link></p>
     </AuthCard>
   );
 }

@@ -177,6 +177,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0035_requests.sql` | `family_request` (the waiting list) and `data_request` (access, correction, deletion). |
 | `0036_family_import.sql` | `family_import` (an import into a family's Durable Object, bound to the account that began it), `invite.by_operator` (an operator's first-steward invitation) and `media_usage.pending_at` (an upload on its way). |
 | `0037_operator_forms.sql` | `family_admin.closed` (a closed family), `data_request.forwarded_at` (stewards see a request only once forwarded), `terms_acceptance`, `operator_push`, and the `families_per_account` setting (5 on a new install only). |
+| `0038_operator_insight.sql` | The operator's statistics and update check, and "New in Kindred": `instance_daily`, `update_check`, `release_seen` and `release_running`. |
 
 ### Tables
 
@@ -243,7 +244,8 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   ([roles-and-privacy.md](roles-and-privacy.md#the-operator)). The migration makes the earliest account one; afterwards a new
   account is one only when it is the server's first (`newUser`). The last operator cannot step down.
 - **`instance_setting`** (0034): the server's own settings, one row per `key` (`family_creation`, `instance_name`,
-  `contact_email`, `impressum`, `privacy`, `terms`, `report_contact`, `default_cap_bytes`, `families_per_account` from 0037) with
+  `contact_email`, `impressum`, `privacy`, `terms`, `report_contact`, `default_cap_bytes`, `families_per_account` from 0037,
+  `update_check` from 0038: `on` once an operator agreed to the daily update check, `off` when they declined or turned it off) with
   its text `value`, and when and by whom it last changed. A missing row is the default (`family_creation` is then `stewards`; no
   storage cap; no limit of families per account). Migration 0037 writes `families_per_account` = 5 only on an install with no
   accounts yet.
@@ -263,6 +265,22 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   the family's storage (every file under it, with the size the storage reports, whether a record names it or not) and rebuilds
   the rows from that, keeping rows written since it began and pending reservations younger than an hour. It reads none of the
   family's records. Deleted with the family.
+- **`instance_daily`** (0038): one row per UTC `day` of aggregates of the whole server, for the operator's Statistics tab
+  ([hosting-many-families.md](hosting-many-families.md#statistics)); never a record and never a person. Families (`families`,
+  `families_new`, `families_suspended`, `families_closed`), accounts (`accounts`, `accounts_new`), members per family
+  (`members_median`, `members_max`), accounts active in the last day, 7 and 30 days (`active_day`, `active_week`, `active_month`,
+  from `user.last_seen`), `active_families` (a member's visit in 30 days, from `family_visit`), `storage_bytes` (from
+  `media_usage`), `page_views` (from `stats_daily`, so a family with statistics off adds none), `sign_ins` (JSON, sessions begun
+  that day by method), `requests_open`, `data_requests_open`, `backfilled` (1 for a day the first run reconstructed: only the
+  families, accounts and page views are known; the rest is NULL) and `at`. Written each night for the day before, from the
+  accounts database alone; deleted after three years. Not a family's, so it has no `tree` column and outlives deleted families.
+- **`update_check`** (0038): one row (`id` 1), the last answer to "is there a newer Kindred?": `repo`, `checked_at`, GitHub's
+  `etag`, `latest` (a version), `releases` (JSON: version, name, date, address and notes of up to twenty releases, as GitHub
+  returned them; the console renders the notes through the safe Markdown renderer) and `error` (a short code of a failed check,
+  which keeps the last good answer). Only written once an operator agreed (`instance_setting` `update_check` = `on`).
+- **`release_seen`** (0038): per account (foreign key, deleted with it), the newest minor version (`2.4`) whose "New in Kindred"
+  card it dismissed or followed, and when.
+- **`release_running`** (0038): per minor version, when this server first ran it; the card goes only to accounts made before.
 - **`family_request`** (0035): someone asking for a family while `family_creation` is `requests`: `name`, `email`, `family_name`,
   `message`, `locale`, `created`; `status` (`open`, `approved`, `declined`) with `decided_at`, `decided_by` and, once approved,
   `family` (the id made; not a `tree` column, so the operator's record outlives the family). `network` is a 4-character hash of the

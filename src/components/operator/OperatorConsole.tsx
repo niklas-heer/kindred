@@ -16,10 +16,13 @@ import {
 import { bytesToMb, formatBytes, mbToBytes, type FamilyStatus, type OperatorFamily } from '~/lib/operator/shared';
 import { AuditTab, OperatorsTab, SettingsTab } from './OperatorInstance';
 import { DataRequestsTab, FamilyRequestsTab } from './OperatorRequests';
+import { StatisticsTab } from './OperatorStatistics';
+import { UpdatesTab } from './OperatorUpdates';
+import { updateDotQuery } from '~/lib/operator/insight.functions';
 import '~/components/families/families.css';
 import './operator.css';
 
-export const OPERATOR_TABS = ['families', 'requests', 'data', 'settings', 'operators', 'audit'] as const;
+export const OPERATOR_TABS = ['families', 'statistics', 'requests', 'data', 'settings', 'updates', 'operators', 'audit'] as const;
 export type OperatorTab = (typeof OPERATOR_TABS)[number];
 
 /** As the server suggests an id (suggestId in families.server.ts), so the field fills in while the name is typed. */
@@ -33,6 +36,7 @@ export function OperatorConsole({ tab, onTab }: { tab: OperatorTab; onTab: (tab:
   const { data, isPending, isError, refetch } = useQuery(operatorQuery);
   const waiting = data?.familyRequests.open.length ?? 0;
   const open = data?.dataRequests.open.length ?? 0;
+  const update = useQuery(updateDotQuery).data === true;
   return (
     <main className="families operator" aria-labelledby="operator-title">
       <div className="families-top">
@@ -46,15 +50,19 @@ export function OperatorConsole({ tab, onTab }: { tab: OperatorTab; onTab: (tab:
           <Tabs value={tab} onChange={(v) => onTab(v as OperatorTab)} label={t('operator.title')}>
             <TabList className="operator-tabs">
               <Tab value="families">{t('operator.tab_families')}</Tab>
+              <Tab value="statistics">{t('ops.tab_statistics')}</Tab>
               <Tab value="requests" badge={waiting || undefined}>{t('operator.tab_requests')}</Tab>
               <Tab value="data" badge={open || undefined}>{t('operator.tab_data')}</Tab>
               <Tab value="settings">{t('operator.tab_settings')}</Tab>
+              <Tab value="updates" badge={update ? <><span aria-hidden>•</span><span className="sr-only">{t('ops.update_dot')}</span></> : undefined}>{t('ops.tab_updates')}</Tab>
               <Tab value="operators">{t('operator.tab_operators')}</Tab>
               <Tab value="audit">{t('operator.tab_audit')}</Tab>
             </TabList>
             <TabPanel value="families"><FamiliesTab data={data} /></TabPanel>
             <TabPanel value="requests"><FamilyRequestsTab data={data} /></TabPanel>
             <TabPanel value="data"><DataRequestsTab data={data} /></TabPanel>
+            <TabPanel value="statistics"><StatisticsTab /></TabPanel>
+            <TabPanel value="updates"><UpdatesTab /></TabPanel>
             <TabPanel value="settings"><SettingsTab settings={data.settings} turnstile={data.turnstile} pushKey={data.pushKey} /></TabPanel>
             <TabPanel value="operators"><OperatorsTab operators={data.operators} /></TabPanel>
             <TabPanel value="audit"><AuditTab families={data.families} /></TabPanel>

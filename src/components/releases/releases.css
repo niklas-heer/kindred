@@ -1,0 +1,18 @@
+/* "New in Kindred": the page of release highlights and the card after an upgrade (src/components/releases/). */
+.whatsnew { display: grid; gap: 20px; text-align: left; }
+.whatsnew-release h2 { margin: 0 0 8px; font-size: var(--fs-5, 1.125rem); display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.whatsnew-date { font-size: var(--fs-2, 0.8125rem); font-weight: 400; }
+.whatsnew-current { font-size: var(--fs-1, 0.75rem); }
+.whatsnew-release ul { margin: 0; padding-left: 18px; display: grid; gap: 8px; line-height: 1.45; }
+.whatsnew-for { font-size: var(--fs-2, 0.8125rem); }
+.whatsnew-flags { display: flex; gap: 8px; margin: 0 0 8px; }
+.whatsnew-links { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0; }
+.release-card {
+  position: fixed; right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); z-index: 40;
+  display: flex; align-items: flex-start; gap: 10px; padding: 12px 12px 12px 14px; max-width: min(340px, calc(100vw - 24px));
+  box-shadow: var(--shadow-2, 0 6px 24px rgb(0 0 0 / 0.18));
+}
+.release-card-icon { color: var(--accent); flex: none; margin-top: 2px; }
+.release-card-title { margin: 0 0 2px; font-weight: 600; }
+.release-card .btn.icon { flex: none; }
+@media print { .release-card { display: none; } }
