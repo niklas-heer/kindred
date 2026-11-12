@@ -12,7 +12,9 @@
 .operator-meter { display: block; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; max-width: 160px; }
 .operator-meter > span { display: block; height: 100%; background: var(--accent); }
 .operator-meter > span[data-full] { background: var(--danger); }
-.operator-chip { font-size: var(--fs-1, 0.75rem); color: var(--danger); border-color: currentColor; }
+/* The danger colour drawn toward the text colour: codex's --danger alone reaches only 2.9:1 on the chip's --panel-2, the mix
+   at least 4.8:1 in every theme. */
+.operator-chip { font-size: var(--fs-1, 0.75rem); color: color-mix(in srgb, var(--danger) 60%, var(--text)); border-color: var(--danger); }
 .operator-stewards { display: grid; gap: 6px; }
 .operator-stewards ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
 .operator-stewards p { margin: 0; }
