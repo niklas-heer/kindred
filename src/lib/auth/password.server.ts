@@ -67,10 +67,12 @@ export async function verifyAccountPassword(password: string, stored: string): P
 export const needsRehash = (stored: string) => !stored.startsWith(`${PASSWORD_SCHEME}$`);
 
 // What unknown usernames are checked against: a stored form of random bytes, so checking it is exactly one derivation, like a
-// real account's (no hash is made first), and nothing ever matches it.
-const DUMMY = `${PASSWORD_SCHEME}$${randomToken(16)}$${randomToken(32)}`;
+// real account's (no hash is made first), and nothing ever matches it. Made at first use: a Worker may not draw random
+// values while its modules load.
+let dummy: string | undefined;
 async function dummyVerify(password: string): Promise<false> {
-  await verifyAccountPassword(password, DUMMY);
+  dummy ??= `${PASSWORD_SCHEME}$${randomToken(16)}$${randomToken(32)}`;
+  await verifyAccountPassword(password, dummy);
   return false;
 }
 
