@@ -42,7 +42,7 @@ export function HealthTab({ onWorkers }: { onWorkers: boolean }) {
                 {j.ok ? <span>{t('update.health_job_ok', { date: when(j.finishedAt) })}</span> : (
                   <>
                     <span className="families-error"><AlertTriangle size={13} aria-hidden /> {t('update.health_job_failed', { date: when(j.finishedAt) })}</span>
-                    {(j.code || j.error) && <> <span className="muted">(<code>{j.code ?? 'error'}</code>{j.error && <>: {j.error}</>})</span></>}{' '}
+                    {(j.code || j.error) && <> <span className="muted">({j.code && <code>{j.code}</code>}{j.code && j.error && ': '}{j.error})</span></>}{' '}
                     <span className="muted">{j.lastOkAt ? t('update.health_job_last_ok', { date: when(j.lastOkAt) }) : t('update.health_job_never_ok')}</span>
                   </>
                 )}
