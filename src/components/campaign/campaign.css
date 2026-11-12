@@ -346,7 +346,8 @@
 .cg-legend-box { display: grid; gap: 6px; font-family: var(--font-ui); font-size: var(--fs-2); }
 .cg-legend-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; }
 .cg-legend-chips li { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
-.cg-terrain-legend summary { cursor: pointer; color: var(--muted); width: fit-content; }
+/* A 24px target (WCAG 2.5.8): one line of the phone's small type is only 19px tall. */
+.cg-terrain-legend summary { cursor: pointer; color: var(--muted); width: fit-content; min-height: 24px; padding-block: 3px; box-sizing: border-box; }
 .cg-terrain-legend ul { list-style: none; margin: 8px 0 4px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px 16px; }
 .cg-terrain-legend li { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px; line-height: var(--lh-ui); }
 .cg-terrain-legend p { margin: 6px 0 0; }
