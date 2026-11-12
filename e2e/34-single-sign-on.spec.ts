@@ -125,7 +125,8 @@ test('single sign-on: the console, an invitation, the account menu and signing i
     // Signed out, the sign-in page offers the provider, and it signs in again.
     await quill.locator('[data-tour="account-menu"]').click();
     await quill.getByRole('menuitem', { name: 'Sign out' }).click();
-    await quill.goto('/signin');
+    // Signing out takes the browser to /signin itself; a navigation of the journey's own would race it.
+    await quill.waitForURL((u) => u.pathname === '/signin');
     await settled(quill);
     await checkAxe(quill, 'sign-in with single sign-on');
     await quill.getByRole('button', { name: 'Continue with Example ID' }).click();

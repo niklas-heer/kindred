@@ -100,7 +100,8 @@ test('passwords beside passkeys: the console, an invitation, two-step codes and 
     // Signed out, a wrong password gets the one answer; the right one asks for the code, and the next code signs in.
     await pip.locator('[data-tour="account-menu"]').click();
     await pip.getByRole('menuitem', { name: 'Sign out' }).click();
-    await pip.goto('/signin');
+    // Signing out takes the browser to /signin itself; a navigation of the journey's own would race it.
+    await pip.waitForURL((u) => u.pathname === '/signin');
     await settled(pip);
     await expect(pip.getByRole('button', { name: 'Sign in with a passkey' })).toBeVisible();
     await pip.getByLabel('Username').fill('pip.pennywhistle');
