@@ -1,34 +1,55 @@
-// node --test src/lib/campaign/engine.test.ts — the Campaign's rules: the map is one piece and the same for the same
-// seed, its terrain is dealt in fair shares and each kind keeps its one rule, the odds an attack shows are exact, moves
-// are refused when the rules say so and never change the position they were given, regents play only by the rules, a
-// reign's moves replay to the same score and a forged list is refused, and a reign between regents stays open to the end.
+// node --test src/lib/campaign/engine.test.ts — the Campaign's rules: the continent is one piece of land and the same for
+// the same seed, every province can be reached, every name is invented and none is a real place's, the terrain is dealt
+// by the lie of the land and each kind keeps its one rule, a river or the sea shortens a battle and a ridge stops it, the
+// odds an attack shows are exact, moves are refused when the rules say so and never change the position they were given,
+// regents play only by the rules, a reign's moves replay to the same score and a forged list is refused, a reign has a
+// chronicle and a title, and a reign between regents stays open to the end.
 import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { TITLES, chronicleOf, highlights, seasonOf } from './chronicle.ts';
 import {
-  CampaignError, MAP_H, MAP_W, RULES, adjacent, battle, buildMap, capOf, levyOf, neighbours, openReign, orderTroops, play, provincesOf, regentMoves,
-  sendable,
-  regentTurn, replay, scoreOf, setupField, standings, startState, terrainOf, troopsOf, winChance,
-  type GameMap, type Move, type PlaceIn, type Reign, type State,
+  CampaignError, MAP_H, MAP_W, RULES, RULESET, adjacent, battle, capOf, crossingOf, groundOf, levyOf, neighbours, openReign, orderTroops, play, provincesOf, regentMoves,
+  roundsOn, rulesetOf, sendable,
+  regentTurn, replay, scoreOf, setupField, standings, terrainOf, troopsOf, winChance,
+  type GameMap, type Ground, type Move, type Reign, type State, type Terrain,
 } from './engine.ts';
+import { DENIED, NAME_KINDS, allowed, everyName } from './names.ts';
 import { RENOWN_STEPS, renownOf } from './renown.ts';
-import { rng } from './rng.ts';
 
-const places = (n: number, seed = 'places'): PlaceIn[] => {
-  const r = rng(seed);
-  return Array.from({ length: n }, (_, i) => ({ name: `Place ${i}`, lat: 44 + r() * 8, lng: r() * 12, people: 100 - i }));
-};
 const SIDES = ['ash', 'birch', 'cedar', 'dale'];
+const SEEDS = Array.from({ length: 40 }, (_, i) => `land${i}`);
+const on = (terrain: Terrain, crossing: Ground['crossing'] = null): Ground => ({ terrain, crossing });
 const reignOf = (seed = 's1', extra: Partial<Reign> = {}) => {
-  const field = setupField(places(30, `p:${seed}`), SIDES, seed);
+  const field = setupField(SIDES, seed);
   const reign: Reign = { map: field.map, sides: SIDES, player: 'ash', seed, renown: 0, grant: 0, ...extra };
   return { field, reign, state: openReign(field.start, reign) };
 };
 const refused = (code: string) => (e: unknown) => e instanceof CampaignError && e.code === code && e.message === `campaign.err.${code}`;
-const reachable = (map: GameMap) => {
+/** How many provinces can be reached from the first over these pairs. */
+const reached = (count: number, pairs: [number, number][]) => {
   const seen = new Set([0]);
   const queue = [0];
-  while (queue.length) for (const n of neighbours(map, queue.pop()!)) if (!seen.has(n)) { seen.add(n); queue.push(n); }
-  return seen.size;
+  while (queue.length) {
+    const at = queue.pop()!;
+    for (const [a, b] of pairs) {
+      const next = a === at ? b : b === at ? a : -1;
+      if (next >= 0 && !seen.has(next)) { seen.add(next); queue.push(next); }
+    }
+  }
+  return count === 0 ? 0 : seen.size;
+};
+/** The pairs of provinces whose land touches along an edge: both outlines walk the same two corners, in opposite ways. */
+const touching = (map: GameMap): [number, number][] => {
+  const edges = new Map<string, number>();
+  for (const p of map.provinces) p.cell.forEach((c, i) => edges.set(`${c}>${p.cell[(i + 1) % p.cell.length]}`, p.id));
+  const pairs = new Set<string>();
+  for (const [edge, id] of edges) {
+    const [from, to] = edge.split('>');
+    const other = edges.get(`${to}>${from}`);
+    if (other !== undefined && other > id) pairs.add(`${id}:${other}`);
+  }
+  return [...pairs].map((k) => k.split(':').map(Number) as [number, number]);
 };
 /** A position nobody could have reached by a move is a bug: every province held with at least one troop, none over its cap. */
 const sound = (state: State, map: GameMap) => state.holder.length === map.provinces.length && state.troops.every((t, i) => Number.isInteger(t) && t >= 1 && t <= capOf(map, i));
@@ -45,53 +66,109 @@ const regentReign = (seed: string, extra: Partial<Reign> = {}) => {
   return { field, reign, state: s, moves, leaders };
 };
 
-test('a reign’s map has sixteen provinces, and the same seed gives the same field', () => {
-  const a = setupField(places(30), SIDES, 'seed');
-  assert.deepEqual(a, setupField(places(30), SIDES, 'seed'));
-  assert.notDeepEqual(a.map.provinces.map((p) => [p.x, p.y]), setupField(places(30), SIDES, 'other').map.provinces.map((p) => [p.x, p.y]));
+test('a field is an invented continent of sixteen provinces under today’s rules, and the same seed gives the same field', () => {
+  const a = setupField(SIDES, 'seed');
+  assert.deepEqual(a, setupField(SIDES, 'seed'));
+  assert.notDeepEqual(a.map.provinces.map((p) => p.cell), setupField(SIDES, 'other').map.provinces.map((p) => p.cell));
+  assert.notEqual(a.map.name, setupField(SIDES, 'other').map.name);
   assert.equal(a.map.provinces.length, RULES.PROVINCES);
-  assert.equal(reachable(a.map), RULES.PROVINCES);
+  assert.equal(a.map.v, RULESET);
+  assert.equal(rulesetOf(a.map), RULESET);
+  assert.equal(rulesetOf({ provinces: [], borders: [] } as GameMap), 1, 'a map from before there were versions');
+  // The field is the week's and nobody's own: it holds a house only as the id it was given, and nothing else of a family.
+  assert.deepEqual(setupField(['w', 'x', 'y', 'z'], 'seed').map, a.map, 'the continent comes from the seed alone');
 });
 
-test('the map takes the places most people are linked to, keeps every banner inside the box, and is one piece', () => {
-  for (const seed of ['a', 'b', 'c', 'd', 'e', 'f']) {
-    for (const count of [10, 16, 24]) {
-      const map = buildMap(places(40, seed), count, seed);
-      assert.deepEqual(map.provinces.map((p) => p.name).sort(), Array.from({ length: count }, (_, i) => `Place ${i}`).sort());
-      assert.equal(reachable(map), count, `${seed}/${count} is in one piece`);
-      for (const p of map.provinces) {
-        assert.ok(p.x > 0 && p.x < MAP_W && p.y > 0 && p.y < MAP_H);
-        assert.ok(p.cell.length >= 3, 'every province has land');
-        assert.ok(neighbours(map, p.id).length >= 1);
-      }
-      for (const [x, y] of map.borders) assert.ok(x < y && adjacent(map, x, y) && adjacent(map, y, x));
+test('the land is one piece, every province can be reached, and every banner and border lies inside the sheet', () => {
+  for (const seed of SEEDS) {
+    const { map } = setupField(SIDES, seed);
+    const n = map.provinces.length;
+    assert.equal(reached(n, touching(map)), n, `${seed}: the land is one piece`);
+    assert.equal(reached(n, map.borders), n, `${seed}: every province can be reached`);
+    for (const p of map.provinces) {
+      assert.ok(p.x > 30 && p.x < MAP_W - 30 && p.y > 30 && p.y < MAP_H - 30, `${seed}: ${p.name}'s banner is on the sheet`);
+      assert.ok(p.cell.length >= 12, 'every province has land to stand on');
+      for (const [x, y] of p.cell) assert.ok(Number.isInteger(x) && Number.isInteger(y) && x >= 0 && x <= MAP_W && y >= 0 && y <= MAP_H);
+      assert.ok(neighbours(map, p.id).length >= 2, `${seed}: ${p.name} has two ways out`);
     }
+    for (const [x, y] of map.borders) assert.ok(x < y && adjacent(map, x, y) && adjacent(map, y, x));
+    assert.equal(new Set(map.borders.map(([x, y]) => `${x}:${y}`)).size, map.borders.length, 'no border twice');
   }
 });
 
-
-test('a family with few places gets invented marches, and one with none still gets a whole map', () => {
-  const few = buildMap(places(3), 10, 'few');
-  assert.equal(few.provinces.length, 10);
-  assert.equal(few.provinces.filter((p) => p.real).length, 3);
-  assert.equal(new Set(few.provinces.map((p) => p.name)).size, 10);
-  const none = buildMap([], 10, 'none');
-  assert.equal(none.provinces.filter((p) => p.real).length, 0);
-  assert.equal(reachable(none), 10);
-  // Two places at the same spot, and one with no coordinates: still a map.
-  const odd = buildMap([{ name: 'A', lat: 50, lng: 8, people: 3 }, { name: 'B', lat: 50, lng: 8, people: 2 }, { name: 'C', lat: Number.NaN, lng: 0, people: 9 }], 10, 'odd');
-  assert.equal(reachable(odd), 10);
-  assert.ok(!odd.provinces.some((p) => p.name === 'C'));
+test('rivers run along borders one can cross, ridges close a border, and a sea lane joins harbours the land keeps apart', () => {
+  let rivers = 0, ridges = 0, lanes = 0;
+  for (const seed of SEEDS) {
+    const { map } = setupField(SIDES, seed);
+    const land = touching(map);
+    const lands = (a: number, b: number) => land.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+    for (const river of map.rivers ?? []) {
+      rivers++;
+      assert.ok(river.between.length >= 1 && river.line.length >= 2);
+      for (const [a, b] of river.between) {
+        assert.ok(lands(a, b) && adjacent(map, a, b), 'a river runs between two neighbours');
+        assert.equal(crossingOf(map, a, b), 'river');
+        assert.equal(crossingOf(map, b, a), 'river');
+      }
+    }
+    for (const ridge of map.ridges ?? []) {
+      ridges++;
+      const [a, b] = ridge.between;
+      assert.ok(lands(a, b), 'a ridge stands on a border');
+      assert.ok(!adjacent(map, a, b), 'and nobody crosses it');
+      assert.ok(ridge.line.length >= 3);
+    }
+    for (const lane of map.lanes ?? []) {
+      lanes++;
+      const [a, b] = lane.between;
+      assert.ok(!lands(a, b) && adjacent(map, a, b), 'a lane joins two provinces that do not touch');
+      assert.ok(map.provinces[a].coast && map.provinces[b].coast, 'both are on the sea');
+      assert.equal(crossingOf(map, a, b), 'sea');
+      assert.equal(lane.line.length, 3);
+    }
+    assert.ok((map.rivers ?? []).length >= 1, `${seed} has a river`);
+  }
+  assert.ok(rivers >= SEEDS.length && ridges >= SEEDS.length && lanes >= SEEDS.length * 0.8, `rivers ${rivers}, ridges ${ridges}, lanes ${lanes}`);
 });
 
-
-test('a house is seated where its own people are, when the map has that place', () => {
-  const map = buildMap(places(30), 16, 'home');
-  const home = map.provinces[7].name;
-  const state = startState(map, SIDES, 'home', { cedar: { [home]: 12 } });
-  assert.equal(state.seats.cedar, 7);
+test('every name is invented: unique on its map, never a real place’s, never rude', () => {
+  // A few real places, and the towns of the invented test families: none may ever be dealt.
+  const real = ['Berlin', 'Paris', 'London', 'Cape Town', 'Stellenbosch', 'Hamburg', 'München', 'Wien', 'Pretoria', 'Valoria', 'Orania'];
+  const dealt = new Set<string>();
+  for (const seed of SEEDS) {
+    const { map } = setupField(SIDES, seed);
+    const names = [map.name!, ...map.provinces.map((p) => p.name), ...(map.seas ?? []).map((s) => s.name)];
+    assert.equal(new Set(names).size, names.length, `${seed}: every name once`);
+    for (const name of names) {
+      assert.ok(name.length >= 5 && name.length <= 18, name);
+      assert.ok(allowed(name), `${name} may be dealt`);
+      assert.ok(!real.includes(name));
+      dealt.add(name);
+    }
+    // No two provinces of a map begin alike.
+    const heads = map.provinces.map((p) => p.name.slice(0, 5));
+    assert.equal(new Set(heads).size, heads.length, `${seed}: ${heads.join(' ')}`);
+  }
+  assert.ok(dealt.size > SEEDS.length * 10, 'the maps differ in their names');
+  // Every name the generator can make is known, so the whole list can be compared with a gazetteer.
+  const every = NAME_KINDS.flatMap((kind) => everyName(kind));
+  for (const name of dealt) assert.ok(every.includes(name), `${name} is on the list`);
+  for (const name of DENIED) assert.ok(every.includes(name) && !allowed(name), `${name} is still made, and still refused`);
+  for (const name of every) assert.match(name, /^(Mare )?[A-Z][a-z]+$/);
+  // With GeoNames' cities500.txt at hand (KINDRED_GEONAMES=<file>), no name that may be dealt is a place's in it.
+  const file = process.env.KINDRED_GEONAMES;
+  if (file && existsSync(file)) {
+    const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    const places = new Set<string>();
+    for (const line of readFileSync(file, 'utf8').split('\n')) {
+      const f = line.split('\t');
+      if (f.length < 4) continue;
+      for (const name of [f[1], f[2], ...f[3].split(',')]) if (name) places.add(fold(name));
+    }
+    const hits = every.filter((name) => allowed(name) && (places.has(fold(name)) || places.has(fold(name.replace(/^Mare /, '')))));
+    assert.deepEqual(hits, [], 'add these to DENIED in names.ts');
+  }
 });
-
 
 test('renown is a share of the house’s own people, so a small house recorded with care outshines a large one that is not', () => {
   const none = renownOf({ people: 0, portraits: 0, dated: 0, placed: 0, memories: 0, events: 0, sources: 0 });
@@ -126,23 +203,39 @@ test('every side opens with a seat and a neighbouring province; the player’s f
   assert.deepEqual(field.start.pool, {}, 'the opening itself is shared by every player and holds no levy');
   // The quiz's reward comes once, on the first turn.
   assert.equal(openReign(field.start, { ...reign, grant: RULES.QUIZ_LEVY }).pool.ash, state.pool.ash + RULES.QUIZ_LEVY);
+  // The seats stand apart: no two houses begin as neighbours' capitals on most fields.
+  let apart = 0;
+  for (const seed of SEEDS) {
+    const { map, start } = setupField(SIDES, seed);
+    const seats = Object.values(start.seats);
+    assert.equal(new Set(seats).size, SIDES.length);
+    assert.ok(sound(start, map), `${seed}: the opening fits every garrison`);
+    if (seats.every((a) => seats.every((b) => a === b || !adjacent(map, a, b)))) apart++;
+  }
+  assert.ok(apart >= SEEDS.length * 0.8, `${apart} of ${SEEDS.length} fields keep the seats apart`);
 });
 
-test('terrain: every seat is a town, so is the most-peopled place, about half the land is plains, and forest and highland share the rest', () => {
-  let plains = 0, total = 0;
-  for (const seed of ['t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8']) {
-    const { map, start } = setupField(places(30, seed), SIDES, seed);
-    for (const seat of Object.values(start.seats)) assert.equal(terrainOf(map, seat), 'town');
-    assert.equal(terrainOf(map, 0), 'town', 'the place most people are linked to');
-    const kinds = map.provinces.map((p) => p.terrain);
-    assert.ok(kinds.every((k) => k === 'plains' || k === 'forest' || k === 'highland' || k === 'town'));
-    assert.ok(kinds.includes('forest') && kinds.includes('highland'));
-    plains += kinds.filter((k) => k === 'plains').length;
-    total += kinds.length;
+test('terrain: every seat is a town with two free towns beside them, and highland, marsh and forest are dealt by the lie of the land', () => {
+  for (const seed of SEEDS) {
+    const { map, start } = setupField(SIDES, seed);
+    const seats = Object.values(start.seats);
+    for (const seat of seats) assert.equal(terrainOf(map, seat), 'town');
+    const count = (kind: Terrain) => map.provinces.filter((p) => p.terrain === kind).length;
+    assert.equal(count('town'), SIDES.length + RULES.FREE_TOWNS);
+    assert.equal(count('highland'), RULES.HIGHLANDS);
+    assert.equal(count('marsh'), RULES.MARSHES);
+    assert.equal(count('forest'), RULES.FORESTS);
+    assert.equal(count('plains'), RULES.PROVINCES - SIDES.length - RULES.FREE_TOWNS - RULES.HIGHLANDS - RULES.MARSHES - RULES.FORESTS);
+    // A marsh lies by the water: on the coast or on a river.
+    for (const p of map.provinces.filter((q) => q.terrain === 'marsh')) {
+      assert.ok(p.coast || (map.rivers ?? []).some((r) => r.between.some((b) => b.includes(p.id))), `${seed}: ${p.name} is by the water`);
+      assert.equal(capOf(map, p.id), RULES.MARSH_GARRISON_MAX);
+    }
+    // A free town is nobody's at the opening, and no seat's neighbour where the land allows.
+    for (const p of map.provinces.filter((q) => q.terrain === 'town' && !seats.includes(q.id))) assert.equal(start.holder[p.id] === null || provincesOf(start, start.holder[p.id]!) === 2, true);
   }
-  assert.ok(Math.abs(plains / total - RULES.PLAINS_SHARE) < 0.05, `plains are ${(plains / total).toFixed(2)} of the land`);
   // A map stored before there was terrain reads as plains everywhere.
-  const old = buildMap(places(20), 12, 'old');
+  const old = setupField(SIDES, 'old').map;
   for (const p of old.provinces) delete p.terrain;
   assert.equal(terrainOf(old, 3), 'plains');
   assert.equal(capOf(old, 3), RULES.GARRISON_MAX);
@@ -168,39 +261,90 @@ test('the dice follow Risk: three against two at most, the highest compared, tie
 test('forest raises the defender’s highest die by one, highland lets the attacker roll two dice at most', () => {
   for (let i = 0; i < 200; i++) {
     const plain = battle(5, 3, `t${i}`);
-    const forest = battle(5, 3, `t${i}`, 'forest');
+    const forest = battle(5, 3, `t${i}`, on('forest'));
     // The first round is rolled from the same numbers: only the defender's best die differs.
     assert.deepEqual(forest.rounds[0].a, plain.rounds[0].a);
     assert.equal(forest.rounds[0].d[0], Math.min(6, plain.rounds[0].d[0] + 1));
     assert.equal(forest.rounds[0].d[1], plain.rounds[0].d[1]);
-    for (const r of battle(6, 4, `h${i}`, 'highland').rounds) assert.ok(r.a.length <= 2);
-    for (const r of battle(2, 4, `h${i}`, 'town').rounds) assert.ok(r.a.length <= 2 && r.d.length <= 2);
+    for (const r of battle(6, 4, `h${i}`, on('highland')).rounds) assert.ok(r.a.length <= 2);
+    for (const r of battle(2, 4, `h${i}`, on('town')).rounds) assert.ok(r.a.length <= 2 && r.d.length <= 2);
   }
 });
 
 test('winChance is exact: one die against one, and the terrain’s rule in the odds', () => {
   assert.equal(winChance(1, 1), 15 / 36);
-  assert.equal(winChance(1, 1, 'highland'), 15 / 36, 'one die is one die');
-  assert.equal(winChance(1, 1, 'forest'), 10 / 36);
+  assert.equal(winChance(1, 1, on('highland')), 15 / 36, 'one die is one die');
+  assert.equal(winChance(1, 1, on('forest')), 10 / 36);
   assert.equal(winChance(0, 3), 0);
   assert.equal(winChance(3, 0), 1);
   // Three rounds remove at most six defenders.
   assert.equal(winChance(12, 7), 0);
-  for (const terrain of ['plains', 'forest', 'highland', 'town'] as const) {
+  for (const terrain of ['plains', 'forest', 'highland', 'marsh', 'town'] as const) {
     for (let d = 1; d <= 5; d++) {
-      for (let a = 1; a < 10; a++) assert.ok(winChance(a + 1, d, terrain) >= winChance(a, d, terrain) - 1e-12, 'more attackers never lower the chance');
+      for (let a = 1; a < 10; a++) assert.ok(winChance(a + 1, d, on(terrain)) >= winChance(a, d, on(terrain)) - 1e-12, 'more attackers never lower the chance');
     }
   }
-  assert.ok(winChance(4, 2, 'forest') < winChance(4, 2));
-  assert.ok(winChance(4, 2, 'highland') < winChance(4, 2));
-  assert.equal(winChance(4, 2, 'town'), winChance(4, 2), 'a town has no battle rule');
+  assert.ok(winChance(4, 2, on('forest')) < winChance(4, 2));
+  assert.ok(winChance(4, 2, on('highland')) < winChance(4, 2));
+  assert.equal(winChance(4, 2, on('town')), winChance(4, 2), 'a town has no battle rule');
+  assert.equal(winChance(4, 2, on('marsh')), winChance(4, 2), 'nor has a marsh: it only holds fewer');
   // The exact number agrees with the dice themselves.
   for (const [a, d, terrain] of [[4, 2, 'forest'], [5, 3, 'highland'], [3, 2, 'plains']] as const) {
     let took = 0;
     const n = 6000;
-    for (let i = 0; i < n; i++) if (battle(a, d, `mc${i}`, terrain).dLost >= d) took++;
-    assert.ok(Math.abs(took / n - winChance(a, d, terrain)) < 0.025, `${a} against ${d} in ${terrain}: ${took / n} vs ${winChance(a, d, terrain)}`);
+    for (let i = 0; i < n; i++) if (battle(a, d, `mc${i}`, on(terrain)).dLost >= d) took++;
+    assert.ok(Math.abs(took / n - winChance(a, d, on(terrain))) < 0.025, `${a} against ${d} in ${terrain}: ${took / n} vs ${winChance(a, d, on(terrain))}`);
   }
+});
+
+test('a river or the sea shortens the battle to two rounds, and the odds say so', () => {
+  assert.equal(roundsOn(on('plains')), RULES.BATTLE_ROUNDS);
+  assert.equal(roundsOn(on('plains', 'river')), RULES.CROSSING_ROUNDS);
+  assert.equal(roundsOn(on('forest', 'sea')), RULES.CROSSING_ROUNDS);
+  for (let i = 0; i < 200; i++) {
+    const across = battle(9, 6, `x${i}`, on('plains', 'river'));
+    assert.ok(across.rounds.length <= RULES.CROSSING_ROUNDS);
+    // The rounds that are fought are the same dice as on open ground.
+    assert.deepEqual(across.rounds, battle(9, 6, `x${i}`).rounds.slice(0, across.rounds.length));
+  }
+  assert.ok(winChance(5, 3, on('plains', 'river')) < winChance(5, 3));
+  assert.equal(winChance(5, 3, on('plains', 'river')), winChance(5, 3, on('plains', 'sea')), 'the river and the sea cost the same round');
+  assert.equal(winChance(9, 5, on('plains', 'river')), 0, 'two rounds remove at most four defenders');
+  assert.ok(winChance(9, 4, on('forest', 'river')) < winChance(9, 4, on('plains', 'river')), 'the terrain’s own rule still counts');
+  let took = 0;
+  const n = 6000;
+  for (let i = 0; i < n; i++) if (battle(5, 3, `rv${i}`, on('highland', 'river')).dLost >= 3) took++;
+  assert.ok(Math.abs(took / n - winChance(5, 3, on('highland', 'river'))) < 0.025);
+});
+
+test('a march and an attack go only where there is a way: over a border, across a river or by a sea lane, never over a ridge', () => {
+  let ridged = 0, sailed = 0;
+  for (const seed of SEEDS.slice(0, 20)) {
+    const { reign, state } = reignOf(seed);
+    const { map } = reign;
+    const rich = (from: number, to: number): State => ({ ...state, holder: state.holder.map((h, i) => (i === from ? 'ash' : i === to ? null : h)), troops: state.troops.map((t, i) => (i === from ? 6 : i === to ? 1 : t)), seats: { ash: from } });
+    for (const ridge of map.ridges ?? []) {
+      const [a, b] = ridge.between;
+      assert.throws(() => play(rich(a, b), reign, { t: 'attack', from: a, to: b, troops: 3 }), refused('not_adjacent'));
+      ridged++;
+    }
+    for (const lane of map.lanes ?? []) {
+      const [a, b] = lane.between;
+      const e = play(rich(a, b), reign, { t: 'attack', from: a, to: b, troops: 5 }).events[0];
+      assert.ok(e.t === 'attack' && e.crossing === 'sea' && e.rounds.length <= RULES.CROSSING_ROUNDS);
+      // One's own harbour across the water can be marched to.
+      const own = rich(a, b);
+      own.holder[b] = 'ash';
+      assert.equal(play(own, reign, { t: 'march', from: a, to: b, troops: 2 }).state.troops[b], 3);
+      sailed++;
+    }
+    for (const river of map.rivers ?? []) {
+      const [a, b] = river.between[0];
+      const e = play(rich(a, b), reign, { t: 'attack', from: a, to: b, troops: 5 }).events[0];
+      assert.ok(e.t === 'attack' && e.crossing === 'river');
+    }
+  }
+  assert.ok(ridged > 0 && sailed > 0);
 });
 
 test('placing the levy costs no order, needs levy, a province of one’s own and room in it; a town holds more', () => {
@@ -255,7 +399,9 @@ test('an attack is fought with the troops sent and counted: survivors move in, l
     assert.ok(e.t === 'attack');
     if (e.t !== 'attack') continue;
     assert.equal(e.terrain, terrainOf(map, free));
-    assert.deepEqual({ rounds: e.rounds, aLost: e.aLost, dLost: e.dLost }, battle(5, strong.troops[free], `${reign.seed}:t0:p${i}`, e.terrain), 'the dice are the reign’s, numbered by attack');
+    assert.deepEqual({ rounds: e.rounds, aLost: e.aLost, dLost: e.dLost }, battle(5, strong.troops[free], `${reign.seed}:t0:p${i}`, groundOf(map, seat, free)), 'the dice are the reign’s, numbered by attack');
+    assert.equal(e.chance, winChance(5, strong.troops[free], groundOf(map, seat, free)), 'the event says what the chance was');
+    assert.deepEqual([e.fromLeft, e.toLeft], [after.troops[seat], after.troops[free]], 'and what is left on both sides');
     assert.equal(after.attacks, i + 1);
     assert.equal(after.lost.ash ?? 0, e.aLost);
     if (e.took) {
@@ -333,18 +479,50 @@ test('a reign replays to the same position and score; the moves after its end, a
   assert.notDeepEqual(replay(field.start, { ...reign, renown: 2 }, idle).state.pool, replay(field.start, reign, idle).state.pool);
 });
 
+test('a reign has a chronicle: the provinces held turn by turn, what is worth telling, and a title; the same moves tell the same', () => {
+  const titles = new Set<string>();
+  for (let i = 0; i < 30; i++) {
+    const { field, reign, state, moves } = regentReign(`tale${i}`, { player: SIDES[i % 4], renown: i % 3 });
+    const told = chronicleOf(field.start, reign, moves);
+    assert.deepEqual(told, chronicleOf(field.start, reign, moves));
+    assert.deepEqual(told.score, replay(field.start, reign, moves).score, 'the chronicle’s score is the reign’s');
+    assert.deepEqual(told.state, state);
+    assert.equal(told.held.length, RULES.TURNS + 1);
+    assert.equal(told.held[0], provincesOf(field.start, reign.player));
+    assert.equal(told.held.at(-1), told.score.provinces);
+    assert.ok((TITLES as readonly string[]).includes(told.title));
+    titles.add(told.title);
+    assert.equal(told.deeds.taken, told.tellings.filter((t) => t.kind === 'took').length);
+    assert.equal(told.deeds.lost, told.tellings.filter((t) => t.kind === 'lost').length);
+    assert.ok(told.deeds.taken <= told.deeds.attacks);
+    const few = highlights(told, 5);
+    assert.ok(few.length <= 5 && few.every((t) => told.tellings.includes(t)));
+    assert.deepEqual(few.map((t) => told.tellings.indexOf(t)), few.map((t) => told.tellings.indexOf(t)).sort((x, y) => x - y), 'in the order they happened');
+  }
+  assert.ok(titles.size >= 3, `the titles differ: ${[...titles].join(', ')}`);
+  // A reign in which nothing is ordered is a peaceable one, told as far as it goes.
+  const { field, reign } = reignOf('quiet');
+  const idle = chronicleOf(field.start, reign, Array.from({ length: 5 }, () => ({ t: 'end' }) as Move));
+  assert.equal(idle.held.length, 6);
+  assert.equal(idle.deeds.attacks, 0);
+  assert.deepEqual([seasonOf(0), seasonOf(3), seasonOf(4), seasonOf(11)], [{ season: 'spring', year: 1 }, { season: 'winter', year: 1 }, { season: 'spring', year: 2 }, { season: 'winter', year: 3 }]);
+});
+
 test('a reign between regents: no seat falls, scores spread, and the lead can still change on the last turn', () => {
   const scores: number[] = [];
+  const bySide = new Map<string, number[]>();
   let lastTurnChanges = 0, changes = 0;
-  const runs = 60;
+  const runs = 80;
   for (let i = 0; i < runs; i++) {
     const { state, reign, leaders } = regentReign(`season${i}`, { player: SIDES[i % 4], renown: 1 });
     for (const side of SIDES) assert.equal(state.holder[state.seats[side]], side, 'a seat never falls');
     assert.ok(sound(state, reign.map));
     const table = standings(state, SIDES);
     assert.ok(table.at(-1)!.provinces >= 1, 'nobody is out');
-    assert.ok(table[0].provinces <= 11, 'nobody runs away with the whole map');
-    scores.push(scoreOf(state, reign.map, reign.player).total);
+    assert.ok(table[0].provinces <= 12, 'nobody runs away with the whole map');
+    const total = scoreOf(state, reign.map, reign.player).total;
+    scores.push(total);
+    bySide.set(reign.player, [...(bySide.get(reign.player) ?? []), total]);
     if (leaders.at(-1) !== leaders.at(-2)) lastTurnChanges++;
     for (let k = 1; k < leaders.length; k++) if (leaders[k] !== leaders[k - 1]) changes++;
     assert.ok(troopsOf(state, reign.player) >= 1);
@@ -354,6 +532,10 @@ test('a reign between regents: no seat falls, scores spread, and the lead can st
   assert.ok(at(0.9) - at(0.1) >= 30, `scores spread from ${at(0.1)} to ${at(0.9)}`);
   assert.ok(lastTurnChanges > 0, 'some reigns are decided only on the last turn');
   assert.ok(changes / runs >= 1.5, `the lead changes ${(changes / runs).toFixed(1)} times a reign`);
+  // No place at the table is the lucky one: every side's mean is within reach of the others'.
+  const means = [...bySide.values()].map((list) => list.reduce((n, v) => n + v, 0) / list.length);
+  assert.ok(Math.max(...means) - Math.min(...means) < 30, `the sides' means are ${means.map((m) => m.toFixed(0)).join(', ')}`);
+  if (process.env.CAMPAIGN_STATS) console.log({ median: at(0.5), p10: at(0.1), p90: at(0.9), lastTurnChanges: lastTurnChanges / runs, changes: changes / runs, means });
 });
 
 test('an order chosen before an undo is clamped to what the position now spares, so it is never refused', () => {

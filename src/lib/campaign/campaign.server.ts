@@ -12,11 +12,16 @@
 //   playing the week again never meets the same dice. Without a secret there is no ranked play (`campaign.err.no_secret`).
 // - Every member plays the same field all week: the first reign of a week stores it in `campaign_week` (migration 0034), and
 //   every later reign that week reads it back, whoever leaves and however many begin at once.
+// - The field is an invented continent (./geography.ts) laid out from the week's seed alone. Nothing of the family's is
+//   on the board but its houses: no place, no person.
+// - A reign and a week's field carry the rules' version (RULESET, migration 0035). The tables rank a reign only among
+//   reigns of the same rules; reigns of earlier rules are listed apart, and one begun under them can no longer be sent.
 import { db, guard, NOT_A_RECORD, once, q, store, type Db, type Query } from '../db.server.ts';
 import { readOnly } from '../read-only.ts';
 import { dayOf, weekOf, weekStart } from '../today/week.ts';
 import type { House } from '../types.ts';
-import { CampaignError, RULES, replay, setupField, standings, type Move, type PlaceIn, type State } from './engine.ts';
+import { chronicleOf, isTitle, type Title } from './chronicle.ts';
+import { CampaignError, RULES, RULESET, rulesetOf, setupField, standings, type Move, type State } from './engine.ts';
 import { RIVALS, isRival } from './names.ts';
 import { RIVAL_RENOWN, renownOf, type Renown, type RenownCounts } from './renown.ts';
 import type { BoardRow, CampaignStatus, CampaignView, Challenge, FameEntry, FieldView, FinishResult, HouseTotal, Leaderboard, RunStart, SideView, StoredSide } from './types.ts';
@@ -27,7 +32,7 @@ const DAY_MS = 86_400_000;
 export interface Who { account: string; name: string; person: string | null }
 
 interface CampaignRow { enabled: number; season: number }
-interface RunRow { id: string; account: string; name_then: string; side: string; week: string; seed: string; field: string; orders: string | null; score: number | null; result: string | null; finished_at: string | null; created_at: string }
+interface RunRow { id: string; account: string; name_then: string; side: string; week: string; seed: string; field: string; orders: string | null; score: number | null; result: string | null; finished_at: string | null; created_at: string; ruleset: number }
 /** A reign's field as it is kept: the week's field, and what the player's levy had when it began. */
 interface StoredField extends FieldView { renown: number; grant: number }
 
@@ -115,31 +120,6 @@ export async function sidesOf(tree: string): Promise<StoredSide[]> {
   return sides;
 }
 
-/** The places a map can be made from: those with coordinates, with how many people are linked to each, in all and for each side. */
-async function placesOf(tree: string, sides: StoredSide[]): Promise<PlaceIn[]> {
-  const d = db(tree);
-  const [pins, used] = await Promise.all([
-    d.all<{ name: string; lat: number; lng: number }>('SELECT name, lat, lng FROM place'),
-    d.all<{ place: string; house: string | null; n: number }>(`SELECT place, house, count(*) AS n FROM (
-        SELECT born_place AS place, house FROM person WHERE born_place IS NOT NULL AND born_place <> ''
-        UNION ALL SELECT died_place, house FROM person WHERE died_place IS NOT NULL AND died_place <> ''
-        UNION ALL SELECT u.place, p.house FROM partnership u JOIN person p ON p.id = u.a WHERE u.place IS NOT NULL AND u.place <> ''
-      ) GROUP BY place, house`),
-  ]);
-  const sideOfHouse = new Map(sides.flatMap((s) => s.houses.map((h) => [h, s.id] as const)));
-  const places = new Map<string, PlaceIn>(pins.map((p) => [p.name, { name: p.name, lat: p.lat, lng: p.lng, people: 0, byHouse: {} }]));
-  for (const u of used) {
-    const place = places.get(u.place);
-    if (!place) continue;
-    place.people += u.n;
-    const side = u.house ? sideOfHouse.get(u.house) : undefined;
-    if (side) place.byHouse![side] = (place.byHouse![side] ?? 0) + u.n;
-  }
-  // Only the places a map could use: the most-peopled ones, as many as the largest map has provinces.
-  return [...places.values()].filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng))
-    .sort((a, b) => b.people - a.people || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)).slice(0, RULES.MAX_PROVINCES);
-}
-
 /** The sides with their houses' names and arms as they are today, and their renown. */
 async function sideViews(d: Db, sides: StoredSide[], renown: Map<string, Renown>): Promise<SideView[]> {
   const houses = new Map((await d.all<{ id: string; name: string; arms: string }>('SELECT id, name, arms FROM house')).map((h) => [h.id, h]));
@@ -209,22 +189,22 @@ export async function reignSeed(id: string): Promise<string> {
 /** The last day of an ISO week (its Sunday), as "2026-11-15". */
 const weekEnds = (week: string) => dayOf(new Date(weekStart(week).getTime() + 6 * DAY_MS));
 
-/** The week's field as `campaign_week` keeps it, if a reign of that week has begun. */
+/** The week's field as `campaign_week` keeps it, if a reign of that week has begun under today's rules. */
 async function keptField(d: Db, week: string): Promise<FieldView | null> {
-  const row = await d.get<{ field: string }>('SELECT field FROM campaign_week WHERE week = ?', week);
+  const row = await d.get<{ field: string }>('SELECT field FROM campaign_week WHERE week = ? AND ruleset = ?', week, RULESET);
   if (!row) return null;
   const kept = JSON.parse(row.field) as FieldView;
   return { map: kept.map, sides: kept.sides, start: kept.start };
 }
 
-/** The field the family's places and houses give today, for a week no reign has begun yet. */
+/** The week's field for a week no reign has begun yet: the continent the seed lays out, and the family's houses as they are today. */
 async function freshField(tree: string, seed: string): Promise<FieldView> {
   const sides = await sidesOf(tree);
-  const field = setupField(await placesOf(tree, sides), sides.map((s) => s.id), seed);
+  const field = setupField(sides.map((s) => s.id), seed);
   return { map: field.map, sides, start: field.start };
 }
 
-/** The week's field: the one its first reign stored, or the one the family's places and houses give today. */
+/** The week's field: the one its first reign stored, or the one the seed and the family's houses give today. */
 async function weekField(tree: string, d: Db, week: string, seed: string): Promise<FieldView> {
   return (await keptField(d, week)) ?? freshField(tree, seed);
 }
@@ -247,24 +227,38 @@ async function quizGrant(d: Db, account: string, now: Date): Promise<number> {
 
 // ---------- the tables ----------
 
-async function leaderboard(d: Db, week: string, account: string, sides: SideView[] | StoredSide[]): Promise<Leaderboard> {
-  const [rows, top] = await Promise.all([
-    d.all<{ account: string; name_then: string; side: string; score: number }>(
-      'SELECT account, name_then, side, score FROM campaign_run WHERE week = ? AND finished_at IS NOT NULL ORDER BY score DESC, finished_at, id', week,
-    ),
-    d.all<{ account: string; name_then: string; side: string; score: number; week: string }>(
-      'SELECT account, name_then, side, score, week FROM campaign_run WHERE finished_at IS NOT NULL ORDER BY score DESC, finished_at, id LIMIT 10',
-    ),
-  ]);
+interface ScoreRow { account: string; name_then: string; side: string; score: number; week: string; result: string | null }
+
+/** A reign's title as its result keeps it, if it has one the page knows. */
+function titleIn(result: string | null): Title | undefined {
+  try {
+    const title = (JSON.parse(result ?? 'null') as { title?: unknown } | null)?.title;
+    return isTitle(title) ? title : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const SCORE_COLUMNS = 'account, name_then, side, score, week, result';
+
+/** Each member's best of a week under one ruleset, best first, with how many reigns they finished; `without` leaves one reign out. */
+async function weekBests(d: Db, week: string, account: string, ruleset: number, without = ''): Promise<BoardRow[]> {
+  const rows = await d.all<ScoreRow>(
+    `SELECT ${SCORE_COLUMNS} FROM campaign_run WHERE week = ? AND ruleset = ? AND finished_at IS NOT NULL AND id <> ? ORDER BY score DESC, finished_at, id`, week, ruleset, without,
+  );
   const best = new Map<string, BoardRow>();
   const runs = new Map<string, number>();
   for (const r of rows) {
     runs.set(r.account, (runs.get(r.account) ?? 0) + 1);
-    if (!best.has(r.account)) best.set(r.account, { name: r.name_then, side: r.side, score: r.score, mine: r.account === account });
+    if (!best.has(r.account)) best.set(r.account, { name: r.name_then, side: r.side, score: r.score, title: titleIn(r.result), mine: r.account === account });
   }
-  const weekRows = [...best].map(([acc, row]) => ({ ...row, runs: runs.get(acc) ?? 0 }));
+  return [...best].map(([acc, row]) => ({ ...row, runs: runs.get(acc) ?? 0 }));
+}
+
+/** Each house's total: the sum of its members' bests, by the side each one ruled. */
+function houseTotals(rows: BoardRow[], sides: Pick<StoredSide, 'id' | 'name' | 'arms'>[]): HouseTotal[] {
   const houses = new Map<string, HouseTotal>();
-  for (const row of weekRows) {
+  for (const row of rows) {
     const side = sides.find((s) => s.id === row.side);
     if (!side) continue;
     const total = houses.get(side.id) ?? { side: side.id, name: side.name, arms: side.arms, total: 0, members: 0 };
@@ -272,12 +266,30 @@ async function leaderboard(d: Db, week: string, account: string, sides: SideView
     total.members += 1;
     houses.set(side.id, total);
   }
+  return [...houses.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+}
+
+/**
+ * The family's tables. Only reigns under today's rules are ranked; reigns of earlier rules (this week's, and the best
+ * ever) are listed apart in `earlier`, so an old score is still there and is never set against a new one.
+ */
+async function leaderboard(d: Db, week: string, account: string, sides: SideView[] | StoredSide[]): Promise<Leaderboard> {
+  const top = (where: string, ...args: (string | number)[]) => d.all<ScoreRow>(`SELECT ${SCORE_COLUMNS} FROM campaign_run WHERE finished_at IS NOT NULL AND ${where} ORDER BY score DESC, finished_at, id LIMIT 10`, ...args);
+  const listed = (rows: ScoreRow[]): BoardRow[] => rows.map((r) => ({ name: r.name_then, side: r.side, score: r.score, week: r.week, title: titleIn(r.result), mine: r.account === account }));
+  const [weekRows, allTime, record, oldWeek, oldAll] = await Promise.all([
+    weekBests(d, week, account, RULESET),
+    top('ruleset = ?', RULESET),
+    d.get<{ best: number | null }>('SELECT max(score) AS best FROM campaign_run WHERE account = ? AND ruleset = ? AND finished_at IS NOT NULL', account, RULESET),
+    d.all<ScoreRow>(`SELECT ${SCORE_COLUMNS} FROM campaign_run WHERE week = ? AND ruleset < ? AND finished_at IS NOT NULL ORDER BY score DESC, finished_at, id LIMIT 10`, week, RULESET),
+    top('ruleset < ?', RULESET),
+  ]);
   const at = weekRows.findIndex((r) => r.mine);
   return {
     week: weekRows,
-    allTime: top.map((r) => ({ name: r.name_then, side: r.side, score: r.score, week: r.week, mine: r.account === account })),
-    houses: [...houses.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name)),
-    me: { best: at >= 0 ? weekRows[at].score : null, runs: at >= 0 ? weekRows[at].runs : 0, rank: at >= 0 ? at + 1 : null, of: weekRows.length },
+    allTime: listed(allTime),
+    houses: houseTotals(weekRows, sides),
+    me: { best: at >= 0 ? weekRows[at].score : null, runs: at >= 0 ? weekRows[at].runs ?? 0 : 0, rank: at >= 0 ? at + 1 : null, of: weekRows.length, record: record?.best ?? null },
+    ...(oldAll.length ? { earlier: { week: listed(oldWeek), allTime: listed(oldAll) } } : {}),
   };
 }
 
@@ -388,12 +400,16 @@ export async function startRun(tree: string, who: Who, asked: string | null, now
       history: NOT_A_RECORD,
       writes: [
         sameCampaign(c),
+        // A week begun under earlier rules gets today's field in its place; the reigns played on the old one keep their own.
         ...(kept
           ? []
-          : [guard('NOT EXISTS (SELECT 1 FROM campaign_week WHERE week = ?)', week), q('INSERT INTO campaign_week (week, field, created_at) VALUES (?, ?, ?)', week, JSON.stringify(field), at)]),
+          : [
+            guard('NOT EXISTS (SELECT 1 FROM campaign_week WHERE week = ? AND ruleset >= ?)', week, RULESET),
+            q('INSERT INTO campaign_week (week, field, created_at, ruleset) VALUES (?, ?, ?, ?) ON CONFLICT (week) DO UPDATE SET field = excluded.field, created_at = excluded.created_at, ruleset = excluded.ruleset', week, JSON.stringify(field), at, RULESET),
+          ]),
         // The quiz's reward is spent once a day: two reigns begun at once cannot both take it.
         ...(grant > 0 ? [guard(`NOT ${spentSql}`, who.account, dayOf(now))] : []),
-        q('INSERT INTO campaign_run (id, account, name_then, side, week, seed, field, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', id, who.account, who.name, side, week, seed, JSON.stringify(stored), at),
+        q('INSERT INTO campaign_run (id, account, name_then, side, week, seed, field, created_at, ruleset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', id, who.account, who.name, side, week, seed, JSON.stringify(stored), at, RULESET),
         // A reign begun and never finished is forgotten after two weeks.
         q('DELETE FROM campaign_run WHERE account = ? AND finished_at IS NULL AND created_at < ?', who.account, new Date(now.getTime() - 14 * DAY_MS).toISOString()),
       ],
@@ -404,19 +420,24 @@ export async function startRun(tree: string, who: Who, asked: string | null, now
 
 /**
  * Finishes a reign: the server plays the moves again from the reign's own field, and keeps the score that comes out.
- * A move the rules refuse, a list that stops early, someone else's reign and a reign finished before are all refused.
+ * A move the rules refuse, a list that stops early, someone else's reign, a reign finished before and one begun under
+ * earlier rules are all refused.
  */
 export async function finishRun(tree: string, who: Who, id: string, moves: Move[], op: { key: string } | undefined, now: Date = new Date()): Promise<FinishResult> {
-  const score = await once(tree, op && { key: op.key, user: who.account, payload: { id, moves } }, 'campaignFinishRun', async (d) => {
+  const done = await once(tree, op && { key: op.key, user: who.account, payload: { id, moves } }, 'campaignFinishRun', async (d) => {
     const c = await campaignRow(d);
     if (!c?.enabled) throw new Error('campaign.err.off');
     const row = await d.get<RunRow>('SELECT * FROM campaign_run WHERE id = ?', id);
     if (!row || row.account !== who.account) throw new Error('campaign.err.no_run');
     if (row.finished_at) throw new Error('campaign.err.finished');
     const field = JSON.parse(row.field) as StoredField;
+    // The moves of a reign begun under earlier rules mean something else today: it cannot be scored any more.
+    if (row.ruleset !== RULESET || rulesetOf(field.map) !== RULESET) throw new Error('campaign.err.old_rules');
     let played;
     try {
-      played = replay(field.start, { map: field.map, sides: field.sides.map((s) => s.id), player: row.side, seed: row.seed, renown: field.renown, grant: field.grant }, moves);
+      if (!Array.isArray(moves) || moves.length > RULES.MAX_MOVES) throw new CampaignError('too_long');
+      played = chronicleOf(field.start, { map: field.map, sides: field.sides.map((s) => s.id), player: row.side, seed: row.seed, renown: field.renown, grant: field.grant }, moves);
+      if (played.state.turn < RULES.TURNS) throw new CampaignError('unfinished');
     } catch (e) {
       if (e instanceof CampaignError) throw new Error('campaign.err.forged');
       throw e;
@@ -426,15 +447,34 @@ export async function finishRun(tree: string, who: Who, id: string, moves: Move[
       history: NOT_A_RECORD,
       writes: [
         guard('EXISTS (SELECT 1 FROM campaign_run WHERE id = ? AND account = ? AND finished_at IS NULL)', id, who.account),
-        q('UPDATE campaign_run SET orders = ?, score = ?, result = ?, finished_at = ? WHERE id = ?', JSON.stringify(moves), played.score.total, JSON.stringify(played.score), now.toISOString(), id),
+        q('UPDATE campaign_run SET orders = ?, score = ?, result = ?, finished_at = ? WHERE id = ?', JSON.stringify(moves), played.score.total, JSON.stringify({ ...played.score, title: played.title }), now.toISOString(), id),
       ],
-      result: { score: played.score, week: row.week },
+      result: { score: played.score, title: played.title, week: row.week, side: row.side, sides: field.sides.map((s) => ({ id: s.id, name: s.name, arms: s.arms })) },
     };
   });
   const d = db(tree);
-  const board = await leaderboard(d, score.week, who.account, []);
-  const before = await d.get<{ n: number }>('SELECT count(*) AS n FROM campaign_run WHERE account = ? AND week = ? AND finished_at IS NOT NULL AND id <> ? AND score >= ?', who.account, score.week, id, score.score.total);
-  return { score: score.score, best: board.me.best ?? score.score.total, rank: board.me.rank ?? 1, of: board.me.of, personalBest: !before?.n };
+  const total = done.score.total;
+  const [rows, before, others, record] = await Promise.all([
+    weekBests(d, done.week, who.account, RULESET),
+    weekBests(d, done.week, who.account, RULESET, id),
+    d.get<{ n: number }>('SELECT count(*) AS n FROM campaign_run WHERE account = ? AND week = ? AND ruleset = ? AND finished_at IS NOT NULL AND id <> ? AND score >= ?', who.account, done.week, RULESET, id, total),
+    d.get<{ n: number }>('SELECT count(*) AS n FROM campaign_run WHERE account = ? AND ruleset = ? AND finished_at IS NOT NULL AND id <> ? AND score >= ?', who.account, RULESET, id, total),
+  ]);
+  const at = rows.findIndex((r) => r.mine);
+  // Where the member's house stands among the houses this week, and whether this reign lifted it.
+  const houses = houseTotals(rows, done.sides);
+  const place = houses.findIndex((h) => h.side === done.side);
+  const was = houseTotals(before, done.sides).findIndex((h) => h.side === done.side);
+  return {
+    score: done.score,
+    title: done.title,
+    best: at >= 0 ? rows[at].score : total,
+    rank: at >= 0 ? at + 1 : 1,
+    of: rows.length,
+    personalBest: !others?.n,
+    record: !record?.n,
+    house: place >= 0 ? { name: houses[place].name, rank: place + 1, of: houses.length, rose: was > place } : null,
+  };
 }
 
 // ---------- what the pages read ----------
@@ -445,8 +485,8 @@ export async function campaignView(tree: string, who: Who, now: Date = new Date(
   const d = db(tree);
   const c = await campaignRow(d);
   const sides = await sidesOf(tree);
-  const [places, renown, { fame }] = await Promise.all([placesOf(tree, sides), renownOfSides(tree, sides), hallOfFame(d)]);
-  const kit = { places, sides: await sideViews(d, sides, renown) };
+  const [renown, { fame }] = await Promise.all([renownOfSides(tree, sides), hallOfFame(d)]);
+  const kit = { sides: await sideViews(d, sides, renown) };
   const mySide = (await sideFor(d, who, sides)).side;
   if (!c?.enabled) return { enabled: false, kit, mySide, fame };
 
@@ -476,5 +516,5 @@ export async function campaignStatus(tree: string, who: Who, now: Date = new Dat
   if (!(await campaignRow(d))?.enabled) return { enabled: false };
   const week = weekOf(now);
   const { me } = await leaderboard(d, week, who.account, []);
-  return { enabled: true, week, best: me.best, runs: me.runs, rank: me.rank, of: me.of };
+  return { enabled: true, week, best: me.best, runs: me.runs, rank: me.rank, of: me.of, record: me.record };
 }

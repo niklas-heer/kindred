@@ -1,62 +1,176 @@
-/* The Campaign: the map (cm-), the battle (cb-) and the page around them (cg-). Only theme tokens, apart from the map's
-   own parchment and ink, which stay paper in every theme: a map is a sheet on the table. */
+/* The Campaign: the map (cm-), the battle (cb-), the chronicle (cc-) and the page around them (cg-). Only theme tokens,
+   apart from the map's own parchment, ink and washes, which stay paper in every theme: a map is a sheet on the table.
+   Everything that moves is switched off under "reduce motion"; nothing is told by motion alone. */
+
+/* ---------- the map's own colours ---------- */
+:root {
+  --cm-paper: #e7d9ae; --cm-ink: #3a2c17; --cm-sea: #b9c6b4; --cm-sea-ink: #567171; --cm-river: #5b8eaa;
+  --cm-forest: #a3b572; --cm-high: #c9a973; --cm-marsh: #98b9a6; --cm-town: #f1e4bd; --cm-wall: #f7eed6; --cm-leaf: #7f9c57;
+}
+[data-theme='modern'] {
+  --cm-paper: #f3ecd9; --cm-ink: #4a4133; --cm-sea: #d3dfdc; --cm-sea-ink: #6b8785; --cm-river: #6c9dba;
+  --cm-forest: #b9cc94; --cm-high: #dcc294; --cm-marsh: #b3d0c0; --cm-town: #fbf3db; --cm-wall: #fffaea; --cm-leaf: #93b16c;
+}
+[data-theme='night'] {
+  --cm-paper: #cfc19b; --cm-ink: #2c2213; --cm-sea: #98a79b; --cm-sea-ink: #40595a; --cm-river: #4b7c97;
+  --cm-forest: #8fa163; --cm-high: #b29462; --cm-marsh: #84a593; --cm-town: #dccfa8; --cm-wall: #e6dab6; --cm-leaf: #6e8a4a;
+}
 
 /* ---------- the map ---------- */
 .cm-wrap {
-  --cm-paper: #dccda3; --cm-ink: #3d301c; --cm-free: #cfc19a; --cm-sea: #b9ab85;
   position: relative; border-radius: var(--radius-lg); overflow: hidden; line-height: 0;
-  border: 1px solid var(--border); box-shadow: var(--shadow);
+  border: 1px solid var(--border); box-shadow: var(--shadow); background: var(--cm-sea);
 }
 [data-theme='codex'] .cm-wrap { border: 2px solid transparent; background: var(--card-frame-quiet) border-box; box-shadow: inset 0 0 0 1px #0a0d12, 0 6px 18px #0009; }
-[data-theme='modern'] .cm-wrap { --cm-paper: #efe7d4; --cm-ink: #4b4335; --cm-free: #e6dcc6; --cm-sea: #d8cdb4; box-shadow: 0 1px 2px #2a22140f, 0 4px 14px #2a22140a; }
-[data-theme='night'] .cm-wrap { --cm-paper: #cdbf9c; --cm-ink: #2f2617; --cm-free: #bfb18e; --cm-sea: #a89b7a; }
+[data-theme='modern'] .cm-wrap { box-shadow: 0 1px 2px #2a22140f, 0 4px 14px #2a22140a; }
 .cm-map { display: block; width: 100%; height: auto; background: var(--cm-sea); user-select: none; -webkit-user-select: none; }
+.cm-camera { transform-origin: 0 0; }
 .cm-sea { fill: var(--cm-sea); }
+.cm-waves { pointer-events: none; }
+.cm-wave { fill: none; stroke: var(--cm-sea-ink); stroke-width: 1.3; stroke-linecap: round; stroke-opacity: 0.3; }
+.cm-shore { fill: none; stroke: var(--cm-sea-ink); stroke-linejoin: round; pointer-events: none; }
+.cm-shore.is-3 { stroke-width: 46; stroke-opacity: 0.07; }
+.cm-shore.is-2 { stroke-width: 26; stroke-opacity: 0.1; }
+.cm-shore.is-1 { stroke-width: 11; stroke-opacity: 0.2; }
+.cm-ground { fill: var(--cm-paper); stroke: var(--cm-ink); stroke-width: 2.6; stroke-linejoin: round; }
+.cm-coastline { fill: none; stroke: var(--cm-ink); stroke-width: 2.4; stroke-linejoin: round; }
+.cm-lane { fill: none; stroke: var(--cm-ink); stroke-width: 3.2; stroke-dasharray: 1 10; stroke-linecap: round; stroke-opacity: 0.6; }
+.cm-lanes, .cm-compass, .cm-title, .cm-sea-name { pointer-events: none; }
+.cm-sea-name { font-family: var(--font-hand); font-style: italic; font-size: 1.375rem; letter-spacing: 0.14em; fill: var(--cm-sea-ink); fill-opacity: 0.85; }
+.cm-compass circle { fill: none; stroke: var(--cm-ink); stroke-width: 1.6; stroke-opacity: 0.7; }
+.cm-compass circle.is-thin { stroke-width: 0.8; stroke-dasharray: 2 3; }
+.cm-compass .is-dark { fill: var(--cm-ink); fill-opacity: 0.8; }
+.cm-compass .is-light { fill: var(--cm-paper); stroke: var(--cm-ink); stroke-width: 0.9; }
+.cm-compass text { font-family: var(--font-display); font-size: 0.9375rem; font-weight: 600; fill: var(--cm-ink); }
+.cm-scroll { fill: var(--cm-paper); stroke: var(--cm-ink); stroke-width: 1.8; stroke-linejoin: round; }
+.cm-scroll-rule { fill: none; stroke: var(--cm-ink); stroke-width: 0.9; stroke-opacity: 0.6; }
+.cm-title text { font-family: var(--font-display); font-size: 1.375rem; font-weight: 600; fill: var(--cm-ink); }
+
 .cm-prov { cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent; }
-.cm-land { fill: var(--cm-free); transition: opacity var(--dur-2), filter var(--dur-1); }
-.cm-prov:hover .cm-land { filter: brightness(1.07) saturate(1.08); }
-.cm-prov.is-dim .cm-land, .cm-prov.is-dim .cm-shade { opacity: 0.4; }
+.cm-wrap[data-picture] .cm-prov { cursor: default; }
+.cm-land { fill: var(--cm-paper); }
+.cm-prov[data-terrain='forest'] .cm-land { fill: color-mix(in srgb, var(--cm-forest) 62%, var(--cm-paper)); }
+.cm-prov[data-terrain='highland'] .cm-land { fill: color-mix(in srgb, var(--cm-high) 66%, var(--cm-paper)); }
+.cm-prov[data-terrain='marsh'] .cm-land { fill: color-mix(in srgb, var(--cm-marsh) 70%, var(--cm-paper)); }
+.cm-prov[data-terrain='town'] .cm-land { fill: var(--cm-town); }
+/* The holder: a light wash over the land, and a band of colour along the inside of the border, as on a hand-tinted map. */
+.cm-tint { fill-opacity: 0.17; pointer-events: none; }
+.cm-band { fill: none; stroke-width: 30; stroke-opacity: 0.6; stroke-linejoin: round; pointer-events: none; }
+.cm-prov.is-mine .cm-tint { fill-opacity: 0.24; }
+.cm-prov.is-mine .cm-band { stroke-width: 36; stroke-opacity: 0.74; }
+.cm-edge { fill: none; stroke: var(--cm-ink); stroke-width: 1.7; stroke-dasharray: 9 5; stroke-linejoin: round; stroke-opacity: 0.72; pointer-events: none; }
+.cm-flood { fill-opacity: 0.6; pointer-events: none; transform-box: fill-box; transform-origin: center; }
+.cm-prov.is-dim { opacity: 0.36; }
 .cm-mark.is-dim { opacity: 0.4; }
-.cm-mark { transition: opacity var(--dur-2); }
-.cm-shade { pointer-events: none; }
-.cm-hatch { stroke: #1b140a; stroke-opacity: 0.16; stroke-width: 1.3; fill: none; }
-.cm-dot { fill: #1b140a; fill-opacity: 0.2; }
-.cm-edge { fill: none; stroke: var(--cm-ink); stroke-width: 2.4; stroke-linejoin: round; stroke-opacity: 0.7; pointer-events: none; }
-.cm-rings, .cm-marks { pointer-events: none; }
+@media (hover: hover) { .cm-prov[role='button']:hover .cm-land { filter: brightness(1.07) saturate(1.1); } }
+
+/* The land's pictures. */
+.cm-pictures, .cm-rings, .cm-marks, .cm-over, .cm-frame { pointer-events: none; }
+.cm-g-ink { fill: none; stroke: var(--cm-ink); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.cm-g-leaf { fill: var(--cm-leaf); stroke: var(--cm-ink); stroke-width: 1.3; stroke-linejoin: round; }
+.cm-g-land { fill: color-mix(in srgb, var(--cm-high) 45%, var(--cm-paper)); stroke: var(--cm-ink); stroke-width: 1.4; stroke-linejoin: round; }
+.cm-g-hatch { fill: none; stroke: var(--cm-ink); stroke-width: 1.05; stroke-linecap: round; stroke-opacity: 0.75; }
+.cm-g-water { fill: none; stroke: var(--cm-river); stroke-width: 1.6; stroke-linecap: round; }
+.cm-g-dot { fill: var(--cm-ink); }
+.cm-g-wall { fill: var(--cm-wall); stroke: var(--cm-ink); stroke-width: 1.4; stroke-linejoin: round; }
+.cm-g-flag { fill: #a8352b; stroke: var(--cm-ink); stroke-width: 0.7; stroke-linejoin: round; }
+.cm-river { fill: none; stroke: var(--cm-river); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.cm-river.is-bank { stroke: var(--cm-ink); stroke-width: 7.6; stroke-opacity: 0.6; }
+.cm-ridge { fill: none; stroke: var(--cm-ink); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; stroke-opacity: 0.3; }
+.cm-frame { fill: none; stroke: var(--cm-ink); stroke-width: 3; stroke-opacity: 0.85; }
+.cm-frame.is-inner { stroke-width: 1; stroke-opacity: 0.7; }
+/* The same pictures outside the map: in the legend, the list and the panels. */
+.cm-glyph { flex: none; overflow: visible; }
+
+/* What is chosen and what it can reach. */
 .cm-ring { fill: none; stroke-linejoin: round; }
 .cm-ring.is-march, .cm-ring.is-attack { stroke: #fff6d6; stroke-width: 5; stroke-dasharray: 14 10; }
-.cm-ring.is-attack { stroke: #ffd2c4; }
+.cm-ring.is-attack { stroke: #ffcfbf; }
 .cm-ring.is-locked { stroke: #3d301c; stroke-width: 3; stroke-dasharray: 4 6; stroke-opacity: 0.6; }
+.cm-ring.is-place { stroke: #fff6d6; stroke-width: 3.5; stroke-dasharray: 3 8; stroke-linecap: round; stroke-opacity: 0.9; }
 .cm-ring.is-marked { stroke: #fff6d6; stroke-width: 4; }
-.cm-ring.is-selected { stroke: #e9b83a; stroke-width: 10; filter: drop-shadow(0 0 5px #000a); }
-/* What a chosen province can reach: footprints for a march, swords and the chance for an attack, a lock for a seat. */
-.cm-over { pointer-events: none; }
+.cm-ring.is-selected { stroke: #e9b83a; stroke-width: 9; filter: drop-shadow(0 0 5px #000a); }
+.cm-ring.is-focused { stroke: #1d5fd1; stroke-width: 6; stroke-dasharray: 3 7; stroke-linecap: round; }
 .cm-badge rect { fill: #1f1b14; stroke: #f1e3b8; stroke-width: 2; }
 .cm-badge svg { color: #fff8e2; }
 .cm-badge text { fill: #fff8e2; font-family: 'Inter Variable', system-ui, sans-serif; font-weight: 700; font-variant-numeric: tabular-nums; }
 .cm-badge.is-attack rect { fill: #7a1f1a; stroke: #ffe08a; }
 .cm-badge.is-locked rect { fill: #5c5446; stroke: #d8cba6; }
-.cm-arrow { fill: none; stroke: #fff1b8; stroke-width: 9; stroke-linecap: round; filter: drop-shadow(0 2px 3px #000b); }
+.cm-arrow { fill: none; stroke: #fff1b8; stroke-linecap: round; stroke-dasharray: 16 12; filter: drop-shadow(0 2px 3px #000b); }
 .cm-arrow.is-attack { stroke: #f2c14e; }
 .cm-arrow-head { fill: #fff1b8; }
-.cm-terrain circle { fill: #f3ead0; stroke: var(--cm-ink); stroke-width: 1.5; stroke-opacity: 0.6; }
-.cm-terrain svg { color: var(--cm-ink); }
-.cm-ring.is-focused { stroke: #1d5fd1; stroke-width: 6; stroke-dasharray: 3 7; stroke-linecap: round; }
+.cm-arrow-head.is-attack { fill: #f2c14e; }
+
+/* Shields, tokens and names. */
 .cm-shield .arms { filter: drop-shadow(0 3px 3px #0007); }
 .cm-flag { fill: #f3ead0; stroke: var(--cm-ink); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
 .cm-crown { color: #7a5a12; fill: #f2cf6b; stroke-width: 2; }
 .cm-token circle { fill: #1f1b14; stroke: #f1e3b8; stroke-width: 2; }
-.cm-token text { fill: #fff8e2; font-family: 'Inter Variable', system-ui, sans-serif; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cm-token text, .cm-flight text { fill: #fff8e2; font-family: 'Inter Variable', system-ui, sans-serif; font-weight: 700; font-variant-numeric: tabular-nums; }
 .cm-mark.is-mine .cm-token circle { fill: #7a1f1a; stroke: #ffe08a; stroke-width: 3; }
+.cm-plus circle { fill: #2f6b3a; stroke: #f4f1e0; stroke-width: 1.6; }
+.cm-plus svg { color: #fff; stroke-width: 3; }
 .cm-name {
   font-family: var(--font-display); font-size: 1.3125rem; font-weight: 600; letter-spacing: 0.02em; fill: var(--cm-ink);
   paint-order: stroke; stroke: var(--cm-paper); stroke-width: 5px; stroke-linejoin: round;
 }
 [data-theme='codex'] .cm-name { font-variant: small-caps; font-size: 1.375rem; }
-.cm-wrap[data-narrow] .cm-name { display: none; }
+/* On a narrow screen the names would be too small to read: they show when the view has moved in on an order. */
+.cm-wrap[data-narrow]:not([data-zoom]) .cm-name { display: none; }
+
+/* Troops on the move, and where two armies meet. */
+.cm-flight { transform: translate(var(--x1), var(--y1)); }
+.cm-flight circle { stroke: #fff6d6; stroke-width: 2.6; filter: drop-shadow(0 3px 3px #0009); }
+.cm-flight text { paint-order: stroke; stroke: #0009; stroke-width: 3px; }
+.cm-clash svg { color: #7a1f1a; }
+.cm-burst { fill: #ffe9a8; stroke: #7a1f1a; stroke-width: 2; stroke-linejoin: round; transform-box: fill-box; transform-origin: center; }
+
+/* Laid over the map: the turn's banner, and what a regent is doing. */
+.cm-banner {
+  position: absolute; left: 50%; top: 44%; translate: -50% -50%; display: grid; gap: 2px; justify-items: center; white-space: nowrap;
+  padding: 12px 56px 13px; pointer-events: none; line-height: 1.15; color: var(--cm-ink);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--cm-wall) 92%, #fff), var(--cm-paper));
+  border-block: 2px solid var(--cm-ink); box-shadow: 0 10px 30px #0007;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 50%, 100% 100%, 0 100%, 18px 50%);
+  opacity: 0;
+}
+.cm-banner-turn { font-family: var(--font-display); font-size: clamp(1.25rem, 4.5vw, 1.875rem); font-weight: 600; letter-spacing: 0.06em; }
+.cm-banner-season { font-family: var(--font-hand); font-style: italic; font-size: clamp(0.9375rem, 3vw, 1.125rem); }
+.cm-caption {
+  position: absolute; left: 10px; right: 10px; bottom: 10px; margin: 0; display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px;
+  border-radius: var(--radius); background: #1f1b14ee; color: #fff8e2; border: 1px solid #f1e3b866;
+  font-family: var(--font-ui); font-size: var(--fs-2); line-height: 1.3;
+}
+.cm-caption span { flex: 1; min-width: 0; }
+.cm-caption svg { flex: none; }
+.cm-caption .btn { flex: none; }
+
 @keyframes cm-march { to { stroke-dashoffset: -48; } }
+@keyframes cm-flow { to { stroke-dashoffset: -56; } }
+@keyframes cm-breathe { 50% { stroke-opacity: 0.35; } }
+@keyframes cm-fly { from { transform: translate(var(--x0), var(--y0)); } to { transform: translate(var(--x1), var(--y1)); } }
+@keyframes cm-hop { 50% { transform: translateY(-18px) scale(1.12); } }
+@keyframes cm-pop { from { transform: scale(1.5); } }
+@keyframes cm-clash { 0% { transform: scale(0.2) rotate(-40deg); opacity: 0; } 35% { transform: scale(1.25) rotate(8deg); opacity: 1; } 70% { transform: scale(1) rotate(0); opacity: 1; } 100% { transform: scale(1.15); opacity: 0; } }
+@keyframes cm-flood { 0% { transform: scale(0); fill-opacity: 0.75; } 65% { transform: scale(1); fill-opacity: 0.6; } 100% { transform: scale(1); fill-opacity: 0; } }
+@keyframes cm-banner { 0% { opacity: 0; scale: 0.86 1; } 14% { opacity: 1; scale: 1; } 78% { opacity: 1; } 100% { opacity: 0; translate: -50% -70%; } }
 @media (prefers-reduced-motion: no-preference) {
+  .cm-camera { transition: transform 640ms cubic-bezier(0.3, 0.1, 0.2, 1); }
+  .cm-tint { transition: fill 600ms; }
+  .cm-band { transition: stroke 600ms; }
+  .cm-prov, .cm-mark { transition: opacity var(--dur-2); }
   .cm-ring.is-march, .cm-ring.is-attack { animation: cm-march 1.6s linear infinite; }
+  .cm-ring.is-place { animation: cm-breathe 1.8s ease-in-out infinite; }
+  .cm-arrow { animation: cm-flow 0.9s linear infinite; }
+  .cm-flight { animation: cm-fly 520ms cubic-bezier(0.45, 0.05, 0.3, 1) both; }
+  .cm-flight.is-march .cm-hop { animation: cm-hop 520ms ease-in-out both; }
+  .cm-token { animation: cm-pop 320ms var(--ease-spring) both; }
+  .cm-clash { animation: cm-clash 430ms ease-out both; transform-box: fill-box; transform-origin: center; }
+  .cm-flood { animation: cm-flood 1000ms ease-out both; }
+  .cm-banner { animation: cm-banner 1.9s ease-out both; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-flight, .cm-clash, .cm-flood, .cm-banner { display: none; }
 }
 
 /* ---------- the page ---------- */
@@ -71,7 +185,7 @@
 .cg-board { display: grid; grid-template-columns: minmax(0, 1fr) 350px; gap: 18px; align-items: start; margin-bottom: 18px; }
 .cg-field { min-width: 0; display: grid; gap: 8px; }
 .cg-field-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.cg-legend { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-ui); font-size: var(--fs-2); }
+.cg-continent { font-family: var(--font-display); font-size: var(--fs-3); font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
 
 .cg-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px; }
 .cg-row {
@@ -115,10 +229,17 @@
 .cg-cry { display: grid; gap: 4px; font-family: var(--font-ui); font-size: var(--fs-2); color: var(--muted); }
 .cg-cry .input { width: 100%; }
 .cg-form-actions { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
-.cg-odds { margin: 0; font-family: var(--font-ui); font-size: var(--fs-2); padding: 6px 10px; border-radius: var(--radius); border-left: 3px solid var(--faint); background: var(--panel-2); }
-.cg-odds[data-odds='good'] { border-left-color: var(--ok); }
-.cg-odds[data-odds='fair'] { border-left-color: var(--info); }
-.cg-odds[data-odds='poor'] { border-left-color: var(--danger); }
+/* The chance of an attack: the number, a bar of it, and every thing the ground does to the dice. */
+.cg-odds { --odds: var(--faint); display: grid; gap: 6px; padding: 8px 10px; border-radius: var(--radius); border-left: 3px solid var(--odds); background: var(--panel-2); font-family: var(--font-ui); }
+.cg-odds[data-odds='good'], .cb-chance[data-odds='good'] { --odds: var(--ok); }
+.cg-odds[data-odds='fair'], .cb-chance[data-odds='fair'] { --odds: var(--info); }
+.cg-odds[data-odds='poor'], .cb-chance[data-odds='poor'] { --odds: var(--danger); }
+.cg-odds-line { margin: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: var(--fs-2); }
+.cg-odds-line b { font-size: var(--fs-5); font-variant-numeric: tabular-nums; }
+.cg-odds-bar { display: block; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--faint) 35%, transparent); overflow: hidden; }
+.cg-odds-bar i { display: block; height: 100%; border-radius: 3px; background: var(--odds); transition: width var(--dur-3) var(--ease-out); }
+.cg-mods { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-family: var(--font-ui); font-size: var(--fs-1); line-height: var(--lh-ui); color: var(--muted); }
+.cg-ways { margin: 0; font-family: var(--font-ui); font-size: var(--fs-2); line-height: var(--lh-ui); color: var(--muted); }
 .cg-why { margin: 0; padding: 8px 10px; border-radius: var(--radius); background: var(--panel-2); font-family: var(--font-ui); font-size: var(--fs-2); }
 .cg-turn { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
 .cg-turn .btn { height: var(--ctl-lg); justify-content: center; }
@@ -137,7 +258,7 @@
 .cg-part-bar { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--faint) 35%, transparent); overflow: hidden; }
 .cg-part-bar > span { display: block; height: 100%; background: var(--accent); }
 .cg-part-n { color: var(--subtle); font-variant-numeric: tabular-nums; }
-.cg-levy { margin: 0 0 12px; display: flex; gap: 6px; align-items: baseline; font-family: var(--font-ui); font-size: var(--fs-2); }
+.cg-levy { margin: 0 0 12px; font-family: var(--font-ui); font-size: var(--fs-2); line-height: var(--lh-ui); }
 .cg-levy svg { flex: none; align-self: center; }
 .cg-tips h3 { margin: 0 0 4px; font-family: var(--font-ui); font-size: var(--fs-3); font-weight: 600; }
 .cg-tips ul { margin: 0 0 10px; padding-left: 18px; font-size: var(--fs-3); line-height: var(--lh-ui); }
@@ -184,7 +305,14 @@
 .cg-games-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
 /* The turn's head, its steps, and the order bar. */
-.cg-turn-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.cg-turn-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.cg-season { margin: 2px 0 0; display: flex; align-items: center; gap: 5px; font-family: var(--font-hand); font-style: italic; font-size: var(--fs-2); color: var(--muted); }
+/* The reign's twelve turns as beads, four to a year. */
+.cg-track { display: flex; gap: 4px; align-items: center; }
+.cg-track i { flex: 1; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--faint) 40%, transparent); }
+.cg-track i.is-year { margin-left: 6px; }
+.cg-track i.is-done { background: color-mix(in srgb, var(--accent) 55%, transparent); }
+.cg-track i.is-on { background: var(--accent); height: 8px; }
 .cg-score-now { font-family: var(--font-ui); font-size: var(--fs-2); font-weight: 600; padding: 2px 10px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); font-variant-numeric: tabular-nums; }
 .cg-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
 .cg-steps li { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: var(--radius); border: 1px solid var(--border); font-family: var(--font-ui); font-size: var(--fs-1); color: var(--subtle); line-height: 1.2; }
@@ -199,26 +327,35 @@
 .cg-step-actions { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
 .cg-step-actions .btn { height: var(--ctl-lg); justify-content: center; }
 .cg-renown-link { font-family: var(--font-ui); font-size: var(--fs-2); }
-.cg-terrain-line { margin: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-family: var(--font-ui); font-size: var(--fs-2); }
+.cg-terrain-line { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px; font-family: var(--font-ui); font-size: var(--fs-2); line-height: var(--lh-ui); }
+.cg-terrain-line .cm-glyph { padding: 3px; box-sizing: content-box; border-radius: 6px; background: var(--cm-paper); border: 1px solid color-mix(in srgb, var(--cm-ink) 45%, transparent); }
 .cg-orderbar { display: grid; gap: 10px; padding: 12px; border-radius: var(--radius); border: 1px solid var(--accent); background: var(--panel-solid); }
 .cg-orderbar h3 { margin: 0; display: flex; align-items: center; gap: 6px; font-family: var(--font-ui); font-size: var(--fs-3); font-weight: 600; overflow-wrap: anywhere; }
-.cg-replay { margin: 0; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--border); font-family: var(--font-ui); font-size: var(--fs-2); }
-.cg-replay .btn { margin-left: auto; }
 .cg-report { display: grid; gap: 4px; padding-top: 10px; border-top: 1px solid var(--border); }
 .cg-report h3 { margin: 0; font-family: var(--font-ui); font-size: var(--fs-2); font-weight: 600; color: var(--muted); }
 .cg-report ul { margin: 0; padding-left: 18px; font-size: var(--fs-2); line-height: var(--lh-ui); }
 .cg-report li.is-loss { color: var(--danger); }
-.cg-terrain-legend { font-family: var(--font-ui); font-size: var(--fs-2); }
-.cg-terrain-legend summary { cursor: pointer; color: var(--muted); }
-.cg-terrain-legend ul { list-style: none; margin: 8px 0 4px; padding: 0; display: grid; gap: 6px; }
-.cg-terrain-legend li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.cg-terrain-legend p { margin: 0; }
-.cg-swatch { width: 24px; height: 24px; display: inline-grid; place-items: center; border-radius: 6px; background: #dccda3; color: #3d301c; border: 1px solid #3d301c55; }
-.cg-swatch.is-forest { background: radial-gradient(#1b140a33 2.4px, transparent 2.6px) 0 0 / 9px 9px, #dccda3; }
-.cg-swatch.is-highland { background: repeating-linear-gradient(135deg, #1b140a29 0 1.5px, transparent 1.5px 7px), #dccda3; }
-.cg-swatch.is-town { background: linear-gradient(#1b140a29 1.5px, transparent 1.5px) 0 0 / 7px 7px, linear-gradient(90deg, #1b140a29 1.5px, transparent 1.5px) 0 0 / 7px 7px, #dccda3; }
+/* How to read the map: each land and feature as the map draws it, and, opened, what each one does. */
+.cg-legend-box { display: grid; gap: 6px; font-family: var(--font-ui); font-size: var(--fs-2); }
+.cg-legend-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.cg-legend-chips li { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.cg-terrain-legend summary { cursor: pointer; color: var(--muted); width: fit-content; }
+.cg-terrain-legend ul { list-style: none; margin: 8px 0 4px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px 16px; }
+.cg-terrain-legend li { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px; line-height: var(--lh-ui); }
+.cg-terrain-legend p { margin: 6px 0 0; }
+.cg-swatch { width: 28px; height: 28px; flex: none; display: inline-grid; place-items: center; border-radius: 6px; background: var(--cm-paper); border: 1px solid color-mix(in srgb, var(--cm-ink) 45%, transparent); }
+.cg-swatch.is-forest { background: color-mix(in srgb, var(--cm-forest) 62%, var(--cm-paper)); }
+.cg-swatch.is-highland { background: color-mix(in srgb, var(--cm-high) 66%, var(--cm-paper)); }
+.cg-swatch.is-marsh { background: color-mix(in srgb, var(--cm-marsh) 70%, var(--cm-paper)); }
+.cg-swatch.is-town { background: var(--cm-town); }
+.cg-row-text small { display: flex; align-items: center; gap: 4px; }
 
 /* The week, the result and the tables. */
+.cg-week-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 440px); gap: 20px; align-items: center; }
+.cg-week-main { display: grid; gap: 10px; min-width: 0; }
+.cg-week-map { margin: 0; display: grid; gap: 6px; min-width: 0; }
+.cg-week-map figcaption { font-family: var(--font-hand); font-style: italic; font-size: var(--fs-2); color: var(--muted); text-align: center; line-height: var(--lh-ui); }
+.cg-week-record { display: flex; align-items: center; gap: 5px; font-family: var(--font-ui); font-size: var(--fs-2) !important; color: var(--muted); }
 .cg-week-top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: center; }
 .cg-week-top h2 { margin: 0 0 4px; }
 .cg-week-me { font-family: var(--font-ui); font-weight: 600; margin-top: 6px !important; }
@@ -227,6 +364,47 @@
 .cg-practice-bar .cg-note { margin: 0; flex: 1 1 260px; }
 .cg-score-parts { font-family: var(--font-ui); font-size: var(--fs-2); color: var(--muted); }
 .cg-best { color: var(--accent); display: inline-flex; align-items: center; gap: 4px; }
+[data-theme='modern'] .cg-best { color: #7a5c12; }
+.cg-rose { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-ui); font-weight: 600; }
+.cg-earlier { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.cg-earlier h3 { margin: 0; font-family: var(--font-ui); font-size: var(--fs-2); font-weight: 600; color: var(--muted); }
+.cg-earlier .cg-table { opacity: 0.85; }
+
+/* ---------- the chronicle of a reign ---------- */
+.cc { text-align: left; justify-items: stretch; gap: 16px; }
+.cc-head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: center; }
+.cc-head h2 { font-family: var(--font-display); font-size: var(--fs-8); line-height: 1.05; font-variant-numeric: tabular-nums; }
+.cc-title { margin: 6px 0 0 !important; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.cc-title .cg-laurel { align-self: center; }
+.cc-title b { font-family: var(--font-title); font-size: var(--fs-4); }
+.cc-title span { font-family: var(--font-ui); font-size: var(--fs-2); }
+.cc-parts { margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.cc-parts div { display: grid; gap: 2px; padding: 8px 10px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--border); }
+.cc-parts dt { font-family: var(--font-ui); font-size: var(--fs-1); color: var(--muted); line-height: 1.2; }
+.cc-parts dd { margin: 0; display: flex; align-items: baseline; gap: 6px; font-family: var(--font-display); font-size: var(--fs-6); font-variant-numeric: tabular-nums; }
+.cc-parts small { font-family: var(--font-ui); font-size: var(--fs-1); color: var(--subtle); }
+.cc-story { display: grid; grid-template-columns: minmax(200px, 320px) minmax(0, 1fr); gap: 18px; align-items: start; }
+.cc-story h3 { margin: 0 0 6px; font-family: var(--font-ui); font-size: var(--fs-2); font-weight: 600; color: var(--muted); }
+.cc-line { display: block; width: 100%; height: auto; }
+.cc-line-year { stroke: var(--border); stroke-width: 1; stroke-dasharray: 2 3; }
+.cc-line-fill { fill: color-mix(in srgb, var(--accent) 14%, transparent); }
+.cc-line-path { fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+.cc-line-dot { fill: var(--panel-solid); stroke: var(--accent); stroke-width: 1.6; }
+.cc-line-dot.is-up { fill: var(--ok); stroke: var(--ok); }
+.cc-line-dot.is-down { fill: var(--danger); stroke: var(--danger); }
+.cc-tale ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; font-size: var(--fs-3); line-height: var(--lh-ui); }
+.cc-tale li { padding-left: 12px; border-left: 3px solid var(--border); }
+.cc-tale li.is-took { border-left-color: var(--ok); }
+.cc-tale li.is-lost { border-left-color: var(--danger); }
+.cc-tale li.is-held { border-left-color: var(--info); }
+.cc-status p { margin: 0 0 4px; }
+@keyframes cc-draw { from { stroke-dasharray: 1; stroke-dashoffset: 1; } to { stroke-dasharray: 1; stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: no-preference) {
+  .cc-line-path { animation: cc-draw 1200ms ease-out both; }
+  .cc-tale li { animation: cb-in var(--dur-3) var(--ease-out) backwards; }
+  .cc-tale li:nth-child(2) { animation-delay: 120ms; } .cc-tale li:nth-child(3) { animation-delay: 240ms; }
+  .cc-tale li:nth-child(4) { animation-delay: 360ms; } .cc-tale li:nth-child(5) { animation-delay: 480ms; }
+}
 .cg-table { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 4px; }
 .cg-table li { display: grid; grid-template-columns: 22px 24px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 5px 8px; border-radius: var(--radius); }
 .cg-table li.is-mine { background: color-mix(in srgb, var(--accent) 12%, transparent); }
@@ -236,7 +414,8 @@
 .cg-table-name small { font-family: var(--font-ui); font-size: var(--fs-1); color: var(--subtle); }
 .cg-table-score { font-family: var(--font-display); font-size: var(--fs-5); font-variant-numeric: tabular-nums; }
 .cg-card-rank { color: var(--accent); display: grid; place-items: center; width: 44px; }
-.cb-terrain { margin: 0; display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; font-family: var(--font-ui); font-size: var(--fs-2); color: var(--muted); }
+.cb-terrain { margin: 0; display: flex; align-items: center; gap: 8px; font-family: var(--font-ui); font-size: var(--fs-3); }
+.cb-terrain .cm-glyph { padding: 3px; box-sizing: content-box; border-radius: 6px; background: var(--cm-paper); border: 1px solid color-mix(in srgb, var(--cm-ink) 45%, transparent); }
 
 /* ---------- the battle ---------- */
 .cb { display: grid; gap: 16px; }
@@ -245,7 +424,7 @@
 .cb-side b { font-family: var(--font-name); font-weight: 600; font-size: var(--fs-4); overflow-wrap: anywhere; }
 .cb-side span { font-family: var(--font-ui); font-size: var(--fs-2); }
 .cb-vs { color: var(--accent); }
-.cb-rounds { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; min-height: 132px; align-content: start; }
+.cb-rounds { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; align-content: start; }
 .cb-round { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 10px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--border); }
 .cb-round-n, .cb-loss { font-family: var(--font-ui); font-size: var(--fs-1); color: var(--subtle); white-space: nowrap; }
 .cb-dice { display: flex; gap: 4px; }
@@ -257,15 +436,29 @@
 .cb-die.is-lost { opacity: 0.38; }
 .cb-result { min-height: 58px; text-align: center; }
 .cb-result p { margin: 0; }
-.cb-outcome { font-family: var(--font-title); font-size: var(--fs-6); font-weight: 600; line-height: var(--lh-tight); }
-.cb-outcome.is-won { color: var(--accent); }
+.cb-outcome { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; font-family: var(--font-title); font-size: var(--fs-5); font-weight: 600; line-height: var(--lh-tight); }
+.cb-outcome.is-glad { color: var(--accent); }
+[data-theme='modern'] .cb-outcome.is-glad { color: #7a5c12; }
+/* The outcome, stamped: red wax for a province taken, ink for one that held. */
+.cb-stamp { display: inline-block; padding: 3px 12px 2px; border: 2.5px double currentColor; border-radius: 4px; rotate: -5deg; font-family: var(--font-display); font-size: var(--fs-3); letter-spacing: 0.14em; text-transform: uppercase; color: var(--danger); }
+.cb-outcome:not(.is-won) .cb-stamp { color: var(--muted); }
+.cb-ground { display: grid; gap: 6px; padding: 10px 12px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--border); }
+.cb-chance { --odds: var(--faint); margin: 0; display: grid; grid-template-columns: auto minmax(60px, 1fr); align-items: center; gap: 10px; font-family: var(--font-ui); font-size: var(--fs-2); font-weight: 600; }
+/* An army as a row of small figures; the fallen are struck out. */
+.cb-army { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; max-width: 150px; min-height: 12px; }
+.cb-army i { width: 9px; height: 12px; border-radius: 5px 5px 2px 2px; background: #7a1f1a; border: 1px solid #ffe08a99; }
+.cb-army.is-defender i { background: #f1e6c8; border-color: #2a2015; }
+.cb-army i.is-fallen { opacity: 0.22; transform: translateY(3px) rotate(70deg); }
 [data-theme='codex'] .cb-outcome { font-variant: small-caps; }
 @keyframes cb-roll { 0% { transform: translateY(-14px) rotate(-200deg) scale(0.6); opacity: 0; } 70% { transform: translateY(2px) rotate(12deg) scale(1.06); opacity: 1; } 100% { transform: none; } }
 @keyframes cb-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes cb-stamp { from { opacity: 0; scale: 2.2; rotate: 8deg; } }
 @media (prefers-reduced-motion: no-preference) {
   .cb-die { animation: cb-roll 520ms var(--ease-out) backwards; transform-box: fill-box; transform-origin: center; }
   .cb-die.is-lost { transition: opacity 300ms 600ms; }
   .cb-outcome { animation: cb-in var(--dur-3) var(--ease-out) backwards; }
+  .cb-stamp { animation: cb-stamp 420ms var(--ease-spring) 120ms backwards; }
+  .cb-army i { transition: opacity 300ms 500ms, transform 300ms 500ms; }
 }
 
 @media (max-width: 1000px) {
@@ -278,12 +471,17 @@
   }
   .cg-board.has-bar { padding-bottom: 230px; }
   .cg-lower { grid-template-columns: minmax(0, 1fr); }
+  .cg-week-cols { grid-template-columns: minmax(0, 1fr); }
+  .cg-week-map { max-width: 520px; justify-self: center; width: 100%; }
 }
 @media (max-width: 760px) {
   /* Above the phone's tab bar. */
   .cg-orderbar { bottom: calc(58px + env(safe-area-inset-bottom)); padding-bottom: 12px; }
   .cg-list { grid-template-columns: minmax(0, 1fr); }
   .cg-week-top { grid-template-columns: minmax(0, 1fr); justify-items: start; }
+  .cc-story { grid-template-columns: minmax(0, 1fr); }
+  .cc-parts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cc-head { grid-template-columns: minmax(0, 1fr); justify-items: start; }
   .cb-round { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .cb-round-n, .cb-loss { grid-column: 1 / -1; }
   .cb-die { width: 30px; height: 30px; }

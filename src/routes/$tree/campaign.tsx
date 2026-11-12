@@ -1,15 +1,17 @@
-// The Campaign: a game one plays alone, as one's own house, on a map made from the family's places, with a weekly table
-// for the family (docs/campaign.md). Members only. While a steward has it on, the page shows this week's challenge, the
+// The Campaign: a game one plays alone, as one's own house, on an invented continent that is new each week, with a weekly
+// table for the family (docs/campaign.md). Members only. While a steward has it on, the page shows this week's challenge, the
 // tables and a way to begin a reign; a reign is played in the browser and its moves are sent at the end, where the
 // server plays them again and keeps the score. A practice reign (any house, a fresh field) is always there and stores
 // nothing. A demo and a steward's preview play the week's field but never send it. A week's reign is kept in the tab while
 // it is played (src/lib/campaign/saved.ts), so a reload or a visit elsewhere comes back to it.
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { CircleHelp, Crown, ExternalLink, Play as PlayIcon, RotateCcw, Swords, Undo2 } from 'lucide-react';
+import { CircleHelp, Crown, ExternalLink, Play as PlayIcon, RotateCcw, Swords, TrendingUp, Undo2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { BattleDialog, type Battle } from '~/components/campaign/BattleDialog';
-import { Board, Laurel, type BoardSide } from '~/components/campaign/Board';
+import { Board } from '~/components/campaign/Board';
+import { CampaignMap } from '~/components/campaign/CampaignMap';
+import { ReignChronicle } from '~/components/campaign/Chronicle';
+import { Laurel, type BoardSide } from '~/components/campaign/parts';
 import { HowItWorks, LeaderboardPanel, RenownCard, SeasonsOfOld } from '~/components/campaign/panels';
 import { useReign } from '~/components/campaign/reign';
 import { isTourRunning } from '~/components/tour/store';
@@ -26,6 +28,7 @@ import { useTreeId } from '~/lib/family';
 import { formatDate, ordinal, translate, useT, type Locale } from '~/lib/i18n';
 import { useCan, useSession } from '~/lib/session';
 import { play as sound } from '~/lib/sfx';
+import { toast } from '~/lib/toast';
 import { treeTitle } from '~/lib/title';
 
 export const Route = createFileRoute('/$tree/campaign')({
@@ -59,8 +62,11 @@ function CampaignPage() {
   const thisWeek = q.data?.challenge?.week;
   useEffect(() => {
     if (!thisWeek || week || practice) return;
-    const saved = loadReign(tabStore(), tree, account, thisWeek);
+    const { saved, outdated } = loadReign(tabStore(), tree, account, thisWeek);
     if (saved) setWeek({ run: saved.run, submit: saved.submit, round: 0, saved });
+    // A reign kept from before the rules changed cannot be played on: it has been let go, and this says so once.
+    else if (outdated) toast({ title: t('campaign.reign.outdated_title'), body: t('campaign.reign.outdated') });
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- `t` changes with the language only, and the kept reign is read once per week shown
   }, [thisWeek, week, practice, tree, account]);
 
   // The first visit opens "how it works" once; after that it is behind its button.
@@ -161,6 +167,7 @@ function Week({ view, tree, help, begin, startPractice }: { view: CampaignView; 
     } catch { /* the error is shown under the button */ }
   };
   const me = board.me;
+  const { map } = challenge.field;
   return (
     <>
       <PageHeader
@@ -170,6 +177,8 @@ function Week({ view, tree, help, begin, startPractice }: { view: CampaignView; 
         actions={<>{help}<button type="button" className="btn" data-tour="campaign-practice" onClick={startPractice}><Swords size={16} /> {t('campaign.practice.button')}</button></>}
       />
       <section className="ui-card cg-banner cg-week" aria-labelledby="cg-week-h">
+        <div className="cg-week-cols">
+        <div className="cg-week-main">
         <div className="cg-week-top">
           {mine && <Arms arms={mine.arms} size={64} />}
           <div>
@@ -178,6 +187,7 @@ function Week({ view, tree, help, begin, startPractice }: { view: CampaignView; 
             <p className="cg-week-me" data-testid="week-me">
               {me.best === null ? t('campaign.week.none') : t('campaign.week.best', { score: me.best, count: me.runs, rank: ordinal(me.rank ?? 1, t.locale), of: me.of })}
             </p>
+            {me.record !== null && <p className="cg-week-record"><Laurel size={14} /> {t('campaign.week.record', { score: me.record })}</p>}
           </div>
         </div>
         {challenge.chooses && (
@@ -196,6 +206,13 @@ function Week({ view, tree, help, begin, startPractice }: { view: CampaignView; 
         </div>
         {localOnly && <p className="subtle">{t('campaign.week.local')}</p>}
         {start.isError && <p role="alert">{errorText(start.error, t.locale)}</p>}
+        </div>
+        {/* This week's continent at its opening: a picture to look at before the reign begins. */}
+        <figure className="cg-week-map">
+          <CampaignMap map={map} state={challenge.field.start} sides={challenge.field.sides} player={side || null} picture={t('campaign.week.map_label', { name: map.name ?? '' })} />
+          <figcaption>{t('campaign.week.continent', { name: map.name ?? '' })}</figcaption>
+        </figure>
+        </div>
       </section>
       <div className="cg-lower">
         <LeaderboardPanel board={board} sides={challenge.field.sides} />
@@ -213,8 +230,8 @@ interface PlayProps {
   start: State;
   sides: BoardSide[];
   tree: string;
-  /** Shown when the reign is over: the score as the server kept it, or a practice's. */
-  over: (score: ReturnType<typeof useReign>['score'], moves: ReturnType<typeof useReign>['moves']) => ReactNode;
+  /** When the reign is over: where it stands (the server's answer, or that it was not counted), and what to do next. */
+  over: (moves: ReturnType<typeof useReign>['moves']) => { status: ReactNode; actions: ReactNode };
   head: ReactNode;
   note?: ReactNode;
   /** Moves already played (a reign kept in the tab), played again before the board shows. */
@@ -226,7 +243,6 @@ interface PlayProps {
 function Play({ reign, start, sides, tree, over, head, note, initial, onMoves }: PlayProps) {
   const t = useT();
   const game = useReign(reign, start, initial);
-  const [battle, setBattle] = useState<Battle | null>(null);
   useEffect(() => { onMoves?.(game.moves, game.over); }, [onMoves, game.moves, game.over]);
   // A new tab, so the game stays where it is.
   const renownLink = (
@@ -238,16 +254,10 @@ function Play({ reign, start, sides, tree, over, head, note, initial, onMoves }:
     <>
       {head}
       {note}
-      {game.over && over(game.score, game.moves)}
-      <Board reign={reign} sides={sides} game={game} onAttack={setBattle} renownLink={renownLink} />
-      {battle && <BattleDialog battle={battle} map={reign.map} sides={sides} mySide={reign.player} onClose={() => setBattle(null)} />}
+      {game.over && <ReignChronicle reign={reign} start={start} moves={game.moves} sides={sides} {...over(game.moves)} />}
+      <Board reign={reign} sides={sides} game={game} renownLink={renownLink} />
     </>
   );
-}
-
-function ScoreLine({ score }: { score: ReturnType<typeof useReign>['score'] }) {
-  const t = useT();
-  return <p className="cg-score-parts">{t('campaign.result.parts', { provinces: score.provinces, towns: score.towns, won: score.won, lost: score.lost })}</p>;
 }
 
 function WeekReign({ tree, account, run, submit, saved, help, leave, again }: { tree: string; account: string; run: RunStart; submit: boolean; saved?: SavedReign; help: ReactNode; leave: () => void; again: (run: RunStart, submit: boolean) => void }) {
@@ -299,19 +309,14 @@ function WeekReign({ tree, account, run, submit, saved, help, leave, again }: { 
         />
       }
       note={!submit ? <p className="cg-local" role="note">{t('campaign.week.local')}</p> : run.grant > 0 ? <p className="cg-local">{t('campaign.week.grant', { count: run.grant })}</p> : null}
-      over={(score, moves) => (
-        <ResultBanner
-          title={t('campaign.result.title', { score: score.total })}
-          arms={side?.arms}
-          parts={<ScoreLine score={score} />}
-          status={!submit ? <p className="subtle">{t('campaign.result.local')}</p> : <Submit finish={finish} moves={moves} />}
-          actions={<>
-            <button type="button" className="btn primary" disabled={restart.isPending || (submit && !finish.isSuccess)} onClick={() => void playAgain()}><RotateCcw size={16} /> {t('campaign.result.again')}</button>
-            <button type="button" className="btn" onClick={goAway}>{t('campaign.result.table')}</button>
-            {restart.isError && <p role="alert">{errorText(restart.error, t.locale)}</p>}
-          </>}
-        />
-      )}
+      over={(moves) => ({
+        status: !submit ? <p className="subtle">{t('campaign.result.local')}</p> : <Submit finish={finish} moves={moves} />,
+        actions: <>
+          <button type="button" className="btn primary" disabled={restart.isPending || (submit && !finish.isSuccess)} onClick={() => void playAgain()}><RotateCcw size={16} /> {t('campaign.result.again')}</button>
+          <button type="button" className="btn" onClick={goAway}>{t('campaign.result.table')}</button>
+          {restart.isError && <p role="alert">{errorText(restart.error, t.locale)}</p>}
+        </>,
+      })}
     />
     </>
   );
@@ -327,30 +332,26 @@ function Submit({ finish, moves }: { finish: UseMutationResult<FinishResult, Err
   if (finish.isError) return <p role="alert">{errorText(finish.error, t.locale)} <button type="button" className="btn sm" onClick={() => mutate(moves)}>{t('campaign.result.retry')}</button></p>;
   if (!finish.data) return <p className="subtle" aria-live="polite">{t('campaign.result.sending')}</p>;
   const r = finish.data;
+  const house = r.house && r.house.of > 1 ? r.house : null;
   return (
-    <p aria-live="polite" data-testid="result-rank">
-      {r.personalBest && <b className="cg-best"><Laurel size={15} /> {t('campaign.result.best')} </b>}
-      {t('campaign.result.rank', { rank: ordinal(r.rank, t.locale), of: r.of, best: r.best })}
-    </p>
-  );
-}
-
-function ResultBanner({ title, arms, parts, status, actions }: { title: string; arms?: BoardSide['arms']; parts: ReactNode; status: ReactNode; actions: ReactNode }) {
-  return (
-    <section className="ui-card cg-banner cg-result" aria-live="polite">
-      {arms && <Arms arms={arms} size={64} />}
-      <h2>{title}</h2>
-      {parts}
-      {status}
-      <div className="cg-banner-actions">{actions}</div>
-    </section>
+    <div aria-live="polite">
+      <p data-testid="result-rank">
+        {(r.record || r.personalBest) && <b className="cg-best"><Laurel size={15} /> {t(r.record ? 'campaign.result.record' : 'campaign.result.best')} </b>}
+        {t('campaign.result.rank', { rank: ordinal(r.rank, t.locale), of: r.of, best: r.best })}
+      </p>
+      {house && (
+        <p className={house.rose ? 'cg-rose' : 'subtle'} data-testid="result-house">
+          {house.rose && <TrendingUp size={15} aria-hidden />} {t(house.rose ? 'campaign.result.house_rose' : 'campaign.result.house_stands', { house: house.name, rank: ordinal(house.rank, t.locale), of: house.of })}
+        </p>
+      )}
+    </div>
   );
 }
 
 // ---------- practice ----------
 
 function Practice(props: { view: CampaignView; tree: string; help: ReactNode; leave: () => void }) {
-  // A practice field is dealt by the browser's own randomness, so it is drawn only once the page runs here.
+  // A practice continent is dealt by the browser's own randomness, so it is drawn only once the page runs here.
   return useIsClient() ? <PracticeReign {...props} /> : <Skeleton height={520} />;
 }
 
@@ -363,11 +364,10 @@ function PracticeReign({ view, tree, help, leave }: { view: CampaignView; tree: 
   // A fresh field for every round: only for a reign nobody else sees, so the browser's own randomness is enough.
   const setup = useMemo(() => {
     const seed = `practice:${Math.random().toString(36).slice(2)}:${round}`;
-    const field = setupField(kit.places, kit.sides.map((s) => s.id), seed);
+    const field = setupField(kit.sides.map((s) => s.id), seed);
     const reign: Reign = { map: field.map, sides: kit.sides.map((s) => s.id), player: side, seed, renown: kit.sides.find((s) => s.id === side)?.renown.bonus ?? 0, grant: 0 };
     return { field, reign };
   }, [kit, side, round]);
-  const me = kit.sides.find((s) => s.id === side);
   return (
     <Play
       key={`${side}:${round}`}
@@ -395,18 +395,13 @@ function PracticeReign({ view, tree, help, leave }: { view: CampaignView; tree: 
           <p className="subtle cg-note">{t('campaign.practice.note')}</p>
         </div>
       }
-      over={(score) => (
-        <ResultBanner
-          title={t('campaign.result.title', { score: score.total })}
-          arms={me?.arms}
-          parts={<ScoreLine score={score} />}
-          status={<p className="subtle">{t('campaign.practice.unranked')}</p>}
-          actions={<>
-            <button type="button" className="btn primary" onClick={() => setRound((r) => r + 1)}><RotateCcw size={16} /> {t('campaign.practice.again')}</button>
-            <button type="button" className="btn" onClick={leave}>{view.enabled ? t('campaign.practice.back') : t('campaign.practice.leave')}</button>
-          </>}
-        />
-      )}
+      over={() => ({
+        status: <p className="subtle">{t('campaign.practice.unranked')}</p>,
+        actions: <>
+          <button type="button" className="btn primary" onClick={() => setRound((r) => r + 1)}><RotateCcw size={16} /> {t('campaign.practice.again')}</button>
+          <button type="button" className="btn" onClick={leave}>{view.enabled ? t('campaign.practice.back') : t('campaign.practice.leave')}</button>
+        </>,
+      })}
     />
   );
 }

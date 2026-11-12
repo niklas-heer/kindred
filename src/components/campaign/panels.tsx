@@ -1,7 +1,7 @@
 // The campaign page's panels: the family's tables (this week, all time, the houses), a house's renown with what would
 // raise it, the seasons of the old shared game, and "how it works". All of them only read.
 import { Link } from '@tanstack/react-router';
-import { BookOpen, Castle, Crown, Swords, Trophy, Users } from 'lucide-react';
+import { BookOpen, Castle, Crown, Mountain, Swords, Trophy, Users } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Arms } from '~/components/Heraldry';
 import { Dialog, Segmented } from '~/components/ui';
@@ -9,7 +9,8 @@ import { RULES } from '~/lib/campaign/engine';
 import { RENOWN_STEPS, type RenownKey } from '~/lib/campaign/renown';
 import type { BoardRow, FameEntry, Leaderboard, SideView, StoredSide } from '~/lib/campaign/types';
 import { formatDate, useT, type Key } from '~/lib/i18n';
-import { Laurel } from './Board';
+import { TITLE_NAME } from './Chronicle';
+import { Laurel } from './parts';
 
 // ---------- the tables ----------
 
@@ -25,12 +26,20 @@ export function LeaderboardPanel({ board, sides }: { board: Leaderboard; sides: 
           <li key={`${r.name}-${i}`} className={r.mine ? 'is-mine' : ''} aria-current={r.mine ? 'true' : undefined}>
             <span className="cg-table-rank">{i + 1}</span>
             {side ? <Arms arms={side.arms} size={22} /> : <span />}
-            <span className="cg-table-name"><b>{r.name}</b><small>{all ? t('campaign.board.week_of', { week: r.week?.slice(6) ?? '' }) : t('campaign.board.runs', { count: r.runs ?? 0 })}</small></span>
+            <span className="cg-table-name"><b>{r.name}</b><small>{all ? t('campaign.board.week_of', { week: r.week?.slice(6) ?? '' }) : t('campaign.board.runs', { count: r.runs ?? 0 })}{r.title && <> · {t(TITLE_NAME[r.title])}</>}</small></span>
             <span className="cg-table-score">{r.score}</span>
           </li>
         );
       })}
     </ol>
+  );
+  // Reigns played under earlier rules: kept as they were, shown apart, and never ranked with today's.
+  const earlier = (list: BoardRow[] | undefined) => !!list?.length && (
+    <div className="cg-earlier">
+      <h3>{t('campaign.board.earlier')}</h3>
+      {rows(list, true)}
+      <p className="subtle cg-note">{t('campaign.board.earlier_note')}</p>
+    </div>
   );
   return (
     <section className="ui-card cg-panel" aria-labelledby="cg-board-h">
@@ -43,7 +52,9 @@ export function LeaderboardPanel({ board, sides }: { board: Leaderboard; sides: 
         options={[{ value: 'week', label: t('campaign.board.week') }, { value: 'all', label: t('campaign.board.all') }, { value: 'houses', label: t('campaign.board.houses') }]}
       />
       {tab === 'week' && (board.week.length ? rows(board.week, false) : <p className="muted cg-note">{t('campaign.board.empty')}</p>)}
+      {tab === 'week' && earlier(board.earlier?.week)}
       {tab === 'all' && (board.allTime.length ? rows(board.allTime, true) : <p className="muted cg-note">{t('campaign.board.empty_all')}</p>)}
+      {tab === 'all' && earlier(board.earlier?.allTime)}
       {tab === 'houses' && (board.houses.length ? (
         <ol className="cg-table">
           {board.houses.map((h, i) => (
@@ -151,10 +162,11 @@ export function HowItWorks({ open, onClose, onPlay, playLabel }: { open: boolean
     { icon: <Crown size={20} />, title: 'campaign.how.reign_title', text: 'campaign.how.reign_text' },
     { icon: <Users size={20} />, title: 'campaign.how.turn_title', text: 'campaign.how.turn_text' },
     { icon: <Swords size={20} />, title: 'campaign.how.battle_title', text: 'campaign.how.battle_text' },
+    { icon: <Mountain size={20} />, title: 'campaign.how.land_title', text: 'campaign.how.land_text' },
     { icon: <BookOpen size={20} />, title: 'campaign.how.renown_title', text: 'campaign.how.renown_text' },
     { icon: <Castle size={20} />, title: 'campaign.how.score_title', text: 'campaign.how.score_text' },
   ];
-  const numbers = { turns: RULES.TURNS, orders: RULES.ORDERS_PER_TURN, rounds: RULES.BATTLE_ROUNDS, max: RULES.RENOWN_MAX_BONUS };
+  const numbers = { turns: RULES.TURNS, orders: RULES.ORDERS_PER_TURN, rounds: RULES.BATTLE_ROUNDS, max: RULES.RENOWN_MAX_BONUS, short: RULES.CROSSING_ROUNDS, marsh: RULES.MARSH_GARRISON_MAX };
   return (
     <Dialog
       open={open}

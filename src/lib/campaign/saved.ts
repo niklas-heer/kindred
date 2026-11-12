@@ -3,7 +3,10 @@
 // the page plays the moves again through the engine to come back to the same position. Only one reign per family and
 // account is kept: beginning another forgets the last. It lasts until the tab closes, and nothing here is sent anywhere.
 // A practice is not kept: its field is dealt fresh each time and stores nothing.
-import { openReign, play, type Move, type Reign, type State } from './engine.ts';
+//
+// A reign kept under earlier rules (another map, other terrain) cannot be played on: it is let go, and the page is told,
+// so it can say so once instead of failing.
+import { RULESET, openReign, play, rulesetOf, type Move, type Reign, type State } from './engine.ts';
 import type { RunStart } from './types.ts';
 
 /** A reign being played, as the tab keeps it. `opKey` is the retry key its finish is sent with, so a resend is the same. */
@@ -36,17 +39,33 @@ export function saveReign(store: Store | null, tree: string, account: string, sa
   } catch { /* storage full or off: the reign goes on, it is only not kept */ }
 }
 
-/** The reign this account keeps for this family, if any, and only one that belongs to `week`. */
-export function loadReign(store: Store | null, tree: string, account: string, week: string): SavedReign | null {
-  if (!store) return null;
+/** Whether a kept reign is one today's rules can play: a field laid out for them, whole. */
+const playable = (s: SavedReign) => {
+  const field = s.run?.field;
+  return !!field && rulesetOf(field.map) === RULESET && Array.isArray(field.map.provinces) && Array.isArray(field.map.borders) && Array.isArray(field.sides) && Array.isArray(field.start?.holder);
+};
+
+/** What the tab kept: the reign to come back to, or `outdated` when one was kept under earlier rules and has been let go. */
+export interface Kept { saved: SavedReign | null; outdated: boolean }
+
+/**
+ * The reign this account keeps for this family, if any, and only one that belongs to `week`. A reign of another week is
+ * forgotten quietly; one of this week that today's rules cannot play is forgotten too, and `outdated` says so.
+ */
+export function loadReign(store: Store | null, tree: string, account: string, week: string): Kept {
+  let outdated = false;
+  if (!store) return { saved: null, outdated };
   try {
     for (const k of keysOf(store, tree, account)) {
-      const s = JSON.parse(store.getItem(k) ?? 'null') as SavedReign | null;
-      if (s && s.run?.week === week && Array.isArray(s.moves) && typeof s.opKey === 'string') return s;
+      let s: SavedReign | null = null;
+      try { s = JSON.parse(store.getItem(k) ?? 'null') as SavedReign | null; } catch { /* not a reign: let go below */ }
+      const ours = !!s && s.run?.week === week && Array.isArray(s.moves) && typeof s.opKey === 'string';
+      if (ours && playable(s!)) return { saved: s, outdated };
+      if (ours) outdated = true;
       store.removeItem(k);
     }
   } catch { /* unreadable: nothing to resume */ }
-  return null;
+  return { saved: null, outdated };
 }
 
 /** Forgets every reign this account keeps for this family. */

@@ -14,7 +14,7 @@ import { errorText } from '~/lib/errortext';
 import { ordinal, useT } from '~/lib/i18n';
 import { setPref, usePref } from '~/lib/prefs';
 import { useCan, useSession } from '~/lib/session';
-import { Laurel } from './Board';
+import { Laurel } from './parts';
 import './campaign.css';
 
 /** Where a steward's "Not now" is kept, per family, in this browser. */

@@ -1,7 +1,9 @@
 // node --test src/lib/campaign/campaign.server.test.ts — the Campaign on the server: off until a steward turns it on, a
 // member plays their own house on the week's field (the same for everyone all week, from a seed no browser can work out
 // ahead), the server never takes a score but replays the moves, a reign is counted once and a forged one not at all, the
-// tables add up, the old shared season is closed once into the hall of fame, and the family's records are never written.
+// tables add up and never set a score against one made under earlier rules, the field is an invented continent with no
+// place of the family's on it, the old shared season is closed once into the hall of fame, and the family's records are
+// never written.
 // A scratch family and accounts database; never data/.
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -19,7 +21,8 @@ const { openSqlite } = await import('../store/node.ts');
 const { db } = await import('../db.server.ts');
 const store = await import('../auth/store.server.ts');
 const game = await import('./campaign.server.ts');
-const { RULES, openReign, play, regentMoves, replay } = await import('./engine.ts');
+const { RULES, RULESET, openReign, play, regentMoves, replay } = await import('./engine.ts');
+const { TITLES } = await import('./chronicle.ts');
 const { planTables } = await import('../../../scripts/lib/d1-transfer.ts');
 type Who = import('./campaign.server.ts').Who;
 type Move = import('./engine.ts').Move;
@@ -79,7 +82,7 @@ test('the game is off until a steward turns it on: the practice has its kit, and
   assert.equal(view.enabled, false);
   assert.equal(view.challenge, undefined);
   assert.equal(view.kit.sides.length, RULES.SIDES);
-  assert.ok(view.kit.places.length >= 10, 'the practice is dealt from the family’s places');
+  assert.deepEqual(Object.keys(view.kit), ['sides'], 'a practice is dealt from the houses alone');
   assert.equal(view.mySide, 'ash');
   assert.deepEqual(await game.campaignStatus('off', ada, T0), { enabled: false });
   await assert.rejects(game.startRun('off', ada, null, T0), /campaign\.err\.off/);
@@ -97,6 +100,10 @@ test('the week’s challenge: four sides, the reader’s own house, a seed from 
   assert.match(c.seed, /^[0-9a-f]{24}$/);
   assert.deepEqual(c.field.sides.map((s) => s.id), [...HOUSES, 'rival:greywatch']);
   assert.equal(c.field.map.provinces.length, RULES.PROVINCES);
+  assert.equal(c.field.map.v, RULESET);
+  // The board is an invented continent: none of the family's places, and nobody's name, is on it.
+  assert.ok(c.field.map.name);
+  assert.doesNotMatch(JSON.stringify(c.field.map), /Town \d|P\d|Testers/);
   assert.equal(c.side, 'ash');
   assert.equal(c.chooses, false);
   assert.equal((await game.campaignView('week', lo, T0)).challenge!.side, null, 'a member who stands for nobody chooses');
@@ -105,7 +112,7 @@ test('the week’s challenge: four sides, the reader’s own house, a seed from 
   assert.notEqual(await game.weekSeed('week', '2026-W11'), c.seed);
   assert.notEqual(await game.weekSeed('other', '2026-W10'), c.seed);
   assert.equal(view.board!.week.length, 0);
-  assert.deepEqual(await game.campaignStatus('week', steward, T0), { enabled: true, week: '2026-W10', best: null, runs: 0, rank: null, of: 0 });
+  assert.deepEqual(await game.campaignStatus('week', steward, T0), { enabled: true, week: '2026-W10', best: null, runs: 0, rank: null, of: 0, record: null });
 });
 
 test('a reign is begun on the server, played in the browser and scored by the server replaying its moves, once', async () => {
@@ -118,15 +125,19 @@ test('a reign is begun on the server, played in the browser and scored by the se
   const op = { key: key() };
   const done = await game.finishRun('play', steward, run.id, moves, op, later(0.01));
   assert.deepEqual(done.score, expected);
-  assert.deepEqual({ best: done.best, rank: done.rank, of: done.of, personalBest: done.personalBest }, { best: expected.total, rank: 1, of: 1, personalBest: true });
+  assert.deepEqual({ best: done.best, rank: done.rank, of: done.of, personalBest: done.personalBest, record: done.record }, { best: expected.total, rank: 1, of: 1, personalBest: true, record: true });
+  assert.ok((TITLES as readonly string[]).includes(done.title), 'the reign has a title');
+  assert.deepEqual(done.house, { name: 'House ash', rank: 1, of: 1, rose: false });
   // The same request again (a retry) gets the same answer; a new request to finish it again is refused.
   assert.deepEqual(await game.finishRun('play', steward, run.id, moves, op, later(0.02)), done);
   await assert.rejects(game.finishRun('play', steward, run.id, moves, { key: key() }, later(0.02)), /campaign\.err\.finished/);
-  const row = (await db('play').get<{ score: number; orders: string; finished_at: string }>('SELECT score, orders, finished_at FROM campaign_run WHERE id = ?', run.id))!;
+  const row = (await db('play').get<{ score: number; orders: string; finished_at: string; ruleset: number; result: string }>('SELECT score, orders, finished_at, ruleset, result FROM campaign_run WHERE id = ?', run.id))!;
   assert.equal(row.score, expected.total);
+  assert.equal(row.ruleset, RULESET);
+  assert.deepEqual(JSON.parse(row.result), { ...expected, title: done.title });
   assert.equal(JSON.parse(row.orders).length, moves.length);
   const status = await game.campaignStatus('play', steward, T0);
-  assert.deepEqual(status, { enabled: true, week: '2026-W10', best: expected.total, runs: 1, rank: 1, of: 1 });
+  assert.deepEqual(status, { enabled: true, week: '2026-W10', best: expected.total, runs: 1, rank: 1, of: 1, record: expected.total });
 });
 
 test('a forged or unfinished list of moves is refused and the reign stays open; someone else cannot finish it', async () => {
@@ -156,8 +167,8 @@ test('everyone plays the same field all week, even when the family changes; reno
   const steward = await on('field');
   const lo = await account('field', 'Lo', 'loner');
   const first = await game.startRun('field', steward, null, T0);
-  // The family adds a place and records more: the week's field stays, the next reign's renown may change.
-  await db('field').run("INSERT INTO place (name, lat, lng) VALUES ('New Town', 52, 13)");
+  // The family renames a house and records more: the week's field stays, the next reign's renown may change.
+  await db('field').run("UPDATE house SET name = 'House of Cedars' WHERE id = 'cedar'");
   await db('field').run("UPDATE person SET born = '1960-01-01', died = '2020-01-01', living = 0 WHERE house = 'ash'");
   const second = await game.startRun('field', lo, 'cedar', later(2));
   assert.equal(second.side, 'cedar');
@@ -181,7 +192,8 @@ test('everyone plays the same field all week, even when the family changes; reno
   const next = await game.startRun('field', steward, null, later(7));
   assert.equal(next.week, '2026-W11');
   assert.notEqual(next.seed, first.seed);
-  assert.ok(next.field.map.provinces.some((p) => p.name === 'New Town'), 'the new week sees the new place');
+  assert.notDeepEqual(next.field.map.provinces.map((p) => p.name), first.field.map.provinces.map((p) => p.name), 'another continent');
+  assert.equal(next.field.sides.find((s) => s.id === 'cedar')!.name, 'House of Cedars', 'the new week sees the house as it is now');
 });
 
 test('two first reigns begun at once share one field, and the quiz’s reward is taken by one reign a day', async () => {
@@ -195,8 +207,7 @@ test('two first reigns begun at once share one field, and the quiz’s reward is
   d.batch = (async (qs: Parameters<typeof write>[0]) => {
     if (!a && qs.some((x) => /INSERT INTO campaign_run/.test(x.sql))) {
       d.batch = write;
-      await d.run("INSERT INTO place (name, lat, lng) VALUES ('Raced Town', 50, 9)");
-      await d.run("UPDATE place SET lat = lat + 0.7 WHERE name = 'Town 0'");
+      await d.run("UPDATE house SET name = 'House raced' WHERE id = 'birch'");
       a = await game.startRun('race', steward, null, T0);
     }
     return write(qs);
@@ -269,11 +280,59 @@ test('the tables: each member’s best this week with their count of reigns, the
   assert.equal(board.me.of, 3);
   assert.equal(board.allTime.length, 4);
   assert.equal(board.allTime[0].score, Math.max(a1.score.total, a2.score.total, b1.score.total, l1.score.total));
+  assert.ok(board.week.every((r) => r.title) && board.allTime.every((r) => r.title), 'every reign carries its title');
+  assert.equal(board.me.record, best);
+  assert.equal(board.earlier, undefined, 'no reign of earlier rules here');
+  // The answer to a finished reign says where the house stands, and whether the reign lifted it.
+  assert.equal(a1.house!.of, 1);
+  assert.equal(b1.house!.name, 'House birch');
+  assert.equal(b1.house!.of, 2);
+  assert.equal(l1.house!.rank, board.houses.findIndex((h) => h.side === 'ash') + 1, 'where the table has it');
+  assert.equal(l1.house!.rose, b1.score.total > best && best + l1.score.total > b1.score.total, 'risen only if birch stood above ash before and no longer does');
   const ash = board.houses.find((h) => h.side === 'ash')!;
   assert.deepEqual({ total: ash.total, members: ash.members }, { total: best + l1.score.total, members: 2 });
   assert.equal(board.houses.find((h) => h.side === 'birch')!.total, b1.score.total);
   // Names are kept as they were; no account id reaches the page.
   assert.ok(!JSON.stringify(board).includes(steward.account));
+});
+
+test('rulesets: a reign of earlier rules is listed apart and never ranked, its week gets today’s field, and it can no longer be sent', async () => {
+  const steward = await on('rules');
+  const bo = await account('rules', 'Bo', 'birch0');
+  const d = db('rules');
+  // What an upgraded family has: a week's field and two reigns from before the rules had a version (the column's default),
+  // one finished with a score no reign of today could be set against, one still open.
+  const oldField = JSON.stringify({ map: { provinces: [{ id: 0, name: 'Old Town', x: 1, y: 1, cell: [], real: true }], borders: [] }, sides: [], start: { turn: 0, holder: [null], troops: [2], pool: {}, seats: {}, orders: 3, won: {}, lost: {}, attacks: 0 } });
+  await d.run('INSERT INTO campaign_week (week, field, created_at) VALUES (?, ?, ?)', '2026-W10', oldField, T0.toISOString());
+  await d.run("INSERT INTO campaign_run (id, account, name_then, side, week, seed, field, orders, score, result, finished_at, created_at) VALUES ('old-done', ?, 'Bo', 'birch', '2026-W10', 's', ?, '[]', 999, '{}', ?, ?)", bo.account, oldField, T0.toISOString(), T0.toISOString());
+  await d.run("INSERT INTO campaign_run (id, account, name_then, side, week, seed, field, created_at) VALUES ('old-open', ?, 'Sten', 'ash', '2026-W10', 's', ?, ?)", steward.account, oldField, T0.toISOString());
+  assert.equal((await d.get<{ ruleset: number }>("SELECT ruleset FROM campaign_run WHERE id = 'old-done'"))!.ruleset, 1);
+
+  // The week is shown on today's continent, not on the kept field of the earlier rules.
+  const before = await game.campaignView('rules', steward, T0);
+  assert.equal(before.challenge!.field.map.v, RULESET);
+  assert.equal(before.board!.week.length, 0, 'nobody has played under today’s rules');
+  assert.deepEqual(before.board!.earlier!.week.map((r) => [r.name, r.score]), [['Bo', 999]]);
+  assert.deepEqual(before.board!.earlier!.allTime.map((r) => r.score), [999]);
+  assert.equal(before.board!.me.record, null);
+
+  // A reign begun now is played on today's field, which takes the week's place; the old reigns keep their own.
+  const run = await game.startRun('rules', steward, null, T0);
+  assert.equal(run.field.map.v, RULESET);
+  assert.deepEqual({ ...(await d.get('SELECT ruleset, json_extract(field, \'$.map.v\') AS v FROM campaign_week WHERE week = ?', '2026-W10')) }, { ruleset: RULESET, v: RULESET });
+  assert.equal(await count('rules', 'campaign_week'), 1);
+  assert.deepEqual((await game.startRun('rules', bo, null, T0)).field, run.field, 'and everyone plays it');
+  const done = await game.finishRun('rules', steward, run.id, movesFor(run), { key: key() }, T0);
+  assert.deepEqual({ rank: done.rank, of: done.of, personalBest: done.personalBest, record: done.record }, { rank: 1, of: 1, personalBest: true, record: true }, 'the 999 of earlier rules is not in the way');
+  const board = (await game.campaignView('rules', steward, T0)).board!;
+  assert.deepEqual(board.week.map((r) => r.name), ['Sten']);
+  assert.deepEqual(board.allTime.map((r) => r.score), [done.score.total]);
+  assert.equal(board.houses.length, 1);
+  assert.equal(board.earlier!.allTime.length, 1);
+  assert.deepEqual(await game.campaignStatus('rules', bo, T0), { enabled: true, week: '2026-W10', best: null, runs: 0, rank: null, of: 1, record: null }, 'Bo’s old reign is not their best under today’s rules');
+  // The open reign of earlier rules cannot be scored any more, whatever is sent.
+  await assert.rejects(game.finishRun('rules', steward, 'old-open', [], { key: key() }, T0), /campaign\.err\.old_rules/);
+  assert.equal(await count('rules', 'campaign_run', "id = 'old-open' AND finished_at IS NULL"), 1);
 });
 
 test('a family with fewer than four houses plays against invented regents, and one without houses may play a regent company', async () => {

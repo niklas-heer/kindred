@@ -1,12 +1,21 @@
-// The Campaign's rules, as one pure module: the map made from the family's places (with its terrain), the opening, a
-// turn's levy, the moves of a reign (place a troop, march, attack, end the turn), the dice and the exact odds of an
-// attack, the regents that play the other houses, and the score. It reads no clock and no database and draws every
+// The Campaign's rules, as one pure module: the field (an invented continent from ./geography.ts, with its terrain), the
+// opening, a turn's levy, the moves of a reign (place a troop, march, attack, end the turn), the dice and the exact odds
+// of an attack, the regents that play the other houses, and the score. It reads no clock and no database and draws every
 // random number from a seed, so the browser plays a reign and the server replays the same moves to the same score.
 //
-// Nothing here knows a person: a side is a house's id, a province is a place's name. No rule reads a lifespan, a cause
-// of death or a number of children.
+// Nothing here knows a person or a place of the family's: a side is a house's id, a province is an invented name. No
+// rule reads a lifespan, a cause of death or a number of children.
 import { between, rng } from './rng.ts';
-import { MARCH_NAMES } from './names.ts';
+import { MAP_H, MAP_W, dress, layoutOf } from './geography.ts';
+
+export { MAP_H, MAP_W };
+
+/**
+ * The rules' version. A field says which rules it was laid out for (`map.v`; a field from before there were versions
+ * is 1). Scores are only compared within one version: 1 was the map made from the family's places, 2 is the invented
+ * continent with marsh, rivers, ridges and sea lanes.
+ */
+export const RULESET = 2;
 
 /** The numbers of the game. Tuned with regents playing every side (see engine.test.ts, "a reign between regents"). */
 export const RULES = {
@@ -18,15 +27,15 @@ export const RULES = {
   SIDES: 4,
   /** The provinces of a reign's map. */
   PROVINCES: 16,
-  MIN_PROVINCES: 10,
-  MAX_PROVINCES: 24,
-  /** The most-peopled real places are towns (the seats are too). */
-  TOWN_PLACES: 1,
-  /** About this share of the map is plains; forest and highland share the rest. */
-  PLAINS_SHARE: 0.45,
-  /** A province holds at most this many troops; a town more. */
+  /** Towns beside the seats (which are towns too), and the provinces of each other kind; the rest is plains. */
+  FREE_TOWNS: 2,
+  HIGHLANDS: 2,
+  MARSHES: 2,
+  FORESTS: 2,
+  /** A province holds at most this many troops; a town more, a marsh fewer. */
   GARRISON_MAX: 10,
   TOWN_GARRISON_MAX: 12,
+  MARSH_GARRISON_MAX: 6,
   /** Every side's levy a turn, before its towns and renown. */
   BASE_LEVY: 2,
   /** What each town held adds to the levy. */
@@ -35,8 +44,9 @@ export const RULES = {
   RENOWN_MAX_BONUS: 2,
   /** A right answer in the daily quiz: this much more levy on the first turn of the next reign that day. */
   QUIZ_LEVY: 2,
-  /** An attack is fought for at most this many rounds of dice. */
+  /** An attack is fought for at most this many rounds of dice; across a river or the sea, for fewer. */
   BATTLE_ROUNDS: 3,
+  CROSSING_ROUNDS: 2,
   /** A regent keeps this many at home when another house borders the province it attacks from. */
   REGENT_KEEPS: 2,
   /** A regent attacks when its chance is at least this. */
@@ -55,18 +65,14 @@ export const RULES = {
   MAX_MOVES: 1500,
 } as const;
 
-export const MAP_W = 1000;
-export const MAP_H = 720;
-const MARGIN = 70;
-
 export type Pt = [number, number];
 
-/** Game terrain, one rule each (docs/campaign.md). Not the real country's. */
-export type Terrain = 'plains' | 'forest' | 'highland' | 'town';
-export const TERRAINS: readonly Terrain[] = ['plains', 'forest', 'highland', 'town'];
+/** Game terrain, one rule each (docs/campaign.md). */
+export type Terrain = 'plains' | 'forest' | 'highland' | 'marsh' | 'town';
+export const TERRAINS: readonly Terrain[] = ['plains', 'forest', 'highland', 'marsh', 'town'];
 
-/** A place the map can be made from. `people` orders them; `byHouse` (a side's id to a count) decides whose home it is. */
-export interface PlaceIn { name: string; lat: number; lng: number; people: number; byHouse?: Record<string, number> }
+/** What an attack has to cross to reach its target, beside open country. */
+export type Crossing = 'river' | 'sea';
 
 export interface Province {
   id: number;
@@ -76,16 +82,27 @@ export interface Province {
   y: number;
   /** Its land: a polygon in the same box. */
   cell: Pt[];
-  /** False for an invented march that fills a map with too few real places. */
-  real: boolean;
   /** Its terrain; a map stored before there was terrain has none, which reads as plains. */
   terrain?: Terrain;
+  /** Whether it lies on the sea. */
+  coast?: boolean;
 }
 
 export interface GameMap {
+  /** The rules it was laid out for (RULESET); none on a map from before there were versions, which is 1. */
+  v?: number;
+  /** The continent's name, and where the open sea's names stand. */
+  name?: string;
+  seas?: { name: string; x: number; y: number }[];
   provinces: Province[];
-  /** Pairs of province ids that share a border, the smaller id first. */
+  /** Pairs of province ids one can go between, the smaller id first: a shared border that is no ridge, or a sea lane. */
   borders: [number, number][];
+  /** Rivers: the borders each runs along (an attack across is shorter), and its course from the spring to the sea. */
+  rivers?: { between: [number, number][]; line: Pt[] }[];
+  /** Mountain ridges: a border nobody crosses, so the two provinces are not neighbours. */
+  ridges?: { between: [number, number]; line: Pt[] }[];
+  /** Sea lanes: two harbours that are neighbours over the water, and the course between them (start, bend, end). */
+  lanes?: { between: [number, number]; line: Pt[] }[];
 }
 
 /** The position of a reign. */
@@ -129,11 +146,13 @@ export type Move =
 
 export interface Round { a: number[]; d: number[]; aLost: number; dLost: number }
 
+/** What happened, for the page to show. `fromLeft` and `toLeft` are the two garrisons afterwards. */
 export type GameEvent =
-  | { t: 'march'; side: string; from: number; to: number; troops: number }
+  | { t: 'march'; side: string; from: number; to: number; troops: number; fromLeft: number; toLeft: number }
   | {
     t: 'attack'; side: string; from: number; to: number; defender: string | null; committed: number; defenders: number;
-    terrain: Terrain; rounds: Round[]; aLost: number; dLost: number; took: boolean; turn: number;
+    terrain: Terrain; crossing: Crossing | null; chance: number; rounds: Round[]; aLost: number; dLost: number; took: boolean; turn: number;
+    fromLeft: number; toLeft: number;
   };
 
 export type ErrorCode =
@@ -150,183 +169,12 @@ export class CampaignError extends Error {
 }
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
-const round1 = (n: number) => Math.round(n * 10) / 10;
 const dist = (a: Pt, b: Pt) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 
 // ---------- the map ----------
 
-/** Cuts a polygon down to the side of the line a·x + b·y ≤ c. */
-function clip(poly: Pt[], a: number, b: number, c: number): Pt[] {
-  const out: Pt[] = [];
-  for (let i = 0; i < poly.length; i++) {
-    const p = poly[i];
-    const n = poly[(i + 1) % poly.length];
-    const dp = a * p[0] + b * p[1] - c;
-    const dn = a * n[0] + b * n[1] - c;
-    if (dp <= 0) out.push(p);
-    if ((dp < 0 && dn > 0) || (dp > 0 && dn < 0)) {
-      const k = dp / (dp - dn);
-      out.push([p[0] + (n[0] - p[0]) * k, p[1] + (n[1] - p[1]) * k]);
-    }
-  }
-  return out;
-}
-
-/** Each site's land: everything in the box nearer to it than to any other site. */
-function cellsOf(sites: Pt[]): Pt[][] {
-  return sites.map((s, i) => {
-    let poly: Pt[] = [[0, 0], [MAP_W, 0], [MAP_W, MAP_H], [0, MAP_H]];
-    for (let j = 0; j < sites.length && poly.length; j++) {
-      if (j === i) continue;
-      const o = sites[j];
-      poly = clip(poly, o[0] - s[0], o[1] - s[1], (o[0] * o[0] + o[1] * o[1] - s[0] * s[0] - s[1] * s[1]) / 2);
-    }
-    return poly;
-  });
-}
-
-function centroid(poly: Pt[]): Pt {
-  let area = 0, cx = 0, cy = 0;
-  for (let i = 0; i < poly.length; i++) {
-    const [x0, y0] = poly[i];
-    const [x1, y1] = poly[(i + 1) % poly.length];
-    const cross = x0 * y1 - x1 * y0;
-    area += cross;
-    cx += (x0 + x1) * cross;
-    cy += (y0 + y1) * cross;
-  }
-  if (Math.abs(area) < 1e-6) return poly[0] ?? [MAP_W / 2, MAP_H / 2];
-  return [cx / (3 * area), cy / (3 * area)];
-}
-
-/** The length of the border two lands share. */
-function sharedBorder(cell: Pt[], a: Pt, b: Pt): number {
-  let length = 0;
-  for (let i = 0; i < cell.length; i++) {
-    const p = cell[i];
-    const n = cell[(i + 1) % cell.length];
-    const mid: Pt = [(p[0] + n[0]) / 2, (p[1] + n[1]) / 2];
-    if (Math.abs(dist(mid, a) - dist(mid, b)) < 0.01) length += dist(p, n);
-  }
-  return length;
-}
-
-function connected(count: number, borders: [number, number][]): boolean {
-  if (!count) return true;
-  const seen = new Set([0]);
-  const queue = [0];
-  while (queue.length) {
-    const at = queue.pop()!;
-    for (const [a, b] of borders) {
-      const next = a === at ? b : b === at ? a : -1;
-      if (next >= 0 && !seen.has(next)) { seen.add(next); queue.push(next); }
-    }
-  }
-  return seen.size === count;
-}
-
-/**
- * The map: the `count` places most people are linked to, laid out by their coordinates and then eased apart so every
- * land has room for a banner, with invented marches where the family has too few places. Lands that share a border are
- * neighbours, so the map is always one piece.
- */
-export function buildMap(places: PlaceIn[], count: number, seed: string): GameMap {
-  const random = rng(`${seed}:map`);
-  const n = clamp(Math.round(count), RULES.MIN_PROVINCES, RULES.MAX_PROVINCES);
-  const real = places
-    .filter((p) => p.name && Number.isFinite(p.lat) && Number.isFinite(p.lng))
-    .filter((p, i, all) => all.findIndex((o) => o.name === p.name) === i)
-    .sort((a, b) => b.people - a.people || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
-    .slice(0, n);
-
-  // Longitudes shrink towards the poles; then each axis is part true distance and part rank, so a cousin in Melbourne
-  // does not squeeze the rest of the family into one corner.
-  const meanLat = real.reduce((s, p) => s + p.lat, 0) / (real.length || 1);
-  const xs = real.map((p) => p.lng * Math.cos((meanLat * Math.PI) / 180));
-  const ys = real.map((p) => -p.lat);
-  const spread = (values: number[]) => {
-    const lo = Math.min(...values), hi = Math.max(...values);
-    const order = values.map((v, i) => [v, i] as const).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-    const rank = new Map(order.map(([, i], r) => [i, values.length > 1 ? r / (values.length - 1) : 0.5]));
-    return values.map((v, i) => 0.4 * (hi > lo ? (v - lo) / (hi - lo) : 0.5) + 0.6 * rank.get(i)!);
-  };
-  const us = spread(xs), vs = spread(ys);
-  let sites: Pt[] = real.map((_, i) => [
-    MARGIN + us[i] * (MAP_W - 2 * MARGIN) + (random() - 0.5) * 16,
-    MARGIN + vs[i] * (MAP_H - 2 * MARGIN) + (random() - 0.5) * 16,
-  ]);
-
-  const names = real.map((p) => p.name);
-  const taken = new Set(names);
-  const spare = MARCH_NAMES.filter((name) => !taken.has(name));
-  // A seeded shuffle, so two families do not get the same marches in the same order.
-  for (let i = spare.length - 1; i > 0; i--) {
-    const j = between(random, 0, i);
-    [spare[i], spare[j]] = [spare[j], spare[i]];
-  }
-  while (sites.length < n) {
-    names.push(spare[sites.length - real.length] ?? `${MARCH_NAMES[0]} ${sites.length}`);
-    sites.push([MARGIN + random() * (MAP_W - 2 * MARGIN), MARGIN + random() * (MAP_H - 2 * MARGIN)]);
-  }
-
-  // Ease the sites apart: each moves most of the way to the middle of its own land, a few times over.
-  for (let pass = 0; pass < 5; pass++) {
-    const lands = cellsOf(sites);
-    sites = sites.map((s, i) => {
-      const c = centroid(lands[i]);
-      return [s[0] + (c[0] - s[0]) * 0.8, s[1] + (c[1] - s[1]) * 0.8] as Pt;
-    });
-  }
-  const lands = cellsOf(sites);
-
-  const bordersLongerThan = (least: number) => {
-    const out: [number, number][] = [];
-    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) if (sharedBorder(lands[i], sites[i], sites[j]) > least) out.push([i, j]);
-    return out;
-  };
-  // Two lands that touch at a corner are not neighbours, unless leaving such borders out would cut the map in two.
-  let borders = bordersLongerThan(24);
-  if (!connected(n, borders)) borders = bordersLongerThan(0.5);
-
-  // The land: the most-peopled real places are towns (the real places come first, most-peopled first).
-  const terrain = dealTerrain(n, new Set(Array.from({ length: Math.min(real.length, RULES.TOWN_PLACES) }, (_, i) => i)), random);
-
-  return {
-    provinces: sites.map((s, i) => ({
-      id: i,
-      name: names[i],
-      x: round1(s[0]),
-      y: round1(s[1]),
-      cell: lands[i].map((p) => [round1(p[0]), round1(p[1])] as Pt),
-      real: i < real.length,
-      terrain: terrain[i],
-    })),
-    borders,
-  };
-}
-
-
-/** A copy of `items` in an order dealt by `random`. */
-function shuffled<T>(items: T[], random: () => number): T[] {
-  const out = [...items];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = between(random, 0, i);
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
-
-/**
- * Each province's terrain: `towns` are towns; of the rest, about RULES.PLAINS_SHARE of the whole map is plains and the
- * remainder is forest and highland in turn, dealt by `random`. Game terrain, not the real country's.
- */
-function dealTerrain(n: number, towns: ReadonlySet<number>, random: () => number): Terrain[] {
-  const terrain: Terrain[] = Array.from({ length: n }, (_, i) => (towns.has(i) ? 'town' : 'plains'));
-  const open = shuffled(terrain.map((_, i) => i).filter((i) => !towns.has(i)), random);
-  const plains = Math.round(n * RULES.PLAINS_SHARE);
-  open.slice(0, Math.max(0, open.length - plains)).forEach((i, k) => { terrain[i] = k % 2 === 0 ? 'forest' : 'highland'; });
-  return terrain;
-}
+/** The rules a map was laid out for. */
+export const rulesetOf = (map: Pick<GameMap, 'v'> | undefined | null): number => map?.v ?? 1;
 
 /** A province's neighbours. */
 export function neighbours(map: GameMap, id: number): number[] {
@@ -343,8 +191,25 @@ export const adjacent = (map: GameMap, a: number, b: number) => map.borders.some
 /** A province's terrain: plains when the map was stored before there was terrain. */
 export const terrainOf = (map: GameMap, id: number): Terrain => map.provinces[id]?.terrain ?? 'plains';
 
-/** How many troops a province holds at most. */
-export const capOf = (map: GameMap, id: number) => (terrainOf(map, id) === 'town' ? RULES.TOWN_GARRISON_MAX : RULES.GARRISON_MAX);
+/** How many troops a province of this terrain holds at most. */
+export const capOn = (terrain: Terrain) => (terrain === 'town' ? RULES.TOWN_GARRISON_MAX : terrain === 'marsh' ? RULES.MARSH_GARRISON_MAX : RULES.GARRISON_MAX);
+export const capOf = (map: GameMap, id: number) => capOn(terrainOf(map, id));
+
+const same = (pair: [number, number], a: number, b: number) => (pair[0] === a && pair[1] === b) || (pair[0] === b && pair[1] === a);
+
+/** What lies between two neighbours beside open country: a sea lane, a river, or nothing. */
+export function crossingOf(map: GameMap, a: number, b: number): Crossing | null {
+  if (map.lanes?.some((l) => same(l.between, a, b))) return 'sea';
+  if (map.rivers?.some((r) => r.between.some((pair) => same(pair, a, b)))) return 'river';
+  return null;
+}
+
+/** The ground an attack is fought on: the target's terrain, and what the attackers cross to reach it. */
+export interface Ground { terrain: Terrain; crossing?: Crossing | null }
+const OPEN: Ground = { terrain: 'plains' };
+export const groundOf = (map: GameMap, from: number, to: number): Ground => ({ terrain: terrainOf(map, to), crossing: crossingOf(map, from, to) });
+/** How many rounds a battle on this ground is fought for at most. */
+export const roundsOn = (ground: Ground) => (ground.crossing ? RULES.CROSSING_ROUNDS : RULES.BATTLE_ROUNDS);
 
 /** The most troops an order from `from` to `to` can send now: all but one, and for a march no more than `to` has room for. */
 export function sendable(s: State, map: GameMap, side: string, from: number, to: number): number {
@@ -361,27 +226,15 @@ export const orderTroops = (wanted: number, s: State, map: GameMap, side: string
 
 // ---------- the opening ----------
 
-/** Each side's people per place on the map, from the places' `byHouse` counts: where a side's seat should be. */
-export function homesFrom(places: PlaceIn[], map: GameMap): Record<string, Record<string, number>> {
-  const onMap = new Set(map.provinces.map((p) => p.name));
-  const homes: Record<string, Record<string, number>> = {};
-  for (const place of places) {
-    if (!onMap.has(place.name)) continue;
-    for (const [side, n] of Object.entries(place.byHouse ?? {})) (homes[side] ??= {})[place.name] = n;
-  }
-  return homes;
-}
-
 const blank = (n: number): State => ({
   turn: 0, holder: Array.from({ length: n }, () => null), troops: Array.from({ length: n }, () => 0), pool: {}, seats: {}, orders: RULES.ORDERS_PER_TURN, won: {}, lost: {}, attacks: 0,
 });
 
 /**
- * The first morning. Every side gets a seat (its people's own place when the map has it, else a place far from the other
- * seats) and one neighbouring province; the rest are free marches with a small garrison, there to be taken. `homes` is
- * each side's count of people per place name.
+ * The first morning. Every side gets a seat, far from the seats already chosen, and one neighbouring province; the rest
+ * are free marches with a small garrison, there to be taken.
  */
-export function startState(map: GameMap, sides: string[], seed: string, homes: Record<string, Record<string, number>> = {}): State {
+export function startState(map: GameMap, sides: string[], seed: string): State {
   const random = rng(`${seed}:start`);
   const state = blank(map.provinces.length);
   const { holder, troops, seats } = state;
@@ -393,13 +246,10 @@ export function startState(map: GameMap, sides: string[], seed: string, homes: R
     const open = free();
     if (!open.length) break;
     const taken = Object.values(seats);
-    // Far from the seats already chosen counts in both cases: two houses from the same town still get room.
     const room = (i: number) => (taken.length ? Math.min(...taken.map((s) => dist(at(i), at(s)))) : MAP_W);
-    const home = homes[side] ?? {};
-    const scored = open.map((i) => ({ i, people: home[map.provinces[i].name] ?? 0, room: room(i), tie: random() }));
-    const withRoom = scored.filter((s) => s.room > 150);
-    const pool = withRoom.some((s) => s.people > 0) ? withRoom.filter((s) => s.people > 0) : scored;
-    pool.sort((a, b) => (pool === scored ? b.room - a.room : b.people - a.people || b.room - a.room) || a.tie - b.tie);
+    // The first seat is dealt; each later one stands as far from the others as the land allows, with room around it.
+    const pool = open.map((i) => ({ i, room: room(i), ways: neighbours(map, i).length, tie: random() })).filter((s, _, all) => s.ways >= 2 || all.every((o) => o.ways < 2));
+    pool.sort((a, b) => b.room - a.room || a.tie - b.tie);
     const seat = pool[0].i;
     seats[side] = seat;
     holder[seat] = side;
@@ -408,7 +258,9 @@ export function startState(map: GameMap, sides: string[], seed: string, homes: R
   for (const side of sides) {
     const seat = seats[side];
     if (seat === undefined) continue;
-    const near = neighbours(map, seat).filter((i) => holder[i] === null).sort((a, b) => dist(at(a), at(seat)) - dist(at(b), at(seat)) || a - b)[0];
+    // Overland first: a harbour across the water is nobody's home ground.
+    const near = neighbours(map, seat).filter((i) => holder[i] === null)
+      .sort((a, b) => Number(crossingOf(map, seat, a) === 'sea') - Number(crossingOf(map, seat, b) === 'sea') || dist(at(a), at(seat)) - dist(at(b), at(seat)) || a - b)[0];
     if (near === undefined) { troops[seat] += 3; continue; }
     holder[near] = side;
     troops[near] = 3;
@@ -416,17 +268,45 @@ export function startState(map: GameMap, sides: string[], seed: string, homes: R
   return state;
 }
 
-/** A reign's field: the map, whose seats are made towns, and the opening. The same places, sides and seed give the same field. */
+/** A reign's field: the map and the opening. The same sides and seed give the same field. */
 export interface Field { map: GameMap; start: State }
 
-export function setupField(places: PlaceIn[], sides: string[], seed: string, count: number = RULES.PROVINCES): Field {
-  const map = buildMap(places, count, seed);
-  const start = startState(map, sides, seed, homesFrom(places, map));
-  // The seats are towns too; the rest of the land is dealt again around them, so the shares hold.
-  const towns = new Set([...Object.values(start.seats), ...map.provinces.filter((p) => p.real).slice(0, RULES.TOWN_PLACES).map((p) => p.id)]);
-  const terrain = dealTerrain(map.provinces.length, towns, rng(`${seed}:terrain`));
-  map.provinces.forEach((p, i) => { p.terrain = terrain[i]; });
+/**
+ * Lays out a field: the continent for the seed, a seat for each side, the towns (every seat, and the free towns that lie
+ * furthest from all of them), the rest of the terrain by the lie of the land, and a name for everything.
+ */
+export function setupField(sides: string[], seed: string, count: number = RULES.PROVINCES): Field {
+  const land = layoutOf(seed, count);
+  const { map } = land;
+  const start = startState(map, sides, seed);
+  const seats = Object.values(start.seats);
+  const towns = [...seats];
+  const random = rng(`${seed}:towns`);
+  const ties = map.provinces.map(() => random());
+  for (let n = 0; n < RULES.FREE_TOWNS; n++) {
+    // A free town is a prize between the houses: as many steps from every seat and town as the land allows.
+    const far = map.provinces.map((p) => p.id).filter((i) => !towns.includes(i))
+      .map((i) => ({ i, steps: Math.min(...towns.map((t) => stepsBetween(map, t, i))) }))
+      .sort((a, b) => b.steps - a.steps || ties[a.i] - ties[b.i])[0];
+    if (!far) break;
+    towns.push(far.i);
+  }
+  dress(land, seats, towns, { highland: RULES.HIGHLANDS, marsh: RULES.MARSHES, forest: RULES.FORESTS }, seed);
+  // A marsh holds fewer than the opening may have dealt it.
+  map.provinces.forEach((p) => { start.troops[p.id] = Math.min(start.troops[p.id], capOf(map, p.id)); });
   return { map, start };
+}
+
+/** How many borders lie between two provinces by the shortest way. */
+function stepsBetween(map: GameMap, from: number, to: number): number {
+  const steps = new Map([[from, 0]]);
+  const queue = [from];
+  for (let head = 0; head < queue.length; head++) {
+    const at = queue[head];
+    if (at === to) return steps.get(at)!;
+    for (const n of neighbours(map, at)) if (!steps.has(n)) { steps.set(n, steps.get(at)! + 1); queue.push(n); }
+  }
+  return Infinity;
 }
 
 // ---------- counting ----------
@@ -470,7 +350,7 @@ export function scoreOf(state: State, map: GameMap, side: string): Score {
 // ---------- dice ----------
 
 /** How many dice the attacker rolls: up to three, two at most into highland. */
-const attackDice = (a: number, terrain: Terrain) => Math.min(terrain === 'highland' ? 2 : 3, a);
+export const attackDice = (a: number, terrain: Terrain) => Math.min(terrain === 'highland' ? 2 : 3, a);
 const defendDice = (d: number) => Math.min(2, d);
 
 /** One round's comparison: dice sorted high to low, the defender's highest raised by one in a forest (to six at most). */
@@ -487,15 +367,16 @@ function compare(a: number[], d: number[], terrain: Terrain): { a: number[]; d: 
 }
 
 /**
- * A battle of at most three rounds, with Risk's dice: the attacker rolls up to three (two into highland), the defender
- * up to two (the highest one better by one in a forest), the highest are compared pair by pair, and a tie goes to the
- * defender. The same seed rolls the same dice.
+ * A battle of at most three rounds (two across a river or the sea), with Risk's dice: the attacker rolls up to three
+ * (two into highland), the defender up to two (the highest one better by one in a forest), the highest are compared pair
+ * by pair, and a tie goes to the defender. The same seed rolls the same dice.
  */
-export function battle(attackers: number, defenders: number, seed: string, terrain: Terrain = 'plains'): { rounds: Round[]; aLost: number; dLost: number } {
+export function battle(attackers: number, defenders: number, seed: string, ground: Ground = OPEN): { rounds: Round[]; aLost: number; dLost: number } {
   const random = rng(`${seed}:dice`);
   const rounds: Round[] = [];
+  const { terrain } = ground;
   let a = attackers, d = defenders;
-  while (rounds.length < RULES.BATTLE_ROUNDS && a > 0 && d > 0) {
+  while (rounds.length < roundsOn(ground) && a > 0 && d > 0) {
     const roll = (count: number) => Array.from({ length: count }, () => between(random, 1, 6));
     const r = compare(roll(attackDice(a, terrain)), roll(defendDice(d)), terrain);
     a -= r.aLost;
@@ -533,18 +414,20 @@ function roundOdds(aDice: number, dDice: number, terrain: Terrain) {
 const chanceCache = new Map<string, number>();
 
 /**
- * The exact chance that `attackers` take a province held by `defenders` on this terrain within the battle's rounds: every
+ * The exact chance that `attackers` take a province held by `defenders` on this ground within the battle's rounds: every
  * roll of every round counted, not sampled. 0 to 1.
  */
-export function winChance(attackers: number, defenders: number, terrain: Terrain = 'plains'): number {
+export function winChance(attackers: number, defenders: number, ground: Ground = OPEN): number {
   if (!(attackers >= 1)) return 0;
   if (!(defenders >= 1)) return 1;
-  const key = `${attackers}:${defenders}:${terrain}`;
+  const { terrain } = ground;
+  const rounds = roundsOn(ground);
+  const key = `${attackers}:${defenders}:${terrain}:${rounds}`;
   const known = chanceCache.get(key);
   if (known !== undefined) return known;
   let at = new Map<string, number>([[`${attackers}:${defenders}`, 1]]);
   let win = 0;
-  for (let round = 0; round < RULES.BATTLE_ROUNDS && at.size; round++) {
+  for (let round = 0; round < rounds && at.size; round++) {
     const next = new Map<string, number>();
     for (const [id, p] of at) {
       const [a, d] = id.split(':').map(Number);
@@ -592,15 +475,15 @@ function orderOne(s: State, map: GameMap, side: string, m: Extract<Move, { t: 'm
     if (s.troops[m.to] + m.troops > capOf(map, m.to)) throw new CampaignError('full');
     s.troops[m.from] -= m.troops;
     s.troops[m.to] += m.troops;
-    return { t: 'march', side, from: m.from, to: m.to, troops: m.troops };
+    return { t: 'march', side, from: m.from, to: m.to, troops: m.troops, fromLeft: s.troops[m.from], toLeft: s.troops[m.to] };
   }
 
   const defender = s.holder[m.to];
   if (defender === side) throw new CampaignError('own_province');
   if (defender !== null && s.seats[defender] === m.to) throw new CampaignError('seat');
-  const terrain = terrainOf(map, m.to);
+  const ground = groundOf(map, m.from, m.to);
   const defenders = s.troops[m.to];
-  const fought = battle(m.troops, defenders, seed, terrain);
+  const fought = battle(m.troops, defenders, seed, ground);
   const took = fought.dLost >= defenders;
   add(s.lost, side, fought.aLost);
   add(s.lost, defender, fought.dLost);
@@ -617,7 +500,11 @@ function orderOne(s: State, map: GameMap, side: string, m: Extract<Move, { t: 'm
     s.troops[m.to] = defenders - fought.dLost;
     add(s.won, defender, 1);
   }
-  return { t: 'attack', side, from: m.from, to: m.to, defender, committed: m.troops, defenders, terrain, rounds: fought.rounds, aLost: fought.aLost, dLost: fought.dLost, took, turn: s.turn };
+  return {
+    t: 'attack', side, from: m.from, to: m.to, defender, committed: m.troops, defenders, terrain: ground.terrain, crossing: ground.crossing ?? null,
+    chance: winChance(m.troops, defenders, ground), rounds: fought.rounds, aLost: fought.aLost, dLost: fought.dLost, took, turn: s.turn,
+    fromLeft: s.troops[m.from], toLeft: s.troops[m.to],
+  };
 }
 
 /** The first turn of a reign: the opening, with the player's first levy waiting and their orders ready. */
@@ -694,7 +581,7 @@ function regentPlays(act: Actor, map: GameMap, side: string, random: () => numbe
         const threatened = neighbours(map, from).some((j) => j !== to && s().holder[j] !== side && s().holder[j] !== null);
         const send = have - (threatened ? RULES.REGENT_KEEPS : 1);
         if (send < 1) continue;
-        const chance = winChance(send, s().troops[to], terrainOf(map, to));
+        const chance = winChance(send, s().troops[to], groundOf(map, from, to));
         if (chance < nerve) continue;
         // A free march and a town are the better prizes; a tie is broken by the seed, not by the map's order.
         const score = chance + (s().holder[to] === null ? 0.3 : 0) + (terrainOf(map, to) === 'town' ? 0.3 : 0) + random() * 0.1;

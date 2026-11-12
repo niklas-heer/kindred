@@ -1,5 +1,6 @@
 // What the campaign's pages receive from the server. Types only: safe to import anywhere.
-import type { GameMap, Move, PlaceIn, Score, State } from './engine.ts';
+import type { Title } from './chronicle.ts';
+import type { GameMap, Move, Score, State } from './engine.ts';
 import type { Renown } from './renown.ts';
 import type { House } from '../types.ts';
 
@@ -20,7 +21,7 @@ export interface SideView extends StoredSide {
   renown: Renown;
 }
 
-/** What a reign is played on: the map with its terrain, the four sides in their order, and the opening. */
+/** What a reign is played on: the map (an invented continent, with its terrain), the four sides in their order, and the opening. */
 export interface FieldView { map: GameMap; sides: StoredSide[]; start: State }
 
 /** This week's challenge, as the reader would play it. */
@@ -61,6 +62,8 @@ export interface BoardRow {
   runs?: number;
   /** The week it was played (the all-time list only). */
   week?: string;
+  /** The reign's title ("a bold reign"), when it has one. */
+  title?: Title;
   mine: boolean;
 }
 
@@ -70,7 +73,10 @@ export interface Leaderboard {
   week: BoardRow[];
   allTime: BoardRow[];
   houses: HouseTotal[];
-  me: { best: number | null; runs: number; rank: number | null; of: number };
+  /** The reader this week (best, reigns, place), and `record`: their best reign ever under today's rules. */
+  me: { best: number | null; runs: number; rank: number | null; of: number; record: number | null };
+  /** Reigns played under earlier rules, shown apart and never ranked with today's: this week's, and the best ever. */
+  earlier?: { week: BoardRow[]; allTime: BoardRow[] };
 }
 
 /** A season of the old shared game: its winner and standings, kept for the hall of fame. */
@@ -83,8 +89,8 @@ export interface FameEntry {
 
 export interface CampaignView {
   enabled: boolean;
-  /** What a practice reign is made from (a fresh field each time): the family's places and the sides, also while the game is off. */
-  kit: { places: PlaceIn[]; sides: SideView[] };
+  /** What a practice reign is made from (a fresh continent each time): the sides, also while the game is off. */
+  kit: { sides: SideView[] };
   /** The side of the reader's own house among the kit's sides, or null when they stand for nobody in one. */
   mySide: string | null;
   /** This week's challenge and table, while the game is on. */
@@ -102,9 +108,23 @@ export interface CampaignStatus {
   runs?: number;
   rank?: number | null;
   of?: number;
+  /** Their best reign ever under today's rules. */
+  record?: number | null;
 }
 
-/** What finishing a reign answers: its score as the server worked it out, and where it stands. */
-export interface FinishResult { score: Score; best: number; rank: number; of: number; personalBest: boolean }
+/** What finishing a reign answers: its score as the server worked it out, its title, and where it stands. */
+export interface FinishResult {
+  score: Score;
+  title: Title;
+  /** The member's best this week, and their place among the members who played. */
+  best: number;
+  rank: number;
+  of: number;
+  /** Their best this week, and their best ever under today's rules. */
+  personalBest: boolean;
+  record: boolean;
+  /** Where the house they ruled stands among the houses this week, and whether this reign lifted it. */
+  house: { name: string; rank: number; of: number; rose: boolean } | null;
+}
 
 export type { Move };

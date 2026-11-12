@@ -1,12 +1,14 @@
-// The battle: two banners, the ground it is fought on, and the dice of each round as the reign's seed rolled them. The rounds appear one after another; with "reduce motion" they are all there at once and nothing tumbles.
-// The result is also said in words, in a live region. Sound goes through the app's own switch (src/lib/sfx.ts).
+// The battle: two banners with their armies, the ground it is fought on and what that does to the dice, the chance the
+// attacker had, and the dice of each round as the reign's seed rolled them. The rounds appear one after another and each
+// army thins as it loses; then the outcome is stamped. With "reduce motion" everything is there at once and nothing
+// tumbles. The result is also said in words, in a live region. Sound goes through the app's own switch (src/lib/sfx.ts).
 import { Flag, Swords } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Arms } from '~/components/Heraldry';
 import { Dialog } from '~/components/ui';
-import { RULES, type GameEvent, type GameMap } from '~/lib/campaign/engine';
-import type { BoardSide } from './Board';
-import { TERRAIN_NAME, TERRAIN_RULE, TerrainIcon } from './CampaignMap';
+import { type GameEvent, type GameMap } from '~/lib/campaign/engine';
+import { TERRAIN_NAME, TerrainIcon } from './CampaignMap';
+import { modifiers, reducedMotion, type BoardSide } from './parts';
 import { useT } from '~/lib/i18n';
 import { play } from '~/lib/sfx';
 
@@ -30,8 +32,16 @@ function Die({ value, lost, defender, delay }: { value: number; lost: boolean; d
   );
 }
 
-const reducedMotion = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-const ROUND_MS = 900;
+/** An army as a row of small figures: those that have fallen so far are struck out. */
+function Army({ count, fallen, defender }: { count: number; fallen: number; defender?: boolean }) {
+  return (
+    <span className={`cb-army${defender ? ' is-defender' : ''}`} aria-hidden>
+      {Array.from({ length: count }, (_, i) => <i key={i} className={i >= count - fallen ? 'is-fallen' : ''} />)}
+    </span>
+  );
+}
+
+const ROUND_MS = 950;
 
 export function BattleDialog({ battle, map, sides, mySide, onClose }: { battle: Battle; map: GameMap; sides: BoardSide[]; mySide: string | null; onClose: () => void }) {
   const t = useT();
@@ -44,7 +54,7 @@ export function BattleDialog({ battle, map, sides, mySide, onClose }: { battle: 
   useEffect(() => {
     if (done) return;
     if (shown === 0) play('seal');
-    const id = window.setTimeout(() => { setShown((n) => n + 1); play('tick'); }, shown === 0 ? 350 : ROUND_MS);
+    const id = window.setTimeout(() => { setShown((n) => n + 1); play('tick'); }, shown === 0 ? 450 : ROUND_MS);
     return () => window.clearTimeout(id);
   }, [shown, done]);
   useEffect(() => {
@@ -55,6 +65,10 @@ export function BattleDialog({ battle, map, sides, mySide, onClose }: { battle: 
   const outcome = battle.took
     ? mine ? t('campaign.battle.won', { province }) : t('campaign.battle.taken', { province, house: attacker?.name ?? '' })
     : mine ? t('campaign.battle.lost', { province }) : t('campaign.battle.held', { province });
+  const fought = battle.rounds.slice(0, shown);
+  const aFallen = fought.reduce((n, r) => n + r.aLost, 0);
+  const dFallen = fought.reduce((n, r) => n + r.dLost, 0);
+  const percent = Math.round(battle.chance * 100);
 
   return (
     <Dialog
@@ -62,7 +76,7 @@ export function BattleDialog({ battle, map, sides, mySide, onClose }: { battle: 
       onClose={onClose}
       variant="event"
       title={t('campaign.battle.title', { province })}
-      width="min(520px, 100vw - 24px)"
+      width="min(540px, 100vw - 24px)"
       initialFocus="[data-autofocus]"
       footer={<>{!done && <button type="button" className="btn" onClick={() => setShown(battle.rounds.length)}>{t('campaign.battle.skip')}</button>}<button type="button" className="btn primary" onClick={onClose} data-autofocus>{t('campaign.battle.close')}</button></>}
     >
@@ -72,17 +86,28 @@ export function BattleDialog({ battle, map, sides, mySide, onClose }: { battle: 
             {attacker && <Arms arms={attacker.arms} size={56} />}
             <b>{attacker?.name}</b>
             <span className="muted">{t('campaign.battle.sent', { count: battle.committed })}</span>
+            <Army count={battle.committed} fallen={aFallen} />
           </div>
           <Swords className="cb-vs" size={26} aria-hidden />
           <div className="cb-side">
             {defender ? <Arms arms={defender.arms} size={56} /> : <Flag size={44} className="cg-row-free" aria-hidden />}
             <b>{defender?.name ?? t('campaign.free')}</b>
             <span className="muted">{t('campaign.battle.defended', { count: battle.defenders })}</span>
+            <Army count={battle.defenders} fallen={dFallen} defender />
           </div>
         </div>
-        <p className="cb-terrain"><TerrainIcon terrain={battle.terrain} size={15} /> <b>{t(TERRAIN_NAME[battle.terrain])}</b> · {t(TERRAIN_RULE[battle.terrain], { cap: battle.terrain === 'town' ? RULES.TOWN_GARRISON_MAX : RULES.GARRISON_MAX })}</p>
-        <ol className="cb-rounds">
-          {battle.rounds.slice(0, shown).map((r, i) => (
+        <div className="cb-ground">
+          <p className="cb-terrain"><TerrainIcon terrain={battle.terrain} size={20} /> <b>{t(TERRAIN_NAME[battle.terrain])}</b></p>
+          <ul className="cg-mods">
+            {modifiers(t, { terrain: battle.terrain, crossing: battle.crossing }).map((m) => <li key={m}>{m}</li>)}
+          </ul>
+          <p className="cb-chance" data-odds={battle.chance >= 0.65 ? 'good' : battle.chance >= 0.4 ? 'fair' : 'poor'}>
+            <span>{t('campaign.battle.chance', { chance: percent })}</span>
+            <span className="cg-odds-bar" aria-hidden><i style={{ width: `${percent}%` }} /></span>
+          </p>
+        </div>
+        <ol className="cb-rounds" style={{ minHeight: battle.rounds.length * 54 }}>
+          {fought.map((r, i) => (
             <li key={i} className="cb-round">
               <span className="cb-round-n">{t('campaign.battle.round', { n: i + 1 })}</span>
               <span className="cb-dice" aria-label={t('campaign.battle.rolled', { who: attacker?.name ?? '', dice: r.a.join(', ') })}>
@@ -98,7 +123,10 @@ export function BattleDialog({ battle, map, sides, mySide, onClose }: { battle: 
         <div className="cb-result" aria-live="polite">
           {done && (
             <>
-              <p className={`cb-outcome${battle.took ? ' is-won' : ''}`}>{outcome}</p>
+              <p className={`cb-outcome${battle.took ? ' is-won' : ''}${mine === battle.took ? ' is-glad' : ''}`}>
+                <span className="cb-stamp" aria-hidden>{battle.took ? t('campaign.battle.stamp_taken') : t('campaign.battle.stamp_held')}</span>
+                {outcome}
+              </p>
               <p className="muted">{t('campaign.battle.total', { a: battle.aLost, d: battle.dLost })}</p>
             </>
           )}
