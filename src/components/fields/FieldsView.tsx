@@ -37,7 +37,7 @@ export const GROUPS: { id: string; title: Key; types: FieldType[] }[] = [
 export const contactsOf = (fields: PersonField[]) => fields.filter((x) => isContactType(x.type));
 
 /** The href a contact opens: a call, a message, a map, a site. */
-export function contactHref(f: PersonField): string | undefined {
+export function contactHref(f: Pick<PersonField, 'type' | 'value' | 'label'>): string | undefined {
   const v = f.value;
   if (f.type === 'phone') return `tel:${(v.number ?? '').replace(/[^\d+]/g, '')}`;
   if (f.type === 'email') return `mailto:${v.address ?? ''}`;

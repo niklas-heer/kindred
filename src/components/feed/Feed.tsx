@@ -14,6 +14,7 @@ import { Link } from '@tanstack/react-router';
 import { Baby, FileInput, Images, Lock, PencilLine, ScrollText, Swords, UserPlus } from 'lucide-react';
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EAGER_FACES, StoryCard, type StoryTranslation } from '~/components/chronicle/StoryCard';
+import { contactHref } from '~/components/fields/FieldsView';
 import { GameIcon } from '~/components/GameIcon';
 import { Responses } from '~/components/responses/Responses';
 import { comingUp, nth } from '~/components/today/DatesCard';
@@ -23,9 +24,10 @@ import { useToday } from '~/lib/clock';
 import { useDealt } from '~/lib/dealt';
 import { useFamily } from '~/lib/family';
 import { feedQuery } from '~/lib/feed/feed.functions';
-import type { FeedItem, UpdatePerson } from '~/lib/feed/types';
+import type { ContactKind, FeedItem, UpdatePerson, UpdateValue } from '~/lib/feed/types';
+import { isContactType, type FieldType } from '~/lib/fields/model';
 import { displayName, type Family } from '~/lib/graph';
-import { fieldName } from '~/lib/history-text';
+import { fieldName, valueText } from '~/lib/history-text';
 import { formatDate, richText, useT, type Key, type Translator } from '~/lib/i18n';
 import { mediaUrl } from '~/lib/photos/types';
 import { useCan, useMember, useSession } from '~/lib/session';
@@ -239,18 +241,82 @@ function Entry({ item, f, tree, now, tr, defer }: { item: FeedItem; f: Family; t
   }
 }
 
-/** What one update to one person said, as short phrases: "has a new address", "a life event", "details changed (Born)". */
-function updateParts(p: UpdatePerson, t: Translator): string[] {
-  const parts: string[] = p.contact.map((c) => t(`feed.update.contact.${c}`));
-  if (p.details.length) {
-    const names = p.details.map((d) => (d.startsWith('field:') ? t(`type.${d.slice(6)}` as Key) : fieldName(t, d)));
-    parts.push(t('feed.update.details', { list: names.join(', ') }));
+/** The new values an update shows at first; the rest open with "and 2 more". */
+const VALUES_SHOWN = 3;
+/** What a long text is: shown as a two-line excerpt that leads to the person. */
+const LONG = new Set(['bio', 'field:notes', 'field:custom', 'field:medical', 'field:allergies', 'field:favourites', 'field:gifts']);
+/** The key of a contact's value that its link is made from (fields/model.ts VALUE). An address is one line of text here. */
+const CONTACT_KEY: Record<ContactKind, string> = { phone: 'number', email: 'address', website: 'url', social: 'handle', address: 'street' };
+
+/** What a detail is called: a person's own fact by its column, a field by its type. */
+const detailName = (t: Translator, name: string) => (name.startsWith('field:') ? t(`type.${name.slice(6)}` as Key) : fieldName(t, name));
+
+/**
+ * The phrases of one update's new values: "new phone number: +49 …" (a link that calls), "born 3 May 1950 in Graz",
+ * "Occupation: Baker", a biography's first lines, "Occupation removed". Text all through, so a screen reader reads a sentence.
+ */
+function valuePhrases(values: UpdateValue[], t: Translator, to: { tree: string; id: string } | null): ReactNode[] {
+  const by = new Map(values.map((v) => [v.name, v]));
+  const out: ReactNode[] = [];
+  const said = new Set<string>();
+  // A birth or a death with its place is one phrase.
+  for (const [date, place] of [['born', 'born_place'], ['died', 'died_place']] as const) {
+    const d = by.get(date)?.value, pl = by.get(place)?.value;
+    if (d) out.push(t(pl ? `feed.value.${date}_in` : `feed.value.${date}`, { date: formatDate(d, t.locale), place: pl ?? '' }));
+    else if (pl) out.push(t(`feed.value.${place}`, { place: pl }));
+    if (d) said.add(date);
+    if (pl) said.add(place);
   }
+  for (const v of values) {
+    if (said.has(v.name)) continue;
+    const name = detailName(t, v.name);
+    if (v.value === null) { out.push(t('feed.value.removed', { name })); continue; }
+    const type = v.name.startsWith('field:') ? (v.name.slice(6) as FieldType) : null;
+    if (type && isContactType(type)) {
+      const href = contactHref({ type, label: v.label ?? '', value: { [CONTACT_KEY[type as ContactKind]]: v.value } });
+      const outward = type === 'address' || type === 'website' || type === 'social';
+      const value = href ? <a href={href} target={outward ? '_blank' : undefined} rel="noopener noreferrer">{v.value}</a> : v.value;
+      out.push(richText(t, `feed.value.contact.${type}` as Key, { value }));
+    } else if (LONG.has(v.name)) {
+      const excerpt = to ? <Link className="fd-excerpt" to="/$tree/person/$id" params={to}>{v.value}</Link> : <span className="fd-excerpt">{v.value}</span>;
+      out.push(richText(t, 'feed.value.set', { name, value: excerpt }));
+    } else {
+      const text = type === 'dates' ? formatDate(v.value, t.locale) : type ? v.value : valueText(t, v.name, v.value);
+      out.push(t('feed.value.set', { name, value: text }));
+    }
+  }
+  return out;
+}
+
+/** What one update to one person said, as short phrases: "has a new address", "a life event", "details changed (Born)". */
+function updateParts(p: UpdatePerson, t: Translator, valued: ReadonlySet<string> = new Set()): string[] {
+  const parts: string[] = p.contact.filter((c) => !valued.has(`field:${c}`)).map((c) => t(`feed.update.contact.${c}`));
+  const details = p.details.filter((d) => !valued.has(d));
+  if (details.length) parts.push(t('feed.update.details', { list: details.map((d) => detailName(t, d)).join(', ') }));
   if (p.events) parts.push(t('feed.update.events', { count: p.events }));
   if (p.sources && p.id !== null) parts.push(t('feed.update.sources', { count: p.sources }));
   if (p.portrait) parts.push(t('feed.update.portrait'));
   if (p.tagged) parts.push(t('feed.update.tagged', { count: p.tagged }));
   return parts;
+}
+
+/**
+ * What one update to one person said: the new values this reader may see first (the first few, then "and 2 more", which
+ * opens the rest), then what changed without a value it may show, by its kind.
+ */
+function UpdateWhat({ p, tree }: { p: UpdatePerson; tree: string }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const values = p.values ?? [];
+  const phrases = valuePhrases(values, t, p.id ? { tree, id: p.id } : null);
+  const shown = open ? phrases : phrases.slice(0, VALUES_SHOWN);
+  const hidden = phrases.length - shown.length;
+  const more = hidden > 0
+    ? <button type="button" className="fd-values-more" aria-expanded={false} onClick={() => setOpen(true)}>{t('feed.line.updated_more', { count: hidden })}</button>
+    : null;
+  const parts: ReactNode[] = [...shown, ...updateParts(p, t, new Set(values.map((v) => v.name)))];
+  // "and 2 more" follows the values it stands for, before what is said by its kind.
+  return <>{parts.map((x, i) => <Fragment key={i}>{i > 0 ? ', ' : null}{x}{i === shown.length - 1 && more ? <>{' '}{more}</> : null}</Fragment>)}</>;
 }
 
 /**
@@ -263,12 +329,12 @@ function UpdatesEntry({ item, f, tree, now }: { item: Extract<FeedItem, { type: 
   const people = item.people.filter((p) => p.id !== null && f.byId.has(p.id));
   const nobody = item.people.find((p) => p.id === null);
   const link = (id: string) => <Link to="/$tree/person/$id" params={{ tree, id }}>{displayName(f.byId.get(id)!, f)}</Link>;
-  const what = (p: UpdatePerson) => updateParts(p, t).join(', ');
+  const what = (p: UpdatePerson) => <UpdateWhat p={p} tree={tree} />;
   const responses = <Responses tree={tree} kind="event" target={item.target} compact />;
   const lines: ReactNode[] = [];
   if (item.imported) lines.push(<span key="import">{richText(t, 'feed.line.imported', { author }, { count: item.imported })}</span>);
   if (people.length === 1 && item.count === 1 && !item.more) {
-    lines.push(<span key="one">{richText(t, 'feed.line.updated_one', { author, name: link(people[0]!.id!) }, { what: what(people[0]!) })}</span>);
+    lines.push(<span key="one">{richText(t, 'feed.line.updated_one', { author, name: link(people[0]!.id!), what: what(people[0]!) })}</span>);
   } else if (people.length) {
     lines.push(<span key="many">{richText(t, 'feed.line.updated', { author }, { count: item.count })}</span>);
   }

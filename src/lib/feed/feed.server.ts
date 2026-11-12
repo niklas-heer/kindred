@@ -7,13 +7,19 @@
 //   photos   one member's uploads of one day to one album, as one entry (a picture uploaded for a post is the post's)
 //   people   the people one member added to the tree on one day, from the change history; a newborn is said as one
 //   updates  what one member did to the family's records on one day, from the change history: per person, their details
-//            and contact details changed (which ones, never the values), life events, sources, a portrait, photos they
-//            were tagged in; and a GEDCOM import as one number, however many people it brought
+//            and contact details changed, with the new values this reader may see (below), life events, sources, a
+//            portrait, photos they were tagged in; and a GEDCOM import as one number, however many people it brought
 //   season   a season of the Campaign that ended
 //
 // Who reads what. Every member reads the same posts, memories, photos and people. Updates follow the change history's
 // levels (history.server.ts): what is for editors (an address, which starts there) only an editor reads, and a Personal
 // field is in nobody's feed. A share-link guest reads no feed at all, so contact details never reach one.
+//
+// Values. An update carries the new value of a detail as the history kept it that day (a field added keeps none there, so
+// its value now stands in), and only when this reader may see that field of that person now, by the rule every person read
+// asks (`maySee`, visibility.ts): a field made Personal or editors-only since is said by its kind alone. A value the history
+// kept without content, or for editors only, is not sent to anyone it does not keep it for. A removed value is said as
+// removed; an old value is never sent.
 //
 // How it stays cheap. A page is one batch of reads in the family's database (`readBatch`: one round trip on D1), each
 // read bounded by a LIMIT, plus one read of the accounts database for the writers' faces. No read per entry. Each source
@@ -22,13 +28,14 @@
 // looked (its floor), and the page ends there, so nothing a later page would bring is skipped. Updates group in SQL, by
 // whole days, so one member's busy day cannot push another's updates of that day out of the window.
 import { db, q, type Query } from '../db.server';
-import { isContactType } from '../fields/model';
-import { authorKey } from '../history.server';
+import { fieldText, isContactType, type FieldType } from '../fields/model';
+import { authorKey, type Diff } from '../history.server';
 import { can } from '../roles';
+import { maySee, type Audience } from '../visibility';
 import { needsMember, postParts, postViews, standingFor, type PostRow, type Who } from './posts.server';
 import {
   afterCursor, decodeCursor, encodeCursor, feedOrder, FEED_PAGE,
-  type ContactKind, type FeedAuthor, type FeedCursor, type FeedItem, type FeedPage, type FeedPicture, type UpdatePerson,
+  type ContactKind, type FeedAuthor, type FeedCursor, type FeedItem, type FeedPage, type FeedPicture, type UpdatePerson, type UpdateValue,
 } from './types';
 import { seedVoice } from './voice';
 
@@ -45,6 +52,8 @@ const PERSON_DETAILS = new Set([
   'given', 'further_given', 'surname', 'current_given', 'current_surname', 'nickname', 'sex', 'born', 'born_place', 'died', 'died_place',
   'living', 'title', 'epithet', 'occupation', 'bio',
 ]);
+/** A person's own facts an update names without their value: a switch and a code say nothing worth reading in a line. */
+const NO_VALUE = new Set(['living', 'sex']);
 /** The pictures a day's uploads show. */
 const PHOTO_PREVIEWS = 4;
 /** The names a "people added" entry carries. */
@@ -57,8 +66,14 @@ const NEWBORN_DAYS = 366;
 interface StoryRow { id: string; person: string; kind: 'note' | 'quote' | 'anecdote' | 'recipe' | 'memory'; title: string | null; body: string; author: string; at: string; context: string | null; week: string | null }
 interface MediaRow { key: string; width: number; height: number; album: string | null; album_name: string | null; uploaded_by: string; uploaded_at: string }
 interface AddedRow { at: string; account: string | null; name: string; person: string; born: string | null }
-/** One record's changes of one day by one author at one level (the SQL groups them); `fields` is a JSON array of the rows' own. */
-interface UpdateRow { at: string; account: string | null; name: string; level: string; kind: string; record: string; person: string | null; fields: string; count: number; field_type: string | null; more: number; cut: string | null }
+/**
+ * One record's changes of one day by one author at one level (the SQL groups them); `fields` is a JSON array of the rows'
+ * own, each `[at, action, fields]`. `field_*` are a field's now (its value, label and who may see it), or null.
+ */
+interface UpdateRow {
+  at: string; account: string | null; name: string; level: string; kind: string; record: string; person: string | null; fields: string; count: number;
+  field_type: string | null; field_value: string | null; field_label: string | null; field_vis: string | null; field_owner: string | null; more: number; cut: string | null;
+}
 interface SeasonRow { season: number; ended: string; winner: string | null }
 
 /** What a source found: its entries, and how far down it looked when it could not look at everything (else null). */
@@ -138,17 +153,62 @@ function peopleEntries(rows: AddedRow[], keys: Map<string, string>): FeedItem[] 
   });
 }
 
-/** The names of the fields a person's changes touched, of those an update names, from the rows' `fields` as one JSON array. */
-function detailsOf(fields: string): string[] {
+/** One record's rows of a day, oldest first: what each did (`added`, `changed`) and its diff (history.server.ts), if it kept one. */
+function changesOf(fields: string): { action: string; diff: Diff | null }[] {
   try {
-    const each = (JSON.parse(fields) as (string | null)[]).flatMap((f) => (f ? Object.keys((JSON.parse(f) as { f?: Record<string, unknown> }).f ?? {}) : []));
-    return [...new Set(each)].filter((k) => PERSON_DETAILS.has(k));
+    return (JSON.parse(fields) as [string, string, string | null][])
+      .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+      .map(([, action, f]) => ({ action, diff: f ? (JSON.parse(f) as Diff) : null }));
   } catch {
     return [];
   }
 }
 
-function updateEntries(rows: UpdateRow[], keys: Map<string, string>): FeedItem[] {
+/** The names of the fields a person's changes touched, of those an update names. */
+const detailsOf = (changes: { diff: Diff | null }[]) => [...new Set(changes.flatMap((c) => Object.keys(c.diff?.f ?? {})))].filter((k) => PERSON_DETAILS.has(k));
+
+/**
+ * What a change set `name` to, as the day's last row kept it: the text, null when it was removed, undefined when the row
+ * kept no content (a large value, a picture) or keeps it for editors only and this reader is not one.
+ */
+function newValue(changes: { diff: Diff | null }[], name: string, editor: boolean): string | null | undefined {
+  const last = changes.filter((c) => c.diff && name in c.diff.f).at(-1)?.diff;
+  if (!last || last.o?.includes(name) || (last.e?.includes(name) && !editor)) return undefined;
+  const v = last.f[name]![1];
+  return v === null || v === '' ? null : String(v);
+}
+
+/** A field's value now, as one line of text (fields/model.ts), or undefined when it has none worth showing. */
+function fieldNow(type: string, value: string | null): string | undefined {
+  try {
+    return fieldText(type as FieldType, JSON.parse(value ?? '{}') as Record<string, string>) || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The new values of one record's changes that this reader may see, by the rule the person page asks (`maySee`). A person's
+ * own facts are every member's on their page; a field is read at its level now, so one made private since says no value.
+ */
+function valuesOf(r: UpdateRow, changes: { action: string; diff: Diff | null }[], reader: Audience): UpdateValue[] {
+  const editor = can(reader.role, 'edit-person');
+  if (reader.guest) return [];
+  if (r.kind === 'person') {
+    return detailsOf(changes).filter((k) => !NO_VALUE.has(k)).flatMap((k): UpdateValue[] => {
+      const v = newValue(changes, k, editor);
+      return v === undefined ? [] : [{ name: k, value: v }];
+    });
+  }
+  if (r.kind !== 'field' || !r.field_type || !r.field_vis || !maySee(reader, { visibility: r.field_vis, owner: r.field_owner })) return [];
+  // The day's value as the history kept it; a field added that day kept none there, so its value now stands in.
+  const kept = newValue(changes, 'value', editor);
+  const v = kept !== undefined ? kept : changes.some((c) => c.action === 'added') ? fieldNow(r.field_type, r.field_value) : undefined;
+  if (v === undefined) return [];
+  return [{ name: `field:${r.field_type}`, value: v, ...(r.field_label ? { label: r.field_label } : {}) }];
+}
+
+function updateEntries(rows: UpdateRow[], keys: Map<string, string>, reader: Audience): FeedItem[] {
   const out: FeedItem[] = [];
   // What only editors read is an entry of its own (`|e`, responses.ts), so its reactions and comments never reach a viewer.
   for (const [k, g] of byDayAndAuthor(rows, keys, (r) => (r.level === 'editors' ? '|e' : ''))) {
@@ -156,7 +216,7 @@ function updateEntries(rows: UpdateRow[], keys: Map<string, string>): FeedItem[]
     let imported = 0;
     const of = (id: string | null) => {
       let p = people.get(id);
-      if (!p) people.set(id, (p = { id, contact: [], details: [], events: 0, sources: 0, portrait: false, tagged: 0, seen: new Set() }));
+      if (!p) people.set(id, (p = { id, contact: [], details: [], events: 0, sources: 0, portrait: false, tagged: 0, values: [], seen: new Set() }));
       return p;
     };
     const add = <T>(list: T[], x: T) => { if (!list.includes(x)) list.push(x); };
@@ -166,7 +226,9 @@ function updateEntries(rows: UpdateRow[], keys: Map<string, string>): FeedItem[]
       const p = of(r.person);
       // A record changed many times in a day (an autosave every few minutes) counts once.
       const once = (what: string) => !p.seen.has(`${what}:${r.record}`) && !!p.seen.add(`${what}:${r.record}`);
-      if (r.kind === 'person') for (const d of detailsOf(r.fields)) add(p.details, d);
+      const changes = changesOf(r.fields);
+      p.values!.push(...valuesOf(r, changes, reader));
+      if (r.kind === 'person') for (const d of detailsOf(changes)) add(p.details, d);
       else if (r.kind === 'field' && r.field_type) {
         if (isContactType(r.field_type)) add(p.contact, r.field_type as ContactKind);
         else add(p.details, `field:${r.field_type}`);
@@ -179,7 +241,10 @@ function updateEntries(rows: UpdateRow[], keys: Map<string, string>): FeedItem[]
       .filter((p) => p.contact.length || p.details.length || p.events || p.sources || p.portrait || p.tagged)
       // A person first, what is about nobody last.
       .sort((a, b) => (a.id === null ? 1 : 0) - (b.id === null ? 1 : 0))
-      .map((p): UpdatePerson => ({ id: p.id, contact: p.contact, details: p.details, events: p.events, sources: p.sources, portrait: p.portrait, tagged: p.tagged }));
+      .map((p): UpdatePerson => ({
+        id: p.id, contact: p.contact, details: p.details, events: p.events, sources: p.sources, portrait: p.portrait, tagged: p.tagged,
+        ...(p.values!.length ? { values: p.values } : {}),
+      }));
     if (!said.length && !imported) continue;
     out.push({
       type: 'updates', at: g[0]!.at, key: `updates:${k}`, target: `updates:${k}`, by: g[0]!.name,
@@ -226,12 +291,13 @@ export async function feedPage(tree: string, who: Who, cursor?: string | null, l
     // minutes is one), and at most UPDATES_PER_ENTRY records per entry, which then says there was more (`more`).
     q(`WITH cut AS (SELECT substr(h.at, 1, 10) AS d FROM history h WHERE ${updatesWhere} ORDER BY h.at DESC LIMIT 1 OFFSET ?),
        rec AS (
-         SELECT max(h.at) AS at, h.account, h.name, h.level, h.kind, h.record, h.person, json_group_array(h.fields) AS fields, sum(h.count) AS count, pf.type AS field_type
+         SELECT max(h.at) AS at, h.account, h.name, h.level, h.kind, h.record, h.person, json_group_array(json_array(h.at, h.action, h.fields)) AS fields,
+           sum(h.count) AS count, pf.type AS field_type, pf.value AS field_value, pf.label AS field_label, pf.visibility AS field_vis, pf.owner AS field_owner
          FROM history h LEFT JOIN person_field pf ON h.kind = 'field' AND pf.id = h.record
          WHERE ${updatesWhere} AND h.at >= coalesce((SELECT d FROM cut), '')
-         GROUP BY substr(h.at, 1, 10), ${author('h')}, h.level, h.kind, h.record, h.person, pf.type),
+         GROUP BY substr(h.at, 1, 10), ${author('h')}, h.level, h.kind, h.record, h.person, pf.type, pf.value, pf.label, pf.visibility, pf.owner),
        ranked AS (SELECT rec.*, row_number() OVER (${entry} ORDER BY at DESC, record) AS n, count(*) OVER (${entry}) AS total FROM rec)
-       SELECT at, account, name, level, kind, record, person, fields, count, field_type, total > ? AS more, (SELECT d FROM cut) AS cut
+       SELECT at, account, name, level, kind, record, person, fields, count, field_type, field_value, field_label, field_vis, field_owner, total > ? AS more, (SELECT d FROM cut) AS cut
        FROM ranked WHERE n <= ? ORDER BY at DESC, record DESC`, upper, UPDATES_WINDOW - 1, upper, UPDATES_PER_ENTRY, UPDATES_PER_ENTRY),
     q(`SELECT season, ended, json_extract(result, '$.winner.name') AS winner FROM campaign_season
        WHERE ended IS NOT NULL${after('ended', "('season:' || season)")} ORDER BY ended DESC LIMIT ?`, ...afterParams, SEASONS),
@@ -259,7 +325,8 @@ export async function feedPage(tree: string, who: Who, cursor?: string | null, l
     },
     { items: photoEntries(photos.rows, photos.partial, names), floor: photos.floor },
     { items: peopleEntries(added.rows, keys), floor: added.floor },
-    { items: updateEntries(updates.rows, keys), floor: updates.floor },
+    // The reader as every person read knows them (visibility.ts): in a "View as" preview, the previewed role and no account of theirs.
+    { items: updateEntries(updates.rows, keys, { account: who.id, role: who.role, guest: who.guest === true }), floor: updates.floor },
     { items: seasonRows.map((s): FeedItem => ({ type: 'season', at: s.ended, key: `season:${s.season}`, season: s.season, winner: s.winner })), floor: seasonRows.length >= SEASONS ? seasonRows[SEASONS - 1]!.ended : null },
   ];
 

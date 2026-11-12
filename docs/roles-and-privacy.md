@@ -416,8 +416,12 @@ Today holds the question of the week and the daily quiz ([today.md](today.md)).
   and their house), for the streak and the month's table of houses. Removing the family removes it. An answer to the
   question of the week is a memory signed with the writer's name, like any other.
 - **The feed's updates** ([feed.md](feed.md)) come from the change history and follow its levels: a change to something
-  only editors read (an address, at first) is in an editor's feed alone, a Personal field is in nobody's, and an update
-  names what changed (a new phone number), never the value. A guest has no feed.
+  only editors read (an address, at first) is in an editor's feed alone, and a Personal field is in nobody's. An update
+  shows the new value (a new phone number, a birth date) only when the reader may see that field of that person now, by
+  the same rule as the person's page (`maySee`, `src/lib/visibility.ts`): a field made Personal or editors-only after the
+  change is said by its kind alone ("new phone number"), and a "View as" preview reads what the previewed role would. A
+  removed value is said as removed, never with what it was, and an old value is never sent. The pushes carry no values.
+  A guest has no feed.
 
 ## Address suggestions
 

@@ -17,7 +17,7 @@ delete process.env.KINDRED_DEMO;
 const vite = await createServer({ root: process.cwd(), logLevel: 'error', server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom' });
 const load = <T>(path: string) => vite.ssrLoadModule(path) as Promise<T>;
 const { openSqlite, closeAccounts } = await load<typeof import('../store/node.ts')>('/src/lib/store/node.ts');
-for (const tree of ['family', 'busy', 'quiet', 'edits']) {
+for (const tree of ['family', 'busy', 'quiet', 'edits', 'values']) {
   const f = openSqlite(join(dir, `${tree}.db`), 'tree', { create: true });
   f.exec(`
     INSERT INTO meta (key, value) VALUES ('id', '${tree}'), ('name', 'The Alders'), ('tagline', ''), ('theme', 'codex'), ('focus', 'ada');
@@ -42,7 +42,7 @@ test.after(async () => {
 type Role = 'viewer' | 'contributor' | 'editor' | 'steward';
 async function member(name: string, role: Role, person: string | null = null) {
   const { user, insert } = store.newUser(name, null);
-  await store.accounts().batch([insert, ...['family', 'busy', 'quiet', 'edits'].map((t) => store.upsertMembership(user.id, t, role))]);
+  await store.accounts().batch([insert, ...['family', 'busy', 'quiet', 'edits', 'values'].map((t) => store.upsertMembership(user.id, t, role))]);
   if (person) await store.accounts().run('UPDATE membership SET person = ?, person_confirmed = 1 WHERE user = ?', person, user.id);
   return { id: user.id, name, role, person };
 }
@@ -265,7 +265,7 @@ test('a member who left still signs what they shared', async () => {
   assert.deepEqual(ph.by, { name: '', person: null }, 'a photo upload keeps no name: the page says "someone"');
 });
 
-test('a day of one member’s updates is one event, person by person: contact details by kind, never their values', async () => {
+test('a day of one member’s updates is one event, person by person: contact details by kind, with the day’s new value', async () => {
   const t = 'edits';
   const d = '2026-11-02';
   await field(t, 'f-phone', 'ben', 'phone');
@@ -296,11 +296,11 @@ test('a day of one member’s updates is one event, person by person: contact de
   assert.equal(mine.at, at(d, '09:50:00'), 'when the day’s last change was made');
   assert.equal(mine.count, 2, 'two people');
   assert.deepEqual(mine.people, [
-    { id: 'ben', contact: ['phone'], details: [], events: 0, sources: 0, portrait: false, tagged: 0 },
+    { id: 'ben', contact: ['phone'], details: [], events: 0, sources: 0, portrait: false, tagged: 0, values: [{ name: 'field:phone', value: '+44 3', label: 'phone' }] },
     { id: 'cleo', contact: [], details: ['field:occupation'], events: 1, sources: 1, portrait: true, tagged: 0 },
     { id: null, contact: [], details: [], events: 0, sources: 1, portrait: false, tagged: 0 },
   ], 'the address is for editors; the Personal note and the removal are in nobody’s');
-  assert.doesNotMatch(JSON.stringify(ofViewer), /\+44|Leeds/, 'no value travels');
+  assert.doesNotMatch(JSON.stringify(ofViewer), /\+44 1|\+44 2|Leeds/, 'only the day’s last value travels, and no life event’s');
   // An editor reads the same entry, and the address's news as an entry of its own, with a thread of its own.
   const forEditor = ofEditor.filter((i) => i.type === 'updates' && i.by === 'Mara Alder');
   assert.deepEqual(forEditor.map((i) => i.key).sort(), [mine.key, `${mine.key}|e`]);
@@ -312,7 +312,7 @@ test('a day of one member’s updates is one event, person by person: contact de
   assert.deepEqual(onlyEditors.people, [{ id: 'ben', contact: ['address'], details: [], events: 0, sources: 0, portrait: false, tagged: 0 }]);
   const eda1 = ofViewer.find((i) => i.type === 'updates' && i.by === 'Eda Editor');
   assert.ok(eda1 && eda1.type === 'updates');
-  assert.deepEqual(eda1.people, [{ id: 'cleo', contact: [], details: ['nickname'], events: 0, sources: 0, portrait: false, tagged: 0 }]);
+  assert.deepEqual(eda1.people, [{ id: 'cleo', contact: [], details: ['nickname'], events: 0, sources: 0, portrait: false, tagged: 0, values: [{ name: 'nickname', value: 'Clo' }] }]);
   // Members react to it and comment on it like a post; nobody can react to an event that is not there.
   assert.deepEqual(await R.react(t, viewer, 'event', mine.target, '🎉', true), { added: true });
   const { id } = await R.addComment(t, mara, 'event', mine.target, 'Thanks for the update!');
@@ -364,6 +364,67 @@ test('a busy day of one member hides nobody else’s updates that day, and the f
   assert.ok(quiet.type === 'updates' && !quiet.more && quiet.people[0]!.sources === 1);
   assert.ok(items.some((i) => i.at.startsWith('2026-06-09')), 'and the day before follows');
   assert.equal(new Set(items.map((i) => i.key)).size, items.length);
+});
+
+test('an update shows the new value only to a reader who may see that field of that person now, and never an old one', async () => {
+  const t = 'values';
+  const d = '2026-11-05';
+  const steward = await member('Sol Steward', 'steward');
+  // A "View as" preview of a viewer: the previewed role, and an account that owns nothing (auth/view-as.server.ts).
+  const preview = { id: 'view-as', name: 'Sol Steward', role: 'viewer' as const };
+  const fieldOf = (id: string, person: string, type: string, value: object, visibility = 'family') =>
+    run(t, 'INSERT INTO person_field (id, person, type, label, value, visibility, owner) VALUES (?, ?, ?, ?, ?, ?, ?)', id, person, type, 'mobile', JSON.stringify(value), visibility, visibility === 'personal' ? mara.id : null);
+  await fieldOf('v-phone', 'ben', 'phone', { number: '+49 30 1234' });
+  await fieldOf('v-mail', 'ben', 'email', { address: 'ben@example.org' }, 'editors');
+  // Shared with the family that day, made Personal since: its kind stays, its value goes.
+  await fieldOf('v-job', 'ben', 'occupation', { title: 'Baker' }, 'personal');
+  await fieldOf('v-hidden', 'cleo', 'phone', { number: '+49 40 5678' });
+  await change(t, at(d, '09:00:00'), mara, 'field', 'v-phone', 'changed', 'ben', { f: { value: ['+49 30 0000', '+49 30 1234'] } });
+  await change(t, at(d, '09:05:00'), mara, 'field', 'v-mail', 'added', 'ben', null, 'editors');
+  await change(t, at(d, '09:10:00'), mara, 'field', 'v-job', 'added', 'ben');
+  // A value the history kept without content is said by its kind.
+  await change(t, at(d, '09:15:00'), mara, 'field', 'v-hidden', 'changed', 'cleo', { f: { value: [null, null] }, o: ['value'] });
+  // Ada's own facts: new dates and places, a removed occupation, a title kept for editors only.
+  await change(t, at(d, '09:20:00'), mara, 'person', 'ada', 'changed', 'ada', {
+    f: { born: ['1890', '1890-05-03'], born_place: [null, 'Graz'], occupation: ['Smith', null], title: [null, 'Dr'], living: [1, 0] }, e: ['title'],
+  });
+
+  const updates = async (who: Parameters<typeof F.feedPage>[1]) =>
+    (await F.feedPage(t, who)).items.filter((i) => i.type === 'updates' && i.at.startsWith(d)) as Extract<FeedItem, { type: 'updates' }>[];
+  const valuesBy = (items: Extract<FeedItem, { type: 'updates' }>[]) =>
+    Object.fromEntries(items.flatMap((i) => i.people.map((p) => [`${i.editors ? 'e:' : ''}${p.id}`, p.values ?? []])));
+
+  const forViewer = valuesBy(await updates(viewer));
+  assert.deepEqual(forViewer, {
+    ben: [{ name: 'field:phone', value: '+49 30 1234', label: 'mobile' }],
+    cleo: [],
+    ada: [{ name: 'born', value: '1890-05-03' }, { name: 'born_place', value: 'Graz' }, { name: 'occupation', value: null }],
+  }, 'the phone and Ada’s facts; not the Personal occupation, not a value kept without content, not the editors’ title');
+  const viewerEntry = (await updates(viewer)).find((i) => i.people.some((p) => p.id === 'ben'))!;
+  assert.deepEqual(viewerEntry.people.find((p) => p.id === 'ben')!.details, ['field:occupation'], 'the hidden value is still said by its kind');
+
+  const forEditor = valuesBy(await updates(eda));
+  assert.deepEqual(forEditor['e:ben'], [{ name: 'field:email', value: 'ben@example.org', label: 'mobile' }], 'an editor reads the editors’ field’s value now');
+  assert.deepEqual(forEditor.ada!.find((v) => v.name === 'title'), { name: 'title', value: 'Dr' });
+  assert.equal(forEditor.ben!.some((v) => v.name === 'field:occupation'), false, 'a Personal field is its owner’s alone, an editor’s neither');
+  // Its owner reads it.
+  assert.deepEqual((valuesBy(await updates(mara))).ben!.find((v) => v.name === 'field:occupation'), { name: 'field:occupation', value: 'Baker', label: 'mobile' });
+
+  // A steward reads as an editor; a "View as" preview of a viewer reads exactly what a viewer does.
+  assert.ok(valuesBy(await updates(steward))['e:ben']);
+  assert.deepEqual(valuesBy(await updates(preview)), forViewer);
+
+  // A field made editors-only after the day: its value leaves a viewer's feed.
+  await run(t, "UPDATE person_field SET visibility = 'editors' WHERE id = 'v-phone'");
+  assert.deepEqual(valuesBy(await updates(viewer)).ben, []);
+  assert.deepEqual(valuesBy(await updates(eda)).ben, [{ name: 'field:phone', value: '+49 30 1234', label: 'mobile' }]);
+
+  for (const who of [viewer, eda, mara, steward, preview]) {
+    const text = JSON.stringify(await updates(who));
+    assert.doesNotMatch(text, /Smith|\+49 30 0000/, 'an old or removed value reaches nobody');
+  }
+  // A share-link guest reads no feed at all, so no value reaches one, a living person's least of all.
+  await assert.rejects(F.feedPage(t, guest));
 });
 
 test('an import of hundreds of people is one event, not hundreds', async () => {

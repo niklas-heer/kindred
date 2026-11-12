@@ -68,7 +68,8 @@ export type ContactKind = 'phone' | 'email' | 'address' | 'website' | 'social';
 /**
  * One person's part of a day's updates. `id` is null for what is about nobody in particular (a source recorded).
  * `details` names what changed: a person's own fact by its column ("born") or another field by its type ("field:occupation").
- * Never a value: the person's page shows what this reader may see of it.
+ * `values` are the new values of that day, of those this reader may see of the person now (feed.server.ts); what has none
+ * here is said by its kind alone.
  */
 export interface UpdatePerson {
   id: string | null;
@@ -78,7 +79,15 @@ export interface UpdatePerson {
   sources: number;
   portrait: boolean;
   tagged: number;
+  values?: UpdateValue[];
 }
+
+/**
+ * A new value an update set, as the change history kept it that day: `name` is a person's own fact by its column ("born") or
+ * a field by its type ("field:phone"), `value` the new value as text, or null when the change removed it (the old one is
+ * never sent). `label` is a field's label ("mobile", "Instagram"), for the link a contact opens.
+ */
+export interface UpdateValue { name: string; value: string | null; label?: string }
 
 /** A page of the feed, newest first. `next` is the cursor for the page after it, or null at the end. */
 export interface FeedPage { items: FeedItem[]; next: string | null }

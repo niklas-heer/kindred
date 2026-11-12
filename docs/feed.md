@@ -72,12 +72,13 @@ One stream, newest first, under the days it falls on ("Today", "Yesterday", "Ear
 - **people added to the tree**: those one member added on one day, in one line. Someone born within a year of being
   added is welcomed in a line of their own;
 - **updates to the records**: what one member did on one day, in one entry, person by person, each name a link to the
-  person's page. "Ada updated Carl: has a new address, new phone number" for one person; "Ada updated 3 people:" with a
-  short line for each (the first six, then "and 4 more") for more. It names what changed, never a value: contact details
-  by their kind (a new address, phone number, email address, website or social media profile), other details by their
-  name (born, birthplace, occupation…), life events and sources recorded, a new portrait, photos someone was tagged in,
-  and sources about nobody in particular. A GEDCOM import is one line, however many people it brought ("Ada brought in
-  500 people from a GEDCOM file"). Removals are not news here; the History page has them;
+  person's page. "Ada updated Carl: new phone number: +49 30 1234, new address: Hauptstr. 3, Berlin" for one person;
+  "Ada updated 3 people:" with a short line for each (the first six, then "and 4 more") for more. It shows the new values
+  (see [The values an update shows](#the-values-an-update-shows)), and names by kind what it shows no value of: contact
+  details (a new address, phone number, email address, website or social media profile), other details by their name
+  (born, birthplace, occupation…), life events and sources recorded, a new portrait, photos someone was tagged in, and
+  sources about nobody in particular. A GEDCOM import is one line, however many people it brought ("Ada brought in 500
+  people from a GEDCOM file"). Removed records are not news here; the History page has them;
 - **a season of the Campaign's old shared game ending**, with the house that won (since the Campaign became a game one
   plays alone, only the last season, closed once on the upgrade, can still appear);
 - at the very top, **whose birthday or wedding anniversary it is today**.
@@ -89,10 +90,34 @@ is a new one).
 Private research, editors' notes and Personal fields are in none of these. Updates come from the change history and are
 read at its levels ([roles-and-privacy.md](roles-and-privacy.md#change-history-and-whats-new)): an update to something only editors read is in an editor's feed alone,
 as an entry of its own beside the day's other one, marked "Editors", with its own reactions and comments. A viewer can
-neither read nor answer that thread, and the entry every member reads is the same for an editor.
+neither read nor answer that thread, and the entry every member reads is the same entry for an editor (with the values
+an editor may see in it).
 An address, which starts at the editors' level, is news to editors until it is shared with the family. A share-link
 guest reads no feed at all, so no contact detail or event reaches one; "Protect living people" has nothing to hide from
 a member.
+
+### The values an update shows
+
+An update says what a detail became, not only that it changed: "new phone number: +49 30 1234" (a link that calls),
+"new email address" and "new website" as links, "new address: Hauptstr. 3, Berlin" (a link to the map the person's page
+opens), "born 3 May 1950 in Graz", "Occupation: Baker", the first two lines of a biography or a note (leading to the
+person), and "Occupation removed". A person's first three values are shown; "and 2 more" opens the rest. A life event, a
+source, a portrait and a tagged photo stay as they were said.
+
+- **Whose eyes.** A value is shown only when this reader may see that field of that person *now*, by the one rule every
+  person read asks (`maySee` in `src/lib/visibility.ts`). A field made Personal or editors-only after the change keeps its
+  line, by its kind alone. A Personal field is its owner's alone, as on the person's page. A steward's ["View
+  as"](roles-and-privacy.md#view-as) preview reads what the previewed role would, and owns no Personal field. A guest has
+  no feed.
+- **That day's value.** The value is the one the change history kept for that day's last change of it (so the feed tells
+  what changed that day); a field added that day keeps none there, so its value now stands in. A value changed again
+  later is a later entry. A value the history kept without content (too large, a picture) or for editors only is not
+  shown to anyone it was not kept for.
+- **Never the old value.** A changed value shows only what it became; a removed one says it was removed.
+- **Not in a push.** The pushes say who wrote or how many things happened, never a value.
+
+So two members may read the same entry with different values in it: the entry, its reactions and its comments are the
+same, and only what each may see of the people in it differs.
 
 Twenty entries come with the page. Earlier ones follow as you scroll for a few pages, then at the press of "Show
 earlier", so the end of the page stays within reach.
@@ -100,7 +125,7 @@ earlier", so the end of the page stays within reach.
 ### How a page is read
 
 A page is one batch of reads in the family's database (one round trip on D1): posts, stories, gallery uploads, the
-"person added" rows of the change history, the change history's other rows for updates (with each field's kind, joined
+"person added" rows of the change history, the change history's other rows for updates (with each field's kind, value and level now, joined
 in the same read), and the Campaign's finished seasons, each limited, plus one read of the
 accounts database for the writers' faces. There is no read per entry. Each source hands over its newest entries after
 the page's cursor, and the page is the newest twenty of them together. The three sources that group rows by day (uploads,

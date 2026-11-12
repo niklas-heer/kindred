@@ -103,6 +103,10 @@
 .fd-updates { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; font-size: var(--fs-2); color: var(--muted); }
 .fd-updates li { overflow-wrap: anywhere; }
 .fd-updates-more { color: var(--subtle); }
+/* A long text's first lines, leading to the person. */
+.fd-excerpt { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; font-style: italic; color: inherit; }
+/* "and 2 more" of an update's values: a link's look, a button's job. */
+.fd-values-more { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 /* An entry only editors read says so, as its reactions and comments are only theirs. */
 .fd-editors { display: inline-flex; align-items: center; gap: 0.2em; margin-inline: 0.4em; white-space: nowrap; }
 .fd-quiet[data-today] .fd-quiet-mark { background: color-mix(in srgb, var(--accent) 16%, var(--panel-2)); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
