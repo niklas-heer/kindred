@@ -193,6 +193,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0052_family_lifecycle.sql` | The lifecycle of quiet families ([hosting-many-families.md](hosting-many-families.md#lifecycle)): `family_lifecycle` (where a quiet family stands), `family_admin.active_at` and `.status_by`, `steward_notice` (what a family's stewards were told in the app) and `steward_notice_dismissal`. Off until the operator turns it on. |
 | `0053_email.sql` | Optional email ([hosting-many-families.md](hosting-many-families.md#email)): `email_token` (a confirmation link or a sign-up code, and the sign-up's proof), `email_send` (the send log for the limits and the Health tab) and `email_optout` (unsubscribes). |
 | `0054_email_reset.sql` | `password_reset.via`: `operator` (every row from before) or `email` (a link the holder asked for, sent to their confirmed address). |
+| `0055_backup_restore_guards.sql` | What a restore may hand to whom ([hosting-many-families.md](hosting-many-families.md#backups)): `family_backup.stewards` (the family's stewards when it was backed up), `.family_created` (which family held the id then) and `.pinned_until` (the backup from before a restore over a family or a rollback, kept a week), and `family_claim` (an address being made or restored into, and a restore's source for copying pictures). |
 
 ### Tables
 
@@ -203,6 +204,19 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   sealed it, never the key). `gone_at`: when its family was deleted. The column is **`family`, not `tree`, on purpose**: deleting a
   family must not delete its backups' rows with the family's other rows (`forgetInAccounts` finds tables by a `tree` column);
   `deleteFamily` sets `gone_at`, and the daily backup run deletes the files and rows once the grace period has passed.
+  `stewards` (0055): a JSON list of the account ids that stewarded the family when it was backed up (NULL for `_accounts` and for a
+  backup from before 0055); a restore into a new id makes those of them that still have an account its stewards, and nobody else,
+  and refuses when none is left. `family_created` (0055): the family's `family_admin.created_at` then, so a restore can tell the
+  family from another made at the same address after it was deleted (pictures are copied only from the same family).
+  `pinned_until` (0055): the backup made just before a restore over the family or a rollback is kept until then (a week),
+  whatever the retention says.
+- **`family_claim`** (0055): one row per family id being made or restored into: `tree`, `what` (`create` while `createFamily`
+  runs, deleted when it is done; `restore`), `at` and `by`. Making a family and restoring into a new id each claim the address in
+  one batch with their checks that it is free, so they never both write there (a `create` claim older than ten minutes was left by
+  a request that stopped and no longer holds it). A restore's row stays as its record: `source` (the family backed up), `backup`
+  (its name), `source_created` (the source's `family_created`), `state` (`restoring`, then `restored`) and `media` (1 while
+  pictures are left to copy from that source, which *Copy more pictures* copies only into this family and only while the source
+  is still the same family). Deleted with the family (`tree`).
 - **`backup_status`** (0051): one row per scope (`family`, as above): `tried_at`, `ok_at` (the last good backup), `error` (the
   last failure, sanitised as a job's failure is), and the last restore drill: `drill_at`, `drill_backup`, `drill_ok`,
   `drill_problem`. Deleted with the last backup of a deleted family.

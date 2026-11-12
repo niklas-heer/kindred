@@ -31,7 +31,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import migrations from 'virtual:kindred/migrations';
 import { ACCOUNTS_SCOPE, backupKey, backupSecret, deriveBackupKey, nameTime, open, seal, type BackupKey, type Manifest } from '../backup/kbak.ts';
-import { compare, decodeDump, dumpCounts, dumpDatabase, encodeDump, loadDump, schemaOf, tableCounts, type Exec } from '../backup/dump.ts';
+import { compare, decodeDump, dumpCounts, dumpDatabase, dumpSchema, encodeDump, loadDump, schemaOf, tableCounts, type Exec } from '../backup/dump.ts';
 import { checkReads, checkStatement, isReadSql, type DrillResult, type Param, type Query, type RecoveryPoint, type Result } from './db.ts';
 import { fromCell, importStatement, NAME, NOT_IMPORTED, type Schema } from './transfer.ts';
 
@@ -230,15 +230,20 @@ export class FamilyStore extends DurableObject {
 
   /**
    * Replaces this object's database with a family's backup, then brings it up to this deploy's schema. The caller backed the
-   * family up first (a restore over it) or made sure the object is free (a restore into a new id). Returns its migrations.
+   * family up first and passes `over` (a restore over it), or claimed the id (a restore into a new id): then an object that holds
+   * anything already (a family, or an import being staged) is refused. The backup's rows and schema are checked against its
+   * manifest before anything is deleted (./cf.ts ran the full drill in a scratch object before). Returns its migrations.
    */
-  async restoreBackup(scope: string, name: string): Promise<string[]> {
+  async restoreBackup(scope: string, name: string, over = false): Promise<string[]> {
     if (this.#kind === 'accounts' || scope === ACCOUNTS_SCOPE) throw new Error('The accounts database is restored by hand (docs/deploy-cloudflare.md, "Backups").');
     const { manifest, plain } = await this.#opened(scope, name);
     if (manifest.format !== 'dump') throw new Error(`a ${manifest.format} backup cannot be loaded into a Durable Object`);
     const dump = decodeDump(plain);
     if (!dump.objects.some((o) => o.type === 'table' && o.name === 'meta')) throw new Error('The backup holds no family.');
+    const problem = compare(manifest.counts, manifest.schema, dumpCounts(dump), dumpSchema(dump));
+    if (problem) throw new Error(`The backup does not pass its checks, so nothing was replaced: ${problem}`);
     return this.ctx.blockConcurrencyWhile(async () => {
+      if (!over && (this.#kind || (await this.ctx.storage.get<StoreKind>('kind')))) throw new Error('This object already holds a family; only a restore over it replaces it');
       this.#kind = undefined;
       this.#staged = false;
       await this.ctx.storage.deleteAll();

@@ -139,8 +139,11 @@ Erasure and deletion reach the live databases and the stored files. They do not 
 erased data lingers**, and that is by design: a backup that forgot what was erased since could not undo a mistake either.
 
 - **The automatic backups** ([hosting-many-families.md](hosting-many-families.md#backups)): every family and the accounts
-  database, every night, encrypted. With the default retention (7 daily, 4 weekly, 12 monthly) an erased person, a deleted
-  account or a removed record is still in the backups made before, for **up to about a year**. A deleted family's backups are
+  database, every night, encrypted. The retention counts back from today: with the default (a backup a day for the last 7 days, a
+  week for the last 4 weeks, a month for the last 12 months) an erased person, a deleted account or a removed record is still in
+  the backups made before, for **at most 12 months**. One documented exception: the newest backup of a living family is always
+  kept, however old (a family whose backups stopped keeps its last one); the backup made before a restore over a family or a
+  rollback is kept for 7 days. A deleted family's backups are
   kept for the grace period the operator sets (30 days by default) and then deleted. Shorten the retention or the grace period on
   the Backups tab if your policy needs less, and say what you keep in your privacy policy. The backups are encrypted with a key
   only the server holds; whoever has the key and a backup can read it. Restoring one brings erased data back: erase it again after

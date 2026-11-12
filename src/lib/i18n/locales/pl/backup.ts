@@ -59,9 +59,9 @@ export default {
   "backup.restoring": "Przywracanie…",
   "backup.restored_new": "Przywrócono jako {id}.",
   "backup.restored_over": "Przywrócono. Kopia zrobiona tuż przedtem to {name}.",
-  "backup.restored_link": "Oryginał nie ma już opiekunów. Wyślij ten jednorazowy link opiekunowi nowej rodziny",
   "backup.media_left": "Skopiowane obrazy: {copied}. Pozostało do skopiowania: {left}.",
   "backup.media_more": "Skopiuj więcej obrazów",
+  "backup.restored_stewards": "Jej opiekunami są osoby zapisane w kopii jako opiekunowie rodziny, które wciąż mają tu konto. Nikt inny nie dostał dostępu.",
   "backup.close": "Zamknij",
   "backup.recovery": "Punkty przywracania",
   "backup.recovery_hint": "Zanim Durable Object rodziny zastosuje migracje aktualizacji, zapamiętuje punkt, do którego może wrócić; Cloudflare przechowuje 30 dni. Jeśli winna jest sama aktualizacja, najpierw cofnij Worker, inaczej rodzina zastosuje ją ponownie przy następnym uruchomieniu.",
@@ -92,4 +92,6 @@ export default {
   "backup.err.taken": "Ten adres jest zajęty: wybierz inny.",
   "backup.err.no_pitr": "Ten serwer nie może cofnąć rodziny do punktu przywracania.",
   "backup.err.no_point": "Tego punktu przywracania już nie ma.",
+  "backup.err.no_stewards": "Ta kopia nie zapisuje żadnego opiekuna, który wciąż ma tu konto, więc nikt nie mógłby dostać przywróconej rodziny. Nie przywrócono jej.",
+  "backup.err.no_media": "Nie ma już obrazów do skopiowania w ramach tego przywrócenia.",
 } satisfies Strings<typeof en, "pl">;

@@ -242,6 +242,7 @@ test('deleting a family removes its database, its files and every accounts row t
       st.q("INSERT INTO steward_notice (tree, kind, vars, at) VALUES (?, 'lifecycle_warning', '{}', ?)", tree, T),
       st.q("INSERT INTO steward_notice_dismissal (user, tree, kind, until) VALUES (?, ?, 'lifecycle_warning', ?)", STEWARD.id, tree, T),
       st.q('INSERT INTO recovery_point (tree, bookmark, at) VALUES (?, ?, ?)', tree, `${s}bookmark`, T),
+      st.q("INSERT INTO family_claim (tree, what, at, source, backup, state) VALUES (?, 'restore', ?, 'elsewhere', '20261110T060000000Z', 'restored')", tree, T),
       // An automatic backup's row names the family in `family`, not `tree`: it outlasts the family for the grace period.
       st.q("INSERT INTO family_backup (family, name, created_at) VALUES (?, '20261110T060000000Z', ?)", tree, T),
     ]);

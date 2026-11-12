@@ -59,9 +59,9 @@ export default {
   "backup.restoring": "Restauration…",
   "backup.restored_new": "Restaurée sous {id}.",
   "backup.restored_over": "Restaurée. La sauvegarde faite juste avant est {name}.",
-  "backup.restored_link": "L’originale n’a plus de gardien. Envoie ce lien à usage unique au gardien de la nouvelle famille",
   "backup.media_left": "Images copiées : {copied}. Encore à copier : {left}.",
   "backup.media_more": "Copier d’autres images",
+  "backup.restored_stewards": "Ses gardiens sont ceux que la sauvegarde indique comme gardiens de la famille et qui ont encore un compte ici. Personne d’autre n’y a eu accès.",
   "backup.close": "Fermer",
   "backup.recovery": "Points de restauration",
   "backup.recovery_hint": "Avant que le Durable Object d’une famille applique les migrations d’une mise à jour, il retient un point auquel il peut revenir ; Cloudflare garde 30 jours. Si la mise à jour elle-même est en cause, reviens d’abord à la version précédente du Worker, sinon la famille l’appliquera de nouveau à son prochain démarrage.",
@@ -92,4 +92,6 @@ export default {
   "backup.err.taken": "Cette adresse est déjà prise : choisis-en une autre.",
   "backup.err.no_pitr": "Ce serveur ne peut pas ramener une famille à un point de restauration.",
   "backup.err.no_point": "Ce point de restauration n’est plus là.",
+  "backup.err.no_stewards": "Cette sauvegarde n’indique aucun gardien qui ait encore un compte ici : personne ne pourrait recevoir la famille restaurée. Elle n’a pas été restaurée.",
+  "backup.err.no_media": "Il ne reste plus d’images à copier pour cette restauration.",
 } satisfies Strings<typeof en, "fr">;

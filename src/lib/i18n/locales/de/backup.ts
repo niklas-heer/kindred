@@ -59,9 +59,9 @@ export default {
   "backup.restoring": "Wird wiederhergestellt …",
   "backup.restored_new": "Als {id} wiederhergestellt.",
   "backup.restored_over": "Wiederhergestellt. Die kurz vorher gemachte Sicherung ist {name}.",
-  "backup.restored_link": "Die ursprüngliche Familie hat keine Verwaltung mehr. Schicke diesen Einmal-Link an die Person, die die neue Familie verwalten soll",
   "backup.media_left": "Kopierte Bilder: {copied}. Noch zu kopieren: {left}.",
   "backup.media_more": "Weitere Bilder kopieren",
+  "backup.restored_stewards": "Verwaltet wird sie von allen, die laut Sicherung die Familie verwaltet haben und hier noch ein Konto haben. Sonst hat niemand Zugang bekommen.",
   "backup.close": "Schließen",
   "backup.recovery": "Wiederherstellungspunkte",
   "backup.recovery_hint": "Bevor das Durable Object einer Familie die Migrationen eines Updates anwendet, merkt es sich einen Punkt, zu dem es zurückkehren kann; Cloudflare behält 30 Tage. Liegt der Fehler im Update selbst, setze zuerst den Worker zurück, sonst wendet die Familie das Update beim nächsten Start wieder an.",
@@ -92,4 +92,6 @@ export default {
   "backup.err.taken": "Diese Adresse ist vergeben: Wähle eine andere.",
   "backup.err.no_pitr": "Dieser Server kann eine Familie nicht auf einen Wiederherstellungspunkt zurücksetzen.",
   "backup.err.no_point": "Dieser Wiederherstellungspunkt ist nicht mehr da.",
+  "backup.err.no_stewards": "Laut dieser Sicherung hat niemand, der die Familie verwaltet hat, hier noch ein Konto. Niemand könnte die wiederhergestellte Familie bekommen, deshalb wurde sie nicht wiederhergestellt.",
+  "backup.err.no_media": "Für diese Wiederherstellung gibt es keine Bilder mehr zu kopieren.",
 } satisfies Strings<typeof en, "de">;

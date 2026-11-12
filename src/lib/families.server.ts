@@ -263,11 +263,20 @@ export async function createFamily(
     }
   }
 
-  // 1. Forget what a deletion that stopped part-way left under this id, so nobody inherits a membership or a file.
-  if (!resume) {
-    await accounts().batch(await forgetInAccounts(id));
-    await store.media.deleteTree(id);
+  // 1. The address, claimed for this request (`family_claim`, accounts migration 0055) in one batch with the check that no restore
+  // holds it, so a restore into the same id (src/lib/backup/backup.server.ts) and this never both write there. And forget what a
+  // deletion that stopped part-way left under this id, so nobody inherits a membership or a file.
+  try {
+    await accounts().batch([
+      guard("NOT EXISTS (SELECT 1 FROM family_claim WHERE tree = ? AND what = 'restore')", id),
+      ...(resume ? [] : await forgetInAccounts(id)),
+      q("INSERT INTO family_claim (tree, what, at) VALUES (?, 'create', ?) ON CONFLICT(tree) DO UPDATE SET at = excluded.at", id, Date.now()),
+    ]);
+  } catch (e) {
+    if (isGuardError(e)) throw invalid('families.err_exists', { id });
+    throw e;
   }
+  if (!resume) await store.media.deleteTree(id);
   // 2. The family's details. On Node this makes data/<id>.db; on Workers the bound database must already exist.
   const d = await store.ensureTree(id);
   await d.batch([
@@ -289,8 +298,11 @@ export async function createFamily(
          ON CONFLICT(tree) DO UPDATE SET created_by = excluded.created_by, invited_name = excluded.invited_name`, id, cap, Date.now(), user.id, invitedName),
       ...accepted,
       ...after,
+      // Made: its administration row holds the address from now on.
+      q("DELETE FROM family_claim WHERE tree = ? AND what = 'create'", id),
     ]);
   } catch (e) {
+    await accounts().run("DELETE FROM family_claim WHERE tree = ? AND what = 'create'", id).catch(() => {});
     if (!(limited.length || before.length || after.length) || !isGuardError(e)) throw e;
     // Refused over the limit: a database this request made is not left behind as a family waiting to be finished.
     // Only while nobody else has made it theirs meanwhile (a parallel request for the same id): no member, no administration

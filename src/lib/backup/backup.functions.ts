@@ -76,9 +76,10 @@ export const operatorRestoreBackup = createServerFn({ method: 'POST' })
   .validator(z.object({ scope: tree, name, mode: z.enum(['new', 'over']), into: tree.optional(), confirm: z.string().max(80).optional() }))
   .handler(async ({ data }): Promise<RestoreResult> => change(async (op) => (await work()).restoreBackup(op, data), data.mode === 'over'));
 
+/** Copies more pictures into a family a restore made, from the family that restore recorded as its source, and nowhere else. */
 export const operatorCopyMedia = createServerFn({ method: 'POST' })
-  .validator(z.object({ from: tree, into: tree }))
-  .handler(async ({ data }) => change(async (op) => (await work()).copyMediaNow(op, data.from, data.into)));
+  .validator(z.object({ into: tree }))
+  .handler(async ({ data }) => change(async (op) => (await work()).copyMediaNow(op, data.into)));
 
 export const operatorRollback = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, point: z.number().int().positive(), confirm: z.string().max(80) }))

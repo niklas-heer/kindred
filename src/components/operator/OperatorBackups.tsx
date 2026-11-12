@@ -16,7 +16,6 @@ import { GRACE_MAX_DAYS, KEEP_MAX } from '~/lib/backup/retention';
 import type { BackupFamily, BackupOverview, BackupRow, RestoreResult } from '~/lib/backup/shared';
 import { formatBytes } from '~/lib/operator/shared';
 import { DEFAULT_UPDATE_REPO } from '~/lib/operator/updates-shared';
-import { inviteUrl, LinkBox } from './OperatorConsole';
 import './operator.css';
 import './ops.css';
 
@@ -225,7 +224,7 @@ function RestoreDialog({ family: f, backup: b, onClose }: { family: BackupFamily
     onError: (e) => setError(errorText(e, t.locale)),
   });
   const more = useMutation({
-    mutationFn: () => operatorCopyMedia({ data: { from: f.scope, into: done!.into } }),
+    mutationFn: () => operatorCopyMedia({ data: { into: done!.into } }),
     onSuccess: (m) => setDone({ ...done!, media: m }),
     onError: (e) => setError(errorText(e, t.locale)),
   });
@@ -243,7 +242,7 @@ function RestoreDialog({ family: f, backup: b, onClose }: { family: BackupFamily
       {done ? (
         <div className="families-form">
           <p role="status">{done.fresh ? t('backup.restored_over', { name: done.fresh }) : t('backup.restored_new', { id: done.into })}</p>
-          {done.token && <LinkBox url={inviteUrl(done.token)} label={t('backup.restored_link')} />}
+          {done.stewards !== null && <p>{t('backup.restored_stewards')}</p>}
           {done.media && done.media.left > 0 && (
             <div className="families-row">
               <span>{t('backup.media_left', { copied: done.media.copied, left: done.media.left })}</span>

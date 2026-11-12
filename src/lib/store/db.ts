@@ -149,10 +149,12 @@ export interface BackupStore {
   /** Restores it into a scratch database that serves nothing, checks its integrity, row counts and schema, and drops it. */
   drill(scope: string, name: string): Promise<DrillResult>;
   /**
-   * Replaces the family `into` (another family id, or `scope` itself) with the backup's database. The caller has made sure
-   * `into` is free or has just backed it up. Returns the statement that lists a new family where the driver keeps a registry.
+   * Puts the backup's database in place as the family `into`, after checking it as a drill does (integrity, row counts, schema):
+   * a backup that fails is refused before anything is replaced. Without `over` it refuses when `into` already holds a family
+   * (a restore into a new id writes only where nothing is); with `over` (a restore over the family, which the caller has just
+   * backed up) it replaces it. Returns the statement that lists a new family where the driver keeps a registry.
    */
-  restore(scope: string, name: string, into: string): Promise<Query | null>;
+  restore(scope: string, name: string, into: string, opts?: { over?: boolean }): Promise<Query | null>;
   /** Workers: the points the family's Durable Object recorded before it migrated, and rolling back to one. */
   recovery?: {
     points(tree: string): Promise<RecoveryPoint[]>;

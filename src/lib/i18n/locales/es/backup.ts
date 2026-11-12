@@ -59,9 +59,9 @@ export default {
   "backup.restoring": "Restaurando…",
   "backup.restored_new": "Restaurada como {id}.",
   "backup.restored_over": "Restaurada. La copia hecha justo antes es {name}.",
-  "backup.restored_link": "La familia original ya no tiene responsables. Envía este enlace de un solo uso al responsable de la familia nueva",
   "backup.media_left": "Imágenes copiadas: {copied}. Faltan por copiar: {left}.",
   "backup.media_more": "Copiar más imágenes",
+  "backup.restored_stewards": "Sus responsables son quienes la copia registra como responsables de la familia y aún tienen una cuenta aquí. Nadie más ha recibido acceso.",
   "backup.close": "Cerrar",
   "backup.recovery": "Puntos de recuperación",
   "backup.recovery_hint": "Antes de que el Durable Object de una familia aplique las migraciones de una actualización, guarda un punto al que puede volver; Cloudflare conserva 30 días. Si el fallo está en la propia actualización, revierte primero el Worker, o la familia volverá a aplicarla la próxima vez que arranque.",
@@ -92,4 +92,6 @@ export default {
   "backup.err.taken": "Esa dirección ya está ocupada: elige otra.",
   "backup.err.no_pitr": "Este servidor no puede revertir una familia a un punto de recuperación.",
   "backup.err.no_point": "Ese punto de recuperación ya no está.",
+  "backup.err.no_stewards": "Esta copia no registra ningún responsable que aún tenga una cuenta aquí, así que nadie podría recibir la familia restaurada. No se ha restaurado.",
+  "backup.err.no_media": "Ya no quedan imágenes por copiar para esta restauración.",
 } satisfies Strings<typeof en, "es">;

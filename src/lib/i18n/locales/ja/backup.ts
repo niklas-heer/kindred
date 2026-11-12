@@ -59,9 +59,9 @@ export default {
   "backup.restoring": "復元中…",
   "backup.restored_new": "{id}として復元しました。",
   "backup.restored_over": "復元しました。直前に作ったバックアップは{name}です。",
-  "backup.restored_link": "元の家族には世話役がいません。この一度だけ使えるリンクを、新しい家族の世話役になる人に送ってください",
   "backup.media_left": "コピーした写真：{copied}。残り：{left}。",
   "backup.media_more": "写真をさらにコピー",
+  "backup.restored_stewards": "世話役は、バックアップに家族の世話役として記録されていて、今もここにアカウントがある人です。ほかの人にはアクセスを与えていません。",
   "backup.close": "閉じる",
   "backup.recovery": "復旧ポイント",
   "backup.recovery_hint": "家族のDurable Objectは、アップデートのマイグレーションを適用する前に、戻れる地点を記録します。Cloudflareは30日分を保存します。アップデート自体に問題がある場合は、先にWorkerを元に戻してください。そうしないと、家族は次に起動したときにアップデートをもう一度適用します。",
@@ -92,4 +92,6 @@ export default {
   "backup.err.taken": "そのアドレスはすでに使われています。別のアドレスを選んでください。",
   "backup.err.no_pitr": "このサーバーでは、家族を復旧ポイントに巻き戻せません。",
   "backup.err.no_point": "その復旧ポイントはもうありません。",
+  "backup.err.no_stewards": "このバックアップには、今もここにアカウントがある世話役が記録されていません。復元した家族を渡せる人がいないため、復元しませんでした。",
+  "backup.err.no_media": "この復元でコピーする写真はもうありません。",
 } satisfies Strings<typeof en, "ja">;

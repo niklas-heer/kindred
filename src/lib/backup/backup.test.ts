@@ -5,10 +5,10 @@
 // the daily run keeps its budget, most stale first; and the console refuses anyone but the operator, a demo and a "View as"
 // preview. Invented families only, in a scratch folder.
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, watch, writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { after, before, beforeEach, test } from 'node:test';
 import { createServer, type Plugin } from 'vite';
 
@@ -56,7 +56,8 @@ const load = <T>(path: string) => vite.ssrLoadModule(path) as Promise<T>;
 const b = await load<typeof import('./backup.server.ts')>('/src/lib/backup/backup.server.ts');
 const fns = await load<typeof import('./backup.functions.ts')>('/src/lib/backup/backup.functions.ts');
 const kbak = await load<typeof import('./kbak.ts')>('/src/lib/backup/kbak.ts');
-const { keepIndexes } = await load<typeof import('./retention.ts')>('/src/lib/backup/retention.ts');
+const { DEFAULT_KEEP, keepIndexes } = await load<typeof import('./retention.ts')>('/src/lib/backup/retention.ts');
+const nodeBackups = await load<typeof import('../store/backups.node.ts')>('/src/lib/store/backups.node.ts');
 const { store, q } = await load<typeof import('../store/index.ts')>('/src/lib/store/index.ts');
 const dbs = await load<typeof import('../db.server.ts')>('/src/lib/db.server.ts');
 const acc = await load<typeof import('../auth/store.server.ts')>('/src/lib/auth/store.server.ts');
@@ -77,6 +78,10 @@ const T = Date.now();
 const user = (n: number, name: string, operator = 0) => ({ id: `00000000-0000-4000-8000-00000000000${n}`, name, email: `${name.toLowerCase()}@example.org`, handle: `h-${n}`, created: T + n, last_seen: null, locale: null, operator });
 const OP = user(1, 'Orla', 1);
 const STEWARD = user(2, 'Sten');
+const OTHER = user(3, 'Odile');
+const LEFT = user(4, 'Lorn');
+const DAY = 86_400_000;
+const THEME = 'codex';
 const asUser = (u: unknown) => { g.__signedIn = u; g.__request = undefined; };
 const status = (e: unknown) => (e as { status?: number }).status;
 const actor = { id: OP.id, name: OP.name };
@@ -85,7 +90,7 @@ const backupsOf = async (scope: string) => (await store.accounts().all<{ name: s
 const people = async (tree: string) => (await store.tree(tree).all<{ id: string; given: string }>('SELECT id, given FROM person ORDER BY id')).map((p) => `${p.id}:${p.given}`);
 
 before(async () => {
-  for (const u of [OP, STEWARD]) await store.accounts().run('INSERT INTO user (id, name, email, handle, created, operator) VALUES (?, ?, ?, ?, ?, ?)', u.id, u.name, u.email, u.handle, u.created, u.operator);
+  for (const u of [OP, STEWARD, OTHER, LEFT]) await store.accounts().run('INSERT INTO user (id, name, email, handle, created, operator) VALUES (?, ?, ?, ?, ?, ?)', u.id, u.name, u.email, u.handle, u.created, u.operator);
   for (const [id, name] of [['alderby', 'The Alderbys'], ['brackwell', 'The Brackwells'], ['corriston', 'The Corristons']]) await dbs.provisionFamily(id!, name!);
   await store.accounts().batch([acc.upsertMembership(STEWARD.id, 'alderby', 'steward')]);
   await store.tree('alderby').batch([
@@ -120,7 +125,8 @@ test('a backup restored into a new id keeps every row and BLOB, names its own id
   await store.tree('alderby').run("INSERT INTO person (id, given) VALUES ('p3', 'Later')");
   const r = await b.restoreBackup(actor, { scope: 'alderby', name: name!, mode: 'new', into: 'alderby-restored' });
   assert.equal(r.into, 'alderby-restored');
-  assert.equal(r.token, null, 'the original has a steward, so no link is needed');
+  assert.equal(r.stewards, 1, 'the steward recorded with the backup');
+  assert.equal('token' in r, false, 'a restore never hands the operator a link');
   assert.deepEqual(await people('alderby-restored'), ['p1:Ilse', 'p2:Joran'], 'as it was when backed up');
   assert.deepEqual(await people('alderby'), ['p1:Ilse', 'p2:Joran', 'p3:Later'], 'the original is untouched');
   const blob = (await store.tree('alderby-restored').get<{ b: Uint8Array }>('SELECT b FROM probe_blob WHERE id = 1'))!.b;
@@ -128,7 +134,11 @@ test('a backup restored into a new id keeps every row and BLOB, names its own id
   assert.equal((await store.tree('alderby-restored').get<{ value: string }>("SELECT value FROM meta WHERE key = 'id'"))?.value, 'alderby-restored');
   assert.equal((await store.accounts().get<{ role: string }>('SELECT role FROM membership WHERE user = ? AND tree = ?', STEWARD.id, 'alderby-restored'))?.role, 'steward');
   assert.ok((await store.treeIds()).includes('alderby-restored'));
-  assert.ok((await store.accounts().get("SELECT 1 FROM operator_audit WHERE action = 'backup.restore_new' AND family = 'alderby-restored'")));
+  const logged = await store.accounts().all<{ detail: string }>("SELECT detail FROM operator_audit WHERE action = 'backup.restore_new' AND family = 'alderby-restored' ORDER BY id");
+  assert.equal(logged.length, 2, 'logged before and after');
+  assert.deepEqual(JSON.parse(logged[0]!.detail), { from: 'alderby', name, schema: JSON.parse(logged[0]!.detail).schema, gone: false });
+  assert.match(JSON.parse(logged[0]!.detail).schema, /^\d{4}_/);
+  assert.deepEqual(JSON.parse(logged[1]!.detail), { from: 'alderby', name, stewards: 1, media: { copied: 0, left: 0 } });
   // Not into a family that exists.
   await assert.rejects(b.restoreBackup(actor, { scope: 'alderby', name: name!, mode: 'new', into: 'brackwell' }), /backup\.err\.taken/);
 });
@@ -193,12 +203,17 @@ test('the drill finds a backup whose rows do not match its manifest, and a damag
   const r1 = await b.drill('brackwell');
   assert.equal(r1?.ok, false);
   assert.match(r1?.problem ?? '', /meta: \d+ rows, expected \d+/);
+  // A restore checks the backup as the drill does before it replaces anything.
+  await assert.rejects(store.backups.restore('brackwell', m.name, 'brackwell', { over: true }), /meta: \d+ rows, expected \d+/);
+  assert.equal((await store.tree('brackwell').get<{ value: string }>("SELECT value FROM meta WHERE key = 'tagline'"))?.value, '', 'untouched');
   // A damaged page: valid encryption around a broken database.
   const broken = plain.slice();
   for (let i = 100; i < Math.min(broken.length, 100 + 8192); i++) broken[i] = 0xa5;
   await store.backups.write('brackwell', m.name, (await kbak.seal(base, broken, k)).bytes);
   const r2 = await b.drill('brackwell');
   assert.equal(r2?.ok, false, 'a damaged database fails the drill');
+  await assert.rejects(store.backups.restore('brackwell', m.name, 'brackwell', { over: true }));
+  assert.equal((await store.tree('brackwell').get<{ value: string }>("SELECT value FROM meta WHERE key = 'name'"))?.value, 'The Brackwells', 'untouched');
   const st = await store.accounts().get<{ drill_ok: number; drill_problem: string }>("SELECT drill_ok, drill_problem FROM backup_status WHERE family = 'brackwell'");
   assert.equal(st?.drill_ok, 0);
   assert.ok(!(st?.drill_problem ?? '').includes('brackwell'), 'no family id in what the console keeps');
@@ -212,8 +227,8 @@ test('retention keeps the newest of 7 days, 4 weeks and 12 months', async () => 
   const start = Date.parse('2025-01-01T03:00:00Z');
   // Two backups a day for 500 days.
   const times = Array.from({ length: 1000 }, (_, i) => start + Math.floor(i / 2) * day + (i % 2) * 3600_000);
-  const kept = [...keepIndexes(times)].map((i) => times[i]!).sort((a, b) => b - a);
   const newest = times.at(-1)!;
+  const kept = [...keepIndexes(times, DEFAULT_KEEP, newest)].map((i) => times[i]!).sort((a, b) => b - a);
   assert.equal(kept[0], newest, 'the newest is kept');
   const days = new Set(kept.map((t) => new Date(t).toISOString().slice(0, 10)));
   for (let i = 0; i < 7; i++) assert.ok(days.has(new Date(newest - i * day).toISOString().slice(0, 10)), `day ${i}`);
@@ -225,7 +240,7 @@ test('retention keeps the newest of 7 days, 4 weeks and 12 months', async () => 
 
   // On disk: 9 daily backups of corriston leave 7 days' worth (here, the 7 newest).
   for (let i = 0; i < 9; i++) await b.backUp('corriston', new Date(Date.parse('2026-10-01T03:00:00Z') + i * day));
-  assert.equal(await b.prune('corriston', { daily: 7, weekly: 1, monthly: 1 }), 2);
+  assert.equal(await b.prune('corriston', { daily: 7, weekly: 1, monthly: 1 }, Date.parse('2026-10-09T06:00:00Z')), 2);
   const left = await backupsOf('corriston');
   assert.equal(left.length, 7);
   const files = readdirSync(join(dir, 'backups', 'corriston')).filter((f) => f.endsWith('.kbak'));
@@ -242,9 +257,17 @@ test('a restore over a family backs it up first, then puts the backup in its pla
   assert.deepEqual(await people('alderby'), ['p1:Ilse', 'p2:Joran'], 'p3 came after the backup');
   const after = await backupsOf('alderby');
   assert.equal(after.length, before.length + 1, 'the fresh backup');
+  const pinned = await store.accounts().get<{ pinned_until: number }>('SELECT pinned_until FROM family_backup WHERE family = ? AND name = ?', 'alderby', r.fresh!);
+  assert.ok(pinned!.pinned_until >= Date.now() + 7 * DAY - 60_000, 'kept for a week, whatever the retention');
+  assert.ok((await store.accounts().all<{ detail: string }>("SELECT detail FROM operator_audit WHERE action = 'backup.restore_over' AND family = 'alderby'")).some((a) => JSON.parse(a.detail).fresh === r.fresh));
   // The fresh one still holds what was replaced: restoring it brings p3 back.
   await b.restoreBackup(actor, { scope: 'alderby', name: r.fresh!, mode: 'over', confirm: 'alderby' });
   assert.deepEqual(await people('alderby'), ['p1:Ilse', 'p2:Joran', 'p3:Later']);
+  // The tightest retention leaves the pinned backups (and the newest) in place.
+  await b.prune('alderby', { daily: 1, weekly: 1, monthly: 1 }, Date.now() + 3 * DAY);
+  assert.ok((await backupsOf('alderby')).some((x) => x.name === r.fresh), 'the backup from before the restore stays for its week');
+  await b.prune('alderby', { daily: 1, weekly: 1, monthly: 1 }, Date.now() + 8 * DAY);
+  assert.ok(!(await backupsOf('alderby')).some((x) => x.name === r.fresh), 'and goes after it');
 });
 
 test('a deleted family\'s backups stay for the grace period, can be restored into a new id meanwhile, then go', async () => {
@@ -256,11 +279,13 @@ test('a deleted family\'s backups stay for the grace period, can be restored int
   assert.equal(rows.length, 1);
   assert.ok(rows[0]!.gone_at, 'marked when the family was deleted');
   assert.ok(existsSync(join(dir, 'backups', 'dunmore', `${m.name}.kbak`)));
-  // Over the deleted family: no. Into a new id: yes, and with no steward left, a link for one.
+  // Over the deleted family: no. Into a new id: not while the backup records no steward who still has an account, and no
+  // link for one either: the operator never holds a way into a family's records.
   await assert.rejects(b.restoreBackup(actor, { scope: 'dunmore', name: m.name, mode: 'over', confirm: 'dunmore' }), /backup\.err\.gone/);
-  const r = await b.restoreBackup(actor, { scope: 'dunmore', name: m.name, mode: 'new', into: 'dunmore-again' });
-  assert.ok(r.token, 'a one-time link for its first steward');
-  assert.deepEqual(await people('dunmore-again'), ['d1:Wenna']);
+  await assert.rejects(b.restoreBackup(actor, { scope: 'dunmore', name: m.name, mode: 'new', into: 'dunmore-again' }), /backup\.err\.no_stewards/);
+  assert.ok(!(await store.treeIds()).includes('dunmore-again'), 'nothing was restored');
+  assert.equal((await store.accounts().get<{ n: number }>("SELECT count(*) AS n FROM invite WHERE tree = 'dunmore-again'"))?.n, 0);
+  assert.equal(await store.accounts().get("SELECT 1 FROM family_claim WHERE tree = 'dunmore-again'"), undefined, 'the address is free again');
   // The daily run within the grace period keeps them; after it, they go.
   const trees = await store.treeIds();
   await b.runBackups({ trees, now: new Date(), log: () => {} });
@@ -346,4 +371,148 @@ test('only the operator reaches the backups; a demo and a "View as" preview chan
   asUser(OP);
   const now = await fns.operatorBackUpNow({ data: { scope: 'alderby' } });
   assert.match(now.name, /^\d{8}T\d{9}Z$/);
+});
+
+test('a deleted family\'s id made again by someone else: its old backup gives its old stewards a family, and none of the new family\'s pictures', async () => {
+  await fam.createFamily(STEWARD, { id: 'fenwick', name: 'The Fenwicks', tagline: '', theme: THEME });
+  await store.tree('fenwick').run("INSERT INTO person (id, given) VALUES ('f1', 'Maelon')");
+  await store.media.put('fenwick', 'photo/old.jpg', Uint8Array.from([1]), 'image/jpeg');
+  const m = await b.backUp('fenwick', new Date(T - 2 * DAY));
+  await fam.deleteFamily('fenwick', 'fenwick');
+  // Someone else makes a family at the same address, with pictures of their own.
+  await fam.createFamily(OTHER, { id: 'fenwick', name: 'The Other Fenwicks', tagline: '', theme: THEME });
+  await store.media.put('fenwick', 'photo/new.jpg', Uint8Array.from([2]), 'image/jpeg');
+  const r = await b.restoreBackup(actor, { scope: 'fenwick', name: m.name, mode: 'new', into: 'fenwick-old' });
+  assert.equal(r.stewards, 1);
+  assert.deepEqual(await people('fenwick-old'), ['f1:Maelon']);
+  const members = (await store.accounts().all<{ user: string; role: string }>("SELECT user, role FROM membership WHERE tree = 'fenwick-old'")).map((x) => `${x.user}:${x.role}`);
+  assert.deepEqual(members, [`${STEWARD.id}:steward`], 'the old steward, not the new family\'s, and not the operator');
+  assert.equal(r.media, null, 'no pictures: the address belongs to another family now');
+  assert.deepEqual(await store.media.list('fenwick-old'), []);
+  // Copying pictures later is refused too, and between families no restore paired, always.
+  await assert.rejects(b.copyMediaNow(actor, 'fenwick-old'), /backup\.err\.no_media/);
+  await assert.rejects(b.copyMediaNow(actor, 'brackwell'), /backup\.err\.no_media/);
+  asUser(OP);
+  await assert.rejects(fns.operatorCopyMedia({ data: { into: 'corriston' } }), (e) => status(e) === 400);
+  assert.deepEqual(await store.media.list('corriston'), []);
+});
+
+test('a restore copies pictures only from its own source into its own family, and only until none are left', async () => {
+  await fam.createFamily(STEWARD, { id: 'galloway', name: 'The Galloways', tagline: '', theme: THEME });
+  for (let i = 0; i < 3; i++) await store.media.put('galloway', `photo/${i}.jpg`, Uint8Array.from([i]), 'image/jpeg');
+  const m = await b.backUp('galloway', new Date(T - DAY));
+  const r = await b.restoreBackup(actor, { scope: 'galloway', name: m.name, mode: 'new', into: 'galloway-two' }, Date.now(), 2);
+  assert.deepEqual(r.media, { copied: 2, left: 1 });
+  const more = await b.copyMediaNow(actor, 'galloway-two');
+  assert.deepEqual(more, { copied: 1, left: 0 });
+  assert.equal((await store.media.list('galloway-two')).length, 3);
+  // Done: nothing more is copied, even when the source gets new pictures.
+  await store.media.put('galloway', 'photo/later.jpg', Uint8Array.from([9]), 'image/jpeg');
+  await assert.rejects(b.copyMediaNow(actor, 'galloway-two'), /backup\.err\.no_media/);
+  assert.equal((await store.media.list('galloway-two')).length, 3);
+});
+
+test('a backup whose stewards have no account any more is not restored into a new family, and the operator gets no way in', async () => {
+  await dbs.provisionFamily('glenholm', 'The Glenholms');
+  await store.tree('glenholm').run("INSERT INTO person (id, given) VALUES ('g1', 'Tamsin')");
+  await store.accounts().batch([acc.upsertMembership(LEFT.id, 'glenholm', 'steward')]);
+  const m = await b.backUp('glenholm', new Date(T - DAY));
+  assert.deepEqual(JSON.parse((await store.accounts().get<{ stewards: string }>('SELECT stewards FROM family_backup WHERE family = ? AND name = ?', 'glenholm', m.name))!.stewards), [LEFT.id]);
+  await store.accounts().batch([q('DELETE FROM membership WHERE user = ?', LEFT.id), q('DELETE FROM user WHERE id = ?', LEFT.id)]);
+  asUser(OP);
+  await assert.rejects(fns.operatorRestoreBackup({ data: { scope: 'glenholm', name: m.name, mode: 'new', into: 'glenholm-two' } }), (e) => status(e) === 400 && /steward/i.test((e as Error).message));
+  assert.ok(!(await store.treeIds()).includes('glenholm-two'));
+  assert.equal((await store.accounts().get<{ n: number }>("SELECT (SELECT count(*) FROM membership WHERE tree = 'glenholm-two') + (SELECT count(*) FROM invite WHERE tree = 'glenholm-two') AS n"))?.n, 0);
+  // A backup from before stewards were recorded is refused the same way.
+  await store.accounts().run('UPDATE family_backup SET stewards = NULL WHERE family = ?', 'alderby');
+  const [{ name }] = await backupsOf('alderby');
+  await assert.rejects(b.restoreBackup(actor, { scope: 'alderby', name: name!, mode: 'new', into: 'alderby-unknown' }), /backup\.err\.no_stewards/);
+  await store.accounts().run('UPDATE family_backup SET stewards = ? WHERE family = ?', JSON.stringify([STEWARD.id]), 'alderby');
+});
+
+test('two restores into one address, or a restore and a new family there, never both write: one wins, the other is refused', async () => {
+  const [{ name }] = await backupsOf('alderby');
+  const ok = (rs: PromiseSettledResult<unknown>[]) => rs.filter((x) => x.status === 'fulfilled').length;
+  const two = await Promise.allSettled([1, 2].map(() => b.restoreBackup(actor, { scope: 'alderby', name: name!, mode: 'new', into: 'hollin' })));
+  assert.equal(ok(two), 1, JSON.stringify(two.map((x) => x.status === 'rejected' ? String(x.reason) : 'ok')));
+  assert.match(String((two.find((x) => x.status === 'rejected') as PromiseRejectedResult).reason), /backup\.err\.taken/);
+  assert.deepEqual(await people('hollin'), ['p1:Ilse', 'p2:Joran']);
+
+  // A restore and a new family at the same address: one of them, whole.
+  const both = await Promise.allSettled([
+    b.restoreBackup(actor, { scope: 'alderby', name: name!, mode: 'new', into: 'ivybridge' }),
+    fam.createFamily(OTHER, { id: 'ivybridge', name: 'The Ivybridges', tagline: '', theme: THEME }),
+  ]);
+  assert.equal(ok(both), 1, JSON.stringify(both.map((x) => x.status === 'rejected' ? String(x.reason) : 'ok')));
+  const members = (await store.accounts().all<{ user: string }>("SELECT user FROM membership WHERE tree = 'ivybridge'")).map((x) => x.user);
+  const name2 = (await store.tree('ivybridge').get<{ value: string }>("SELECT value FROM meta WHERE key = 'name'"))?.value;
+  if (both[0].status === 'fulfilled') {
+    assert.deepEqual(members, [STEWARD.id]);
+    assert.deepEqual(await people('ivybridge'), ['p1:Ilse', 'p2:Joran']);
+    assert.equal(name2, 'The Alderbys');
+  } else {
+    assert.deepEqual(members, [OTHER.id]);
+    assert.deepEqual(await people('ivybridge'), []);
+    assert.equal(name2, 'The Ivybridges');
+  }
+
+  // While a restore holds an address, no family is made there; while a family is being made, no restore writes there.
+  await store.accounts().run("INSERT INTO family_claim (tree, what, at, state) VALUES ('juniper', 'restore', ?, 'restoring')", Date.now());
+  await assert.rejects(fam.createFamily(OTHER, { id: 'juniper', name: 'The Junipers', tagline: '', theme: THEME }));
+  assert.ok(!(await store.treeIds()).includes('juniper'));
+  await store.accounts().run("INSERT INTO family_claim (tree, what, at) VALUES ('kestrel', 'create', ?)", Date.now());
+  await assert.rejects(b.restoreBackup(actor, { scope: 'alderby', name: name!, mode: 'new', into: 'kestrel' }), /backup\.err\.taken/);
+  assert.ok(!(await store.treeIds()).includes('kestrel'));
+  // A claim left by a family that was never finished does not hold the address for ever.
+  await store.accounts().run("UPDATE family_claim SET at = ? WHERE tree = 'kestrel'", Date.now() - DAY);
+  assert.equal((await b.restoreBackup(actor, { scope: 'alderby', name: name!, mode: 'new', into: 'kestrel' })).into, 'kestrel');
+
+  // The driver itself does not write over a family unless asked to restore over it.
+  await assert.rejects(store.backups.restore('alderby', name!, 'brackwell'), /holds a family/);
+  assert.equal((await store.tree('brackwell').get<{ value: string }>("SELECT value FROM meta WHERE key = 'name'"))?.value, 'The Brackwells');
+});
+
+test('a backup\'s unencrypted copy is made in the data folder, never beside the backups, and one left by a crash is removed', async () => {
+  const elsewhere = mkdtempSync(join(tmpdir(), 'kindred-backup-dir-'));
+  process.env.KINDRED_BACKUP_DIR = elsewhere;
+  const seen: string[] = [];
+  const w = watch(elsewhere, { recursive: true }, (_e, f) => { if (f) seen.push(String(f)); });
+  let made: string;
+  try {
+    made = (await b.backUp('corriston', new Date(T - 5 * DAY))).name;
+    await new Promise((r) => setTimeout(r, 100));
+  } finally {
+    w.close();
+    delete process.env.KINDRED_BACKUP_DIR;
+  }
+  assert.ok(seen.length > 0, 'the watcher saw the backup');
+  // (macOS also reports the watched folder itself.)
+  assert.deepEqual(seen.filter((f) => f !== basename(elsewhere) && !/(^|\/)(corriston|\d{8}T\d{9}Z\.(kbak|json)(\.tmp-[0-9a-f-]+)?)$/.test(f)), [], 'only sealed files');
+  const tmp = join(dir, '.backup-tmp');
+  assert.equal(statSync(tmp).mode & 0o777, 0o700);
+  assert.deepEqual(readdirSync(tmp), [], 'nothing left behind');
+  await store.accounts().run('DELETE FROM family_backup WHERE family = ? AND name = ?', 'corriston', made);
+  rmSync(elsewhere, { recursive: true, force: true });
+  // What a crash left is removed when the store starts.
+  mkdirSync(tmp, { recursive: true });
+  writeFileSync(join(tmp, 'left.db'), 'plain');
+  mkdirSync(join(dir, 'backups', 'corriston'), { recursive: true });
+  writeFileSync(join(dir, 'backups', 'corriston', '.20261101T030000000Z-1.db'), 'plain');
+  nodeBackups.clearBackupTemps(dir);
+  assert.ok(!existsSync(join(tmp, 'left.db')));
+  assert.ok(!existsSync(join(dir, 'backups', 'corriston', '.20261101T030000000Z-1.db')));
+});
+
+test('retention counts back from today: backups that stopped long ago leave only the newest, and none older than 12 months', () => {
+  const now = Date.parse('2026-11-12T06:00:00Z');
+  // Daily backups for 200 days that stopped 400 days ago: only the newest stays.
+  const old = Array.from({ length: 200 }, (_, i) => now - 400 * DAY - i * DAY);
+  assert.deepEqual([...keepIndexes(old, DEFAULT_KEEP, now)], [0]);
+  // Stopped 20 days ago: no daily one but the newest, a weekly one within 4 weeks, monthly ones within 12 months.
+  const recent = Array.from({ length: 400 }, (_, i) => now - 20 * DAY - i * DAY);
+  const kept = [...keepIndexes(recent, DEFAULT_KEEP, now)].map((i) => recent[i]!);
+  assert.ok(kept.includes(recent[0]!), 'the newest');
+  assert.ok(kept.every((t) => t === recent[0] || t > Date.parse('2025-11-12T06:00:00Z')), 'nothing older than 12 months');
+  assert.ok(kept.filter((t) => t > now - 28 * DAY).length <= 2, 'the weekly ones are within 4 weeks');
+  assert.ok(kept.length <= 1 + 2 + 12, String(kept.length));
 });

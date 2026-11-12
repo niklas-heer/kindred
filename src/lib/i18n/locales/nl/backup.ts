@@ -59,9 +59,9 @@ export default {
   "backup.restoring": "Terugzetten…",
   "backup.restored_new": "Teruggezet als {id}.",
   "backup.restored_over": "Teruggezet. De back-up die vlak daarvoor is gemaakt, is {name}.",
-  "backup.restored_link": "Het origineel heeft geen beheerders meer. Stuur deze eenmalige link naar de beheerder van de nieuwe familie",
   "backup.media_left": "Afbeeldingen gekopieerd: {copied}. Nog te kopiëren: {left}.",
   "backup.media_more": "Meer afbeeldingen kopiëren",
+  "backup.restored_stewards": "De beheerders zijn wie de back-up als beheerders van de familie vastlegt en hier nog een account heeft. Niemand anders heeft toegang gekregen.",
   "backup.close": "Sluiten",
   "backup.recovery": "Herstelpunten",
   "backup.recovery_hint": "Voordat het Durable Object van een familie de migraties van een update toepast, onthoudt het een punt waarnaar het terug kan; Cloudflare bewaart 30 dagen. Ligt de fout in de update zelf, zet dan eerst de Worker terug, anders past de familie de update opnieuw toe bij de volgende start.",
@@ -92,4 +92,6 @@ export default {
   "backup.err.taken": "Dat adres is al in gebruik: kies een ander.",
   "backup.err.no_pitr": "Deze server kan een familie niet terugdraaien naar een herstelpunt.",
   "backup.err.no_point": "Dat herstelpunt is er niet meer.",
+  "backup.err.no_stewards": "Deze back-up legt geen beheerder vast die hier nog een account heeft, dus niemand zou de teruggezette familie kunnen krijgen. Ze is niet teruggezet.",
+  "backup.err.no_media": "Er zijn voor deze terugzetting geen afbeeldingen meer om te kopiëren.",
 } satisfies Strings<typeof en, "nl">;

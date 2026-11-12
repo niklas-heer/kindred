@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import { env } from 'cloudflare:workers';
 import { move, type Importer, type MoveStep } from './move.server.ts';
 import { q, store } from './index.ts';
-import { backupName, deriveBackupKey, open } from '../backup/kbak.ts';
+import { backupName, deriveBackupKey, open, seal } from '../backup/kbak.ts';
+import { decodeDump, encodeDump } from '../backup/dump.ts';
 
 const migrationsOf = async (tree: string) => (await store.tree(tree).all<{ name: string }>('SELECT name FROM d1_migrations ORDER BY id')).map((r) => r.name);
 const registry = async () => (await store.accounts().all<{ tree: string; driver: string }>('SELECT tree, driver FROM family_store ORDER BY tree')).map((r) => `${r.tree}:${r.driver}`);
@@ -244,6 +245,7 @@ export const durableCases: Record<string, (expect: string[]) => Promise<void>> =
     await d.run("INSERT INTO person (id, given) VALUES ('f3', 'After')");
     const into = await b.restoreBackup(op, { scope: 'fir', name: m.name, mode: 'new', into: 'fir-two' });
     assert.deepEqual(into.media, { copied: 1, left: 0 });
+    assert.equal(into.stewards, 1, 'the steward the backup recorded');
     const restored = store.tree('fir-two');
     assert.deepEqual((await restored.all<{ id: string }>('SELECT id FROM person ORDER BY id')).map((p) => p.id), ['f1', 'f2']);
     const back = (await restored.get<{ b: Uint8Array }>('SELECT b FROM probe_blob WHERE id = 1'))!.b;
@@ -260,6 +262,20 @@ export const durableCases: Record<string, (expect: string[]) => Promise<void>> =
     assert.deepEqual((await store.tree('fir').all<{ id: string }>('SELECT id FROM person ORDER BY id')).map((p) => p.id), ['f1', 'f2']);
     await b.restoreBackup(op, { scope: 'fir', name: over.fresh!, mode: 'over', confirm: 'fir' });
     assert.deepEqual((await store.tree('fir').all<{ id: string }>('SELECT id FROM person ORDER BY id')).map((p) => p.id), ['f1', 'f2', 'f3']);
+
+    // The object does not take a backup over a family unless the restore is over it.
+    await assert.rejects(store.backups.restore('fir', m.name, 'fir-two'), /holds a family/);
+    assert.deepEqual((await store.tree('fir-two').all<{ id: string }>('SELECT id FROM person ORDER BY id')).map((p) => p.id), ['f1', 'f2']);
+    // A backup whose rows do not match its manifest is refused before anything of the family is deleted.
+    const { manifest, plain } = await open(bytes, k, 'fir', m.name);
+    const dump = decodeDump(plain);
+    const people = dump.tables.find((t) => t.name === 'person')!;
+    people.rows = people.rows.slice(1);
+    const { kindred: _k, version: _v, size: _s, sha256: _h, keyId: _i, ...base } = manifest;
+    await store.backups.write('fir', m.name, (await seal(base, encodeDump(dump), k)).bytes);
+    await assert.rejects(store.backups.restore('fir', m.name, 'fir', { over: true }), /person: 1 rows, expected 2/);
+    assert.deepEqual((await store.tree('fir').all<{ id: string }>('SELECT id FROM person ORDER BY id')).map((p) => p.id), ['f1', 'f2', 'f3'], 'untouched');
+    await store.backups.write('fir', m.name, bytes);
 
     // A changed file fails the drill; the same file under another family's id cannot be read.
     const flipped = bytes.slice();

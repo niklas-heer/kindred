@@ -76,9 +76,8 @@ export interface RestoreResult {
   into: string;
   /** A restore over the family: the backup taken just before. */
   fresh: string | null;
-  /** A restore into a new id whose original has no stewards left: the one-time link for its first steward. */
-  token: string | null;
-  expires: number | null;
-  /** A restore into a new id: the pictures copied from the original, and how many are left to copy. */
+  /** A restore into a new id: how many of the stewards the backup recorded (those with an account still) steward it. */
+  stewards: number | null;
+  /** A restore into a new id of a family that still holds its id: the pictures copied from it, and how many are left to copy. */
   media: { copied: number; left: number } | null;
 }

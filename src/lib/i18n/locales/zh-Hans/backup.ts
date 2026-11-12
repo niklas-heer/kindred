@@ -59,9 +59,9 @@ export default {
   "backup.restoring": "正在恢复…",
   "backup.restored_new": "已恢复为{id}。",
   "backup.restored_over": "已恢复。恢复前刚做的备份是{name}。",
-  "backup.restored_link": "原家族已经没有负责人了。把这个一次性链接发给新家族的负责人",
   "backup.media_left": "已复制的图片：{copied}。还需复制：{left}。",
   "backup.media_more": "继续复制图片",
+  "backup.restored_stewards": "它的负责人是备份中记录为家族负责人、并且在这里仍有账户的人。没有给其他任何人访问权限。",
   "backup.close": "关闭",
   "backup.recovery": "恢复点",
   "backup.recovery_hint": "家族的 Durable Object 在应用更新的迁移之前，会记下一个可以回到的时间点；Cloudflare 保留30天。如果问题出在更新本身，请先回滚 Worker，否则家族下次启动时会再次应用这次更新。",
@@ -92,4 +92,6 @@ export default {
   "backup.err.taken": "这个地址已被占用：请换一个。",
   "backup.err.no_pitr": "这台服务器无法把家族回滚到恢复点。",
   "backup.err.no_point": "那个恢复点已经不在了。",
+  "backup.err.no_stewards": "这份备份记录的负责人在这里都已经没有账户，恢复后的家族无人可以接手，所以没有恢复。",
+  "backup.err.no_media": "这次恢复已经没有要复制的图片了。",
 } satisfies Strings<typeof en, "zh-Hans">;

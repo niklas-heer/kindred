@@ -59,9 +59,9 @@ export default {
   "backup.restoring": "Besig om terug te sit…",
   "backup.restored_new": "As {id} teruggesit.",
   "backup.restored_over": "Teruggesit. Die rugsteun wat net voor die tyd gemaak is, is {name}.",
-  "backup.restored_link": "Niemand is meer rentmeester van die oorspronklike nie. Stuur hierdie eenmalige skakel aan die nuwe familie se rentmeester",
   "backup.media_left": "Foto’s gekopieer: {copied}. Nog om te kopieer: {left}.",
   "backup.media_more": "Kopieer nog foto’s",
+  "backup.restored_stewards": "Sy rentmeesters is dié wat die rugsteun as die familie se rentmeesters aangeteken het en wat nog ’n rekening hier het. Niemand anders het toegang gekry nie.",
   "backup.close": "Maak toe",
   "backup.recovery": "Herstelpunte",
   "backup.recovery_hint": "Voordat ’n familie se Durable Object ’n bywerking se migrasies toepas, hou dit ’n punt waarheen dit kan teruggaan; Cloudflare hou 30 dae. As die bywerking self die fout is, rol eers die Worker terug, anders pas die familie die bywerking weer toe wanneer dit volgende keer begin.",
@@ -92,4 +92,6 @@ export default {
   "backup.err.taken": "Daardie adres is reeds geneem: kies ’n ander een.",
   "backup.err.no_pitr": "Hierdie bediener kan nie ’n familie na ’n herstelpunt terugrol nie.",
   "backup.err.no_point": "Daardie herstelpunt is nie meer daar nie.",
+  "backup.err.no_stewards": "Hierdie rugsteun teken geen rentmeester aan wat nog 'n rekening hier het nie, so niemand kan die teruggesitte familie kry nie. Dit is nie teruggesit nie.",
+  "backup.err.no_media": "Daar is nie meer foto's om vir hierdie terugsit te kopieer nie.",
 } satisfies Strings<typeof en, "af">;

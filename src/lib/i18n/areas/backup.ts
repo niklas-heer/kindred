@@ -57,9 +57,9 @@ export const en = {
   "backup.restoring": "Restoring…",
   "backup.restored_new": "Restored as {id}.",
   "backup.restored_over": "Restored. The backup made just before is {name}.",
-  "backup.restored_link": "Nobody stewards the original any more. Send this one-time link to the new family’s steward",
   "backup.media_left": "Pictures copied: {copied}. Still to copy: {left}.",
   "backup.media_more": "Copy more pictures",
+  "backup.restored_stewards": "Its stewards are those the backup recorded as the family’s stewards who still have an account here. Nobody else was given access.",
   "backup.close": "Close",
   "backup.recovery": "Recovery points",
   "backup.recovery_hint": "Before a family’s Durable Object applies an update’s migrations, it records a point it can go back to; Cloudflare keeps 30 days. If the update itself is at fault, roll the Worker back first, or the family applies the update again when it next starts.",
@@ -90,4 +90,6 @@ export const en = {
   "backup.err.taken": "That address is taken: choose another.",
   "backup.err.no_pitr": "This server cannot roll a family back to a recovery point.",
   "backup.err.no_point": "That recovery point is not there any more.",
+  "backup.err.no_stewards": "This backup records no steward who still has an account here, so nobody could be given the restored family. It was not restored.",
+  "backup.err.no_media": "There are no more pictures to copy for this restore.",
 } as const;

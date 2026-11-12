@@ -9,8 +9,8 @@
 import { AuthError } from '../auth/errors.ts';
 import { families } from '../auth/trees.server.ts';
 import { sanitiseFailure } from '../jobs/failure.ts';
-import { audit, type AuditActor } from '../operator/settings.server.ts';
-import { q, store, type Query } from '../store/index.ts';
+import { audit, instanceSettings, type AuditActor } from '../operator/settings.server.ts';
+import { guard, isGuardError, q, store, type Query } from '../store/index.ts';
 import { ACCOUNTS_SCOPE, backupName, backupSecret, deriveBackupKey, type Manifest } from './kbak.ts';
 import { DEFAULT_GRACE_DAYS, GRACE_MAX_DAYS, keepIndexes, parseKeep, type Keep } from './retention.ts';
 import type { BackupFamily, BackupHealth, BackupOverview, BackupRow, RestoreResult } from './shared.ts';
@@ -27,6 +27,10 @@ export const BUDGET_MS = 5 * 60_000;
 const DRILL_MS = 7 * DAY - 3600_000;
 /** How many pictures a restore into a new id copies in one go; the console offers to copy the rest. */
 export const MEDIA_STEP = 200;
+/** How long the backup made just before a restore over a family or a rollback is kept, whatever the retention says. */
+export const PIN_MS = 7 * DAY;
+/** A family being made holds its address this long (`family_claim`); a claim older than that was left by a request that stopped. */
+export const CLAIM_MS = 10 * 60_000;
 
 const invalid = (key: string) => new AuthError('invalid', key);
 
@@ -80,6 +84,11 @@ const sanitise = async (e: unknown) => sanitiseFailure(e instanceof Error ? e.me
 /** Backs one scope up now and records it. Throws (after recording the failure) when it cannot be made. */
 export async function backUp(scope: string, at = new Date()): Promise<Manifest> {
   const now = at.getTime();
+  // Who stewards the family now, and which family holds the id (its making time): what a restore into a new id may hand on.
+  const [stewards, made] = scope === ACCOUNTS_SCOPE ? [[], []] : (await accounts().readBatch([
+    q("SELECT user FROM membership WHERE tree = ? AND role = 'steward' ORDER BY user", scope),
+    q('SELECT created_at FROM family_admin WHERE tree = ?', scope),
+  ])) as unknown as [{ user: string }[], { created_at: number | null }[]];
   let m: Manifest, bytes: number;
   try {
     ({ manifest: m, bytes } = await store.backups.take(scope, backupName(at)));
@@ -90,21 +99,25 @@ export async function backUp(scope: string, at = new Date()): Promise<Manifest> 
     throw e;
   }
   await accounts().batch([
-    q(`INSERT INTO family_backup (family, name, created_at, bytes, format, schema, counts, sha256, key_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(family, name) DO NOTHING`, scope, m.name, Date.parse(m.created) || now, bytes, m.format, m.schema, JSON.stringify(m.counts), m.sha256, m.keyId),
+    q(`INSERT INTO family_backup (family, name, created_at, bytes, format, schema, counts, sha256, key_id, stewards, family_created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(family, name) DO NOTHING`, scope, m.name, Date.parse(m.created) || now, bytes, m.format, m.schema, JSON.stringify(m.counts), m.sha256, m.keyId,
+      scope === ACCOUNTS_SCOPE ? null : JSON.stringify(stewards.map((s) => s.user)), made[0]?.created_at ?? null),
     q(`INSERT INTO backup_status (family, tried_at, ok_at, error) VALUES (?, ?, ?, NULL)
        ON CONFLICT(family) DO UPDATE SET tried_at = excluded.tried_at, ok_at = excluded.ok_at, error = NULL`, scope, now, now),
   ]);
   return m;
 }
 
-/** Deletes a scope's backups beyond the retention: its files, then their rows. Returns how many went. */
-export async function prune(scope: string, keep: Keep): Promise<number> {
-  const rows = await accounts().all<{ name: string; created_at: number }>('SELECT name, created_at FROM family_backup WHERE family = ? AND gone_at IS NULL ORDER BY created_at', scope);
-  const kept = keepIndexes(rows.map((r) => r.created_at), keep);
+/**
+ * Deletes a living scope's backups beyond the retention, counted back from `now`: their files, then their rows. Its newest backup
+ * and a backup pinned until after `now` (the one made before a restore over the family or a rollback) stay. Returns how many went.
+ */
+export async function prune(scope: string, keep: Keep, now = Date.now()): Promise<number> {
+  const rows = await accounts().all<{ name: string; created_at: number; pinned_until: number }>('SELECT name, created_at, pinned_until FROM family_backup WHERE family = ? AND gone_at IS NULL ORDER BY created_at', scope);
+  const kept = keepIndexes(rows.map((r) => r.created_at), keep, now);
   let removed = 0;
   for (const [i, r] of rows.entries()) {
-    if (kept.has(i)) continue;
+    if (kept.has(i) || r.pinned_until > now) continue;
     await store.backups.remove(scope, r.name);
     await accounts().run('DELETE FROM family_backup WHERE family = ? AND name = ?', scope, r.name);
     removed += 1;
@@ -152,7 +165,7 @@ export async function runBackups(opts: { trees: string[]; now: Date; log: (m: st
     try {
       await backUp(scope, new Date(Math.max(now, clock())));
       made += 1;
-      pruned += await prune(scope, keep);
+      pruned += await prune(scope, keep, now);
     } catch (e) {
       failed += 1;
       opts.log(`${scope === ACCOUNTS_SCOPE ? 'accounts' : `family ${scope}`}: ${e instanceof Error ? e.message : 'failed'}`);
@@ -296,16 +309,42 @@ async function knownScope(scope: string) {
   if (scope !== ACCOUNTS_SCOPE && !(await families()).some((f) => f.id === scope)) throw invalid('backup.err.no_family');
 }
 
+/** Pins a backup: kept until `until`, whatever the retention says. */
+const pin = (scope: string, name: string, until: number): Query => q('UPDATE family_backup SET pinned_until = ? WHERE family = ? AND name = ?', until, scope, name);
+
+/** The recorded stewards of a backup that still have an account. Null (from before 0055) and an empty list record none. */
+async function recordedStewards(stewards: string | null): Promise<string[]> {
+  let ids: unknown;
+  try {
+    ids = JSON.parse(stewards ?? 'null');
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(ids) || !ids.length) return [];
+  return (await accounts().all<{ id: string }>('SELECT id FROM user WHERE id IN (SELECT value FROM json_each(?)) ORDER BY id', JSON.stringify(ids.filter((x) => typeof x === 'string')))).map((r) => r.id);
+}
+
+/** When the family now at `tree` was made (`family_admin.created_at`), or undefined when there is no such family. */
+async function madeAt(tree: string): Promise<number | null | undefined> {
+  if (!(await families()).some((f) => f.id === tree)) return undefined;
+  return (await accounts().get<{ created_at: number | null }>('SELECT created_at FROM family_admin WHERE tree = ?', tree))?.created_at ?? null;
+}
+
 /**
- * Restores a backup. `new` (the default): into a new family id that is free, whose stewards are the original family's (or, when
- * it has none left, a one-time link makes its first steward), and copies the pictures the original still has. `over`: over the
- * family itself, after a fresh backup of it, with its id typed as `confirm`; the server function asked for a fresh proof.
- * Logged before and after. The accounts database is restored by hand (docs).
+ * Restores a backup. `new` (the default): into a new family id that is free, claimed for the restore first (`family_claim`, which
+ * making a family respects too), whose stewards are the stewards the backup recorded who still have an account, and nobody else:
+ * with none left the restore is refused, and nobody (the operator least of all) is handed a link instead. The pictures are copied
+ * only while the backup's family still holds its id: not of a deleted family, nor of another family made at its address since.
+ * `over`: over the family itself, after a fresh backup of it (kept for a week), with its id typed as `confirm`; the server
+ * function asked for a fresh proof. Logged before and after. The accounts database is restored by hand (docs).
  */
-export async function restoreBackup(op: AuditActor, input: { scope: string; name: string; mode: 'new' | 'over'; into?: string; confirm?: string }, now = Date.now()): Promise<RestoreResult> {
+export async function restoreBackup(
+  op: AuditActor, input: { scope: string; name: string; mode: 'new' | 'over'; into?: string; confirm?: string }, now = Date.now(), mediaStep = MEDIA_STEP,
+): Promise<RestoreResult> {
   const { scope, name, mode } = input;
   if (scope === ACCOUNTS_SCOPE) throw invalid('backup.err.accounts_by_hand');
-  const row = await accounts().get<{ gone_at: number | null }>('SELECT gone_at FROM family_backup WHERE family = ? AND name = ?', scope, name);
+  const row = await accounts().get<{ gone_at: number | null; created_at: number; schema: string | null; stewards: string | null; family_created: number | null }>(
+    'SELECT gone_at, created_at, schema, stewards, family_created FROM family_backup WHERE family = ? AND name = ?', scope, name);
   if (!row) throw invalid('backup.err.no_backup');
   if (mode === 'over') {
     if (row.gone_at !== null) throw invalid('backup.err.gone');
@@ -318,9 +357,12 @@ export async function restoreBackup(op: AuditActor, input: { scope: string; name
     } catch {
       throw invalid('backup.err.fresh_failed');
     }
-    await accounts().batch([audit(op, 'backup.restore_over', scope, { name, fresh: fresh.name })]);
-    await store.backups.restore(scope, name, scope);
-    return { into: scope, fresh: fresh.name, token: null, expires: null, media: null };
+    await accounts().batch([
+      pin(scope, fresh.name, now + PIN_MS),
+      audit(op, 'backup.restore_over', scope, { name, created: row.created_at, schema: row.schema, fresh: fresh.name }),
+    ]);
+    await store.backups.restore(scope, name, scope, { over: true });
+    return { into: scope, fresh: fresh.name, stewards: null, media: null };
   }
 
   const into = (input.into ?? '').trim();
@@ -328,40 +370,68 @@ export async function restoreBackup(op: AuditActor, input: { scope: string; name
   const problem = idProblem(into);
   if (problem) throw problem;
   if (store.backups.covers(into) !== 'backup') throw invalid('backup.err.d1');
-  const [[taken]] = (await accounts().readBatch([
-    q(`SELECT (SELECT count(*) FROM membership WHERE tree = ?) + (SELECT count(*) FROM family_admin WHERE tree = ?)
-       + (SELECT count(*) FROM invite WHERE tree = ? AND used_at IS NULL AND revoked_at IS NULL) AS n`, into, into, into),
-  ])) as unknown as [[{ n: number }]];
-  if ((await store.treeIds()).includes(into) || taken!.n > 0) throw invalid('backup.err.taken');
-  await accounts().batch([audit(op, 'backup.restore_new', into, { from: scope, name })]);
-  const register = await store.backups.restore(scope, name, into);
-  // The family's own id in its details, so it opens as the new family (src/lib/families.server.ts checks it).
-  await store.tree(into).run("UPDATE meta SET value = ? WHERE key = 'id'", into);
-  const [stewards, admin] = (await accounts().readBatch([
-    q("SELECT user FROM membership WHERE tree = ? AND role = 'steward'", scope),
-    q('SELECT cap_bytes FROM family_admin WHERE tree = ?', scope),
-  ])) as unknown as [{ user: string }[], { cap_bytes: number | null }[]];
-  const { upsertMembership, createInvite } = await import('../auth/store.server.ts');
+  const stewards = await recordedStewards(row.stewards);
+  if (!stewards.length) throw invalid('backup.err.no_stewards');
+  // The same family still holds the id: not deleted (its pictures went with it), and not made again by someone else since.
+  const current = await madeAt(scope);
+  const same = row.gone_at === null && current !== undefined && current === (row.family_created ?? null);
+
+  // The address, claimed in one batch with the checks that it is free: a parallel restore or a family made there meanwhile loses.
+  const free = `NOT EXISTS (SELECT 1 FROM membership WHERE tree = ?) AND NOT EXISTS (SELECT 1 FROM family_admin WHERE tree = ?)
+    AND NOT EXISTS (SELECT 1 FROM invite WHERE tree = ? AND used_at IS NULL AND revoked_at IS NULL)`;
+  try {
+    await accounts().batch([
+      guard("NOT EXISTS (SELECT 1 FROM family_claim WHERE tree = ? AND (what = 'restore' OR at > ?))", into, now - CLAIM_MS),
+      guard(free, into, into, into),
+      q(`INSERT INTO family_claim (tree, what, at, by, source, backup, source_created, state, media) VALUES (?, 'restore', ?, ?, ?, ?, ?, 'restoring', 0)
+         ON CONFLICT(tree) DO UPDATE SET what = excluded.what, at = excluded.at, by = excluded.by, source = excluded.source, backup = excluded.backup,
+           source_created = excluded.source_created, state = excluded.state, media = excluded.media`, into, now, op.id, scope, name, row.family_created ?? null),
+    ]);
+  } catch (e) {
+    if (isGuardError(e)) throw invalid('backup.err.taken');
+    throw e;
+  }
+  const release = () => accounts().run("DELETE FROM family_claim WHERE tree = ? AND what = 'restore' AND state = 'restoring'", into).catch(() => {});
+  if ((await store.treeIds()).includes(into)) {
+    await release();
+    throw invalid('backup.err.taken');
+  }
+  await accounts().batch([audit(op, 'backup.restore_new', into, { from: scope, name, schema: row.schema, gone: row.gone_at !== null })]);
+  let register: Query | null;
+  try {
+    // The driver writes only where no family is (a file, or a Durable Object that holds one, is never replaced here).
+    register = await store.backups.restore(scope, name, into, { over: false });
+    // The family's own id in its details, so it opens as the new family (src/lib/families.server.ts checks it).
+    await store.tree(into).run("UPDATE meta SET value = ? WHERE key = 'id'", into);
+  } catch (e) {
+    await release();
+    throw e;
+  }
+  const cap = same
+    ? (await accounts().get<{ cap_bytes: number | null }>('SELECT cap_bytes FROM family_admin WHERE tree = ?', scope))?.cap_bytes ?? null
+    : (await instanceSettings()).defaultCapBytes ?? null;
+  const { upsertMembership } = await import('../auth/store.server.ts');
   await accounts().batch([
     ...(register ? [register] : []),
-    q('INSERT INTO family_admin (tree, cap_bytes, created_at, created_by) VALUES (?, ?, ?, ?) ON CONFLICT(tree) DO NOTHING', into, admin[0]?.cap_bytes ?? null, now, op.id),
-    ...stewards.map((s) => upsertMembership(s.user, into, 'steward')),
+    q('INSERT INTO family_admin (tree, cap_bytes, created_at, created_by) VALUES (?, ?, ?, ?) ON CONFLICT(tree) DO NOTHING', into, cap, now, op.id),
+    ...stewards.map((id) => upsertMembership(id, into, 'steward')),
+    q("UPDATE family_claim SET state = 'restored', media = ? WHERE tree = ? AND what = 'restore'", same ? 1 : 0, into),
   ]);
-  let token: string | null = null, expires: number | null = null;
-  if (!stewards.length) {
-    const made = await createInvite({ tree: into, role: 'steward', email: null, createdBy: op.id, byOperator: true });
-    token = made.token;
-    expires = made.invite.expires;
+  let media: RestoreResult['media'] = null;
+  if (same) {
+    media = await copyMedia(scope, into, mediaStep);
+    if (!media.left) await accounts().run("UPDATE family_claim SET media = 0 WHERE tree = ? AND what = 'restore'", into);
   }
-  const media = await copyMedia(scope, into);
-  return { into, fresh: null, token, expires, media };
+  await accounts().batch([audit(op, 'backup.restore_new', into, { from: scope, name, stewards: stewards.length, media })]);
+  return { into, fresh: null, stewards: stewards.length, media };
 }
 
 /**
- * Copies the pictures and documents of `from` that `into` does not have yet, at most MEDIA_STEP at a time (a restore into a new
- * id; pictures are not in a backup). Returns how many were copied and how many are left. The family's storage is counted again.
+ * Copies the pictures and documents of `from` that `into` does not have yet, at most `limit` at a time (a restore into a new id;
+ * pictures are not in a backup). Returns how many were copied and how many are left. The family's storage is counted again.
+ * Only restoreBackup and copyMediaNow call it, with the pair a restore recorded.
  */
-export async function copyMedia(from: string, into: string, limit = MEDIA_STEP): Promise<{ copied: number; left: number }> {
+async function copyMedia(from: string, into: string, limit = MEDIA_STEP): Promise<{ copied: number; left: number }> {
   const [source, have] = await Promise.all([store.media.list(from).catch(() => []), store.media.list(into)]);
   const known = new Set(have.map((f) => f.key));
   const todo = source.filter((f) => !known.has(f.key));
@@ -377,11 +447,24 @@ export async function copyMedia(from: string, into: string, limit = MEDIA_STEP):
   return { copied, left: Math.max(0, todo.length - limit) };
 }
 
-/** The console's "copy the rest of the pictures" after a restore into a new id. Logged. */
-export async function copyMediaNow(op: AuditActor, from: string, into: string): Promise<{ copied: number; left: number }> {
-  if (!(await families()).some((f) => f.id === into)) throw invalid('backup.err.no_family');
-  const r = await copyMedia(from, into);
-  await accounts().batch([audit(op, 'backup.copy_media', into, { from, copied: r.copied })]);
+/**
+ * The console's "copy the rest of the pictures" after a restore into a new id: only from the source that restore recorded into
+ * the family it made, while that family is still the one the restore left (its claim goes with it), the source is still the same
+ * family, and pictures are left to copy. Logged.
+ */
+export async function copyMediaNow(op: AuditActor, into: string, limit = MEDIA_STEP): Promise<{ copied: number; left: number }> {
+  const c = await accounts().get<{ source: string | null; source_created: number | null; state: string; media: number }>(
+    "SELECT source, source_created, state, media FROM family_claim WHERE tree = ? AND what = 'restore'", into);
+  if (!c?.source || c.state !== 'restored' || c.media !== 1 || !(await families()).some((f) => f.id === into)) throw invalid('backup.err.no_media');
+  if ((await madeAt(c.source)) !== (c.source_created ?? null)) {
+    await accounts().run("UPDATE family_claim SET media = 0 WHERE tree = ? AND what = 'restore'", into);
+    throw invalid('backup.err.no_media');
+  }
+  const r = await copyMedia(c.source, into, limit);
+  await accounts().batch([
+    ...(r.left ? [] : [q("UPDATE family_claim SET media = 0 WHERE tree = ? AND what = 'restore'", into)]),
+    audit(op, 'backup.copy_media', into, { from: c.source, copied: r.copied }),
+  ]);
   return r;
 }
 
@@ -403,7 +486,7 @@ export async function rollbackFamily(op: AuditActor, tree: string, point: number
   } catch {
     throw invalid('backup.err.fresh_failed');
   }
-  await accounts().batch([audit(op, 'backup.rollback', tree, { at: p.at, fresh: fresh.name })]);
+  await accounts().batch([pin(tree, fresh.name, now + PIN_MS), audit(op, 'backup.rollback', tree, { at: p.at, fresh: fresh.name })]);
   let undo: string;
   try {
     undo = await r.rollback(tree, p.bookmark);

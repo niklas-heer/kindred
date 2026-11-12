@@ -34,6 +34,15 @@ export function dumpDatabase(exec: Exec, columns: Columns): Dump {
 /** Rows per table of a dump, for its manifest. */
 export const dumpCounts = (d: Dump) => Object.fromEntries(d.tables.map((t) => [t.name, t.rows.length]));
 
+/** The newest migration a dump records (its `d1_migrations` rows), or null. */
+export function dumpSchema(d: Dump): string | null {
+  const t = d.tables.find((x) => x.name === 'd1_migrations');
+  const i = t ? t.columns.indexOf('name') : -1;
+  if (!t || i < 0) return null;
+  const names = t.rows.map((r) => r[i]).filter((v): v is string => typeof v === 'string').sort();
+  return names.at(-1) ?? null;
+}
+
 /** Rows per table of a live database (its own tables only), for a manifest or a drill. */
 export function tableCounts(exec: Exec): Record<string, number> {
   const tables = (exec("SELECT name FROM sqlite_master WHERE type = 'table'") as { name: string }[]).map((t) => t.name).filter((n) => !INTERNAL.test(n) && NAME.test(n));

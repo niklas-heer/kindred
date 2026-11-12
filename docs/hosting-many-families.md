@@ -489,7 +489,7 @@ does one at once (logged).
 
 | Install | A family | The accounts database |
 | --- | --- | --- |
-| Node and Docker | `VACUUM INTO` a temporary file (a consistent copy while the family keeps being used), then `<data>/backups/<id>/<UTC time>.kbak`, or under `KINDRED_BACKUP_DIR` | the same, under `_accounts/` |
+| Node and Docker | `VACUUM INTO` a temporary file in the data folder (`<data>/.backup-tmp/`, mode 700, the file 600; a consistent copy while the family keeps being used; removed when sealed, and what a crash left is removed when the server starts), then `<data>/backups/<id>/<UTC time>.kbak`, or under `KINDRED_BACKUP_DIR`, which never holds anything unencrypted | the same, under `_accounts/` |
 | Workers, a family in its Durable Object | the object reads its own SQLite in one synchronous pass inside one storage transaction (every table's schema and rows, BLOBs intact) and puts the file into the MEDIA bucket under `_backups/<id>/` | the same, when the accounts are in their Durable Object |
 | Workers, a family in a bound D1 database (`TREE_<ID>`) | not backed up by Kindred: D1 Time Travel keeps 30 days ([deploy-cloudflare.md](deploy-cloudflare.md#backups)); the Health tab lists it | D1 Time Travel, when `ACCOUNTS` is bound |
 
@@ -510,8 +510,11 @@ sealed it. The same manifest is in the accounts database (`family_backup`, migra
 `<time>.json`. Because the header is authenticated, a file copied under another family's id or name, or changed in any byte,
 does not open.
 
-**Keeping.** Of each family the newest backup of each of the last **7 days**, **4 weeks** and **12 months** (UTC), and always the
-newest; the tab's *How long backups are kept* changes the numbers. When a family is deleted its backups stay for a **grace period**
+**Keeping.** Counted back from today (UTC): of each family the newest backup of each day of the last **7 days**, of each week of
+the last **4 weeks** and of each month of the last **12 months**; the tab's *How long backups are kept* changes the numbers. So
+nothing is kept longer than the months set, however long ago a family's backups stopped, with one exception: the **newest backup
+of a living family is always kept**, so a family whose backups failed for a year still has its last one. The backup made just
+before a restore over a family or a rollback is kept for **7 days** whatever the numbers say. When a family is deleted its backups stay for a **grace period**
 (30 days by default, set on the same tab, 0 to 365), and the daily run deletes them after it. Until then they are listed under
 *Deleted families* and one can be restored into a new family. Backups are where a deleted family's data, and an erased person,
 lingers ([gdpr.md](gdpr.md#backups-and-the-nightly-archive)): say how long in your privacy policy.
@@ -525,15 +528,22 @@ served. A failed drill fails the `backup-drill` job, so the Health tab shows it.
 
 **Restore.** Open a family's backups and choose *Restore…*:
 
-- **Into a new family** (the default): the backup becomes a family of its own at an address you choose, which must be free. The
-  original's stewards are its stewards; when it has none left (a deleted family), the tab shows a one-time link that makes its
-  first steward, as for a family made for someone. The original stays as it is. The pictures and documents the original still
-  has are copied to the new family, up to 200 at a time; *Copy more pictures* continues.
+- **Into a new family** (the default): the backup becomes a family of its own at an address you choose, which must be free. Its
+  stewards are the people who stewarded the family **when the backup was made** (each backup records them) and still have an
+  account here, and nobody else: not the family that holds the address now (a deleted family's address can be used again), and
+  not you. When none of them is left, the restore is refused and says why; Kindred never hands you a link into a family's records
+  instead. The address is claimed before anything is written, so a family made there at the same moment, or a second restore,
+  is refused, and the restore never writes over a family. The original stays as it is. While the backup's family still holds
+  its address, its pictures and documents are copied to the new family, up to 200 at a time; *Copy more pictures* continues,
+  only from that family into this one. A deleted family's pictures went with it, and another family's are never copied.
 - **Over the family**: the family is replaced by the backup, and everything written since is gone from it. It needs the family's
-  address typed and a fresh proof (as deleting does), and a fresh backup of the family is made first, so the restore itself can
-  be undone by restoring that one. A deleted family can only be restored into a new one.
+  address typed and a fresh proof (as deleting does), and a fresh backup of the family is made first (kept for at least 7 days),
+  so the restore itself can be undone by restoring that one. A deleted family can only be restored into a new one.
 
-Both are logged (`backup.restore_new`, `backup.restore_over`). **Pictures and documents are not versioned**: they are not in a
+Before either replaces anything, the backup is checked as the drill checks it (Node: `integrity_check`, rows and schema against
+the manifest; Workers: the drill in a scratch object, then the rows and schema again in the family's object before it is
+emptied): a backup that fails replaces nothing. Both are logged with the backup's name, time and schema
+(`backup.restore_new`, before and after, with how many stewards it got and the pictures copied; `backup.restore_over`). **Pictures and documents are not versioned**: they are not in a
 backup, and a restore does not bring back one that was deleted since; a restore over the family finds every file still in
 storage, and a record whose file was deleted since points at nothing. A D1-bound family is restored with D1 Time Travel instead.
 **The accounts database** is restored by hand, with the server stopped: decrypt its newest backup with `node

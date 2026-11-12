@@ -1,6 +1,8 @@
-// Which backups to keep (docs/hosting-many-families.md, "Backups"): the newest of each of the last `daily` days that have one,
-// of the last `weekly` ISO weeks and of the last `monthly` months (UTC), so a family keeps 7 daily, 4 weekly and 12 monthly
-// backups by default. The newest backup is always kept. Plain code: the console and its tests use it.
+// Which backups to keep (docs/hosting-many-families.md, "Backups"), counted back from today (UTC): the newest of each day of the
+// last `daily` days, of each ISO week of the last `weekly` weeks and of each month of the last `monthly` months, so with the
+// default 7, 4 and 12 nothing is older than 12 months, however long ago the backups stopped. The one exception: the newest
+// backup of a family is always kept, as long as the family lives (a deleted family's backups wait out the grace period
+// instead). Plain code: the console and its tests use it.
 
 export interface Keep { daily: number; weekly: number; monthly: number }
 export const DEFAULT_KEEP: Keep = { daily: 7, weekly: 4, monthly: 12 };
@@ -20,15 +22,28 @@ function week(t: number) {
   return `${thursday.getUTCFullYear()}-W${n}`;
 }
 
-/** Of backups made at `times` (ms), the indexes to keep. */
-export function keepIndexes(times: readonly number[], keep: Keep = DEFAULT_KEEP): Set<number> {
+/** The moment `months` calendar months before `t` (UTC; the 31st of a shorter month falls back to that month's last day). */
+function monthsBefore(t: number, months: number): number {
+  const d = new Date(t);
+  const first = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - months, 1);
+  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - months + 1, 0)).getUTCDate();
+  return first + (Math.min(d.getUTCDate(), last) - 1) * 86_400_000 + (t - Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
+/** Of backups made at `times` (ms), the indexes to keep `now`. */
+export function keepIndexes(times: readonly number[], keep: Keep, now: number): Set<number> {
   const order = times.map((t, i) => [t, i] as const).sort((a, b) => b[0] - a[0]);
   const kept = new Set<number>();
   if (order.length) kept.add(order[0]![1]);
-  for (const [n, bucket] of [[keep.daily, day], [keep.weekly, week], [keep.monthly, month]] as const) {
+  const windows = [
+    [keep.daily, day, now - keep.daily * 86_400_000],
+    [keep.weekly, week, now - keep.weekly * 7 * 86_400_000],
+    [keep.monthly, month, monthsBefore(now, keep.monthly)],
+  ] as const;
+  for (const [n, bucket, since] of windows) {
     const seen = new Set<string>();
     for (const [t, i] of order) {
-      if (seen.size >= n) break;
+      if (seen.size >= n || t <= since) break;
       const b = bucket(t);
       if (seen.has(b)) continue;
       seen.add(b);

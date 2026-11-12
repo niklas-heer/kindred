@@ -85,7 +85,7 @@ interface StoreStub {
   publish(): Promise<void>;
   backup(scope: string, name: string): Promise<{ manifest: Manifest; bytes: number }>;
   drill(scope: string, name: string): Promise<DrillResult>;
-  restoreBackup(scope: string, name: string): Promise<string[]>;
+  restoreBackup(scope: string, name: string, over: boolean): Promise<string[]>;
   recoveryPoints(): Promise<RecoveryPoint[]>;
   currentBookmark(): Promise<string>;
   rollback(bookmark: string): Promise<void>;
@@ -260,11 +260,14 @@ const backups: BackupStore = {
     backupKey(scope, name);
     return stub(`drill:${crypto.randomUUID()}`).drill(scope, name);
   },
-  async restore(scope, name, into) {
+  async restore(scope, name, into, opts) {
     checkId(into);
     if (isD1(env[treeBinding(into)])) throw new Error(`${into} is served by a bound D1 database: restore it with D1 Time Travel`);
     await checkPlace(true);
-    await stub(objectName(into)).restoreBackup(scope, name);
+    // The drill first, in a scratch object: a backup that does not load and match its manifest replaces nothing.
+    const drill = await stub(`drill:${crypto.randomUUID()}`).drill(scope, name);
+    if (!drill.ok || drill.problem) throw new Error(`The backup does not pass its checks, so nothing was replaced: ${drill.problem ?? 'failed'}`);
+    await stub(objectName(into)).restoreBackup(scope, name, opts?.over === true);
     reportedHere.delete(into);
     forgetReports(into);
     return q('INSERT INTO family_store (tree, driver, created_at) VALUES (?, ?, ?) ON CONFLICT(tree) DO NOTHING', into, DURABLE, new Date().toISOString());
