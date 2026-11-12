@@ -59,6 +59,8 @@ export default defineConfig({
       // The journeys never ask OpenStreetMap: the address box suggests offline towns only.
       KINDRED_ADDRESS_LOOKUP: 'off',
       KINDRED_SETUP_CODE: SETUP_CODE,
+      // Sign-up's Turnstile is a local stand-in (journey 32): nothing reaches Cloudflare.
+      KINDRED_TURNSTILE_FAKE: '1',
     },
   },
 });
