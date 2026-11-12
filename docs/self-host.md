@@ -65,12 +65,14 @@ This file was written from the repository's `compose.yaml` and could not be run 
 
 ## Choosing how people sign in
 
-Each installation uses exactly one sign-in method, set by `KINDRED_AUTH`. It is a deployment setting, not a switch inside
-Kindred, because choosing wrongly can lock people out or open the site.
+Each installation uses exactly one sign-in mode, set by `KINDRED_AUTH`: Kindred's own accounts, or Cloudflare Access. It is a
+deployment setting, not a switch inside Kindred, because choosing wrongly can lock people out or open the site. Under Kindred's
+own accounts, the operator then chooses in the console which ways in it offers (passkeys, a username and password, or both; see
+[Ways in](#ways-in-passkeys-and-passwords)).
 
 | | `kindred` (the default) | `cloudflare-access` |
 | --- | --- | --- |
-| **How people sign in** | A passkey on their phone or computer | Whatever your Cloudflare Access policy allows: an email code, Google, your company login |
+| **How people sign in** | A passkey on their phone or computer, and a username and password if the operator offers them | Whatever your Cloudflare Access policy allows: an email code, Google, your company login |
 | **Who looks after logins** | Kindred, with nothing more to run | You, in Cloudflare Zero Trust |
 | **Choose it when** | You want Kindred to work by itself, anywhere it runs | You already manage people in Cloudflare and want one place to add or remove them |
 | **What it costs** | HTTPS and a host name that stays the same. A relative who loses every device needs a new invitation | A Cloudflare account and an Access application whose policy lets in every relative. Guests need a second host name |
@@ -95,6 +97,44 @@ With `cloudflare-access`, set three things (`KINDRED_AUTH`, `CF_ACCESS_TEAM_DOMA
 
 Stewards can see the active method on the family's Access page. It is read-only there.
 
+### Ways in: passkeys and passwords
+
+Under Kindred's own sign-in, the operator console's **Sign-in** tab shows each way in as *Unavailable* (this server cannot
+offer it), *Configured* (it could be turned on) or *Enabled*, with how many accounts use it and how many have no other way in.
+Any combination works. A fresh install and an upgrade offer passkeys only, so upgrading changes nothing.
+
+- **Where the list comes from**, first match wins: `KINDRED_AUTH_METHODS` (below); what the operator saved in the console; a
+  list in `KINDRED_AUTH` itself (`KINDRED_AUTH=passkey,password`, which also means Kindred's own sign-in): the console starts
+  from it and, once saved there, holds from then on; otherwise passkeys only.
+- **`KINDRED_AUTH_METHODS`** is the break-glass override for an operator who locked themselves out: set it (`passkey,password`),
+  restart or redeploy, sign in, fix the console, then remove it. While it is set the console shows the list and cannot change
+  it, and a session started by a way it leaves out is not honoured. A value Kindred cannot read is ignored, and the log says so.
+- **Turning a way off** is refused when an operator would be left without a way in; the console first says how many accounts
+  would lose their only one; and every session that way started ends. Nobody's account or families are touched.
+- **A password** is at least 12 characters (spaces count, a short sentence is ideal), at most 256, not on Kindred's bundled list
+  of common passwords and not the username; there are no other rules. The username is chosen with the first password, is
+  unique however it is written, and is the only thing typed with it. Kindred stores the password as PBKDF2-HMAC-SHA-256 with
+  600,000 iterations (six chained rounds of 100,000, the most one call may do on Workers), a random salt, and a pepper keyed
+  from `KINDRED_SECRET`, so a copied database alone cannot be guessed against. **Changing `KINDRED_SECRET` makes every password
+  stop working**, as it does the saved AI keys: people then need a reset link. The stored hash names its scheme, so a later,
+  stronger one replaces it at the next sign-in.
+- **Guessing** is limited in the accounts database, the same on Node and on every Worker isolate: 5 failures per username in 15
+  minutes, then a wait that doubles after each lockout (up to 16 hours, never permanent); 20 failures an hour per network; and
+  after 500 failures an hour on the whole server the form asks for Cloudflare Turnstile, when `KINDRED_TURNSTILE_*` is set. An
+  unknown username gets the same answer as a wrong password, after the same work. Two-step and recovery codes count too.
+- **Two-step codes** (an authenticator app, TOTP) are optional for everyone, set up from the account menu, and each code works
+  once. An operator who signs in with a password reaches the console only with them on. Turning them on gives ten one-use
+  **recovery codes**.
+- **Forgotten passwords**: there is no email. A recovery code (with the app's code, when two-step codes are on) sets a new password
+  from the sign-in page; a passkey on the account still signs in; or an operator makes a **one-hour reset link** in the console's
+  Sign-in tab (it needs their fresh proof, is in the audit log, may also turn two-step codes off for a lost phone, and changes
+  nothing but the password). Stewards cannot reset anyone.
+- **Linking ways in**: a signed-in account adds a password or a passkey from "Your name & passkeys", after confirming it is them.
+  A way in is never added by matching an email address. An account always keeps one way in the server accepts.
+- **Every sign-in is a new session**, and confirming "it's you" before a sensitive step (deleting a family, adding a passkey)
+  works with the password (and the app's code) for accounts without a passkey.
+- The guest host never honours a password, and a demo offers none.
+
 ### When the setting is wrong
 
 Kindred never guesses and never falls back to something more open. Until the setting is fixed, the members' site shows a
@@ -103,7 +143,7 @@ page naming the problem, nobody can sign in, and the log says the same once. The
 | Situation | What to do |
 | --- | --- |
 | `KINDRED_AUTH` is empty and `CF_ACCESS_TEAM_DOMAIN` or `CF_ACCESS_AUD` is set | Choose: set `KINDRED_AUTH` |
-| `KINDRED_AUTH` is anything but the two values | Correct the value |
+| `KINDRED_AUTH` is anything but the two values or a list of ways in | Correct the value |
 | `KINDRED_AUTH=cloudflare-access` without both Access values | Set both |
 | `CF_ACCESS_TEAM_DOMAIN` is not a host name | Use the form `myfamily.cloudflareaccess.com` |
 
@@ -123,7 +163,7 @@ they are that account.
 ## Settings
 
 Compose reads `.env` for the settings below, and passes the ones the app reads into the container: `KINDRED_ORIGIN`,
-`KINDRED_AUTH`, `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `KINDRED_GUEST_ORIGIN`, `KINDRED_SETUP_CODE`, `KINDRED_REQUIRE_SETUP_CODE`, `KINDRED_DEFAULT_TREE`, `KINDRED_SECRET`, the three `KINDRED_VAPID_*` reminder
+`KINDRED_AUTH`, `KINDRED_AUTH_METHODS`, `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `KINDRED_GUEST_ORIGIN`, `KINDRED_SETUP_CODE`, `KINDRED_REQUIRE_SETUP_CODE`, `KINDRED_DEFAULT_TREE`, `KINDRED_SECRET`, the three `KINDRED_VAPID_*` reminder
 settings, `KINDRED_JOBS`, `KINDRED_TRUSTED_PROXIES` and `KINDRED_DEMO`. `KINDRED_DOMAIN` goes to
 Caddy, and `WITH_GAZETTEER` and `KINDRED_COMMIT` to the build. An empty value is the same as an unset one, so the defaults still apply. Without
 Docker, set them as environment variables for the server.
@@ -134,7 +174,8 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `KINDRED_AUTH` | `kindred` | The installation's one sign-in method: `kindred` or `cloudflare-access`. See [Choosing how people sign in](#choosing-how-people-sign-in). |
+| `KINDRED_AUTH` | `kindred` | The installation's sign-in mode: `kindred` or `cloudflare-access`. Or a list of Kindred's own ways in (`passkey,password`), which the operator console starts from. See [Choosing how people sign in](#choosing-how-people-sign-in). |
+| `KINDRED_AUTH_METHODS` | empty | Break-glass: a list of ways in (`passkey`, `password`) that overrides the console, for an operator who locked themselves out. Remove it once fixed. See [Ways in](#ways-in-passkeys-and-passwords). |
 | `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` | unset | Used only with `KINDRED_AUTH=cloudflare-access`: your team domain and the Access application's audience tag. |
 | `KINDRED_GUEST_ORIGIN` | unset | The guest host for family share links, needed only with `KINDRED_AUTH=cloudflare-access` (see [deploy-cloudflare.md](deploy-cloudflare.md#guests-behind-access)). |
 | `KINDRED_ORIGIN` | `http://localhost:4901` in Compose; otherwise the address the request came in on | The public address, such as `https://family.example.org`. Passkeys are bound to its host name, sessions use its scheme for the cookie's `Secure` flag, and the setup warning uses it. Set it before the first sign-in. |
@@ -142,7 +183,7 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 | `KINDRED_REQUIRE_SETUP_CODE` | empty | `1`, `true`, `yes` or `required` (any case) does the same as `KINDRED_SETUP_CODE=required`; `0`, `false`, `no` or `off` does not. Any other value requires the code, to be safe, and the log says so once. |
 | `KINDRED_DEFAULT_TREE` | `family` | The family that `/` opens directly, for its members. Lower-case letters, digits and dashes. |
 | `KINDRED_DATA_DIR` | `/data` in the image, `data/` otherwise | Where the families, pictures, accounts and the secret are kept. Docker: fixed at `/data`. |
-| `KINDRED_SECRET` | the `secret` file in the data folder | The key that seals the AI keys the stewards save, and that the Campaign's weekly dice are drawn under. Set it here to keep it out of the data folder; it must then stay the same. |
+| `KINDRED_SECRET` | the `secret` file in the data folder | The key that seals the AI keys the stewards save and two-step code secrets, peppers passwords, and that the Campaign's weekly dice are drawn under. Set it here to keep it out of the data folder; it must then stay the same (a new one makes passwords and saved keys unusable). |
 | `KINDRED_ACCOUNTS_DB` | `accounts.db` in the data folder | Advanced: a different path for the accounts database. The tests use it. Compose does not pass it, and the image has no use for it: leave it unset. |
 | `KINDRED_GAZETTEER` | `gazetteer.db` in the data folder | The offline place search. The image sets it to a file it may contain (see below). |
 | `KINDRED_VAPID_PUBLIC_KEY`, `KINDRED_VAPID_PRIVATE_JWK`, `KINDRED_VAPID_SUBJECT` | empty | Web Push reminders. Make the three with `mise run vapid-keys -- mailto:you@example.org`. Without all three the Reminders item is hidden. See [Reminders](#reminders). |

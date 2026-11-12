@@ -28,6 +28,8 @@ services:
       KINDRED_SETUP_CODE: ${KINDRED_SETUP_CODE:-}
       KINDRED_REQUIRE_SETUP_CODE: ${KINDRED_REQUIRE_SETUP_CODE:-}
       KINDRED_AUTH: ${KINDRED_AUTH:-}
+      # Break-glass: overrides the ways in the operator console chose (docs/self-host.md, "Ways in").
+      KINDRED_AUTH_METHODS: ${KINDRED_AUTH_METHODS:-}
       CF_ACCESS_TEAM_DOMAIN: ${CF_ACCESS_TEAM_DOMAIN:-}
       CF_ACCESS_AUD: ${CF_ACCESS_AUD:-}
       # With Cloudflare Access: the guest host that share links point at (docs/deploy-cloudflare.md, "Guests behind Access").

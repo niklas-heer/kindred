@@ -187,12 +187,13 @@ invites the others.
 | Name | Kind | What it does |
 | --- | --- | --- |
 | `KINDRED_JURISDICTION` | variable | `eu` keeps every Durable Object (the families and the accounts) in the EU; `fedramp` in FedRAMP data centres. Empty: wherever Cloudflare places them. Choose it before the site is set up: once the first account or family is made, Kindred records it (in the `MEDIA` bucket) and refuses to run with another value. D1 databases and R2 buckets choose their jurisdiction when they are made. Not used on Node. |
-| `KINDRED_SECRET` | secret | Seals each family's AI key (AES-GCM under a key derived from this secret and the family's id). Set it before you save an AI key. Changing it makes the saved keys unreadable, so the settings page asks for them again. Back it up. |
+| `KINDRED_SECRET` | secret | Seals each family's AI key (AES-GCM under a key derived from this secret and the family's id) and each account's two-step code secret, and peppers account passwords. Set it before you save an AI key or anyone sets a password. Changing it makes the saved keys unreadable (the settings page asks for them again) and every password stop working (people then need a reset link). Back it up. |
 | `KINDRED_SETUP_CODE` | secret | A fixed code of at least 12 letters or digits, asked for by `/setup`. On Workers every isolate would make its own random code, so use a fixed one; do not use `required` there. Any other value locks setup. |
 | `KINDRED_ORIGIN` | variable | The public address, e.g. `https://family.example.org`. Passkeys are tied to it. Set it when the address is not the one the Worker sees. |
 | `KINDRED_GUEST_ORIGIN` | variable | The guest host for family share links, e.g. `https://guests.family.example.org`. Needed only with `KINDRED_AUTH=cloudflare-access`. See step 6, [Guests behind Access](#guests-behind-access). |
 | `KINDRED_DEFAULT_TREE` | variable | The family `/` opens directly, for its members. Without it, two or more families show the chooser. |
-| `KINDRED_AUTH` | variable | The one sign-in method: `kindred` (the default) or `cloudflare-access`. See step 6. |
+| `KINDRED_AUTH` | variable | The sign-in mode: `kindred` (the default) or `cloudflare-access`; or a list of Kindred's own ways in (`passkey,password`) for the operator console to start from. See step 6. |
+| `KINDRED_AUTH_METHODS` | variable | Break-glass: overrides the console's ways in (`passkey,password`) for an operator who locked themselves out. Remove it once fixed. See [Ways in](self-host.md#ways-in-passkeys-and-passwords). |
 | `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` | variable | Used only with `KINDRED_AUTH=cloudflare-access`. The team domain and the application's audience tag. See step 6. |
 | `KINDRED_VAPID_PUBLIC_KEY`, `KINDRED_VAPID_SUBJECT` | variable | Web Push reminders: the public VAPID key and a contact (`mailto:` or `https:`). Reminders stay hidden without them. See Reminders below. |
 | `KINDRED_VAPID_PRIVATE_JWK` | secret | Web Push reminders: the private VAPID key as JWK JSON. Keep it secret. |
@@ -235,7 +236,9 @@ Put the variables in the dashboard or in `wrangler.jsonc` under `vars`, as the o
 The archive runs in the same 06:00 UTC cron as reminders and enabled background AI tasks. Use a Workers plan
 with enough CPU time and subrequests for your family's exports.
 Share-link passwords are hashed with PBKDF2 at 100,000 iterations (the most Workers allow), which took about 20 ms of CPU
-in a measurement: like every page, more than the Workers free plan's 10 ms CPU limit (see [What you need](#what-you-need)). A first archive writes every file; an interrupted
+in a measurement: like every page, more than the Workers free plan's 10 ms CPU limit (see [What you need](#what-you-need)).
+Account passwords, when the operator offers them, run six such rounds (600,000 iterations of SHA-256): a sign-in took about
+45 ms (wall time on an Apple-silicon laptop) in `mise run smoke:worker` on local workerd, well within the Paid plan's CPU time. A first archive writes every file; an interrupted
 run logs a failure and retries on the next night. The branch changes only after the files are ready, so a failed
 run does not publish a partial archive. Node is not subject to Workers invocation limits.
 
@@ -273,8 +276,8 @@ subscriptions are rows of the `push_subscription` table in the `ACCOUNTS` databa
 > `CF_ACCESS_TEAM_DOMAIN` or `CF_ACCESS_AUD` set and no `KINDRED_AUTH`, every page of the members' site answers 503 and nobody can
 > sign in until the variable is set and deployed.
 
-Each installation has exactly one sign-in method. Leave `KINDRED_AUTH` unset, or set it to `kindred`, for Kindred's own accounts and
-passkeys. Then this step has nothing for you: put no Access application on the members' host name, or people will sign in twice.
+Each installation has exactly one sign-in mode. Leave `KINDRED_AUTH` unset, or set it to `kindred`, for Kindred's own accounts (passkeys,
+and a username and password when the operator console offers them; see [Ways in](self-host.md#ways-in-passkeys-and-passwords)). Then this step has nothing for you: put no Access application on the members' host name, or people will sign in twice.
 Self-hosting has the trade-offs and what happens to accounts: [Choosing how people sign in](self-host.md#choosing-how-people-sign-in).
 
 To make Cloudflare Access the only sign-in:
@@ -286,7 +289,8 @@ To make Cloudflare Access the only sign-in:
 3. Deploy, then open the site. That first sign-in makes the server's first family, named “Our family” (or its translation in the
    reader's language). If `KINDRED_SETUP_CODE` is set, `/setup` asks for the code first, and for the family's name.
 
-Kindred reads the identity only from the verified Access token. Its passkeys and its own sign-in screens are off.
+Kindred reads the identity only from the verified Access token. Its passkeys, passwords and its own sign-in screens are off, and the
+console's Sign-in tab shows them as unavailable.
 
 ### Guests behind Access
 

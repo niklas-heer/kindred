@@ -20,7 +20,7 @@ The operator runs the server. It is a role of the server, not of a family, and i
 ## The operator console
 
 **Operator console** in the account menu, at `/operator`. Only operators see the item, and the server checks the role on every
-call. It has ten tabs: Families, Statistics, Requests, Data requests, Settings, Policies, Announcements, Updates, Operators and Log.
+call. It has eleven tabs: Families, Statistics, Requests, Data requests, Settings, Sign-in, Updates, Policies, Announcements, Operators and Log.
 
 ### Families
 
@@ -142,6 +142,24 @@ characters of the SHA-256 of the terms' text, so changing the text makes a new v
 contributors or editors: the stewards are the ones who answer for a family. A family you make for someone in the console asks
 them when they take its steward invitation.
 
+### Sign-in
+
+How people get into their accounts (rules in [self-host.md](self-host.md#ways-in-passkeys-and-passwords)). Each way in, passkeys and
+a username and password, has a card: *Unavailable*, *Configured* or *Enabled*, how many accounts can use it and for how many it is
+the only way in. Before you save, the tab says how many accounts would be left with no way in; saving needs your fresh proof, ends
+every session a way you turned off started, and is refused if an operator would have no way in. Behind Cloudflare Access the tab
+is read-only, and while `KINDRED_AUTH_METHODS` is set it only shows what that setting chose.
+
+- **Passwords on a hosting server.** There is no email, so a forgotten password needs one of the account's recovery codes (which
+  come with two-step codes), another way in (a passkey), or you. Passkeys alone are the default; turn passwords on when your
+  families need them, and tell them to save their recovery codes.
+- **An operator who signs in with a password** reaches the console only with two-step codes on, and keeps them on while the
+  password is their only way in. Give every operator a passkey too if you can.
+- **A reset link** (in the same tab): type someone's username or email, optionally tick "also turn off their two-step codes"
+  (a lost phone), and hand them the link yourself. It works once, for an hour, sets a new password (and a username, if the
+  account had none) and signs out their other sessions. It needs your fresh proof, goes into the log, and adds nobody to any family
+  or role. Only operators can make one; stewards cannot reset anyone. Make sure it is really them before you hand it over.
+
 ### Policies
 
 What the families on this server may use, one card per feature, decided by the operator (`src/lib/operator/policy.server.ts`).
@@ -197,7 +215,7 @@ steward's "View as" preview only what the previewed reader would see shows.
 
 The operators, with **Make an operator** by email and **Step down**. The **Log** lists everything any operator did, newest first:
 when, who, what, and which family (making, suspending, closing, capping, recounting and deleting families, new invitation links,
-approving and declining requests, moving data requests on, changing settings, policies, the server's AI keys, announcements and operators). It never holds a family's records.
+approving and declining requests, moving data requests on, changing settings, policies, the server's AI keys, announcements, operators and ways in, and reset links). It never holds a family's records.
 The log is kept when a family is deleted. Turning the update check on or off is logged too.
 
 ### Statistics
