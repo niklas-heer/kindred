@@ -52,6 +52,8 @@
 /* A family its operator suspended: read-only for its members (src/routes/$tree.tsx). */
 .suspended-bar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 6px var(--gutter, 16px); background: var(--accent); color: var(--accent-text); font-size: var(--fs-2, 0.8125rem); font-weight: 600; text-align: center; }
 .suspended-bar p { margin: 0; }
+/* The statement of reasons under the bar: its ground is quieter in weight, not in colour, which on the accent would not read. */
+.suspended-bar .muted { color: inherit; font-weight: 400; }
 .shell.shell-suspended { grid-template-rows: auto auto minmax(0, 1fr) auto; }
 .shell.shell-suspended.shell-viewas { grid-template-rows: auto auto auto minmax(0, 1fr) auto; }
 
