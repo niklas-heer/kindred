@@ -60,7 +60,7 @@ export default {
   "shell.gallery_hint": "Photos et albums",
   "shell.ai_settings": "Réglages de l’IA",
   "shell.ai_settings_hint": "Activer les fonctions d’IA",
-  "shell.find_anyone": "Trouver quelqu’un…",
+  "shell.find_anyone": "Rechercher…",
   "shell.more": "Plus",
   "shell.group.explore": "Explorer",
   "shell.group.find_out": "Découvrir",

@@ -40,7 +40,7 @@ export default {
   "date.err.invalid": "実在しない日付です。",
   "common.appDescription": "家族が集う家系図。",
   "common.you": "あなた",
-  "life.born": "{year}年生まれ",
+  "life.born": "{year}年生",
   "life.circa": "約",
   "common.language": "言語",
   "common.people": "{count}人",

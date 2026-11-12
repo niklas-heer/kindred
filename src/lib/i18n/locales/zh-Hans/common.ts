@@ -40,7 +40,7 @@ export default {
   "date.err.invalid": "这不是一个真实存在的日期。",
   "common.appDescription": "一部鲜活的家谱。",
   "common.you": "你",
-  "life.born": "{year}年出生",
+  "life.born": "{year}年生",
   "life.circa": "约",
   "common.language": "语言",
   "common.people": "{count}人",
