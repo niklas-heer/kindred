@@ -36,6 +36,10 @@ services:
       KINDRED_GUEST_ORIGIN: ${KINDRED_GUEST_ORIGIN:-}
       KINDRED_DEFAULT_TREE: ${KINDRED_DEFAULT_TREE:-}
       KINDRED_SECRET: ${KINDRED_SECRET:-}
+      # The automatic backups' own key (docs/hosting-many-families.md, "Backups"). Empty: derived from KINDRED_SECRET.
+      KINDRED_BACKUP_KEY: ${KINDRED_BACKUP_KEY:-}
+      # Where the automatic backups go inside the container. Empty: /data/backups, in the data volume.
+      KINDRED_BACKUP_DIR: ${KINDRED_BACKUP_DIR:-}
       KINDRED_VAPID_PUBLIC_KEY: ${KINDRED_VAPID_PUBLIC_KEY:-}
       KINDRED_VAPID_PRIVATE_JWK: ${KINDRED_VAPID_PRIVATE_JWK:-}
       KINDRED_VAPID_SUBJECT: ${KINDRED_VAPID_SUBJECT:-}

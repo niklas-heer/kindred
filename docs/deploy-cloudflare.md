@@ -194,6 +194,7 @@ invites the others.
 | --- | --- | --- |
 | `KINDRED_JURISDICTION` | variable | `eu` keeps every Durable Object (the families and the accounts) in the EU; `fedramp` in FedRAMP data centres. Empty: wherever Cloudflare places them. Choose it before the site is set up: once the first account or family is made, Kindred records it (in the `MEDIA` bucket) and refuses to run with another value. D1 databases and R2 buckets choose their jurisdiction when they are made. Not used on Node. |
 | `KINDRED_SECRET` | secret | Seals each family's AI key (AES-GCM under a key derived from this secret and the family's id) and each account's two-step code secret, and peppers account passwords. Set it before you save an AI key or anyone sets a password. Changing it makes the saved keys unreadable (the settings page asks for them again) and every password stop working (people then need a reset link). Back it up. |
+| `KINDRED_BACKUP_KEY` | secret | Optional: the key the automatic backups are sealed with ([Backups](#backups)), for example from `openssl rand -base64 32`. Without it they are sealed with a key derived from `KINDRED_SECRET`. Keep a copy: without the key the backups cannot be read. |
 | `KINDRED_SETUP_CODE` | secret | A fixed code of at least 12 letters or digits, asked for by `/setup`. On Workers every isolate would make its own random code, so use a fixed one; do not use `required` there. Any other value locks setup. |
 | `KINDRED_ORIGIN` | variable | The public address, e.g. `https://family.example.org`. Passkeys are tied to it. Set it when the address is not the one the Worker sees. |
 | `KINDRED_GUEST_ORIGIN` | variable | The guest host for family share links, e.g. `https://guests.family.example.org`. Needed only with `KINDRED_AUTH=cloudflare-access`. See step 6, [Guests behind Access](#guests-behind-access). |
@@ -525,6 +526,22 @@ npx wrangler dev -c dist/server/wrangler.json --local --persist-to deploy/demo/.
 
 ## Backups
 
+**Automatic backups.** Every night each family in its Durable Object, and the accounts when they are in theirs, back
+themselves up: the object reads its own SQLite in one synchronous pass, gzips and encrypts it, and puts it into the MEDIA bucket
+under `_backups/<id>/<UTC time>.kbak` (`_backups/_accounts/` for the accounts). The Worker keeps 7 daily, 4 weekly and 12
+monthly of each, tests a restore of one family and of the accounts each week in a scratch Durable Object, and lists them in the
+operator console's Backups tab, which restores a family into a new family or over itself. Before a family's object applies an
+update's migrations it records a recovery point, which the same tab rolls the family back to. All of it is described in
+[hosting-many-families.md](hosting-many-families.md#backups).
+
+- **The key**: `KINDRED_BACKUP_KEY` if you set it (a secret, step 5), else a key derived from `KINDRED_SECRET`. Lose it and the
+  backups cannot be read by anyone. Keep a copy outside Cloudflare.
+- **Families in D1** (`TREE_<ID>`) and accounts in `ACCOUNTS` are not backed up by Kindred: D1 Time Travel keeps 30 days of them
+  (below, and [Cloudflare's guide](https://developers.cloudflare.com/d1/reference/time-travel/)); the Health tab lists them.
+- **The same bucket** holds the backups and the pictures. To have a copy outside Cloudflare, copy the bucket's `_backups/`
+  prefix with R2's S3-compatible API (below) and open a file with `node scripts/backup-open.ts <file.kbak>` and the key.
+- **The accounts Durable Object** cannot be replaced from a backup yet; its backup is there to check and to read.
+
 **Durable Objects: a steward's backup.** A family's steward can save the family's records as one JSON file:
 
 ```sh
@@ -540,8 +557,8 @@ scores. The pictures are not in it: copy the bucket's `<id>/` objects (see R2 be
 To restore, import the file as a new family with the Kindred release that made it: `scripts/import-to-do.ts <id>
 --from-backup backups/family.json --media <folder> --url ... --remote` ([Moving a family into a Durable Object](#moving-a-family-into-a-durable-object)).
 The family is new on the server: the person who restores it is its steward and invites the others again. To restore under the
-same id, delete the broken family first. Cloudflare also keeps 30 days of point-in-time history for every SQLite Durable Object,
-but only code inside the Worker can reach it, and Kindred has no command for it. The family's own exports (GEDCOM or the
+same id, delete the broken family first. Cloudflare also keeps 30 days of point-in-time history for every SQLite Durable Object;
+only code inside the Worker can reach it, and Kindred uses it for the recovery points taken before an update. The family's own exports (GEDCOM or the
 Markdown archive, [exchange.md](exchange.md)) and the nightly archive are other copies you can hold. The sections that follow
 are about D1.
 

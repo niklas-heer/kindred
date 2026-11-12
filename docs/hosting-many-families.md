@@ -423,9 +423,90 @@ How the server is doing, read from the accounts database only (no family is open
   The tab names the families whose migration **failed**, with the reason, and those **behind** the newest schema any family
   reported: they have not been used since the update and catch up the next time they are. A family that never reported is
   counted. A D1-bound family is migrated by `wrangler d1 migrations apply` and does not report.
-- **Backup:** when the nightly archive is set up (`KINDRED_ARCHIVE_<ID>_REPO`), the time it last finished without failing;
-  otherwise "No automatic backup on this install", with a link to the backup guide for your install.
+- **Backup:** the automatic backups ([Backups](#backups), below): which key seals them (and a warning when it sits beside them, or
+  when backups were sealed with another key), how many there are and their size, each family (and the accounts database) without
+  a good backup for more than **two days**, the families D1 Time Travel covers instead, the last restore drills and whether they
+  passed, the recovery points of the last 30 days, and deleted families whose backups wait out the grace period. When the nightly
+  archive is set up (`KINDRED_ARCHIVE_<ID>_REPO`), also the time it last finished without failing. A link leads to the backup
+  guide for your install.
 - **Update check:** the last answer, or that it is off.
+
+### Backups
+
+Kindred backs up **every family and the accounts database** by itself, encrypted, and checks once a week that a backup can be
+restored. Nothing needs setting up beyond the key it already has. The Backups tab lists each family's backups by time, size,
+schema and row counts: the operator never reads what a family holds, here or anywhere else in the console.
+
+**When.** The daily run (06:00 UTC; `KINDRED_JOBS=off` stops it) backs up each database not backed up in the last 20 hours, the
+most stale first, for at most five minutes; those it does not reach are the most stale the next day. *Back up now* on the tab
+does one at once (logged).
+
+**Where and how.**
+
+| Install | A family | The accounts database |
+| --- | --- | --- |
+| Node and Docker | `VACUUM INTO` a temporary file (a consistent copy while the family keeps being used), then `<data>/backups/<id>/<UTC time>.kbak`, or under `KINDRED_BACKUP_DIR` | the same, under `_accounts/` |
+| Workers, a family in its Durable Object | the object reads its own SQLite in one synchronous pass inside one storage transaction (every table's schema and rows, BLOBs intact) and puts the file into the MEDIA bucket under `_backups/<id>/` | the same, when the accounts are in their Durable Object |
+| Workers, a family in a bound D1 database (`TREE_<ID>`) | not backed up by Kindred: D1 Time Travel keeps 30 days ([deploy-cloudflare.md](deploy-cloudflare.md#backups)); the Health tab lists it | D1 Time Travel, when `ACCOUNTS` is bound |
+
+`_backups/` and `_accounts` cannot collide with a family: family ids are lower-case letters, digits and dashes, and every
+media key starts with one. Pictures and documents are **not** in a backup (see Restore).
+
+**Encryption.** Each file is gzipped and sealed with AES-256-GCM. The key is derived (HKDF-SHA-256, purpose "backup") from
+`KINDRED_BACKUP_KEY` when it is set, otherwise from `KINDRED_SECRET` (on Node, the `secret` file when that is unset). **Lose the
+key and the backups are lost with it**: keep a copy of it somewhere other than the server. Better still, give backups a key of
+their own (`openssl rand -base64 32` into `KINDRED_BACKUP_KEY`) and keep it off the server's disk, in its environment or a
+secret store: then a copy of the data folder alone (or a stolen backup) cannot be read. On Node with neither set, the key comes
+from `data/secret`, next to `data/backups/`, and the tab says so. Changing the key leaves older backups unreadable; the tab
+counts them.
+
+Each file carries its **manifest** in an authenticated header, readable without the key: the family (or `_accounts`), when it
+was made, the newest migration it holds, its rows per table, its size and the SHA-256 of the database inside, and which key
+sealed it. The same manifest is in the accounts database (`family_backup`, migration 0051) and, on Node, beside the file as
+`<time>.json`. Because the header is authenticated, a file copied under another family's id or name, or changed in any byte,
+does not open.
+
+**Keeping.** Of each family the newest backup of each of the last **7 days**, **4 weeks** and **12 months** (UTC), and always the
+newest; the tab's *How long backups are kept* changes the numbers. When a family is deleted its backups stay for a **grace period**
+(30 days by default, set on the same tab, 0 to 365), and the daily run deletes them after it. Until then they are listed under
+*Deleted families* and one can be restored into a new family. Backups are where a deleted family's data, and an erased person,
+lingers ([gdpr.md](gdpr.md#backups-and-the-nightly-archive)): say how long in your privacy policy.
+
+**The restore drill.** Once a week the daily run takes the newest backup of the accounts database and of one family (the one
+drilled longest ago, so each takes its turn), decrypts it, loads it into a scratch database (Node: an in-memory SQLite; Workers: a
+scratch Durable Object, `drill:<uuid>`, which deletes what it stored when done), runs `PRAGMA integrity_check` (Workers:
+`quick_check`, as a Durable Object refuses `integrity_check`), and compares the row counts and the schema with the manifest. The
+result is on the Health tab and beside the backup; *Test a restore* runs it for one family now. Nothing from a drill is ever
+served. A failed drill fails the `backup-drill` job, so the Health tab shows it.
+
+**Restore.** Open a family's backups and choose *Restore…*:
+
+- **Into a new family** (the default): the backup becomes a family of its own at an address you choose, which must be free. The
+  original's stewards are its stewards; when it has none left (a deleted family), the tab shows a one-time link that makes its
+  first steward, as for a family made for someone. The original stays as it is. The pictures and documents the original still
+  has are copied to the new family, up to 200 at a time; *Copy more pictures* continues.
+- **Over the family**: the family is replaced by the backup, and everything written since is gone from it. It needs the family's
+  address typed and a fresh proof (as deleting does), and a fresh backup of the family is made first, so the restore itself can
+  be undone by restoring that one. A deleted family can only be restored into a new one.
+
+Both are logged (`backup.restore_new`, `backup.restore_over`). **Pictures and documents are not versioned**: they are not in a
+backup, and a restore does not bring back one that was deleted since; a restore over the family finds every file still in
+storage, and a record whose file was deleted since points at nothing. A D1-bound family is restored with D1 Time Travel instead.
+**The accounts database** is restored by hand, with the server stopped: decrypt its newest backup with `node
+scripts/backup-open.ts <file.kbak> --out accounts.db` (with `KINDRED_BACKUP_KEY` or `KINDRED_SECRET` set as on the server, or
+`--secret-file data/secret`), check what it says, and put the file in place of `accounts.db` (removing `accounts.db-wal` and
+`-shm`). On Workers the accounts Durable Object cannot be replaced from a backup yet: its backup is there to check and to read
+with the same script.
+
+**Recovery points before an update (Workers).** Before a family's Durable Object applies new migrations, it records its
+point-in-time-recovery bookmark (`ctx.storage.getCurrentBookmark()`; Cloudflare keeps 30 days of every SQLite Durable Object),
+with the first migration it was about to apply and the newest it held. The family reports it on its first answer
+(`recovery_point`, migration 0051), and the accounts object records its own. On the Backups tab a family's *Recovery points*
+offer *Roll back…*: with the family's address typed and a fresh proof, a fresh backup is made, the moment just before is kept as a
+recovery point of its own (so the rollback can be undone), and the object restarts at the bookmark
+(`onNextSessionRestoreBookmark`, then a reset). Everything written to the family since that point is undone. Logged
+(`backup.rollback`). If the update itself is at fault, roll the Worker back first (`npx wrangler rollback`): otherwise the
+family applies the same migrations again when it next starts. Local workerd keeps no such history, so there the tab refuses.
 
 ### New in Kindred
 

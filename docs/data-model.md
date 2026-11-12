@@ -190,9 +190,24 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0049_lasting_counts.sql` | Counts that outlive what they count, and bookkeeping for complete erasure ([gdpr.md](gdpr.md), [ai.md](ai.md#operator-funded-ai)): `ai_operator_family_month` (replaces `ai_operator_spend`, kept by the family's id when a family is deleted; rows copied), `ai_operator_overage`, `signup_tally` (rows copied from `signup`), `family_left`, `subject_action.pending` and `job_run.code`. |
 | `0050_round_seven_fixes.sql` | `ai_operator_overage.model`, `.acknowledged_at`, `.acknowledged_by` (an overage pauses the operator's AI for a family and model until acknowledged), `user.email_verified` (whether the address was verified, for `trust_email`) and `user.retiring`: the pseudonym an unused account's writing gets, claimed by the retention job before it changes anything ([gdpr.md](gdpr.md#retention)). |
 | `0052_family_lifecycle.sql` | The lifecycle of quiet families ([hosting-many-families.md](hosting-many-families.md#lifecycle)): `family_lifecycle` (where a quiet family stands), `family_admin.active_at` and `.status_by`, `steward_notice` (what a family's stewards were told in the app) and `steward_notice_dismissal`. Off until the operator turns it on. |
+| `0051_backups.sql` | The automatic backups ([hosting-many-families.md](hosting-many-families.md#backups)): `family_backup` (each encrypted backup's manifest), `backup_status` (each scope's last attempt, last good backup and last restore drill) and `recovery_point` (a Durable Object's bookmark from before it migrated). The retention and the grace period are `instance_setting` rows (`backup_keep`, `backup_grace_days`). |
 
 ### Tables
 
+- **`family_backup`** (0051): one row per automatic backup file (`src/lib/backup/backup.server.ts`): `family` (a family id, or
+  `_accounts` for this database) and `name` (the UTC time it was made, `20261112T060000123Z`, also its file name), `created_at`,
+  `bytes` (the encrypted file), `format` (`sqlite`, a Node database file; `dump`, a Durable Object's schema and rows), `schema`
+  (the newest migration it holds), `counts` (JSON: rows per table), `sha256` (of the database inside) and `key_id` (which key
+  sealed it, never the key). `gone_at`: when its family was deleted. The column is **`family`, not `tree`, on purpose**: deleting a
+  family must not delete its backups' rows with the family's other rows (`forgetInAccounts` finds tables by a `tree` column);
+  `deleteFamily` sets `gone_at`, and the daily backup run deletes the files and rows once the grace period has passed.
+- **`backup_status`** (0051): one row per scope (`family`, as above): `tried_at`, `ok_at` (the last good backup), `error` (the
+  last failure, sanitised as a job's failure is), and the last restore drill: `drill_at`, `drill_backup`, `drill_ok`,
+  `drill_problem`. Deleted with the last backup of a deleted family.
+- **`recovery_point`** (0051): a family's Durable Object's point-in-time-recovery `bookmark` from before it applied new
+  migrations (`reason` `migration`, with `before_migration`, the first it was about to apply, and `held_migration`, the newest it
+  held) or from just before a rollback (`rollback`), and `at`. Unique per `tree` and bookmark. The object keeps its own list and
+  reports it on its first answer in an isolate; the accounts object writes its own (`tree` `_accounts`). Deleted with the family.
 - **`family_store`** (0033): one row per family the Worker made in the `FAMILIES` Durable Object namespace (`tree`, the
   family's id; `driver`, `durable-object`; `created_at`, ISO 8601 in UTC), written by `store.ensureTree` and deleted by
   `store.dropTree`. A Worker cannot list Durable Objects, so this is how `store.treeIds()` finds them. Families in D1 or in a
@@ -563,12 +578,14 @@ These rules keep the data consistent without interactive transactions, which D1 
 - **Pictures and research documents are in media storage.** The database holds only keys (`photo/<uuid>.jpg`, `gallery/<uuid>.jpg`, `research/<uuid>.pdf`). Node keeps
   them in `data/media/<id>/`, Cloudflare in R2 under `<id>/<key>`. A replaced picture is deleted after the change that
   replaced it is written. Every file is stored and deleted through `media` in `src/lib/db.server.ts`, never `store.media` directly: it counts
-  the file against the family's storage cap (`media_usage`).
+  the file against the family's storage cap (`media_usage`). The one exception is the operator's restore into a new family
+  (`copyMedia` in `src/lib/backup/backup.server.ts`), which copies the original's files and then recounts the new family.
 - **A family's rows in the accounts database carry its id in a column named `tree`.** Deleting a family
   (`src/lib/families.server.ts`) removes every accounts row whose table has a `tree` column, found from the schema, so a
   table added later is included without a list to keep. A row that belongs to a family only through another row (a share
   session through its link, a running reply through its chat) is listed there by hand; add yours the same way. A family in a
-  Durable Object loses all its storage. A D1 family database is emptied rather than removed (`emptyDatabase` in `src/lib/store/db.ts`): every table but
+  Durable Object loses all its storage. The automatic backups' rows (`family_backup`, `backup_status`) name the family in a
+  column called `family` instead, so they outlast it for the operator's grace period. A D1 family database is emptied rather than removed (`emptyDatabase` in `src/lib/store/db.ts`): every table but
   `d1_migrations` and the tables a migration seeds with a starting row (`SEEDED_TABLES`, today `ancestry_rev`). A new
   migration that seeds a table with a row the app needs adds it there.
 - **A release's migrations are additive; clean-ups come one release later.** A migration in a release adds tables, columns

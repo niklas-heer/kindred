@@ -227,7 +227,7 @@ they are that account.
 ## Settings
 
 Compose reads `.env` for the settings below, and passes the ones the app reads into the container: `KINDRED_ORIGIN`,
-`KINDRED_AUTH`, `KINDRED_AUTH_METHODS`, `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `KINDRED_GUEST_ORIGIN`, `KINDRED_SETUP_CODE`, `KINDRED_REQUIRE_SETUP_CODE`, `KINDRED_DEFAULT_TREE`, `KINDRED_SECRET`, the three `KINDRED_VAPID_*` reminder
+`KINDRED_AUTH`, `KINDRED_AUTH_METHODS`, `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `KINDRED_GUEST_ORIGIN`, `KINDRED_SETUP_CODE`, `KINDRED_REQUIRE_SETUP_CODE`, `KINDRED_DEFAULT_TREE`, `KINDRED_SECRET`, `KINDRED_BACKUP_KEY`, `KINDRED_BACKUP_DIR`, the three `KINDRED_VAPID_*` reminder
 settings, `KINDRED_JOBS`, `KINDRED_TRUSTED_PROXIES` and `KINDRED_DEMO`. `KINDRED_DOMAIN` goes to
 Caddy, and `WITH_GAZETTEER` and `KINDRED_COMMIT` to the build. An empty value is the same as an unset one, so the defaults still apply. Without
 Docker, set them as environment variables for the server.
@@ -248,6 +248,8 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 | `KINDRED_DEFAULT_TREE` | `family` | The family that `/` opens directly, for its members. Lower-case letters, digits and dashes. |
 | `KINDRED_DATA_DIR` | `/data` in the image, `data/` otherwise | Where the families, pictures, accounts and the secret are kept. Docker: fixed at `/data`. |
 | `KINDRED_SECRET` | the `secret` file in the data folder | The key that seals the AI keys the stewards save and two-step code secrets, peppers passwords, and that the Campaign's weekly dice are drawn under. Set it here to keep it out of the data folder; it must then stay the same (a new one makes passwords and saved keys unusable). |
+| `KINDRED_BACKUP_KEY` | empty | The key the automatic backups are sealed with ([hosting-many-families.md](hosting-many-families.md#backups)), for example from `openssl rand -base64 32`. Empty: derived from `KINDRED_SECRET` (or the `secret` file). Keep a copy away from the server: without it the backups cannot be read. |
+| `KINDRED_BACKUP_DIR` | `backups/` in the data folder | Where the automatic backups go (`<scope>/<time>.kbak`). Another disk or a mounted folder keeps them apart from the data they back up. |
 | `KINDRED_ACCOUNTS_DB` | `accounts.db` in the data folder | Advanced: a different path for the accounts database. The tests use it. Compose does not pass it, and the image has no use for it: leave it unset. |
 | `KINDRED_GAZETTEER` | `gazetteer.db` in the data folder | The offline place search. The image sets it to a file it may contain (see below). |
 | `KINDRED_VAPID_PUBLIC_KEY`, `KINDRED_VAPID_PRIVATE_JWK`, `KINDRED_VAPID_SUBJECT` | empty | Web Push reminders. Make the three with `mise run vapid-keys -- mailto:you@example.org`. Without all three the Reminders item is hidden. See [Reminders](#reminders). |
@@ -335,6 +337,7 @@ Everything the app keeps is in the data folder: `/data` in the container, which 
 | Portraits, gallery pictures and research documents | `media/<id>/` | The database holds only each file's key. |
 | The sealing secret for saved AI keys | `secret` | Made the first time an AI key is saved, with mode 600. See below. |
 | Copies made before a migration | `backups/` | See "Upgrades". |
+| The automatic backups, encrypted | `backups/<id>/` and `backups/_accounts/` | One `.kbak` file a night per family and for the accounts, with its manifest as `.json`. See [Backups](#backups). |
 
 SQLite runs in WAL mode, so you will see `-wal` and `-shm` files next to each database while the app runs. They belong to the
 database: leave them in place, and never copy a live `.db` file with `cp`. Use the online backup below.
@@ -359,7 +362,31 @@ Nothing else is affected. If you set `KINDRED_SECRET`, that value is used instea
 
 ## Backups
 
-Back up three things: the family and account databases, the pictures, and the `secret` file.
+**Automatic backups.** The server backs up every family and the accounts database itself, every night, encrypted, into
+`backups/<id>/` in the data folder (or `KINDRED_BACKUP_DIR`), keeps 7 daily, 4 weekly and 12 monthly backups of each, and once a
+week restores one into a scratch database to check it. The operator console's Backups tab lists them and restores a family into
+a new family or over itself; its Health tab shows how old each family's last good backup is.
+[hosting-many-families.md](hosting-many-families.md#backups) explains all of it. Two things are yours to do:
+
+- **The key.** Backups are sealed with `KINDRED_BACKUP_KEY`, or with a key derived from `KINDRED_SECRET` (the `secret` file when
+  that is unset). Lose it and the backups are lost with it. With neither set, the key is the `secret` file beside the backups,
+  so a copy of the data folder carries both: set `KINDRED_BACKUP_KEY` (`openssl rand -base64 32`) in `.env`, and keep a copy of
+  it somewhere else.
+- **Another place.** The automatic backups are on the same disk as the data, which guards against a bad change or a broken
+  database, not against losing the disk. Copy `backups/` (or point `KINDRED_BACKUP_DIR` at another disk) as below. Pictures are
+  not in them.
+
+To open one by hand (the accounts database is restored that way), from a checkout of Kindred with Node 26 and the key in the
+environment as on the server:
+
+```sh
+KINDRED_BACKUP_KEY=... node scripts/backup-open.ts backups/_accounts/20261112T060000123Z.kbak --out accounts.db
+```
+
+It checks the file against its manifest and writes an ordinary SQLite file. Stop the app, put it in place of `accounts.db`,
+delete `accounts.db-wal` and `accounts.db-shm`, and start the app.
+
+**Copies you hold yourself.** Back up three things: the family and account databases, the pictures, and the `secret` file.
 
 **While the app runs (no downtime), with Docker.** The image has no `sqlite3` command, but it has Node's own online backup,
 which copies a live database the same way `.backup` does. It writes into `./backups` on this machine. The one-off containers

@@ -162,6 +162,22 @@ test('a changed file, another key and a file under another family\'s id do not o
   assert.deepEqual(await store.backups.drill('alderby', name!), { ok: true, problem: null, check: 'integrity_check' });
 });
 
+test('scripts/backup-open.ts opens a backup on another machine with the key, and not without it', async () => {
+  const { openToSqlite } = await import('../../../scripts/backup-open.ts');
+  const m = await b.backUp('alderby', new Date('2026-11-12T03:30:00.000Z'));
+  const bytes = (await store.backups.read('alderby', m.name))!;
+  const out = join(dir, 'opened-alderby.db');
+  const r = await openToSqlite(bytes, process.env.KINDRED_SECRET!, out);
+  assert.equal(r.problem, null);
+  const d = new DatabaseSync(out, { readOnly: true });
+  assert.equal((d.prepare('SELECT count(*) AS n FROM person').get() as { n: number }).n, 3, 'p1, p2 and p3, added by the test before');
+  assert.deepEqual([...(d.prepare('SELECT b FROM probe_blob WHERE id = 1').get() as { b: Uint8Array }).b], [...BLOB]);
+  d.close();
+  await assert.rejects(openToSqlite(bytes, 'not the key', join(dir, 'opened-wrong.db')), /another key/);
+  await store.backups.remove('alderby', m.name);
+  await store.accounts().run('DELETE FROM family_backup WHERE family = ? AND name = ?', 'alderby', m.name);
+});
+
 test('the drill finds a backup whose rows do not match its manifest, and a damaged database', async () => {
   const k = await kbak.deriveBackupKey(process.env.KINDRED_SECRET!);
   const m = await b.backUp('brackwell', new Date('2026-11-12T04:00:00.000Z'));

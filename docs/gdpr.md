@@ -135,13 +135,23 @@ operator's own backups keep a copy, for as long as they are kept (below).
 
 ## Backups and the nightly archive
 
-Erasure and deletion reach the live databases and the stored files. They do not reach copies made before:
+Erasure and deletion reach the live databases and the stored files. They do not reach copies made before. **Backups are where
+erased data lingers**, and that is by design: a backup that forgot what was erased since could not undo a mistake either.
 
+- **The automatic backups** ([hosting-many-families.md](hosting-many-families.md#backups)): every family and the accounts
+  database, every night, encrypted. With the default retention (7 daily, 4 weekly, 12 monthly) an erased person, a deleted
+  account or a removed record is still in the backups made before, for **up to about a year**. A deleted family's backups are
+  kept for the grace period the operator sets (30 days by default) and then deleted. Shorten the retention or the grace period on
+  the Backups tab if your policy needs less, and say what you keep in your privacy policy. The backups are encrypted with a key
+  only the server holds; whoever has the key and a backup can read it. Restoring one brings erased data back: erase it again after
+  a restore. The recovery points of a Durable Object (30 days, Cloudflare's) are the same: a rollback brings back what was
+  changed or erased since.
 - **Your own backups** (`docs/self-host.md`, "Backups"; D1 exports; the files copied before a migration in `backups/`) keep
   everything until you delete them. Rotate them (for example: daily for 30 days), and say how long in your privacy policy. Restoring
   one brings erased data back: erase it again after a restore.
 - **Cloudflare**: D1 keeps point-in-time history (Time Travel: 30 days on the paid plan, 7 on the free one), and every SQLite
-  Durable Object 30 days of its own. Kindred has no command to read them; they age out on their own.
+  Durable Object 30 days of its own. Kindred reads neither, but rolls a family back to a recovery point when the operator asks;
+  they age out on their own.
 - **A steward's backup or export** (JSON, GEDCOM, Markdown) is the family's copy, outside the server.
 - **The nightly archive to GitHub** (`KINDRED_ARCHIVE_<ID>_*`, [exchange.md](exchange.md)): the next night's commit no longer holds
   an erased person, but **every earlier commit still does**, for as long as the repository's history is kept. To erase from it,
