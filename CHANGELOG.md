@@ -39,7 +39,8 @@ New settings: `KINDRED_BACKUP_KEY`, `KINDRED_BACKUP_DIR`, `KINDRED_MAIL_API_KEY`
 - **Optional email** (Resend, Postmark, Mailgun with an EU region, or SMTP on Node), set up in the console's Email tab:
   confirming your address, password reset by email to a confirmed address, sign-up codes that skip the waiting list,
   security notices, invitations by email, and notices to operators, data requesters and stewards, in the reader's language,
-  with one-click unsubscribe for everything but security and breach notices. Limits per address, account, network and
+  with one-click unsubscribe for everything but security notices, breach notices and a family's final notice before
+  deletion. Limits per address, account, network and
   server, with a reserve for security mail. The provider is listed as a subprocessor.
 - Breach notices record whom they reached and the daily job retries the rest.
 - 2.5.0's highlights in "New in Kindred".
