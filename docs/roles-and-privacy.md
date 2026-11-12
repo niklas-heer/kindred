@@ -491,10 +491,11 @@ The Campaign is a game a member plays alone, as their own house, with a weekly t
   browser sent and keeps the score that comes out.
 - **Guests:** a share-link guest gets nothing of it. Every call needs a membership, the page sends a guest back to the
   tree, and the section is not in a guest's navigation.
-- **What it reads:** the houses and their arms, the places and their coordinates, counts per house of people with a
-  portrait, with dates, with a birthplace and with memories (and life events and sources), and whether the member answered
-  today's quiz right. Counts only: no name, date or text of a person enters the game. Place names appear on the map, which
-  only members see.
+- **What it reads:** the houses and their arms, counts per house of people with a portrait, with dates, with a
+  birthplace and with memories (and life events and sources), and whether the member answered today's quiz right. Counts
+  only: no name, date or text of a person enters the game.
+- **What is on the board:** an invented continent. Its provinces, towns and seas have invented names, and none of the
+  family's places is on it: the family is there only as its houses, with their names and arms.
 - **What it writes:** only its own tables. It never changes a person, a house, a place or anything else the family
   recorded.
 - **What it keeps about a member:** each reign they begin, with their account id, the name they had then, the house they
