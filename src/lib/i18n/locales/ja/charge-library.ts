@@ -580,7 +580,7 @@ export default {
   "heraldry.library.liver": "肝臓",
   "heraldry.library.nose": "鼻",
   "heraldry.library.heartbeat": "心拍",
-  "heraldry.library.nails": "爪",
+  "heraldry.library.nails": "釘（大工用）",
   "heraldry.library.ocarina": "オカリナ",
   "heraldry.library.maracas": "マラカス",
   "heraldry.library.bassoon": "ファゴット",

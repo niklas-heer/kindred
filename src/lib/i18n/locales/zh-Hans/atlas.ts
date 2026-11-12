@@ -73,5 +73,5 @@ export default {
   "atlas.unfold_short": "展开",
   "atlas.fold_short": "收起",
   "atlas.close_chronicle": "关闭编年史",
-  "atlas.show_earlier": "显示更早的",
+  "atlas.show_earlier": "显示更早的年份",
 } satisfies Strings<typeof en, "zh-Hans">;

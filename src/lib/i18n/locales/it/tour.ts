@@ -123,5 +123,5 @@ export default {
   "tour.g.share.body": "Un link per i parenti che vogliono guardare senza account. Leggono come ospiti, le persone in vita sono protette e puoi chiudere il link in qualsiasi momento.",
   "tour.g.viewas.title": "Guarda come",
   "tour.g.viewas.body": "Guarda la famiglia esattamente come la vedrebbe un lettore, un collaboratore, un redattore o un ospite, senza prendere in prestito il loro telefono. Un’anteprima è di sola lettura.",
-  "tour.g.games.body": "Attiva o disattiva la Campagna e il quiz settimanale per tutta la famiglia.",
+  "tour.g.games.body": "Attiva o disattiva la Campagna e il quiz quotidiano per tutta la famiglia.",
 } satisfies Strings<typeof en, "it">;

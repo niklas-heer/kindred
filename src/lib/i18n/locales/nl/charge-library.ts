@@ -580,7 +580,7 @@ export default {
   "heraldry.library.liver": "Lever",
   "heraldry.library.nose": "Neus",
   "heraldry.library.heartbeat": "Hartslag",
-  "heraldry.library.nails": "Nagels",
+  "heraldry.library.nails": "Timmermansspijkers",
   "heraldry.library.ocarina": "Ocarina",
   "heraldry.library.maracas": "Maracas",
   "heraldry.library.bassoon": "Fagot",

@@ -7,7 +7,7 @@ export default {
   "feed.to_chronicle_hint": "Alle Erinnerungen, Sprüche und Rezepte, mit Suche",
   "feed.loading": "Was die Familie gerade bewegt, wird geholt …",
   "feed.failed": "Die Neuigkeiten der Familie konnten nicht geladen werden.",
-  "feed.more": "Früheres zeigen",
+  "feed.more": "Ältere Nachrichten zeigen",
   "feed.more_loading": "Frühere Neuigkeiten werden geholt …",
   "feed.end": "Das ist alles bisher.",
   "feed.empty_title": "Noch ist es still hier",

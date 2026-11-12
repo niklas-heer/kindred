@@ -123,5 +123,5 @@ export default {
   "tour.g.share.body": "Un enlace para los familiares que quieren mirar sin cuenta. Leen como visitantes, las personas vivas están protegidas y puedes terminar el enlace cuando quieras.",
   "tour.g.viewas.title": "Ver como",
   "tour.g.viewas.body": "Mira la familia exactamente como la vería un lector, un colaborador, un editor o un visitante, sin pedirles prestado el teléfono. Una vista previa es de solo lectura.",
-  "tour.g.games.body": "Activa o desactiva la Campaña y la trivia semanal para toda la familia.",
+  "tour.g.games.body": "Activa o desactiva la Campaña y la trivia diaria para toda la familia.",
 } satisfies Strings<typeof en, "es">;

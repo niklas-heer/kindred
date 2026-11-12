@@ -127,5 +127,5 @@ export default {
   "tour.g.share.body": "Link dla krewnych, którzy chcą zajrzeć bez konta. Czytają jako goście, żyjący są chronieni, a link można w każdej chwili zakończyć.",
   "tour.g.viewas.title": "Zobacz jako",
   "tour.g.viewas.body": "Zobacz rodzinę dokładnie tak, jak widzi ją czytelnik, współtwórca, redaktor lub gość, bez pożyczania ich telefonu. Podgląd jest tylko do odczytu.",
-  "tour.g.games.body": "Włącz lub wyłącz Kampanię i cotygodniowy quiz dla całej rodziny.",
+  "tour.g.games.body": "Włącz lub wyłącz Kampanię i codzienny quiz dla całej rodziny.",
 } satisfies Strings<typeof en, "pl">;

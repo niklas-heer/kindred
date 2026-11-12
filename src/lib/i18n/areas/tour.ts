@@ -126,5 +126,5 @@ export const en = {
   "tour.g.share.body": "A link for relatives who want to look without an account. They read as guests, living people are protected, and you can end the link at any time.",
   "tour.g.viewas.title": "View as",
   "tour.g.viewas.body": "See the family exactly as a viewer, a contributor, an editor or a guest would, without borrowing their phone. A preview is read-only.",
-  "tour.g.games.body": "Switch the Campaign and the weekly quiz on or off for the whole family.",
+  "tour.g.games.body": "Switch the Campaign and the daily quiz on or off for the whole family.",
 };

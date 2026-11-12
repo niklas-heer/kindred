@@ -580,7 +580,7 @@ export default {
   "heraldry.library.liver": "Wątroba",
   "heraldry.library.nose": "Nos",
   "heraldry.library.heartbeat": "Bicie serca",
-  "heraldry.library.nails": "Gwoździe",
+  "heraldry.library.nails": "Gwoździe (ciesielskie)",
   "heraldry.library.ocarina": "Ocarina",
   "heraldry.library.maracas": "Marakasy",
   "heraldry.library.bassoon": "Fagot",

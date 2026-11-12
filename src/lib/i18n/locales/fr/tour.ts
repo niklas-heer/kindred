@@ -123,5 +123,5 @@ export default {
   "tour.g.share.body": "Un lien pour les proches qui veulent regarder sans compte. Ils lisent en tant qu’invités, les personnes vivantes sont protégées, et tu peux mettre fin au lien à tout moment.",
   "tour.g.viewas.title": "Voir en tant que",
   "tour.g.viewas.body": "Vois la famille exactement comme la verrait un lecteur, un contributeur, un éditeur ou un invité, sans leur emprunter leur téléphone. Un aperçu est en lecture seule.",
-  "tour.g.games.body": "Active ou désactive la Campagne et le quiz hebdomadaire pour toute la famille.",
+  "tour.g.games.body": "Active ou désactive la Campagne et le quiz quotidien pour toute la famille.",
 } satisfies Strings<typeof en, "fr">;

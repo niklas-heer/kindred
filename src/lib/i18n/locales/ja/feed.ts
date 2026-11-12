@@ -7,7 +7,7 @@ export default {
   "feed.to_chronicle_hint": "すべての思い出、口ぐせ、レシピを検索",
   "feed.loading": "家族の近況を取ってきています…",
   "feed.failed": "家族のニュースを読み込めませんでした。",
-  "feed.more": "さらに前を表示",
+  "feed.more": "以前のメッセージを表示",
   "feed.more_loading": "前のニュースを取ってきています…",
   "feed.end": "ここまでで、すべてです。",
   "feed.empty_title": "今は静かです",

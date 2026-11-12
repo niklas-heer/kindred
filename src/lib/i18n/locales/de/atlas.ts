@@ -73,5 +73,5 @@ export default {
   "atlas.unfold_short": "Aufklappen",
   "atlas.fold_short": "Einklappen",
   "atlas.close_chronicle": "Chronik schließen",
-  "atlas.show_earlier": "Früher zeigen",
+  "atlas.show_earlier": "Frühere Jahre zeigen",
 } satisfies Strings<typeof en, "de">;

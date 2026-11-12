@@ -65,7 +65,7 @@ export default {
   "atlas.unfold_short": "Uitklappen",
   "atlas.fold_short": "Inklappen",
   "atlas.close_chronicle": "De kroniek sluiten",
-  "atlas.show_earlier": "Eerdere tonen",
+  "atlas.show_earlier": "Eerdere jaren tonen",
   "atlas.count.births": { one: "{count} geboorte", other: "{count} geboorten" },
   "atlas.count.deaths": { one: "{count} overlijden", other: "{count} overlijdens" },
   "atlas.count.weddings": { one: "{count} huwelijk", other: "{count} huwelijken" },

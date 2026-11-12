@@ -123,5 +123,5 @@ export default {
   "tour.g.share.body": "Um link para os familiares que querem olhar sem conta. Eles leem como visitantes, as pessoas vivas ficam protegidas e você pode encerrar o link quando quiser.",
   "tour.g.viewas.title": "Ver como",
   "tour.g.viewas.body": "Veja a família exatamente como a veria um leitor, um colaborador, um editor ou um visitante, sem pegar o celular emprestado. Uma prévia é somente leitura.",
-  "tour.g.games.body": "Ligue ou desligue a Campanha e o quiz semanal para toda a família.",
+  "tour.g.games.body": "Ligue ou desligue a Campanha e o quiz diário para toda a família.",
 } satisfies Strings<typeof en, "pt-BR">;

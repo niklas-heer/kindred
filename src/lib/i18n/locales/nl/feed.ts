@@ -7,7 +7,7 @@ export default {
   "feed.to_chronicle_hint": "Elke herinnering, uitspraak en elk recept, met zoekfunctie",
   "feed.loading": "Ophalen wat de familie heeft uitgespookt…",
   "feed.failed": "Het nieuws van de familie kon niet worden geladen.",
-  "feed.more": "Eerdere tonen",
+  "feed.more": "Oudere berichten tonen",
   "feed.more_loading": "Eerder nieuws ophalen…",
   "feed.end": "Dat is alles tot nu toe.",
   "feed.empty_title": "Het is hier stil, voor nu",

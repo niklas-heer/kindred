@@ -73,5 +73,5 @@ export default {
   "atlas.unfold_short": "開く",
   "atlas.fold_short": "閉じる",
   "atlas.close_chronicle": "年代記を閉じる",
-  "atlas.show_earlier": "さらに前を表示",
+  "atlas.show_earlier": "それより前の年を表示",
 } satisfies Strings<typeof en, "ja">;

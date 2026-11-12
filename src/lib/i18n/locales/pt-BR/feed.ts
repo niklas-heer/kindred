@@ -7,7 +7,7 @@ export default {
   "feed.to_chronicle_hint": "Todas as lembranças, ditados e receitas, com busca",
   "feed.loading": "Buscando as novidades da família…",
   "feed.failed": "Não foi possível carregar as notícias da família.",
-  "feed.more": "Mostrar anteriores",
+  "feed.more": "Ver mensagens anteriores",
   "feed.more_loading": "Buscando notícias anteriores…",
   "feed.end": "Isso é tudo, por enquanto.",
   "feed.empty_title": "Por enquanto está tudo quieto",

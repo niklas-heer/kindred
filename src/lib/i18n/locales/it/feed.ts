@@ -7,7 +7,7 @@ export default {
   "feed.to_chronicle_hint": "Ogni ricordo, detto e ricetta, con ricerca",
   "feed.loading": "Sto cercando cosa ha combinato la famiglia…",
   "feed.failed": "Non è stato possibile caricare le novità della famiglia.",
-  "feed.more": "Mostra i precedenti",
+  "feed.more": "Messaggi precedenti",
   "feed.more_loading": "Caricamento…",
   "feed.end": "Per ora è tutto.",
   "feed.empty_title": "Per ora qui è tutto tranquillo",

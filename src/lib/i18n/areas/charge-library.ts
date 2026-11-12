@@ -578,7 +578,7 @@ export const en = {
   "heraldry.library.liver": "Liver",
   "heraldry.library.nose": "Nose",
   "heraldry.library.heartbeat": "Heartbeat",
-  "heraldry.library.nails": "Nails",
+  "heraldry.library.nails": "Nails (carpenter’s)",
   "heraldry.library.ocarina": "Ocarina",
   "heraldry.library.maracas": "Maracas",
   "heraldry.library.bassoon": "Bassoon",

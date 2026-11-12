@@ -127,5 +127,5 @@ export default {
   "tour.g.share.body": "Een link voor familieleden die willen rondkijken zonder account. Ze lezen als gast, levende mensen zijn beschermd en je kunt de link altijd beëindigen.",
   "tour.g.viewas.title": "Bekijken als",
   "tour.g.viewas.body": "Zie de familie precies zoals een lezer, een bijdrager, een bewerker of een gast haar ziet, zonder hun telefoon te lenen. Een voorvertoning is alleen-lezen.",
-  "tour.g.games.body": "Zet de Veldtocht en de wekelijkse quiz voor de hele familie aan of uit.",
+  "tour.g.games.body": "Zet de Veldtocht en de dagelijkse quiz voor de hele familie aan of uit.",
 } satisfies Strings<typeof en, "nl">;

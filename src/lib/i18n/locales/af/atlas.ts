@@ -74,5 +74,5 @@ export default {
   "atlas.unfold_short": "Oop",
   "atlas.fold_short": "Toe",
   "atlas.close_chronicle": "Maak die kroniek toe",
-  "atlas.show_earlier": "Wys vroeër",
+  "atlas.show_earlier": "Wys vroeër jare",
 } satisfies Strings<typeof en, "af">;

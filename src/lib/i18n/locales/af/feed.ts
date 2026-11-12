@@ -7,7 +7,7 @@ export default {
   "feed.to_chronicle_hint": "Elke herinnering, gesegde en resep, met soek",
   "feed.loading": "Ons gaan haal wat die familie besig hou …",
   "feed.failed": "Die familie se nuus kon nie gelaai word nie.",
-  "feed.more": "Wys vroeër",
+  "feed.more": "Wys ouer boodskappe",
   "feed.more_loading": "Ons gaan haal vroeër nuus …",
   "feed.end": "Dit is alles tot dusver.",
   "feed.empty_title": "Dit is nog stil hier",

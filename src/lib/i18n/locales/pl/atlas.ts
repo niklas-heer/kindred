@@ -65,7 +65,7 @@ export default {
   "atlas.unfold_short": "Rozwiń",
   "atlas.fold_short": "Zwiń",
   "atlas.close_chronicle": "Zamknij kronikę",
-  "atlas.show_earlier": "Pokaż wcześniejsze",
+  "atlas.show_earlier": "Pokaż wcześniejsze lata",
   "atlas.count.births": { one: "{count} narodziny", few: "{count} narodziny", many: "{count} narodzin", other: "{count} narodzin" },
   "atlas.count.deaths": { one: "{count} zgon", few: "{count} zgony", many: "{count} zgonów", other: "{count} zgonu" },
   "atlas.count.weddings": { one: "{count} ślub", few: "{count} śluby", many: "{count} ślubów", other: "{count} ślubu" },

@@ -127,5 +127,5 @@ export default {
   "tour.g.share.body": "Ein Link für Verwandte, die ohne Konto hineinschauen möchten. Sie lesen als Gäste, lebende Personen sind geschützt, und du kannst den Link jederzeit beenden.",
   "tour.g.viewas.title": "Ansehen als",
   "tour.g.viewas.body": "Sieh die Familie genau so, wie Lesende, Mitwirkende, Bearbeitende oder ein Gast sie sehen, ohne dir ihr Telefon zu leihen. Eine Vorschau ist nur zum Lesen.",
-  "tour.g.games.body": "Schalte den Feldzug und das wöchentliche Quiz für die ganze Familie ein oder aus.",
+  "tour.g.games.body": "Schalte den Feldzug und das tägliche Quiz für die ganze Familie ein oder aus.",
 } satisfies Strings<typeof en, "de">;

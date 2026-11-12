@@ -7,7 +7,7 @@ export default {
   "feed.to_chronicle_hint": "所有回忆、口头禅和食谱，可搜索",
   "feed.loading": "正在获取家族的近况…",
   "feed.failed": "无法加载家族动态。",
-  "feed.more": "显示更早的",
+  "feed.more": "显示更早的消息",
   "feed.more_loading": "正在获取更早的动态…",
   "feed.end": "目前就这些了。",
   "feed.empty_title": "这里暂时很安静",

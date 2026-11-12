@@ -580,7 +580,7 @@ export default {
   "heraldry.library.liver": "Fígado",
   "heraldry.library.nose": "Nariz",
   "heraldry.library.heartbeat": "Batimento cardíaco",
-  "heraldry.library.nails": "Pregos",
+  "heraldry.library.nails": "Pregos (de carpinteiro)",
   "heraldry.library.ocarina": "Ocarina",
   "heraldry.library.maracas": "Maracás",
   "heraldry.library.bassoon": "Fagote",

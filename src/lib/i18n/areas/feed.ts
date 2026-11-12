@@ -9,7 +9,7 @@ export const en = {
   "feed.to_chronicle_hint": "Every memory, saying and recipe, with search",
   "feed.loading": "Fetching what the family has been up to…",
   "feed.failed": "The family’s news could not be loaded.",
-  "feed.more": "Show earlier",
+  "feed.more": "Show older messages",
   "feed.more_loading": "Fetching earlier news…",
   "feed.end": "That is everything so far.",
   "feed.empty_title": "It is quiet here, for now",

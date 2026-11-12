@@ -7,7 +7,7 @@ export default {
   "feed.to_chronicle_hint": "Chaque souvenir, dicton et recette, avec recherche",
   "feed.loading": "Chargement des nouvelles de la famille…",
   "feed.failed": "Les nouvelles de la famille n’ont pas pu être chargées.",
-  "feed.more": "Afficher les plus anciens",
+  "feed.more": "Messages plus anciens",
   "feed.more_loading": "Chargement…",
   "feed.end": "C’est tout pour l’instant.",
   "feed.empty_title": "C’est calme ici, pour le moment",

@@ -7,7 +7,7 @@ export default {
   "feed.to_chronicle_hint": "Każde wspomnienie, powiedzonko i przepis, z wyszukiwarką",
   "feed.loading": "Pobieranie wieści z rodziny…",
   "feed.failed": "Nie udało się wczytać wieści z rodziny.",
-  "feed.more": "Pokaż wcześniejsze",
+  "feed.more": "Pokaż starsze wiadomości",
   "feed.more_loading": "Pobieranie wcześniejszych wieści…",
   "feed.end": "To wszystko, co jest do tej pory.",
   "feed.empty_title": "Na razie jest tu cicho",

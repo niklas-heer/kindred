@@ -73,5 +73,5 @@ export default {
   "atlas.unfold_short": "Abrir",
   "atlas.fold_short": "Fechar",
   "atlas.close_chronicle": "Fechar a crônica",
-  "atlas.show_earlier": "Mostrar anteriores",
+  "atlas.show_earlier": "Ver anos anteriores",
 } satisfies Strings<typeof en, "pt-BR">;

@@ -73,5 +73,5 @@ export default {
   "atlas.unfold_short": "Apri",
   "atlas.fold_short": "Chiudi",
   "atlas.close_chronicle": "Chiudi la cronaca",
-  "atlas.show_earlier": "Mostra i più vecchi",
+  "atlas.show_earlier": "Mostra gli anni precedenti",
 } satisfies Strings<typeof en, "it">;

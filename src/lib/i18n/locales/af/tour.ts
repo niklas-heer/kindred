@@ -127,5 +127,5 @@ export default {
   "tour.g.share.body": "’n Skakel vir familie wat sonder ’n rekening wil kyk. Hulle lees as gaste, lewende mense word beskerm, en jy kan die skakel enige tyd beëindig.",
   "tour.g.viewas.title": "Bekyk as",
   "tour.g.viewas.body": "Sien die familie presies soos ’n leser, ’n bydraer, ’n redigeerder of ’n gas dit sou sien, sonder om hulle foon te leen. ’n Voorskou is net om te lees.",
-  "tour.g.games.body": "Skakel die Veldtog en die weeklikse vasvra vir die hele familie aan of af.",
+  "tour.g.games.body": "Skakel die Veldtog en die daaglikse vasvra vir die hele familie aan of af.",
 } satisfies Strings<typeof en, "af">;

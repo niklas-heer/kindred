@@ -580,7 +580,7 @@ export default {
   "heraldry.library.liver": "Foie",
   "heraldry.library.nose": "Nez",
   "heraldry.library.heartbeat": "Battement de cœur",
-  "heraldry.library.nails": "Ongles",
+  "heraldry.library.nails": "Clous (de charpentier)",
   "heraldry.library.ocarina": "Ocarina",
   "heraldry.library.maracas": "Maracas",
   "heraldry.library.bassoon": "Basson",

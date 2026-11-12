@@ -72,5 +72,5 @@ export const en = {
   "atlas.unfold_short": "Unfold",
   "atlas.fold_short": "Fold",
   "atlas.close_chronicle": "Close the chronicle",
-  "atlas.show_earlier": "Show earlier",
+  "atlas.show_earlier": "Show earlier years",
 };
