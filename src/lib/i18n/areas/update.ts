@@ -70,7 +70,6 @@ export const en = {
   "update.health_behind": { one: "{count} family has not been opened since the newest schema arrived; it catches up the next time it is used:", other: "{count} families have not been opened since the newest schema arrived; each catches up the next time it is used:" },
   "update.health_unreported": { one: "{count} family has not reported its schema yet.", other: "{count} families have not reported their schema yet." },
   "update.health_backup": "Backup",
-  "update.health_backup_none": "No automatic backup on this install.",
   "update.health_backup_docs": "How to back up",
   "update.health_backup_age": "The nightly archive last finished without failing {date}.",
   "update.health_backup_never": "The nightly archive is set up but has not finished yet.",

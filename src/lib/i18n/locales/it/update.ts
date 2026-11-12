@@ -70,7 +70,6 @@ export default {
   "update.health_behind": { one: "{count} famiglia non è stata aperta da quando è arrivato lo schema più recente; si aggiorna alla prossima volta che viene usata:", other: "{count} famiglie non sono state aperte da quando è arrivato lo schema più recente; ognuna si aggiorna alla prossima volta che viene usata:" },
   "update.health_unreported": { one: "{count} famiglia non ha ancora comunicato il suo schema.", other: "{count} famiglie non hanno ancora comunicato il loro schema." },
   "update.health_backup": "Backup",
-  "update.health_backup_none": "Nessun backup automatico su questa installazione.",
   "update.health_backup_docs": "Come fare il backup",
   "update.health_backup_age": "L’archivio notturno è terminato senza errori l’ultima volta il {date}.",
   "update.health_backup_never": "L’archivio notturno è configurato ma non è ancora terminato.",

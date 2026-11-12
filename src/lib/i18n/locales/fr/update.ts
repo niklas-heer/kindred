@@ -70,7 +70,6 @@ export default {
   "update.health_behind": { one: "{count} famille n’a pas été ouverte depuis l’arrivée du schéma le plus récent ; elle se mettra à niveau à sa prochaine utilisation :", other: "{count} familles n’ont pas été ouvertes depuis l’arrivée du schéma le plus récent ; chacune se mettra à niveau à sa prochaine utilisation :" },
   "update.health_unreported": { one: "{count} famille n’a pas encore signalé son schéma.", other: "{count} familles n’ont pas encore signalé leur schéma." },
   "update.health_backup": "Sauvegarde",
-  "update.health_backup_none": "Pas de sauvegarde automatique sur cette installation.",
   "update.health_backup_docs": "Comment sauvegarder",
   "update.health_backup_age": "L’archive de la nuit s’est terminée sans échec pour la dernière fois le {date}.",
   "update.health_backup_never": "L’archive de la nuit est configurée mais ne s’est pas encore terminée.",

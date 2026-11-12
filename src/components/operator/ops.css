@@ -32,3 +32,6 @@
 .ops-notes pre { overflow-x: auto; }
 .ops-code { margin: 0; padding: 10px 12px; overflow-x: auto; border-radius: var(--radius, 8px); background: var(--surface, var(--bg)); border: 1px solid var(--border); font-size: 0.875rem; white-space: pre; }
 .ops-list { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+/* The Backups tab (./OperatorBackups.tsx): one family per row, its backups and recovery points below when opened. */
+.backup-list > .backup-family { display: grid; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--border); min-width: 0; }
+.backup-family .families-row { flex-wrap: wrap; }

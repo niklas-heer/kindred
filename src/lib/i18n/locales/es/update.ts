@@ -70,7 +70,6 @@ export default {
   "update.health_behind": { one: "{count} familia no se ha abierto desde que llegó el esquema más reciente; se pone al día la próxima vez que se use:", other: "{count} familias no se han abierto desde que llegó el esquema más reciente; cada una se pone al día la próxima vez que se use:" },
   "update.health_unreported": { one: "{count} familia todavía no ha informado de su esquema.", other: "{count} familias todavía no han informado de su esquema." },
   "update.health_backup": "Copia de seguridad",
-  "update.health_backup_none": "No hay copia de seguridad automática en esta instalación.",
   "update.health_backup_docs": "Cómo hacer copias de seguridad",
   "update.health_backup_age": "El archivo nocturno terminó por última vez sin fallar el {date}.",
   "update.health_backup_never": "El archivo nocturno está configurado pero todavía no ha terminado.",

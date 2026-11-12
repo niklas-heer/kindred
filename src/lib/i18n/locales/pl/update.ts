@@ -83,7 +83,6 @@ export default {
     other: "{count} rodziny nie zgłosiło jeszcze swojego schematu.",
   },
   "update.health_backup": "Kopia zapasowa",
-  "update.health_backup_none": "Ta instalacja nie ma automatycznej kopii zapasowej.",
   "update.health_backup_docs": "Jak zrobić kopię zapasową",
   "update.health_backup_age": "Nocne archiwum ostatnio zakończyło się bez błędu {date}.",
   "update.health_backup_never": "Nocne archiwum jest skonfigurowane, ale jeszcze się nie zakończyło.",

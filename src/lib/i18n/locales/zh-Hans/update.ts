@@ -70,7 +70,6 @@ export default {
   "update.health_behind": "有{count}个家族在最新结构发布之后还没被打开过；下次使用时会自动跟上：",
   "update.health_unreported": "有{count}个家族还没有汇报数据库结构。",
   "update.health_backup": "备份",
-  "update.health_backup_none": "这个安装没有自动备份。",
   "update.health_backup_docs": "如何备份",
   "update.health_backup_age": "夜间归档上次无错误完成于{date}。",
   "update.health_backup_never": "夜间归档已设置，但还没有完成过。",

@@ -22,6 +22,7 @@ import { StatisticsTab } from './OperatorStatistics';
 import { UpdatesTab } from './OperatorUpdates';
 import { HostingTab } from '~/components/signup/OperatorHosting';
 import { HealthTab } from './OperatorHealth';
+import { BackupsTab } from './OperatorBackups';
 import { PrivacyTab } from '~/components/gdpr/OperatorPrivacy';
 import { StatusReasonDialog } from '~/components/gdpr/StatusReason';
 import { LifecycleSection } from '~/components/lifecycle/OperatorLifecycle';
@@ -29,7 +30,7 @@ import { updateDotQuery } from '~/lib/operator/insight.functions';
 import '~/components/families/families.css';
 import './operator.css';
 
-export const OPERATOR_TABS = ['families', 'statistics', 'requests', 'data', 'privacy', 'settings', 'hosting', 'signin', 'policies', 'announcements', 'updates', 'health', 'operators', 'audit'] as const;
+export const OPERATOR_TABS = ['families', 'statistics', 'requests', 'data', 'privacy', 'settings', 'hosting', 'signin', 'policies', 'announcements', 'updates', 'health', 'backups', 'operators', 'audit'] as const;
 export type OperatorTab = (typeof OPERATOR_TABS)[number];
 
 /** As the server suggests an id (suggestId in families.server.ts), so the field fills in while the name is typed. */
@@ -66,6 +67,7 @@ export function OperatorConsole({ tab, onTab }: { tab: OperatorTab; onTab: (tab:
               <Tab value="signin">{t('pw.tab')}</Tab>
               <Tab value="updates" badge={update ? <><span aria-hidden>•</span><span className="sr-only">{t('ops.update_dot')}</span></> : undefined}>{t('ops.tab_updates')}</Tab>
               <Tab value="health">{t('update.tab_health')}</Tab>
+              <Tab value="backups">{t('backup.tab')}</Tab>
               <Tab value="policies">{t('policy.tab')}</Tab>
               <Tab value="announcements">{t('policy.tab_announcements')}</Tab>
               <Tab value="operators">{t('operator.tab_operators')}</Tab>
@@ -77,6 +79,7 @@ export function OperatorConsole({ tab, onTab }: { tab: OperatorTab; onTab: (tab:
             <TabPanel value="statistics"><StatisticsTab /></TabPanel>
             <TabPanel value="updates"><UpdatesTab /></TabPanel>
             <TabPanel value="health"><HealthTab onWorkers={data.workers} /></TabPanel>
+            <TabPanel value="backups"><BackupsTab /></TabPanel>
             <TabPanel value="privacy"><PrivacyTab families={data.families} /></TabPanel>
             <TabPanel value="settings"><SettingsTab settings={data.settings} turnstile={data.turnstile} pushKey={data.pushKey} /></TabPanel>
             <TabPanel value="policies"><PoliciesTab families={data.families} /></TabPanel>

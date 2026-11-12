@@ -67,7 +67,7 @@ export function loadDump(exec: Exec, dump: Dump): void {
 export const encodeDump = (d: Dump) => new TextEncoder().encode(JSON.stringify(d));
 export function decodeDump(bytes: Uint8Array): Dump {
   const d = JSON.parse(new TextDecoder().decode(bytes)) as Dump;
-  if (!d || !Array.isArray(d.objects) || !Array.isArray(d.tables)) throw new Error('The backup holds no database.');
+  if (!d || !Array.isArray(d.objects) || !Array.isArray(d.tables)) throw new Error('backup: no database in the file');
   return d;
 }
 

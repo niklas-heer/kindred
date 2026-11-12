@@ -68,7 +68,6 @@ export default {
   "update.health_behind": { one: "{count} familie is niet geopend sinds het nieuwste schema er is; ze loopt bij de eerstvolgende keer dat ze wordt gebruikt bij:", other: "{count} families zijn niet geopend sinds het nieuwste schema er is; elk loopt bij de eerstvolgende keer dat het wordt gebruikt bij:" },
   "update.health_unreported": { one: "{count} familie heeft haar schema nog niet doorgegeven.", other: "{count} families hebben hun schema nog niet doorgegeven." },
   "update.health_backup": "Back-up",
-  "update.health_backup_none": "Geen automatische back-up op deze installatie.",
   "update.health_backup_docs": "Hoe maak je een back-up",
   "update.health_backup_age": "Het nachtelijke archief is voor het laatst zonder fout afgerond op {date}.",
   "update.health_backup_never": "Het nachtelijke archief is ingesteld maar nog niet afgerond.",

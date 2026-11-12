@@ -72,7 +72,6 @@ export default {
   "update.health_behind": { one: "{count} Familie wurde seit dem neuesten Schema nicht geöffnet; sie holt es beim nächsten Gebrauch nach:", other: "{count} Familien wurden seit dem neuesten Schema nicht geöffnet; jede holt es beim nächsten Gebrauch nach:" },
   "update.health_unreported": { one: "{count} Familie hat ihr Schema noch nicht gemeldet.", other: "{count} Familien haben ihr Schema noch nicht gemeldet." },
   "update.health_backup": "Sicherung",
-  "update.health_backup_none": "Keine automatische Sicherung auf dieser Installation.",
   "update.health_backup_docs": "So sicherst du",
   "update.health_backup_age": "Das nächtliche Archiv ist zuletzt am {date} ohne Fehler fertig geworden.",
   "update.health_backup_never": "Das nächtliche Archiv ist eingerichtet, aber noch nie fertig geworden.",

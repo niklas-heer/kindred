@@ -72,7 +72,6 @@ export default {
   "update.health_behind": { one: "{count} familie is nie oopgemaak sedert die nuutste skema gekom het nie; dit haal in die volgende keer dat dit gebruik word:", other: "{count} families is nie oopgemaak sedert die nuutste skema gekom het nie; elkeen haal in die volgende keer dat dit gebruik word:" },
   "update.health_unreported": { one: "{count} familie het nog nie sy skema gerapporteer nie.", other: "{count} families het nog nie hul skema gerapporteer nie." },
   "update.health_backup": "Rugsteun",
-  "update.health_backup_none": "Geen outomatiese rugsteun op hierdie installasie nie.",
   "update.health_backup_docs": "Hoe om te rugsteun",
   "update.health_backup_age": "Die nagtelike argief het laas op {date} sonder om te misluk klaargemaak.",
   "update.health_backup_never": "Die nagtelike argief is opgestel, maar het nog nie klaargemaak nie.",

@@ -70,7 +70,6 @@ export default {
   "update.health_behind": "最新のスキーマが届いてから開かれていない家族が{count}家族あります。次に使われたときに追いつきます：",
   "update.health_unreported": "スキーマをまだ報告していない家族が{count}家族あります。",
   "update.health_backup": "バックアップ",
-  "update.health_backup_none": "この環境には、自動バックアップがありません。",
   "update.health_backup_docs": "バックアップの方法",
   "update.health_backup_age": "夜間のアーカイブが最後に失敗せず終わったのは{date}です。",
   "update.health_backup_never": "夜間のアーカイブは設定されていますが、まだ終わっていません。",

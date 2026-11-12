@@ -9,6 +9,7 @@ import aiTasks from "./ai-tasks.ts";
 import aiThreads from "./ai-threads.ts";
 import almanac from "./almanac.ts";
 import atlas from "./atlas.ts";
+import backup from "./backup.ts";
 import campaign from "./campaign.ts";
 import character from "./character.ts";
 import chargeLibrary from "./charge-library.ts";
@@ -72,6 +73,7 @@ export default {
   ...aiThreads,
   ...almanac,
   ...atlas,
+  ...backup,
   ...campaign,
   ...character,
   ...chargeLibrary,
