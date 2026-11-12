@@ -27,9 +27,11 @@ export function SubjectRequests({ tree }: { tree: string }) {
   const [hits, setHits] = useState<PersonHit[] | null>(null);
   const [chosen, setChosen] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // What became of the last person erased: said here, because their panel closes with them.
+  const [gone, setGone] = useState<string | null>(null);
   const search = useMutation({
     mutationFn: () => findSubject({ data: { tree, text } }),
-    onSuccess: (r) => { setHits(r); setChosen(null); },
+    onSuccess: (r) => { setHits(r); setChosen(null); setGone(null); },
     onError: (e) => setError(errorText(e, t.locale)),
   });
   if (previewing) return null;
@@ -59,12 +61,13 @@ export function SubjectRequests({ tree }: { tree: string }) {
           ))}
         </ul>
       ))}
-      {chosen && <SubjectPanel tree={tree} person={chosen} onGone={() => { setChosen(null); setHits((h) => h?.filter((x) => x.id !== chosen) ?? null); }} />}
+      {gone && <p role="status" className="muted">{gone}</p>}
+      {chosen && <SubjectPanel tree={tree} person={chosen} onGone={(said) => { setChosen(null); setGone(said); setHits((h) => h?.filter((x) => x.id !== chosen) ?? null); }} />}
     </section>
   );
 }
 
-function SubjectPanel({ tree, person, onGone }: { tree: string; person: string; onGone: () => void }) {
+function SubjectPanel({ tree, person, onGone }: { tree: string; person: string; onGone: (said: string) => void }) {
   const t = useT();
   const ids = useId();
   const qc = useQueryClient();
@@ -73,7 +76,6 @@ function SubjectPanel({ tree, person, onGone }: { tree: string; person: string; 
   const [request, setRequest] = useState('');
   const [erasing, setErasing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null);
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ['subject', tree, person] }), qc.invalidateQueries({ queryKey: ['data-requests', tree] })]);
   const copy = useMutation({
     mutationFn: () => fetchSubjectCopy({ data: { tree, person } }),
@@ -124,10 +126,9 @@ function SubjectPanel({ tree, person, onGone }: { tree: string; person: string; 
           : <button type="button" className="btn" onClick={() => restrict.mutate(true)} disabled={restrict.isPending}><Lock size={15} aria-hidden /> {t('gdpr.restrict')}</button>)}
         {!r.person.member && <button type="button" className="btn danger" onClick={() => setErasing(true)}><Eraser size={15} aria-hidden /> {t('gdpr.erase')}</button>}
       </div>
-      {done && <p role="status" className="muted">{done}</p>}
       {error && <p role="alert" className="families-error">{error}</p>}
       {erasing && <EraseDialog tree={tree} report={r} request={request || null} onClose={() => setErasing(false)}
-        onDone={(n) => { setErasing(false); setDone(t('gdpr.erased', { count: n })); void qc.invalidateQueries({ queryKey: ['data-requests', tree] }); void qc.invalidateQueries({ queryKey: ['graph', tree] }); onGone(); }} />}
+        onDone={(n) => { setErasing(false); void qc.invalidateQueries({ queryKey: ['data-requests', tree] }); void qc.invalidateQueries({ queryKey: ['graph', tree] }); onGone(t('gdpr.erased', { count: n })); }} />}
     </div>
   );
 }
