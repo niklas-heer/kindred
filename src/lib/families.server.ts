@@ -22,7 +22,7 @@ import { AuthError } from './auth/errors.ts';
 import { cleanFamilyDetails } from './family-details.server.ts';
 import { bindingOf, families } from './auth/trees.server.ts';
 import { accounts, upsertMembership, type MembershipRow, type UserRow } from './auth/store.server.ts';
-import { guard, NOT_TREES, onWorkers, q, store, type Query } from './store/index.ts';
+import { guard, isGuardError, NOT_TREES, onWorkers, q, store, type Query } from './store/index.ts';
 import { change, once, type OpKey } from './db.server.ts';
 import { translate } from './i18n/dictionary.ts';
 import { familyCreation, instanceSettings } from './operator/settings.server.ts';
@@ -150,6 +150,18 @@ export async function familyLimit(user: Pick<UserRow, 'id' | 'operator'>): Promi
   return { max, made: made?.n ?? 0 };
 }
 
+/**
+ * The guard that keeps `familyLimit` inside the batch that records a new family as made by `user`, so parallel requests
+ * (or several staged imports finishing) cannot each pass the check made before it. `tree` itself is not counted: making
+ * a half-made family again records it a second time. Empty for an operator and when the instance sets no limit.
+ */
+export async function familyLimitGuard(user: Pick<UserRow, 'id' | 'operator'>, tree: string): Promise<Query[]> {
+  if (user.operator === 1) return [];
+  const max = (await instanceSettings()).familiesPerAccount;
+  if (max === null) return [];
+  return [guard('(SELECT count(*) FROM family_admin WHERE created_by = ? AND tree <> ?) < ?', user.id, tree, max)];
+}
+
 export interface NewFamily { id: string; name: string; tagline: string; theme: FamilyTheme }
 
 /** The statements that forget every accounts row naming `tree` (see deleteFamily). Built from the schema, so a table added later is included. */
@@ -195,9 +207,12 @@ export async function createFamily(
   const details = cleanFamily(input);
   // Someone making a family of their own: within their limit, and with the terms accepted (both before anything is written).
   let accepted: Query[] = [];
+  let limited: Query[] = [];
+  const overLimit = (max: number) => new AuthError('forbidden', translate('en', 'families.err_limit', { max }));
   if (member) {
     const limit = await familyLimit(user);
-    if (limit && limit.made >= limit.max) throw new AuthError('forbidden', translate('en', 'families.err_limit', { max: limit.max }));
+    if (limit && limit.made >= limit.max) throw overLimit(limit.max);
+    limited = await familyLimitGuard(user, id);
     accepted = await acceptance(user, acceptedTerms, 'family.create', id);
   }
 
@@ -245,13 +260,22 @@ export async function createFamily(
   ]);
   // 3. Its first steward, and its administration: when and by whom it was made, and the instance's default storage cap.
   // Without this step the family is half-made, and making it again finishes it.
-  const cap = (await instanceSettings()).defaultCapBytes;
-  await accounts().batch([
-    ...(member ? [upsertMembership(user.id, id, 'steward')] : []),
-    q(`INSERT INTO family_admin (tree, cap_bytes, created_at, created_by, invited_name) VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(tree) DO UPDATE SET created_by = excluded.created_by, invited_name = excluded.invited_name`, id, cap, Date.now(), user.id, invitedName),
-    ...accepted,
-  ]);
+  // The limit is checked again inside this batch: a parallel request may have made the account's last family meanwhile.
+  const { defaultCapBytes: cap, familiesPerAccount } = await instanceSettings();
+  try {
+    await accounts().batch([
+      ...limited,
+      ...(member ? [upsertMembership(user.id, id, 'steward')] : []),
+      q(`INSERT INTO family_admin (tree, cap_bytes, created_at, created_by, invited_name) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(tree) DO UPDATE SET created_by = excluded.created_by, invited_name = excluded.invited_name`, id, cap, Date.now(), user.id, invitedName),
+      ...accepted,
+    ]);
+  } catch (e) {
+    if (!limited.length || !isGuardError(e)) throw e;
+    // Refused over the limit: a database this request made is not left behind as a family waiting to be finished.
+    if (!bound) await store.dropTree(id).catch(() => {});
+    throw overLimit(familiesPerAccount ?? 0);
+  }
   return id;
 }
 

@@ -22,7 +22,7 @@ import { z } from 'zod';
 import { AuthError } from '../auth/errors.ts';
 import { upsertMembership } from '../auth/store.server.ts';
 import { instanceSettings } from '../operator/settings.server.ts';
-import { guard, isGuardError, q, store, type ImportTarget } from './index.ts';
+import { guard, isGuardError, q, store, type ImportTarget, type Query } from './index.ts';
 import { NAME } from './transfer.ts';
 
 /** An import left open longer than this is over: its steps are refused, and anyone who may begins again. */
@@ -177,8 +177,17 @@ export async function move(tree: string, step: MoveStep, who: Importer, now = Da
     if (found.id !== tree) throw new MoveError(`The rows are not the family ${tree} (its details name ${found.id ?? 'no family'}). Nothing is published.`);
     const state = await t.state();
     if (state.migrations.at(-1) !== imp.schema) throw new MoveError(`The schema changed during the import (${imp.schema}, now ${state.migrations.at(-1)}): begin again.`);
+    // A new family: the account may still make one (the server's rules may have changed since begin), and it is still within
+    // its limit inside the batch that records it, so several staged imports cannot all finish past the limit.
+    let limited: Query[] = [];
+    if (imp.mode === 'new') {
+      if (!(await mayMakeNewFamily(who))) throw new MoveError('You may not make families on this server.', 403);
+      const { familyLimitGuard } = await import('../families.server.ts');
+      limited = await familyLimitGuard({ id: imp.user, operator: who.operator ? 1 : 0 }, tree);
+    }
     const steward = imp.mode === 'new'
       ? [
+        ...limited,
         guard('NOT EXISTS (SELECT 1 FROM membership WHERE tree = ?)', tree),
         guard(`NOT EXISTS (${OPEN_INVITE})`, tree, now),
         guard('NOT EXISTS (SELECT 1 FROM family_store WHERE tree = ?)', tree),
@@ -195,7 +204,12 @@ export async function move(tree: string, step: MoveStep, who: Importer, now = Da
         q('UPDATE family_import SET finished_at = ? WHERE tree = ? AND id = ?', now, tree, imp.id),
       ]);
     } catch (e) {
-      if (isGuardError(e)) throw new MoveError(`${tree} changed while it was imported: nothing is published; begin again.`);
+      if (isGuardError(e)) {
+        const { familyLimit } = await import('../families.server.ts');
+        const limit = imp.mode === 'new' ? await familyLimit({ id: imp.user, operator: who.operator ? 1 : 0 }) : null;
+        if (limit && limit.made >= limit.max) throw new MoveError(`You have made ${limit.made} families, as many as an account may make on this server. Nothing is published.`, 403);
+        throw new MoveError(`${tree} changed while it was imported: nothing is published; begin again.`);
+      }
       throw e;
     }
   }

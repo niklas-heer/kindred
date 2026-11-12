@@ -341,6 +341,18 @@ test('families per account: counted while stewards make families, shown on the F
   await assert.rejects(famFns.createFamily({ data: { id: 'stens-four', name: 'Sten’s Fourth', tagline: '', theme: 'codex' } }), (e: Error) => status(e) === 403 && /2 families/.test(e.message));
   asUser(STEWARD);
   assert.deepEqual((await famFns.fetchFamilies()).limit, { max: 2, made: 2 });
+  // Two requests at the last slot at once: both pass the check before writing, and the batch that records the family lets
+  // exactly one through. The refused one leaves no database behind.
+  await save({ familiesPerAccount: 3 });
+  asUser(STEWARD);
+  const raced = await Promise.allSettled(['stens-five', 'stens-six'].map((id) => famFns.createFamily({ data: { id, name: 'Sten’s Race', tagline: '', theme: 'codex' } })));
+  assert.equal(raced.filter((r) => r.status === 'fulfilled').length, 1, 'one family made');
+  const lost = raced.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+  assert.ok(status(lost.reason) === 403 && /3 families/.test(lost.reason.message), String(lost.reason));
+  asUser(STEWARD);
+  assert.deepEqual((await famFns.fetchFamilies()).limit, { max: 3, made: 3 });
+  assert.equal((await dbs.store.treeIds()).filter((id) => id === 'stens-five' || id === 'stens-six').length, 1, 'the refused family\'s database is gone');
+  await save({ familiesPerAccount: 2 });
   asUser(OP);
   assert.equal((await famFns.fetchFamilies()).limit, undefined);
   asUser(OP);

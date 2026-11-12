@@ -168,6 +168,31 @@ export const durableCases: Record<string, (expect: string[]) => Promise<void>> =
     const ok = await move('limited', begin({ acceptTerms: true }), lia);
     assert.equal(ok.mode, 'new');
     assert.equal((await store.accounts().get<{ n: number }>("SELECT count(*) AS n FROM terms_acceptance WHERE user = 'u-lim' AND family = 'limited'"))?.n, 1);
+    // The limit holds when the families are recorded, not only when the imports begin: staged imports are not yet counted,
+    // so three may begin under a limit of two, and finishing all three at once publishes exactly two.
+    await store.accounts().batch([set('families_per_account', '2')]);
+    const staged = await Promise.all(['alpha', 'birch', 'cedar'].map(async (tree) => {
+      const id = String((await move(tree, begin({ acceptTerms: true }), lia)).import);
+      await move(tree, { step: 'rows', import: id, table: 'meta', columns: ['key', 'value'], rows: [['id', tree]] }, lia);
+      return [tree, id] as const;
+    }));
+    const finished = await Promise.allSettled(staged.map(([tree, id]) => move(tree, { step: 'finish', import: id }, lia)));
+    assert.equal(finished.filter((r) => r.status === 'fulfilled').length, 2, 'two families published');
+    const over = finished.find((r) => r.status === 'rejected');
+    assert.match(String((over as PromiseRejectedResult).reason?.message), /as many as an account may make/);
+    assert.equal((await store.accounts().get<{ n: number }>("SELECT count(*) AS n FROM family_admin WHERE created_by = 'u-lim'"))?.n, 2);
+    assert.equal((await store.accounts().get<{ n: number }>("SELECT count(*) AS n FROM membership WHERE user = 'u-lim'"))?.n, 2);
+    assert.equal((await store.treeIds()).filter((t) => ['alpha', 'birch', 'cedar'].includes(t)).length, 2, 'the third is not published');
+    // Nor may a finish that comes later, one at a time: the account has made its two.
+    await store.accounts().batch([set('families_per_account', '5')]);
+    const late = String((await move('dogwood', begin({ acceptTerms: true }), lia)).import);
+    await move('dogwood', { step: 'rows', import: late, table: 'meta', columns: ['key', 'value'], rows: [['id', 'dogwood']] }, lia);
+    await store.accounts().batch([set('families_per_account', '2')]);
+    await assert.rejects(move('dogwood', { step: 'finish', import: late }, lia), /as many as an account may make/);
+    // And whoever may no longer make families cannot finish one either.
+    await store.accounts().batch([set('families_per_account', '5')]);
+    await assert.rejects(move('dogwood', { step: 'finish', import: late }, { ...lia, mayCreate: async () => false }), /may not make families/);
+    assert.ok(!(await store.treeIds()).includes('dogwood'));
     // An operator wrote the terms and is not asked, and has no limit.
     const ossian: Importer = { id: 'u-opr', operator: true, steward: false, mayCreate: async () => true };
     await store.accounts().batch([set('families_per_account', '0')]);
