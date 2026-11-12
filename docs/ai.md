@@ -101,19 +101,29 @@ $2.00 this month".
 
 - **Two limits.** Each family's monthly budget from the operator, and a server-wide monthly ceiling for all families together
   (UTC months). Changing a budget never resets what was spent.
-- **Reserved before the call, atomically.** One batch of statements adds the call's estimate (the same estimate as above: input,
-  the reply's cap, searches, every round) to the family's operator spend (`ai_operator_spend`) and the month's total
-  (`ai_operator_month`) behind two guards, one per limit, and writes a booking row (`ai_operator_booking`). Two calls racing for
-  the last of either limit cannot both get it. One call may not take more than a fifth of the family's operator budget.
-- **Settled once.** After the call the booking is replaced by what it cost (the provider's reported cost, or its usage at the
-  model's price; a failure as described above). The settlement is guarded on the booking not being settled yet, so settling it
-  twice changes nothing. A booking that is never settled (the server stopped mid-call) keeps its reservation.
+- **Reserved before the call, atomically, as a strict maximum.** A family's own budget may estimate; the operator's money may
+  not. So an operator-funded call reserves the most it can cost: the reply's cap (sent to the provider as the call's
+  `max_tokens`, so the reply stops there) and its input bounded by its bytes (a tokenizer makes at most one token of a byte,
+  plus a little for each message's framing). One batch of statements adds that to the family's operator spend
+  (`ai_operator_family_month`, kept by the family's id, so deleting a family and making it again under the same id does not
+  start it at 0) and the month's total (`ai_operator_month`) behind two guards, one per limit, and writes a booking row
+  (`ai_operator_booking`). Two calls racing for the last of either limit cannot both get it. One call may not take more than a
+  fifth of the family's operator budget.
+- **Nothing that cannot be bounded.** A web search (the pages it reads in cannot be counted beforehand, and it is billed per
+  use) and a picture (each provider counts an image its own way) are refused on the operator's money; the assistant offers no
+  web search while a family is operator-funded, and the background tasks' name research runs without one.
+- **Settled once, at most the reservation.** After the call the booking is replaced by what it cost (the provider's reported
+  cost, or its usage at the model's price; a failure as described above), but never more than was reserved, so neither limit
+  can be passed. Anything a provider billed above the reservation is kept in `ai_operator_overage`, logged, and shown on the
+  console's Health tab. The settlement is guarded on the booking not being settled yet, so settling it twice changes nothing. A
+  booking that is never settled (the server stopped mid-call) keeps its reservation.
 - **Only known prices.** The operator's model must have a price in Kindred's table or OpenRouter's list: a model without one is
   refused when the operator saves it and again when a call is made. A family's own prices never count for the operator's money.
 - **The family's own budget still applies** on top, as the family's own cap: a call needs room in both.
 
-`src/lib/operator/policy.test.ts` checks the racing reservations against both limits, the idempotent settlement, a model with no
-price, the opt-in, and a call end to end on the fake provider.
+`src/lib/operator/policy.test.ts` checks the racing reservations against both limits (also when the provider bills more than
+any reservation), the byte bound on input, the refusal of searches and pictures, that deleting a family keeps its month's spend,
+the idempotent settlement, a model with no price, the opt-in, and a call end to end on the fake provider.
 
 ## Web search
 

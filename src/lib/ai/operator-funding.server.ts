@@ -7,13 +7,24 @@
 // limits in one atomic batch: two guards and the updates, so two calls racing for the last of either limit cannot both get
 // it. And the settlement is idempotent: each reservation has a row (`ai_operator_booking`), and settling it twice changes
 // nothing the second time. A booking that is never settled (the server stopped mid-call) keeps its reservation.
-import { AiError, callRounds, makeAdapter, outputCap, type AiAdapter } from './adapters';
+//
+// The reservation is the most a call books, so the two limits hold whatever the provider bills. A family's own budget may
+// estimate; the operator's money may not. So an operator-funded call reserves a strict upper bound: its reply's cap (sent to
+// the provider as the call's max_tokens) and its input bounded by its bytes (a tokenizer makes at most one token of a byte,
+// plus a little for each message's framing). What cannot be bounded before it is sent is refused: a web search (the pages it
+// reads in are input nobody can count beforehand, and a search is billed per use) and an image (each provider counts an
+// image's tokens its own way). The settlement books at most the reservation; anything the provider billed above it is kept
+// in `ai_operator_overage` for the operator's Health tab, and logged.
+//
+// The per-family spend is kept by the family's id in `ai_operator_family_month` (migration 0049), which a deleted family does
+// not take with it: a family deleted and made again under the same id within the month does not start again at 0.
+import { AiError, makeAdapter, outputCap, type AiAdapter, type AiRequest } from './adapters';
 import { fakeAdapter } from './fake';
 import { tr, type Tr } from './labels';
 import { openRouterListed } from './models.server';
-import { tablePrice, type Price } from './prices';
+import { costMicros, tablePrice, type Price } from './prices';
 import { keyTail, openKey, sealKey } from './secret.server';
-import { estimateMicros, failureMicros, fakeOn, monthNow, replyMicros, SINGLE_CALL_SHARE, TINY_BUDGET_MICROS } from './settings.server';
+import { failureMicros, fakeOn, monthNow, replyMicros, SINGLE_CALL_SHARE, TINY_BUDGET_MICROS } from './settings.server';
 import type { AiLocale, Provider } from './types';
 import { audit } from '../operator/settings.server.ts';
 import { OPERATOR_SEAL } from '../operator/policy.server.ts';
@@ -92,11 +103,11 @@ export async function reserveOperator(tree: string, amount: number, limits: Oper
   const id = crypto.randomUUID();
   try {
     await accounts().batch([
-      q('INSERT INTO ai_operator_spend (tree, month, micros) VALUES (?, ?, 0) ON CONFLICT (tree, month) DO NOTHING', tree, month),
+      q('INSERT INTO ai_operator_family_month (family, month, micros) VALUES (?, ?, 0) ON CONFLICT (family, month) DO NOTHING', tree, month),
       q('INSERT INTO ai_operator_month (month, micros) VALUES (?, 0) ON CONFLICT (month) DO NOTHING', month),
-      guard('(SELECT micros FROM ai_operator_spend WHERE tree = ? AND month = ?) + ? <= ?', tree, month, amount, limits.familyMicros),
+      guard('(SELECT micros FROM ai_operator_family_month WHERE family = ? AND month = ?) + ? <= ?', tree, month, amount, limits.familyMicros),
       guard('(SELECT micros FROM ai_operator_month WHERE month = ?) + ? <= ?', month, amount, limits.ceilingMicros),
-      q('UPDATE ai_operator_spend SET micros = micros + ? WHERE tree = ? AND month = ?', amount, tree, month),
+      q('UPDATE ai_operator_family_month SET micros = micros + ? WHERE family = ? AND month = ?', amount, tree, month),
       q('UPDATE ai_operator_month SET micros = micros + ? WHERE month = ?', amount, month),
       q('INSERT INTO ai_operator_booking (id, tree, month, amount, created) VALUES (?, ?, ?, ?, ?)', id, tree, month, amount, now.getTime()),
     ]);
@@ -110,17 +121,24 @@ export async function reserveOperator(tree: string, amount: number, limits: Oper
 /** Settled bookings are kept this long, so a late second settlement still finds its row and does nothing. */
 const SETTLED_KEPT_MS = 2 * 86_400_000;
 
-/** Replaces a reservation with what the call cost, once: settling the same booking again changes nothing. */
+/**
+ * Replaces a reservation with what the call cost, once: settling the same booking again changes nothing. It books at most the
+ * reservation, so neither limit is passed; what the provider billed above it is kept as an overage for the operator.
+ */
 export async function settleOperator(b: OperatorBooking, actual: number, now = Date.now()): Promise<boolean> {
-  const cost = Math.max(0, Math.round(actual));
+  const billed = Math.max(0, Math.round(actual));
+  const cost = Math.min(billed, b.amount);
+  const over = billed - cost;
   try {
     await accounts().batch([
       guard('EXISTS (SELECT 1 FROM ai_operator_booking WHERE id = ? AND settled_at IS NULL)', b.id),
-      q('UPDATE ai_operator_spend SET micros = MAX(0, micros - ? + ?) WHERE tree = ? AND month = ?', b.amount, cost, b.tree, b.month),
+      q('UPDATE ai_operator_family_month SET micros = MAX(0, micros - ? + ?) WHERE family = ? AND month = ?', b.amount, cost, b.tree, b.month),
       q('UPDATE ai_operator_month SET micros = MAX(0, micros - ? + ?) WHERE month = ?', b.amount, cost, b.month),
       q('UPDATE ai_operator_booking SET settled_at = ? WHERE id = ?', now, b.id),
       q('DELETE FROM ai_operator_booking WHERE settled_at IS NOT NULL AND settled_at < ?', now - SETTLED_KEPT_MS),
+      ...(over > 0 ? [q('INSERT INTO ai_operator_overage (id, family, month, micros, at) VALUES (?, ?, ?, ?, ?)', b.id, b.tree, b.month, over, now)] : []),
     ]);
+    if (over > 0) console.warn(`[kindred] operator-funded AI: a call billed ${over} micro-dollars above its reservation (family ${b.tree}); booked at the reservation`);
     return true;
   } catch (e) {
     if (isGuardError(e)) return false;
@@ -132,33 +150,55 @@ export async function settleOperator(b: OperatorBooking, actual: number, now = D
 export async function operatorSpent(tree?: string): Promise<{ family: number; total: number }> {
   const month = monthNow();
   const [fam, all] = (await accounts().readBatch([
-    q('SELECT micros FROM ai_operator_spend WHERE tree = ? AND month = ?', tree ?? '', month),
+    q('SELECT micros FROM ai_operator_family_month WHERE family = ? AND month = ?', tree ?? '', month),
     q('SELECT micros FROM ai_operator_month WHERE month = ?', month),
   ])) as unknown as [{ micros: number }[], { micros: number }[]];
   return { family: fam[0]?.micros ?? 0, total: all[0]?.micros ?? 0 };
 }
 
-/** The adapter with every call booked against the operator's limits first, and settled after (as `budgeted` does for a family). */
+/** Tokens each message's framing (its role and separators) may add, and the request's own, beyond the bytes of its content. */
+const FRAME_TOKENS_PER_MESSAGE = 16;
+const FRAME_TOKENS = 512;
+
+/**
+ * The most input tokens a request can be, before it is sent: one per byte of everything it sends as text (the system prompt,
+ * the messages, the tools' definitions, the answer's schema), plus the framing. No tokenizer makes more than one token of a
+ * byte. A request with an image or a web search has no such bound and is refused before this (operatorBudgeted).
+ */
+export function inputBound(req: Pick<AiRequest, 'system' | 'messages' | 'tools' | 'json'>): number {
+  const text = JSON.stringify({ system: req.system, messages: req.messages, tools: req.tools, json: req.json });
+  return new TextEncoder().encode(text).length + FRAME_TOKENS + FRAME_TOKENS_PER_MESSAGE * (req.messages.length + (req.tools?.length ?? 0));
+}
+
+/** Whether a request's cost can be bounded before it is sent: no web search, no image. */
+const unbounded = (req: AiRequest) => !!req.webSearch || req.messages.some((m) => m.role === 'user' && (m.images?.length ?? 0) > 0);
+
+/**
+ * The adapter with every call booked against the operator's limits first, and settled after (as `budgeted` does for a family).
+ * The reservation is a strict upper bound (see the top of this file), and the settlement books at most it.
+ */
 export function operatorBudgeted(tree: string, adapter: AiAdapter, price: Price, limits: OperatorLimits, c: Tr): AiAdapter {
   return {
     provider: adapter.provider,
     model: adapter.model,
     reasoning: adapter.reasoning,
-    async complete(req) {
-      if (req.signal?.aborted && (req.signal.reason as Error | undefined)?.name !== 'TimeoutError') throw new AiError('aborted', 'ai.stopped');
-      const cap = outputCap(adapter.provider, adapter.model, req.maxTokens, adapter.reasoning);
-      const estimate = estimateMicros(req, price, cap, callRounds(adapter.provider, req));
-      if (limits.familyMicros >= TINY_BUDGET_MICROS && estimate > limits.familyMicros * SINGLE_CALL_SHARE) throw new AiError('budget', c('ai.errBudgetShare'));
-      const booked = await reserveOperator(tree, estimate, limits, c);
+    async complete(request) {
+      if (request.signal?.aborted && (request.signal.reason as Error | undefined)?.name !== 'TimeoutError') throw new AiError('aborted', 'ai.stopped');
+      if (unbounded(request)) throw new AiError('bad-input', c('policy.err.operator_unbounded'));
+      const cap = outputCap(adapter.provider, adapter.model, request.maxTokens, adapter.reasoning);
+      // The cap the reservation counts is the one sent: the provider stops the reply there.
+      const req = { ...request, maxTokens: cap };
+      const reserve = costMicros({ inputTokens: inputBound(req), outputTokens: cap, searches: 0 }, price);
+      if (limits.familyMicros >= TINY_BUDGET_MICROS && reserve > limits.familyMicros * SINGLE_CALL_SHARE) throw new AiError('budget', c('ai.errBudgetShare'));
+      const booked = await reserveOperator(tree, reserve, limits, c);
       let actual = booked.amount;
       try {
         const reply = await adapter.complete(req);
         actual = reply.usageUnknown ? booked.amount : replyMicros(reply, price);
         return reply;
       } catch (e) {
-        actual = e instanceof AiError && e.billed
-          ? replyMicros(e.billed, price) + (e.inFlight && (e.code === 'timeout' || e.code === 'bad-output') ? estimateMicros(req, price, cap, 1) : 0)
-          : failureMicros(e, booked.amount);
+        // A failure keeps what it may have billed: at most the reservation, which settleOperator holds to.
+        actual = e instanceof AiError && e.billed ? replyMicros(e.billed, price) + (e.inFlight ? booked.amount : 0) : failureMicros(e, booked.amount);
         throw e;
       } finally {
         await settleOperator(booked, actual);

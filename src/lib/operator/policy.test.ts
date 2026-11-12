@@ -346,8 +346,80 @@ test('the operator’s budget: racing reservations never pass the family’s bud
   const booking = (tries.find((r) => r.status === 'fulfilled') as PromiseFulfilledResult<Awaited<ReturnType<typeof funding.reserveOperator>>>).value;
   assert.equal(await funding.settleOperator(booking, 40_000), true);
   assert.equal(await funding.settleOperator(booking, 40_000), false);
-  assert.equal((await store.accounts().get<{ micros: number }>("SELECT micros FROM ai_operator_spend WHERE tree = 'race-a' AND month = ?", month))!.micros, 940_000);
+  assert.equal((await store.accounts().get<{ micros: number }>("SELECT micros FROM ai_operator_family_month WHERE family = 'race-a' AND month = ?", month))!.micros, 940_000);
   assert.equal((await store.accounts().get<{ micros: number }>('SELECT micros FROM ai_operator_month WHERE month = ?', month))!.micros, 1_440_000);
+});
+
+// A provider that bills more than any reservation: it says it read and wrote a million tokens each.
+const overbilling = (seen: { maxTokens?: number }[] = []) => ({
+  provider: 'anthropic' as const, model: 'claude-haiku-5-5',
+  async complete(req: { maxTokens?: number }) {
+    seen.push({ maxTokens: req.maxTokens });
+    await new Promise((r) => setTimeout(r, 5));
+    return { text: 'ok', calls: [], tokens: 2_000_000, inputTokens: 1_000_000, outputTokens: 1_000_000, searches: 0 };
+  },
+});
+const HAIKU = { inPerM: 1, outPerM: 5, searchEach: 0.01 };
+const familyMonth = async (tree: string) => (await store.accounts().get<{ micros: number }>(
+  'SELECT micros FROM ai_operator_family_month WHERE family = ? AND month = ?', tree, new Date().toISOString().slice(0, 7)))?.micros ?? 0;
+const serverMonth = async () => (await store.accounts().get<{ micros: number }>(
+  'SELECT micros FROM ai_operator_month WHERE month = ?', new Date().toISOString().slice(0, 7)))?.micros ?? 0;
+
+test('the operator’s reservation is the most a call books: racing calls that the provider overbills stay under both limits', async () => {
+  const c = (k: string) => k;
+  const month = new Date().toISOString().slice(0, 7);
+  await store.accounts().run('DELETE FROM ai_operator_month WHERE month = ?', month);
+  const before = await serverMonth();
+  const limits = { familyMicros: 300_000, ceilingMicros: 500_000 };
+  const seen: { maxTokens?: number }[] = [];
+  const fam = (tree: string) => funding.operatorBudgeted(tree, overbilling(seen) as never, HAIKU, limits, c as never);
+  const req = { system: 'You are a test.', messages: [{ role: 'user' as const, text: 'Hello' }], maxTokens: 400 };
+  const tries = await Promise.allSettled([...Array.from({ length: 15 }, () => fam('cap-a').complete(req)), ...Array.from({ length: 15 }, () => fam('cap-b').complete(req))]);
+  assert.ok(tries.some((r) => r.status === 'fulfilled') && tries.some((r) => r.status === 'rejected'), 'some ran, the rest were refused at a limit');
+  assert.ok(await familyMonth('cap-a') <= limits.familyMicros, 'the family’s budget holds');
+  assert.ok(await familyMonth('cap-b') <= limits.familyMicros);
+  assert.ok((await serverMonth()) - before <= limits.ceilingMicros, 'the server’s ceiling holds');
+  // What the provider billed above the reservations is kept for the operator, not booked.
+  const over = await store.accounts().get<{ n: number; micros: number }>("SELECT count(*) AS n, sum(micros) AS micros FROM ai_operator_overage WHERE family IN ('cap-a', 'cap-b') AND month = ?", month);
+  assert.equal(over!.n, tries.filter((r) => r.status === 'fulfilled').length);
+  assert.ok(over!.micros > 0);
+  // The reply's length is capped at what was reserved for it.
+  assert.ok(seen.every((s) => s.maxTokens === 8_000), 'the output cap the reservation counted is the one sent');
+  const h = await (await load<typeof import('./health.server.ts')>('/src/lib/operator/health.server.ts')).readHealth({ archive: false });
+  assert.equal(h.aiOverage?.calls, over!.n, 'the Health tab tells the operator');
+});
+
+test('the operator’s reservation: input bounded by its bytes, and what cannot be bounded is refused', async () => {
+  const c = (k: string) => k;
+  const limits = { familyMicros: 50_000_000, ceilingMicros: 500_000_000 };
+  let booked = 0;
+  const inner = { provider: 'anthropic' as const, model: 'claude-haiku-5-5', async complete() {
+    booked = await familyMonth('bound-a');
+    return { text: 'ok', calls: [], tokens: 2, inputTokens: 1, outputTokens: 1, searches: 0 };
+  } };
+  const adapter = funding.operatorBudgeted('bound-a', inner as never, HAIKU, limits, c as never);
+  // Japanese text: three bytes a character, and a tokenizer may give a character a token of its own (or more than one byte's).
+  const text = '漢'.repeat(20_000);
+  await adapter.complete({ system: '', messages: [{ role: 'user', text }], maxTokens: 100 });
+  const bytes = new TextEncoder().encode(text).length;
+  assert.ok(booked >= Math.ceil(bytes * HAIKU.inPerM + 8_000 * HAIKU.outPerM), `reserved ${booked} for ${bytes} bytes`);
+  await assert.rejects(adapter.complete({ system: '', messages: [{ role: 'user', text: 'Find her' }], webSearch: { maxUses: 2 } }), /operator_unbounded/);
+  await assert.rejects(adapter.complete({ system: '', messages: [{ role: 'user', text: 'Who is this?', images: [{ mime: 'image/png', base64: 'AAAA' }] }] } as never), /operator_unbounded/);
+});
+
+test('deleting a family keeps what the operator’s AI booked for it this month, and the server’s total', async () => {
+  const c = (k: string) => k;
+  const limits = { familyMicros: 1_000_000, ceilingMicros: 100_000_000 };
+  await dbs.provisionFamily('again', 'Again');
+  const b = await funding.reserveOperator('again', 900_000, limits, c as never);
+  await funding.settleOperator(b, 900_000);
+  const total = await serverMonth();
+  const { forgetInAccounts } = await load<typeof import('../families.server.ts')>('/src/lib/families.server.ts');
+  await store.accounts().batch(await forgetInAccounts('again'));
+  assert.equal(await familyMonth('again'), 900_000, 'kept: a family made again under the id does not start at 0');
+  assert.equal(await serverMonth(), total);
+  await assert.rejects(funding.reserveOperator('again', 200_000, limits, c as never), /operator_budget/);
+  assert.equal((await funding.operatorSpent('again')).family, 900_000);
 });
 
 test('operator-funded AI: refused for a model with no price, opt-in only, and booked on the operator’s money', async () => {
@@ -369,7 +441,7 @@ test('operator-funded AI: refused for a model with no price, opt-in only, and bo
   const { adapter } = await ai.adapterForFeature(B, 'assistant', 'en');
   await adapter.complete({ system: 'You are a test.', messages: [{ role: 'user', text: 'Hello' }], maxTokens: 200 });
   const month = new Date().toISOString().slice(0, 7);
-  const spent = (await store.accounts().get<{ micros: number }>('SELECT micros FROM ai_operator_spend WHERE tree = ? AND month = ?', B, month))?.micros ?? 0;
+  const spent = (await store.accounts().get<{ micros: number }>('SELECT micros FROM ai_operator_family_month WHERE family = ? AND month = ?', B, month))?.micros ?? 0;
   assert.ok(spent > 0, 'booked at the table’s price: the family’s own price of 0 does not count');
   assert.equal((await store.accounts().get<{ n: number }>('SELECT count(*) AS n FROM ai_operator_booking WHERE tree = ? AND settled_at IS NULL', B))!.n, 0, 'settled');
   const view = await policy.familyPolicies(B);

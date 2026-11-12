@@ -101,7 +101,7 @@ export async function familyPolicies(tree: string): Promise<FamilyPolicies> {
   )) as FamilyPolicies['features'];
   const [ai, settings, spent] = await Promise.all([
     effective(tree, 'ai.source'), instanceSettings(),
-    accounts().get<{ micros: number }>('SELECT micros FROM ai_operator_spend WHERE tree = ? AND month = ?', tree, new Date().toISOString().slice(0, 7)),
+    accounts().get<{ micros: number }>('SELECT micros FROM ai_operator_family_month WHERE family = ? AND month = ?', tree, new Date().toISOString().slice(0, 7)),
   ]);
   return {
     features,

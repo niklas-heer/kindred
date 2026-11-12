@@ -269,7 +269,8 @@ export async function routeAdapter(tree: string, route: Route, locale: AiLocale,
     // The operator's provider, model and key, booked against the operator's limits; a steward's model choice does not apply.
     const o = await (await import('./operator-funding.server')).operatorAdapter(tree, ai, locale);
     const effective = { provider: o.provider, model: o.model };
-    return { inner: o.inner, price: o.price, settings, resolved: { route, provider: o.provider, model: o.model, effective, connected: true, needsModel: false } };
+    // No web search on the operator's money: its cost cannot be bounded before it is sent (operator-funding.server.ts).
+    return { inner: o.inner, price: o.price, settings: { ...settings, webSearch: false }, resolved: { route, provider: o.provider, model: o.model, effective, connected: true, needsModel: false } };
   }
   // A steward's choice for one chat, already checked: it goes to that provider's own key, like any route.
   const resolved: ResolvedRoute = override ? { route, provider: override.provider, model: override.model, effective: override, connected: true, needsModel: false } : await resolveRoute(tree, route);
@@ -310,8 +311,8 @@ export async function adapterForFeature(tree: string, feature: Feature, locale: 
   const settings = await readSettings(tree);
   if (!settings.features[feature]) throw new AiError('not-configured', c('ai.errOff'));
   if (settings.monthlyMicros <= 0) throw new AiError('budget', c('ai.errBudget'));
-  const { inner, price } = await routeAdapter(tree, route, locale, override);
-  return { adapter: budgeted(tree, settings.monthlyMicros, inner, price, c), webSearch: settings.webSearch, settings };
+  const routed = await routeAdapter(tree, route, locale, override);
+  return { adapter: budgeted(tree, settings.monthlyMicros, routed.inner, routed.price, c), webSearch: settings.webSearch && routed.settings.webSearch, settings };
 }
 
 /** What the browser shows: the assistant is set up (its provider connected), a feature is on only when switched on and its own route runs, and the budget is above 0. */

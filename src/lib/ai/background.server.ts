@@ -254,7 +254,7 @@ export async function runTask(tree: string, task: Task, o: RunOptions = {}): Pro
     const routed = await routeAdapter(tree, TASK_ROUTE[task], bg.locale);
     const inner = o.adapter ?? routed.inner;
     const price = o.price ?? routed.price;
-    const adapter = backgroundAdapter(tree, inner, { monthlyMicros: ready.settings.monthlyMicros, capMicros: capMicros(ready.settings.monthlyMicros, bg.capShare), price, c, meter, allowSearch: task === 'names' && ready.settings.webSearch, room: o.room });
+    const adapter = backgroundAdapter(tree, inner, { monthlyMicros: ready.settings.monthlyMicros, capMicros: capMicros(ready.settings.monthlyMicros, bg.capShare), price, c, meter, allowSearch: task === 'names' && ready.settings.webSearch && routed.settings.webSearch, room: o.room });
     let done = 0;
     let failed = 0;
     let stopped = false;
@@ -268,7 +268,7 @@ export async function runTask(tree: string, task: Task, o: RunOptions = {}): Pro
         o.room.item = 0;
       }
       try {
-        await perform(tree, item, { adapter, locale: bg.locale, now, webSearch: ready.settings.webSearch });
+        await perform(tree, item, { adapter, locale: bg.locale, now, webSearch: ready.settings.webSearch && routed.settings.webSearch });
         await accounts().run('DELETE FROM ai_task_giveup WHERE tree = ? AND task = ? AND item = ?', tree, task, itemKey(item));
         done++;
       } catch (e) {
