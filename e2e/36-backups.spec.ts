@@ -14,7 +14,8 @@ test('the operator backs a family up, tests a restore and restores it into a new
   await settled(page);
   await expect(page.getByRole('tab', { name: 'Backups', selected: true })).toBeVisible();
   await expect(page.getByText(/The backups are files in the server’s backup folder/)).toBeVisible();
-  await expect(page.getByText(/^Sealed with /)).toBeVisible();
+  // Lines that follow an icon are not anchored: a regex sees the raw text, which starts with the space after the icon.
+  await expect(page.getByRole('region', { name: 'Where and with which key' }).getByText(/Sealed with /)).toBeVisible();
   await checkAxe(page, 'operator backups');
 
   const row = page.getByRole('listitem').filter({ has: page.locator('code', { hasText: new RegExp(`^${tree}$`) }) }).first();
@@ -23,7 +24,7 @@ test('the operator backs a family up, tests a restore and restores it into a new
   await expect(row.getByText(/^Last good backup /)).toBeVisible();
   await row.getByRole('button', { name: 'Test a restore' }).click();
   await expect(row.getByText(/it is fine/)).toBeVisible();
-  await expect(row.getByText(/^Restore test passed /)).toBeVisible();
+  await expect(row.getByText(/Restore test passed /)).toBeVisible();
 
   await row.getByRole('button', { name: /^Backups \(\d+\)$/ }).click();
   await expect(row.getByText(/ rows, schema \d{4}_/).first()).toBeVisible();
