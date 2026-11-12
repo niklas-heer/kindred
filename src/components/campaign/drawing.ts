@@ -103,9 +103,11 @@ export function spotsIn(map: GameMap, p: Province, room = 1): Spot[] {
 /** Where a town's houses or a seat's castle stand: beside the banner, on the province's own land; nowhere when there is no room. */
 export function settlementAt(p: Province, room = 1): Pt | null {
   // To the left first: the garrison's token stands to the right of the banner.
-  const tries: Pt[] = [[-62, 8], [-54, -38], [70, 4], [58, -40], [-44, 62], [44, 62], [0, 70], [0, -78]];
+  // Never under the banner, where the name is written.
+  const tries: Pt[] = [[-62, 8], [-56, -36], [72, 2], [60, -40], [-84, 20], [88, 16], [0, -84], [-70, 44], [74, 44]];
   const fits = (x: number, y: number, margin: number) => [[0, 0], [margin, 0], [-margin, 0], [0, margin], [0, -margin]].every(([ox, oy]) => inside(p.cell, x + ox, y + oy));
-  for (const margin of [14, 4]) {
+  // Drawn larger (a narrow screen), the picture needs all its room: there it is left out sooner than drawn in the sea.
+  for (const margin of room > 1 ? [18] : [14, 6]) {
     for (const [dx, dy] of tries) {
       const x = p.x + dx * room, y = p.y + dy * room;
       if (fits(x, y, margin)) return [x, y];

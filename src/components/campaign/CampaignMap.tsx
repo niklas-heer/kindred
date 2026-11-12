@@ -397,9 +397,13 @@ export function CampaignMap({ map, state, sides, player, selected = null, reach 
             {clash && (() => {
               const [x0, y0] = centre(clash.from), [x1, y1] = centre(clash.to);
               return (
-                <g key={`c${clash.from}-${clash.to}`} className="cm-clash" transform={`translate(${x0 + (x1 - x0) * 0.66} ${y0 + (y1 - y0) * 0.66}) scale(${Math.max(k, 0.75)})`}>
-                  <path className="cm-burst" d="M0-30L7-11L26-18L14-2L31 8L11 10L14 30L0 15L-14 30L-11 10L-31 8L-14-2L-26-18L-7-11Z" />
-                  <Swords x={-13} y={-13} width={26} height={26} />
+                // The place is set on the outer group and the burst is animated on the inner one: an animated transform would
+                // otherwise replace the place.
+                <g key={`c${clash.from}-${clash.to}`} transform={`translate(${x0 + (x1 - x0) * 0.66} ${y0 + (y1 - y0) * 0.66}) scale(${Math.max(k, 0.75)})`}>
+                  <g className="cm-clash">
+                    <path className="cm-burst" d="M0-30L7-11L26-18L14-2L31 8L11 10L14 30L0 15L-14 30L-11 10L-31 8L-14-2L-26-18L-7-11Z" />
+                    <Swords x={-13} y={-13} width={26} height={26} />
+                  </g>
                 </g>
               );
             })()}
