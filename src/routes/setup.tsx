@@ -1,16 +1,13 @@
 import { localizeTitle, translateMessage, useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, redirect } from '@tanstack/react-router';
-import { Crown, KeyRound, TriangleAlert, UserPlus } from 'lucide-react';
+import { Crown, KeyRound, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { AuthCard, AuthError, NoAccessIdentity, PasskeyExplainer } from '~/components/AuthCard';
 import { forgetLocalIdentity, passkeysSupported, setUpFirstSteward, setUpWithPassword } from '~/lib/auth/client';
 import { firstWay, NewPasswordFields, newPasswordReady, useSignInMethods, WayPicker, type NewWay } from '~/components/signin/PasswordFields';
 import { sessionQuery, setupWithAccess } from '~/lib/auth/functions';
-import { splitName } from '~/lib/auth/name';
-import { chooseMe } from '~/lib/family';
-import { opKeys } from '~/lib/api';
-import { addSelfToFamily } from '~/lib/person.functions';
+import { FirstRunStep, type MadeFamily } from '~/components/FirstRunStep';
 import { Notice, useIsClient } from '~/components/ui';
 import { createServerFn } from '@tanstack/react-start';
 
@@ -32,8 +29,6 @@ export const Route = createFileRoute('/setup')({
   component: Setup,
 });
 
-/** A family the setup has just made: the steward is in it, and adds themselves before anything else. */
-interface MadeFamily { tree: string; family: string; steward: string }
 
 function Setup() {
   const t = useT();
@@ -146,57 +141,6 @@ function Setup() {
       </form>
       {!access && !byPassword && <p className="auth-device-hint">{t("setup.save_your_passkey_in_1password_icloud_keychain_google_password_manager_or_a_security_key")}</p>}
       {!access && !byPassword && <PasskeyExplainer creating />}
-    </AuthCard>
-  );
-}
-
-/**
- * The first-run prompt after setup: the steward is signed in and in their new family, which is empty. They add
- * themselves to it, which makes them its starting point. Skipping goes to the family all the same.
- */
-function FirstRunStep({ tree, family, steward }: MadeFamily) {
-  const t = useT();
-  const [keys] = useState(opKeys);
-  // The name typed in setup, taken apart at its last space: the steward checks both parts before saving.
-  const [parts] = useState(() => splitName(steward));
-  const [given, setGiven] = useState(parts.given);
-  const [surname, setSurname] = useState(parts.surname);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const addMe = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const body = { tree, given: given.trim(), surname: surname.trim() };
-      const id = await addSelfToFamily({ data: { ...body, opKey: keys.for('self', body) } });
-      keys.clear('self');
-      await chooseMe(tree, id);
-      window.location.assign(`/${tree}`);
-    } catch (err) {
-      setError(err instanceof Error ? translateMessage(err.message, t.locale) : t('setup.family_add_failed'));
-      setBusy(false);
-    }
-  };
-
-  return (
-    <AuthCard crest={<Crown size={44} />} kicker={family} title={t('setup.family_ready_title', { name: family })} lede={t('setup.family_ready_lede')}>
-      <form className="auth-form" onSubmit={addMe}>
-        <label className="field">
-          <span>{t('setup.given_name')}</span>
-          <input className="input" value={given} onChange={(e) => setGiven(e.target.value)} autoComplete="given-name" required maxLength={120} autoFocus />
-        </label>
-        <label className="field">
-          <span>{t('setup.surname')}</span>
-          <input className="input" value={surname} onChange={(e) => setSurname(e.target.value)} autoComplete="family-name" maxLength={120} />
-        </label>
-        <AuthError>{error}</AuthError>
-        <button className="btn primary auth-go" disabled={busy || !given.trim()}>
-          <UserPlus size={19} /> {t('setup.add_me')}
-        </button>
-      </form>
-      <p className="auth-device-hint"><a className="auth-link" href={`/${tree}`}>{t('setup.skip')}</a></p>
     </AuthCard>
   );
 }
