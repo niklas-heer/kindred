@@ -351,12 +351,15 @@ export function Board({ reign, sides, game, renownLink }: BoardProps) {
               {/* Levy left after "Done placing": the step can be returned to until the turn ends. */}
               {step === 2 && pool > 0 ? (
                 <button type="button" className="cg-step-back" onClick={() => { setSkipped(-1); setPick({ k: 'none' }); }} aria-label={t('campaign.steps.reinforce_back', { count: pool })} title={t('campaign.steps.reinforce_back', { count: pool })}>
-                  <b>1</b> {t('campaign.steps.reinforce')} <Undo2 size={13} aria-hidden />
+                  <b>1</b> <span>{t('campaign.steps.reinforce')}</span> <Undo2 size={13} aria-hidden />
                 </button>
-              ) : <><b>1</b> {t('campaign.steps.reinforce')}</>}
+              ) : <><b>1</b> <span>{t('campaign.steps.reinforce')}</span></>}
             </li>
-            <li className={step === 2 ? 'is-on' : ''} aria-current={step === 2 ? 'step' : undefined}><b>2</b> {t('campaign.steps.orders', { count: state.orders })}</li>
-            <li><b>3</b> {t('campaign.steps.end')}</li>
+            {/* The step's name and how many are left, each on one line whatever the width; read out as one sentence. */}
+            <li className={step === 2 ? 'is-on' : ''} aria-current={step === 2 ? 'step' : undefined}>
+              <b>2</b> <span aria-hidden>{t('campaign.steps.orders_short')}</span><span className="cg-step-n" aria-hidden>{state.orders}</span><span className="sr-only">{t('campaign.steps.orders', { count: state.orders })}</span>
+            </li>
+            <li><b>3</b> <span>{t('campaign.steps.end')}</span></li>
           </ol>
         )}
 

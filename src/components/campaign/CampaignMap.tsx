@@ -19,7 +19,7 @@ import { HEX_V2 } from '~/lib/heraldry/tinctures';
 import { MAP_H, MAP_W, terrainOf, type Crossing, type GameMap, type Pt, type State, type Terrain } from '~/lib/campaign/engine';
 import type { StoredSide } from '~/lib/campaign/types';
 import { useT, type Key, type Translator } from '~/lib/i18n';
-import { badgeAt, cameraFor, coastOf, cornersOf, courseOf, nameBox, namesAt, peaksAlong, ridgeBoxes, settlementAt, smoothClosed, smoothOpen, spotsIn, type Box, type GlyphKind, type NameSpot } from './drawing';
+import { badgeAt, bannerBox, cameraFor, coastOf, cornersOf, courseOf, nameBox, namesAt, peaksAlong, ridgeBoxes, settlementAt, smoothClosed, smoothOpen, spotsIn, tokenAt, tokenSides, type Box, type GlyphKind, type NameSpot } from './drawing';
 
 const SPARE = ['#8f97a6', '#b08a4a', '#5f8f8a', '#9a6fa3', '#7d8c4f', '#a8705c'];
 const pale = (hex: string) => {
@@ -244,9 +244,12 @@ export function CampaignMap({ map, state, sides, player, selected = null, reach 
   // On a wide screen every name is written once and stays where it is. On a narrow one the names show only while the view
   // has moved in on an order, and then only those the order is about, kept inside what the view shows.
   const ridges = useMemo(() => ridgeBoxes(map), [map]);
+  // Each garrison's count stands by its own banner, on the side where it covers no neighbour's banner or count. The side
+  // is chosen for the size the marks have with the whole map in view, and kept while the view moves in.
+  const tokens = useMemo(() => tokenSides(map, seats, base), [map, seats, base]);
   const names = useMemo(
-    () => (narrow ? (camera && chosen ? namesAt(map, seats, k, nameSize, { only: chosen, within }) : new Map<number, NameSpot>()) : namesAt(map, seats, 1, 21, { avoid: ridges })),
-    [narrow, camera, chosen, map, seats, k, nameSize, within, ridges],
+    () => (narrow ? (camera && chosen ? namesAt(map, seats, k, nameSize, { only: chosen, within, tokens }) : new Map<number, NameSpot>()) : namesAt(map, seats, 1, 21, { avoid: ridges, tokens })),
+    [narrow, camera, chosen, map, seats, k, nameSize, within, ridges, tokens],
   );
   const nameBoxes = useMemo(() => (narrow ? NO_BOXES : [...names.values()].map((n) => nameBox(n, 21))), [narrow, names]);
   // The badges have the say: each finds a place clear of the banners and names of the provinces in play, and of the others.
@@ -256,7 +259,7 @@ export function CampaignMap({ map, state, sides, player, selected = null, reach 
     const taken: Box[] = [];
     for (const id of chosen) {
       const p = map.provinces[id];
-      taken.push([p.x - shield / 2, p.y - shield * 0.78, p.x + shield * 0.46 + 15 * k, p.y + shield * 0.3 + 15 * k]);
+      taken.push(bannerBox(p, k, tokenAt(p, tokens[id], k)));
       const n = names.get(id);
       if (n) taken.push(nameBox(n, nameSize));
     }
@@ -265,7 +268,7 @@ export function CampaignMap({ map, state, sides, player, selected = null, reach 
       out.set(id, badgeAt(map.provinces[id], w, 26 * k, k, taken, within));
     }
     return out;
-  }, [chosen, reach, map, names, shield, k, nameSize, within]);
+  }, [chosen, reach, map, names, k, nameSize, within, tokens]);
   const [focused, setFocused] = useState<number | null>(null);
   const centre = (id: number): Pt => [map.provinces[id].x, map.provinces[id].y];
 
@@ -285,7 +288,14 @@ export function CampaignMap({ map, state, sides, player, selected = null, reach 
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- only a change of holders floods; `centre` reads the map, which does not change during a reign
   }, [state.holder]);
 
-  const course = arrow ? courseOf(map, arrow.from, arrow.to, 34 * k) : null;
+  // An order's arrow keeps off the names of the two provinces it joins.
+  // (`nameBox` allows a name its widest letters, for what must never touch it; an arrow may come a little closer.)
+  const nameRoom = (id: number): Box | undefined => {
+    if (!names.has(id)) return undefined;
+    const [x0, y0, x1, y1] = nameBox(names.get(id)!, nameSize);
+    return [x0 + (x1 - x0) * 0.1, y0, x1 - (x1 - x0) * 0.1, y1];
+  };
+  const course = arrow ? courseOf(map, arrow.from, arrow.to, 34 * k, { from: nameRoom(arrow.from), to: nameRoom(arrow.to) }) : null;
 
   const badge = (id: number, r: Reach): ReactNode => {
     const s = k;
@@ -372,7 +382,9 @@ export function CampaignMap({ map, state, sides, player, selected = null, reach 
             {selected !== null && <path className="cm-ring is-selected" d={paths[selected]} />}
             {focused !== null && <path className="cm-ring is-focused" d={paths[focused]} />}
           </g>
-          {/* Shields, garrisons and names, over the lands; a press goes through them to the land. */}
+          {/* Over the lands, in this order: the banners; an order's arrow; the names, so a name the arrow must pass is
+              written over it and stays whole; then every garrison's count, so no count is ever under a neighbour's
+              banner. A press goes through them all to the land. */}
           <g className="cm-marks" aria-hidden>
             {map.provinces.map((p) => {
               const held = state.holder[p.id];
@@ -389,7 +401,22 @@ export function CampaignMap({ map, state, sides, player, selected = null, reach 
                     <path className="cm-flag" transform={`translate(${p.x} ${p.y - shield * 0.2}) scale(${k})`} d="M-2 -30V22M-2 -30L22 -22L-2 -13" />
                   )}
                   {seats.has(p.id) && <Crown className="cm-crown" x={p.x - 11 * k} y={p.y - shield * 0.78 - 21 * k} width={22 * k} height={22 * k} />}
-                  <g transform={`translate(${p.x + shield * 0.46} ${p.y + shield * 0.3})`}>
+                </g>
+              );
+            })}
+          </g>
+          <g className="cm-over" aria-hidden>
+            {course && <path key={`a${arrow!.from}-${arrow!.to}`} className={`cm-arrow is-${arrow!.kind}`} d={course.d} markerEnd={`url(#${uid}-head-${arrow!.kind})`} style={{ strokeWidth: 9 * Math.max(k, 0.7) }} />}
+          </g>
+          <g className="cm-marks" aria-hidden>
+            {map.provinces.map((p) => {
+              const mine = !!player && state.holder[p.id] === player;
+              const dim = choosing && selected !== p.id && !reach.has(p.id);
+              const [tx, ty] = tokenAt(p, tokens[p.id], k);
+              return (
+                <g key={p.id} className={`cm-mark${mine ? ' is-mine' : ''}${dim ? ' is-dim' : ''}`}>
+                  {names.has(p.id) && <text className="cm-name" x={names.get(p.id)!.x} y={names.get(p.id)!.y} textAnchor="middle" style={narrow ? { fontSize: `${nameSize}px` } : undefined}>{p.name}</text>}
+                  <g transform={`translate(${tx} ${ty})`}>
                     <g key={state.troops[p.id]} className="cm-token">
                       <circle r={15 * k} />
                       <text textAnchor="middle" dominantBaseline="central" fontSize={19 * k}>{state.troops[p.id]}</text>
@@ -401,13 +428,11 @@ export function CampaignMap({ map, state, sides, player, selected = null, reach 
                       </g>
                     )}
                   </g>
-                  {names.has(p.id) && <text className="cm-name" x={names.get(p.id)!.x} y={names.get(p.id)!.y} textAnchor="middle" style={narrow ? { fontSize: `${nameSize}px` } : undefined}>{p.name}</text>}
                 </g>
               );
             })}
           </g>
           <g className="cm-over" aria-hidden>
-            {course && <path key={`a${arrow!.from}-${arrow!.to}`} className={`cm-arrow is-${arrow!.kind}`} d={course.d} markerEnd={`url(#${uid}-head-${arrow!.kind})`} style={{ strokeWidth: 9 * Math.max(k, 0.7) }} />}
             {[...reach].map(([id, r]) => badge(id, r))}
             {(flights ?? []).map((f) => {
               const [x0, y0] = centre(f.from), [x1, y1] = centre(f.to);

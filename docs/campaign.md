@@ -66,7 +66,8 @@ The map and the list show the same provinces and work the same way.
 
 **On a phone** the turn's panel is below the map, so a strip stays at the foot of the screen while a reign is on: the
 turn, what is left of it ("3 orders left", or "2 troops to place"), Undo, and the way on ("On to the orders" while levy
-waits, then "End the turn"). The order bar takes its place while an order is being made. The legend is one line,
+waits, then "End the turn"). The order bar takes its place while an order is being made. The turn's three steps stand
+first in the panel there, straight under the map, so the strip is not over them. The legend is one line,
 "Reading the map", until it is opened. While an order is being chosen the map moves in on the province and what it can
 reach, and writes only their names, inside what the view shows.
 
@@ -80,7 +81,10 @@ reach, and writes only their names, inside what the view shows.
   small plus.
 - **Names and pictures keep out of each other's way:** a name is written under its banner, or above or beside it when a
   mountain ridge, another banner or another name is there, and on its own land where it can be; the land's pictures keep
-  clear of every name.
+  clear of every name. A garrison's count stands at the lower right of its banner, or on another side where it would
+  cover a neighbour's banner or count (banners crowd on a phone, where they are drawn larger), and the counts are drawn
+  over every banner. An order's arrow sets out beyond the name of its own province and stops short of the name of the
+  one it goes to; where it has no room for that, the name is written over the arrow and stays whole.
 - **What moves:** troops travel from one province to the other as a token; where two armies meet there is a burst, then
   the battle's dialog; a province that changes hands fills with its new holder's colour from the side the attack came
   from; a banner names each new turn and its season.

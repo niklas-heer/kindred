@@ -168,6 +168,11 @@ test('campaign: a steward turns it on, plays a reign to the table, and a practic
   await expect(strip.getByRole('button', { name: 'Undo' })).toBeVisible();
   await expect(strip.getByRole('button', { name: 'End the turn' })).toBeVisible();
   await expect(orders.getByRole('button', { name: 'End the turn' })).toBeHidden();
+  // The turn's three steps come first in the panel there, each on one line: "Orders" with what is left of them.
+  await expect(orders.locator('.cg-step-n')).toHaveText('2');
+  const steps = await orders.locator('.cg-steps li').evaluateAll((all) => all.map((li) => ({ height: li.getBoundingClientRect().height, top: li.getBoundingClientRect().top })));
+  expect(Math.max(...steps.map((b) => b.height))).toBeLessThan(40);
+  expect(steps[0].top).toBeLessThan((await orders.getByRole('heading', { name: 'Turn 1 of 12' }).boundingBox())!.y);
   await expect(legend).toBeHidden();
   await expect(page.locator('.cg-terrain-legend summary').getByText('Reading the map')).toBeVisible();
   await expect(page.locator('.cg-terrain-legend summary').getByText('What each one does')).toBeHidden();

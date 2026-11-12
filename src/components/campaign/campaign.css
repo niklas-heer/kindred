@@ -317,8 +317,12 @@
 .cg-track i.is-done { background: color-mix(in srgb, var(--accent) 55%, transparent); }
 .cg-track i.is-on { background: var(--accent); height: 8px; }
 .cg-score-now { font-family: var(--font-ui); font-size: var(--fs-2); font-weight: 600; padding: 2px 10px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); font-variant-numeric: tabular-nums; }
-.cg-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
-.cg-steps li { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: var(--radius); border: 1px solid var(--border); font-family: var(--font-ui); font-size: var(--fs-1); color: var(--subtle); line-height: 1.2; }
+/* Each step is as wide as its words need and never breaks a line: "Orders" and its count stay whole at any width. */
+.cg-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, auto); gap: 4px; }
+.cg-steps li { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 6px 8px; border-radius: var(--radius); border: 1px solid var(--border); font-family: var(--font-ui); font-size: var(--fs-1); color: var(--subtle); line-height: 1.2; white-space: nowrap; }
+.cg-steps li span:not(.cg-step-n):not(.sr-only) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cg-steps svg { flex: none; }
+.cg-step-n { flex: none; min-width: 18px; height: 18px; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 9px; background: color-mix(in srgb, currentColor 14%, transparent); font-size: 0.7rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .cg-steps b { flex: none; width: 20px; height: 20px; display: inline-grid; place-items: center; border-radius: 50%; border: 1.5px solid currentColor; font-size: 0.7rem; }
 .cg-steps li.is-on { color: var(--text); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
 .cg-steps li.is-on b { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
@@ -507,6 +511,9 @@
   /* Above the phone's tab bar. */
   .cg-orderbar { bottom: calc(58px + env(safe-area-inset-bottom)); padding-bottom: 12px; }
   .cg-strip { bottom: calc(58px + env(safe-area-inset-bottom)); padding-bottom: 8px; }
+  /* The turn's steps come first in its panel, straight under the map, so the strip at the foot of the screen is not over them. */
+  .cg-orders .cg-steps { order: -1; }
+  .cg-steps li { padding: 6px; gap: 5px; }
   /* The legend is one line until it is opened: the map and the turn come first. */
   .cg-legend-chips, .cg-legend-wide { display: none; }
   .cg-legend-narrow { display: inline; }

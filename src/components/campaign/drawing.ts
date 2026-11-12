@@ -1,8 +1,8 @@
 // How the campaign's map is drawn from its numbers: outlines as flowing lines, the coast around all the land, where the
 // little trees and hills stand, where the sheet's title and compass find room, and how far the view moves in to an order
 // on a narrow screen. Pure geometry for ./CampaignMap.tsx; the rules know none of it.
-import { MAP_H, MAP_W, type GameMap, type Province, type Pt, type Terrain } from '~/lib/campaign/engine';
-import { rng } from '~/lib/campaign/rng';
+import { MAP_H, MAP_W, type GameMap, type Province, type Pt, type Terrain } from '../../lib/campaign/engine.ts';
+import { rng } from '../../lib/campaign/rng.ts';
 
 const n1 = (v: number) => Math.round(v * 10) / 10;
 const at = (p: Pt) => `${n1(p[0])} ${n1(p[1])}`;
@@ -124,6 +124,44 @@ export function settlementAt(p: Province, room = 1, avoid: readonly Box[] = []):
   return null;
 }
 
+/** Where a garrison's token can stand by its banner, in shields from the banner's middle: lower right first, then lower left, upper right, upper left. */
+const TOKEN_SIDES: readonly Pt[] = [[0.46, 0.3], [-0.46, 0.3], [0.5, -0.52], [-0.5, -0.52]];
+
+/** The middle of a province's token, standing on this side of its banner. `room` is how large the marks are drawn. */
+export const tokenAt = (p: { x: number; y: number }, side: number, room = 1): Pt => {
+  const [dx, dy] = TOKEN_SIDES[side] ?? TOKEN_SIDES[0];
+  return [p.x + 46 * room * dx, p.y + 46 * room * dy];
+};
+
+/** The room a province's banner takes: its shield or flag, the crown above a seat, and its token where that stands. */
+export function bannerBox(p: { x: number; y: number }, room: number, token: Pt, crown = false, gap = 0): Box {
+  const shield = 46 * room, r = 15 * room + gap;
+  return [Math.min(p.x - shield / 2 - gap, token[0] - r), Math.min(p.y - shield * 0.78 - (crown ? 22 * room : 0), token[1] - r), Math.max(p.x + shield / 2 + gap, token[0] + r), Math.max(p.y + shield * 0.3, token[1] + r)];
+}
+
+/**
+ * Which side of its banner each province's token stands on (see `tokenAt`). Lower right, unless the count would then
+ * stand on a neighbour's banner or count, as it can where two banners are close and the marks are drawn large (a narrow
+ * screen): then the first side that is clear. A reign's holders change and its banners do not move, so every banner is
+ * taken as a shield, and the answer holds for the whole reign.
+ */
+export function tokenSides(map: GameMap, seats: ReadonlySet<number>, room = 1): number[] {
+  const shield = 46 * room, r = 15 * room;
+  const banner = (p: Province): Box => [p.x - shield / 2, p.y - shield * 0.78 - (seats.has(p.id) ? 20 * room : 0), p.x + shield / 2, p.y + shield * 0.38];
+  const token = (p: Province, side: number): Box => { const [x, y] = tokenAt(p, side, room); return [x - r, y - r, x + r, y + r]; };
+  const sides = map.provinces.map(() => 0);
+  const clashes = (p: Province, side: number) => map.provinces.some((q) => q.id !== p.id && (meets(token(p, side), banner(q), 1) || meets(token(p, side), token(q, sides[q.id]), 1)));
+  // Twice over: a token that moved may have made room for one before it.
+  for (let pass = 0; pass < 2; pass++) {
+    for (const p of map.provinces) {
+      if (!clashes(p, sides[p.id])) continue;
+      const clear = TOKEN_SIDES.findIndex((_, side) => !clashes(p, side));
+      if (clear >= 0) sides[p.id] = clear;
+    }
+  }
+  return sides;
+}
+
 /** Where a name is written: the middle of its baseline, and half its width. */
 export interface NameSpot { x: number; y: number; half: number }
 
@@ -136,14 +174,14 @@ export const nameBox = (n: NameSpot, size = 21): Box => [n.x - n.half, n.y - siz
  * these provinces (an order being chosen on a narrow screen), `within` keeps every name inside what the view shows, and
  * `avoid` is what a name must not cover.
  */
-export function namesAt(map: GameMap, seats: ReadonlySet<number>, room = 1, size = 21, opts: { only?: ReadonlySet<number>; within?: Box; avoid?: readonly Box[] } = {}): Map<number, NameSpot> {
+export function namesAt(map: GameMap, seats: ReadonlySet<number>, room = 1, size = 21, opts: { only?: ReadonlySet<number>; within?: Box; avoid?: readonly Box[]; tokens?: readonly number[] } = {}): Map<number, NameSpot> {
   const out = new Map<number, NameSpot>();
   const written: Box[] = [...(opts.avoid ?? [])];
   const shield = 46 * room;
   const [x0, y0, x1, y1] = opts.within ?? [0, 0, MAP_W, MAP_H];
   const shown = map.provinces.filter((p) => !opts.only || opts.only.has(p.id));
   // A banner with its crown and its garrison: no other province's name is written over it.
-  const banner = (p: Province): Box => [p.x - shield / 2 - 2, p.y - shield * 0.78 - (seats.has(p.id) ? 22 * room : 0), p.x + shield * 0.46 + 16 * room, p.y + shield * 0.3 + 16 * room];
+  const banner = (p: Province): Box => bannerBox(p, room, tokenAt(p, opts.tokens?.[p.id] ?? 0, room), seats.has(p.id), 1.5);
   for (const p of [...shown].sort((a, b) => a.y - b.y || a.x - b.x)) {
     const half = Math.min((p.name.length * size * 0.3) + 5, (x1 - x0) / 2 - 14);
     const fit = (x: number) => Math.max(x0 + half + 14, Math.min(x1 - half - 14, x));
@@ -250,8 +288,13 @@ export function cameraFor(map: GameMap, ids: number[], most = 1.9): Camera | nul
   return { k: n1(k * 10) / 10, x: n1(x), y: n1(y) };
 }
 
-/** The course an order takes from one banner to another: a gentle bow, or out over the water along a sea lane. */
-export function courseOf(map: GameMap, from: number, to: number, cut: number): { d: string; mid: Pt; end: Pt } | null {
+/**
+ * The course an order takes from one banner to another: a gentle bow, or out over the water along a sea lane. It keeps
+ * off the two provinces' own names (`clear`): where it would set out across the name of the province it leaves, it sets
+ * out beyond the name, and where it would arrive on the name of the province it goes to, it stops short of it. An arrow
+ * too short to give way is drawn whole; the map writes the names over it.
+ */
+export function courseOf(map: GameMap, from: number, to: number, cut: number, clear: { from?: Box; to?: Box } = {}): { d: string; mid: Pt; end: Pt } | null {
   const a = map.provinces[from], b = map.provinces[to];
   if (!a || !b) return null;
   const lane = map.lanes?.find((l) => (l.between[0] === from && l.between[1] === to) || (l.between[0] === to && l.between[1] === from));
@@ -262,7 +305,26 @@ export function courseOf(map: GameMap, from: number, to: number, cut: number): {
   const short = Math.min(cut, length / 3);
   // Short of both banners, along the way to the bend.
   const lead = (p: Pt, q: Pt): Pt => { const l = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1; return [p[0] + ((q[0] - p[0]) / l) * short, p[1] + ((q[1] - p[1]) / l) * short]; };
-  const start = lead([a.x, a.y], bend), end = lead([b.x, b.y], bend);
-  const half: Pt = [0.25 * start[0] + 0.5 * bend[0] + 0.25 * end[0], 0.25 * start[1] + 0.5 * bend[1] + 0.25 * end[1]];
-  return { d: `M${at(start)}Q${at(bend)} ${at(end)}`, mid: half, end };
+  let start = lead([a.x, a.y], bend), end = lead([b.x, b.y], bend);
+  let turn = bend;
+  if (clear.from || clear.to) {
+    // The point of the bow that two shares of the way stand for (the curve's own point when they are the same share).
+    const [p0, p2] = [start, end];
+    const blend = (s: number, t: number): Pt => [0, 1].map((i) => (1 - s) * (1 - t) * p0[i] + (s * (1 - t) + t * (1 - s)) * bend[i] + s * t * p2[i]) as Pt;
+    const STEPS = 60;
+    const on = (box: Box | undefined, i: number) => { if (!box) return false; const [x, y] = blend(i / STEPS, i / STEPS); return holds(box, x, y, 6); };
+    const far = (t0: number, t1: number) => { const [p, q] = [blend(t0, t0), blend(t1, t1)]; return Math.hypot(q[0] - p[0], q[1] - p[1]); };
+    // Each end gives way on its own, and only when that takes it right off the name with enough of the arrow left to
+    // read: an arrow that stopped half-way across a word would be worse than one that crosses it. The head first, as it
+    // must point at its banner.
+    let t0 = 0, t1 = 1;
+    const all = Array.from({ length: STEPS + 1 }, (_, i) => i);
+    const first = all.find((i) => on(clear.to, i));
+    if (first !== undefined && first > 0 && far(0, (first - 1) / STEPS) >= 24) t1 = (first - 1) / STEPS;
+    const last = all.findLast((i) => i / STEPS <= t1 && on(clear.from, i));
+    if (last !== undefined && (last + 1) / STEPS < t1 && far((last + 1) / STEPS, t1) >= 18) t0 = (last + 1) / STEPS;
+    if (t0 > 0 || t1 < 1) [start, turn, end] = [blend(t0, t0), blend(t0, t1), blend(t1, t1)];
+  }
+  const half: Pt = [0.25 * start[0] + 0.5 * turn[0] + 0.25 * end[0], 0.25 * start[1] + 0.5 * turn[1] + 0.25 * end[1]];
+  return { d: `M${at(start)}Q${at(turn)} ${at(end)}`, mid: half, end };
 }
