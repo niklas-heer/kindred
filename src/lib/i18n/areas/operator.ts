@@ -135,8 +135,7 @@ export const en = {
   "operator.audit_operator_remove": "Ended someone’s operator role",
   "operator.audit_step_down": "Stepped down as operator",
 
-  "operator.err_not_operator": "Only an operator of this server can do that.",
-  "operator.err_suspended": "This family is suspended by the server’s operator: you can read it, but nothing can be changed.",
+  "operator.err.not_operator": "Only an operator of this server can do that.",
   "operator.err_storage_full": "This family’s storage is full: {used} of {cap} used. Remove a few pictures or documents, or ask the server’s operator for more room.",
   "operator.err_steward_name": "Name the person who will be its first steward.",
   "operator.err_no_invite": "This family has no invitation waiting.",
@@ -326,8 +325,7 @@ export const de = {
   "operator.audit_operator_remove": "Jemandes Rolle im Serverbetrieb beendet",
   "operator.audit_step_down": "Aus dem Serverbetrieb zurückgetreten",
 
-  "operator.err_not_operator": "Das kann nur, wer diesen Server betreibt.",
-  "operator.err_suspended": "Diese Familie ist vom Serverbetrieb gesperrt: Du kannst sie lesen, aber nichts ändern.",
+  "operator.err.not_operator": "Das kann nur, wer diesen Server betreibt.",
   "operator.err_storage_full": "Der Speicher dieser Familie ist voll: {used} von {cap} belegt. Entferne ein paar Bilder oder Dokumente oder bitte den Serverbetrieb um mehr Platz.",
   "operator.err_steward_name": "Nenne die Person, die als Erstes die Verwaltung übernimmt.",
   "operator.err_no_invite": "Für diese Familie wartet keine Einladung.",
@@ -517,8 +515,7 @@ export const af = {
   "operator.audit_operator_remove": "Het iemand se rol as operateur beëindig",
   "operator.audit_step_down": "Het as operateur afgetree",
 
-  "operator.err_not_operator": "Net 'n operateur van hierdie bediener kan dit doen.",
-  "operator.err_suspended": "Hierdie familie is deur die bediener se operateur opgeskort: jy kan dit lees, maar niks kan verander word nie.",
+  "operator.err.not_operator": "Net 'n operateur van hierdie bediener kan dit doen.",
   "operator.err_storage_full": "Hierdie familie se berging is vol: {used} van {cap} gebruik. Verwyder 'n paar prente of dokumente, of vra die bediener se operateur vir meer plek.",
   "operator.err_steward_name": "Noem die persoon wat sy eerste rentmeester sal wees.",
   "operator.err_no_invite": "Hierdie familie het geen uitnodiging wat wag nie.",
