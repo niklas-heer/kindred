@@ -66,4 +66,11 @@ export default {
   "lifecycle.err.periods": "Die maande moet heelgetalle in volgorde wees: die waarskuwing, dan net-lees, dan skrap.",
   "lifecycle.err.not_due": "Hierdie familie staan nie meer om geskrap te word nie.",
   "lifecycle.err.not_readonly": "Hierdie familie is nie weens onaktiwiteit net-lees nie, of die skrapping het al begin.",
+  "lifecycle.due_at": "Om uit te vee sedert",
+  "lifecycle.delete_at": "Uitgevee op",
+  "lifecycle.undelivered": "Die laaste kennisgewing het geen rentmeester per e-pos of as kennisgewing op ’n toestel bereik nie, dus word dit nie outomaties uitgevee nie. Vee dit self uit sodra jy seker is.",
+  "lifecycle.delete": "Vee uit …",
+  "lifecycle.err.periods": "Die maande moet heelgetalle in volgorde wees: die waarskuwing, dan net-lees, dan uitvee.",
+  "lifecycle.err.not_due": "Hierdie familie staan nie meer om uitgevee te word nie.",
+  "lifecycle.err.not_readonly": "Hierdie familie is nie weens onaktiwiteit net-lees nie, of die uitvee het al begin.",
 } satisfies Strings<typeof en, "af">;

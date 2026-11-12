@@ -16,6 +16,8 @@ process.env.KINDRED_ACCOUNTS_DB = join(dir, 'accounts.db');
 delete process.env.KINDRED_DEMO;
 delete process.env.KINDRED_DEFAULT_TREE;
 delete process.env.KINDRED_AUTH;
+// The job has no request: an email's links start with KINDRED_ORIGIN (src/lib/email/origin.ts). No mailer is set but in the tests that set one.
+process.env.KINDRED_ORIGIN = 'http://family.example.org';
 
 const STUB_START = '\0stub-start';
 const STUB_START_SERVER = '\0stub-start-server';
@@ -247,7 +249,21 @@ test('the race: a visit after the selection keeps the family as it was', async (
   assert.equal((await run(at(18) + DAY))?.counts.clear, 1);
 });
 
-test('the race: a steward turning the family on after the selection stops its deletion', async () => {
+/** A steward with a confirmed address, and a mailer that keeps what it is given, for `work`. */
+async function withEmail(work: (mails: import('../email/mailer.ts').MailMessage[]) => Promise<void>) {
+  const send = await load<typeof import('../email/send.server.ts')>('/src/lib/email/send.server.ts');
+  const mails: import('../email/mailer.ts').MailMessage[] = [];
+  send.setMailerForTests({ mailer: { send: async (m) => { mails.push(m); } } });
+  await accounts().run('UPDATE user SET email_verified = 1 WHERE id = ?', STEW.id);
+  try {
+    await work(mails);
+  } finally {
+    send.setMailerForTests(undefined);
+    await accounts().batch([q('UPDATE user SET email_verified = 0 WHERE id = ?', STEW.id), q('DELETE FROM email_send'), q('DELETE FROM email_optout')]);
+  }
+}
+
+test('the race: a steward turning the family on after the selection stops its deletion', () => withEmail(async () => {
   await toReadOnly({ ...ON, autoDelete: true });
   await run(at(24));
   const deleteAt = (await lc.lifecycleFamilies()).find((f) => f.id === QUIET)?.deleteAt;
@@ -256,7 +272,44 @@ test('the race: a steward turning the family on after the selection stops its de
   assert.equal(r?.families.find((f) => f.id === QUIET)?.outcome, 'kept');
   assert.ok((await trees.families()).some((f) => f.id === QUIET));
   assert.equal((await admin())?.status, 'active');
+}));
+
+test('automatic deletion waits for the operator while the final notice reached no steward', async () => {
+  await toReadOnly({ ...ON, autoDelete: true });
+  await run(at(24));
+  const notice = await one<{ emailed: number; pushed: number }>("SELECT emailed, pushed FROM steward_notice WHERE tree = ? AND kind = 'lifecycle_final'", QUIET);
+  assert.deepEqual({ ...notice }, { emailed: 0, pushed: 0 }, 'no push keys, no email: delivered nowhere but the app');
+  const listed = (await lc.lifecycleFamilies()).find((f) => f.id === QUIET)!;
+  assert.equal(listed.deleteAt, null, 'no date for an automatic deletion');
+  assert.equal(listed.undelivered, true, 'the console says why');
+  const logs: string[] = [];
+  const r = await run(at(24) + (shared.FINAL_NOTICE_DAYS + 1) * DAY, { log: (m) => logs.push(m) });
+  assert.equal(r?.families.find((f) => f.id === QUIET)?.outcome, 'failed');
+  assert.ok(logs.some((m) => /reached no steward/.test(m)), logs.join('; '));
+  assert.ok((await trees.families()).some((f) => f.id === QUIET), 'kept');
+  assert.equal((await stage())?.claim, null);
+  await lc.confirmDeletion(OP, QUIET, QUIET, at(24) + (shared.FINAL_NOTICE_DAYS + 2) * DAY);
+  assert.ok(!(await trees.families()).some((f) => f.id === QUIET), 'the operator may still confirm it');
 });
+
+test('a final notice by email counts as delivered, and cannot be unsubscribed', () => withEmail(async (mails) => {
+  await toReadOnly({ ...ON, autoDelete: true });
+  // The steward left the family notices: the warnings stop, the final notice does not.
+  const send = await load<typeof import('../email/send.server.ts')>('/src/lib/email/send.server.ts');
+  await accounts().run("INSERT INTO email_optout (recipient, category, at) VALUES (?, 'family', 0)", await send.recipientHash(STEW.email!));
+  mails.length = 0;
+  await run(at(24));
+  const final = mails.filter((m) => m.text.includes('/quietby'));
+  assert.equal(final.length, 1);
+  assert.equal(final[0]!.headers['List-Unsubscribe'], undefined);
+  assert.match(final[0]!.text, /http:\/\/family\.example\.org\/quietby/, 'a job’s links start with KINDRED_ORIGIN');
+  const notice = await one<{ emailed: number; pushed: number }>("SELECT emailed, pushed FROM steward_notice WHERE tree = ? AND kind = 'lifecycle_final'", QUIET);
+  assert.equal(notice?.emailed, 1);
+  const deleteAt = (await lc.lifecycleFamilies()).find((f) => f.id === QUIET)?.deleteAt;
+  assert.ok(deleteAt);
+  assert.equal((await run(deleteAt + DAY))?.families.find((f) => f.id === QUIET)?.outcome, 'done');
+  assert.ok(!(await trees.families()).some((f) => f.id === QUIET));
+}));
 
 test('confirmed deletion: the operator types the family’s address; the deletion is logged and leaves nothing behind', async () => {
   await toReadOnly();
@@ -299,7 +352,8 @@ test('automatic deletion: a final notice, pushed to the stewards, then the delet
   await run(deleteAt - DAY, { vapid, fetchImpl });
   assert.ok((await trees.families()).some((f) => f.id === QUIET), 'not before the 30 days');
   const r = await run(deleteAt + DAY, { vapid, fetchImpl });
-  assert.equal(r?.counts.delete, 2);
+  assert.equal(r?.counts.delete, 1);
+  assert.equal(r?.families.find((f) => f.id === SPARE)?.outcome, 'failed', 'the Sparrows’ final notice reached no device and no inbox: they wait for the operator');
   assert.ok(!(await trees.families()).some((f) => f.id === QUIET));
   assert.equal(await count('SELECT count(*) AS n FROM push_subscription WHERE tree = ?', QUIET), 0);
   assert.deepEqual(await actions(), ['lifecycle.warn', 'lifecycle.readonly', 'lifecycle.due', 'lifecycle.delete']);

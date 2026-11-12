@@ -77,6 +77,7 @@ export const en = {
   "lifecycle.readonly_at": "Read-only since",
   "lifecycle.due_at": "Due since",
   "lifecycle.delete_at": "Deleted on",
+  "lifecycle.undelivered": "Its final notice reached no steward by email or push notification, so it is not deleted automatically. Delete it yourself once you are sure.",
   "lifecycle.delete": "Delete…",
 
   "lifecycle.err.periods": "The months must be whole numbers in order: the warning, then read-only, then deletion.",

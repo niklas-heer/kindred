@@ -131,6 +131,7 @@ function Families({ data }: { data: LifecycleConsole }) {
                 {f.dueAt !== null && <Fact label={t('lifecycle.due_at')}>{formatDate(f.dueAt, t.locale)}</Fact>}
                 {f.deleteAt !== null && <Fact label={t('lifecycle.delete_at')}>{formatDate(f.deleteAt, t.locale)}</Fact>}
               </dl>
+              {f.undelivered && <p className="muted">{t('lifecycle.undelivered')}</p>}
               {f.stage === 'due' && f.deleteAt === null && (
                 <div className="families-row">
                   <button type="button" className="btn danger" onClick={() => setDeleting(f)}><Trash2 size={15} aria-hidden /> {t('lifecycle.delete')}</button>

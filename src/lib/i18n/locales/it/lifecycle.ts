@@ -62,6 +62,7 @@ export default {
   "lifecycle.readonly_at": "Sola lettura dal",
   "lifecycle.due_at": "Da eliminare dal",
   "lifecycle.delete_at": "Eliminata il",
+  "lifecycle.undelivered": "Il suo ultimo avviso non ha raggiunto nessun custode via email o notifica push, quindi non viene eliminata automaticamente. Eliminala tu quando non hai più dubbi.",
   "lifecycle.delete": "Elimina…",
   "lifecycle.err.periods": "I mesi devono essere numeri interi in quest’ordine: l’avviso, poi la sola lettura, poi l’eliminazione.",
   "lifecycle.err.not_due": "Questa famiglia non è più da eliminare.",

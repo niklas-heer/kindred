@@ -2,7 +2,10 @@
 // abandoned families (src/lib/lifecycle/). One call, `notifyStewards(tree, kind, vars)`, reaches them every way the server has:
 //   in the app   a notice row the family's bar reads (src/components/lifecycle/LifecycleNotice.tsx)
 //   by push      every device of the family's stewards that has push on, in that device's language
-//   by email     each steward with a verified address, when the server sends email (src/lib/email/)
+//   by email     each steward with a verified address, when the server sends email (src/lib/email/); the final notice before a
+//                deletion is a `notice`, which cannot be unsubscribed, the others carry the family notices' unsubscribe
+// The notice row records how many stewards the email and the push reached (`emailed`, `pushed`; accounts migration 0056): the
+// lifecycle deletes a family by itself only once its final notice reached one of them (src/lib/lifecycle/lifecycle.server.ts).
 // Never throws past the in-app notice, and logs nothing that names anyone. `vars` are dates and numbers, never record content.
 import { formatDate, translate, type Key } from '../i18n/dictionary.ts';
 import type { Locale } from '../i18n/types.ts';
@@ -42,24 +45,38 @@ export interface NotifyOptions {
   now?: number;
 }
 
+/** The kinds a steward cannot unsubscribe from by email: the last word before the family is deleted. */
+const MUST_REACH: readonly StewardNoticeKind[] = ['lifecycle_final'];
+
 /**
- * Tells the stewards of `tree`. The in-app notice is written first (it throws if it cannot be); the push is best effort, and a
- * device the push service reports gone is removed, as the reminders remove theirs. Returns how many pushes were delivered.
+ * Tells the stewards of `tree`. The in-app notice is written first (it throws if it cannot be); the email and the push are best
+ * effort, and a device the push service reports gone is removed, as the reminders remove theirs. Waits for both (the daily job
+ * calls it, not a page), records on the notice how many stewards each reached, and returns that.
  */
-export async function notifyStewards(tree: string, kind: StewardNoticeKind, vars: NoticeVars, opts: NotifyOptions): Promise<number> {
+export async function notifyStewards(tree: string, kind: StewardNoticeKind, vars: NoticeVars, opts: NotifyOptions): Promise<{ emailed: number; pushed: number }> {
   const now = opts.now ?? Date.now();
-  await accounts().batch([q('INSERT INTO steward_notice (tree, kind, vars, at) VALUES (?, ?, ?, ?)', tree, kind, JSON.stringify(vars), now)]);
+  const [inserted] = await accounts().batch([q('INSERT INTO steward_notice (tree, kind, vars, at) VALUES (?, ?, ?, ?) RETURNING id', tree, kind, JSON.stringify(vars), now)]);
+  const id = (inserted!.rows as { id: number }[])[0]!.id;
   // By email too, where the server sends email: each steward with a verified address, in their language, with the same title
-  // and body and a link to the family. Sent after the answer; never fails the notice (src/lib/email/notify.server.ts).
+  // and body and a link to the family (KINDRED_ORIGIN: a job has no request). Never fails the notice (src/lib/email/notify.server.ts).
+  let emailed = 0;
   try {
-    const { emailStewards } = await import('../email/notify.server.ts');
-    emailStewards(tree, (_t, { origin, family, locale }) => {
+    const { mailStewards } = await import('../email/notify.server.ts');
+    emailed = await mailStewards(tree, (_t, { origin, family, locale }) => {
       const n = noticeText(kind, vars, locale, family);
       return { subject: n.title, paragraphs: [n.body], action: { label: translate(locale, 'lifecycle.email_action'), url: `${origin}/${tree}` } };
-    }, { category: 'family' });
+    }, { category: MUST_REACH.includes(kind) ? 'notice' : 'family' });
   } catch {}
-  return pushToStewards(tree, kind, vars, opts);
+  const pushed = await pushToStewards(tree, kind, vars, opts);
+  try {
+    await accounts().run('UPDATE steward_notice SET emailed = ?, pushed = ? WHERE id = ?', emailed, pushed, id);
+  } catch {}
+  return { emailed, pushed };
 }
+
+/** Whether the latest notice of `kind` to the stewards of `tree` reached one of them by email or by push. A query's condition. */
+export const NOTICE_REACHED = (kind: StewardNoticeKind) =>
+  `EXISTS (SELECT 1 FROM steward_notice n WHERE n.tree = ? AND n.kind = '${kind}' AND (n.emailed > 0 OR n.pushed > 0))`;
 
 async function pushToStewards(tree: string, kind: StewardNoticeKind, vars: NoticeVars, opts: NotifyOptions): Promise<number> {
   const vapid = opts.vapid === undefined ? vapidFrom(envSetting) : opts.vapid;

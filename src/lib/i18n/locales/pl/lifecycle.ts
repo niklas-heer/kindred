@@ -62,6 +62,7 @@ export default {
   "lifecycle.readonly_at": "Tylko do odczytu od",
   "lifecycle.due_at": "Do usunięcia od",
   "lifecycle.delete_at": "Usunięcie",
+  "lifecycle.undelivered": "Ostatnie powiadomienie nie dotarło do żadnego opiekuna e-mailem ani powiadomieniem push, więc rodzina nie zostanie usunięta automatycznie. Usuń ją ręcznie, gdy nie masz wątpliwości.",
   "lifecycle.delete": "Usuń…",
   "lifecycle.err.periods": "Miesiące muszą być liczbami całkowitymi w tej kolejności: ostrzeżenie, potem tylko do odczytu, potem usunięcie.",
   "lifecycle.err.not_due": "Ta rodzina nie czeka już na usunięcie.",

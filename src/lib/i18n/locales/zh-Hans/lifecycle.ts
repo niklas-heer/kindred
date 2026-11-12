@@ -62,6 +62,7 @@ export default {
   "lifecycle.readonly_at": "只读起始",
   "lifecycle.due_at": "待删除起始",
   "lifecycle.delete_at": "删除于",
+  "lifecycle.undelivered": "最后一次通知没有通过邮件或推送通知送达任何负责人，因此不会自动删除。确认无误后，请手动删除。",
   "lifecycle.delete": "删除…",
   "lifecycle.err.periods": "月数必须是整数，并按顺序递增：提醒、只读、删除。",
   "lifecycle.err.not_due": "这个家族已不再待删除。",

@@ -105,8 +105,10 @@ export interface LifecycleFamily {
   readOnlyAt: number | null;
   dueAt: number | null;
   finalNoticeAt: number | null;
-  /** When it is deleted automatically (automatic deletion, final notice sent), else null. */
+  /** When it is deleted automatically (automatic deletion, final notice sent and reached a steward), else null. */
   deleteAt: number | null;
+  /** Automatic deletion is on and the final notice went out, but reached no steward by email or push: the operator decides. */
+  undelivered: boolean;
 }
 
 /** What the job did, or (a dry run) would do. */

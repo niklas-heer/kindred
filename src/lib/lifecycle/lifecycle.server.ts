@@ -1,8 +1,9 @@
 // The lifecycle of abandoned families (docs/hosting-many-families.md, "Lifecycle"; accounts migration 0052). Off by default. Once
 // the operator turns it on, a daily job (src/lib/jobs/lifecycle.ts) looks at each family's last activity and moves a quiet one a
 // step at a time: its stewards are warned, then it becomes read-only (a suspension its stewards may lift themselves), then it is
-// due for deletion, which the operator confirms or, if they chose so, the job does after a final notice. The rule is
-// `nextStep` (./shared.ts).
+// due for deletion, which the operator confirms or, if they chose so, the job does after a final notice that reached a steward
+// by email or by push (a notice only in the app may never be read: the deletion then waits for the operator, and the console
+// says why). The rule is `nextStep` (./shared.ts).
 //
 // Activity is a member's visit or write (`family_visit`, which a write notes too: src/lib/auth/guard.server.ts), a steward
 // turning the family back on, or the operator letting it be used again (`family_admin.active_at`); for a family nobody has used
@@ -18,7 +19,7 @@ import { families } from '../auth/trees.server.ts';
 import { deleteFamily } from '../families.server.ts';
 import { translate } from '../i18n/dictionary.ts';
 import { isDemo } from '../demo.ts';
-import { notifyStewards, STEWARD_NOTICE_KINDS, withdrawNotices, type NotifyOptions } from '../notify/stewards.server.ts';
+import { NOTICE_REACHED, notifyStewards, STEWARD_NOTICE_KINDS, withdrawNotices, type NotifyOptions } from '../notify/stewards.server.ts';
 import { audit, type AuditActor } from '../operator/settings.server.ts';
 import { guard, isGuardError, q, store, type Query } from '../store/index.ts';
 import {
@@ -218,9 +219,17 @@ async function apply(f: Selected, s: LifecycleSettings, now: number, notify: Omi
         if (!(await claimed([
           stillAt(tree, r!), quietSince(tree, r!.quietSince), lifecycleSuspended(tree),
           guard('EXISTS (SELECT 1 FROM family_lifecycle WHERE tree = ? AND final_notice_at IS NOT NULL AND final_notice_at <= ?)', tree, now - FINAL_NOTICE_DAYS * DAY),
+          // Nobody may have read a notice that stayed in the app: the operator decides then (confirmDeletion).
+          guard(NOTICE_REACHED('lifecycle_final'), tree),
           q('UPDATE family_lifecycle SET claim = ? WHERE tree = ? AND claim IS NULL', crypto.randomUUID(), tree),
           audit(LIFECYCLE_ACTOR, 'lifecycle.delete', tree, { name: f.name, lastActivity: r!.quietSince }, now),
-        ]))) return 'kept';
+        ]))) {
+          // Still due as it was, and only the notice stands in the way: reported every day until the operator decides.
+          const still = await accounts().get(`SELECT 1 AS ok FROM family_lifecycle WHERE tree = ? AND stage = 'due' AND quiet_since = ? AND claim IS NULL AND NOT ${NOTICE_REACHED('lifecycle_final')}`, tree, r!.quietSince, tree);
+          if (!still) return 'kept';
+          log?.(`${tree}: due for deletion, but its final notice reached no steward by email or push: it waits for the operator`);
+          return 'failed';
+        }
       }
       // BACKUP: the family's last backup is kept as long as the backups' own retention says (docs/backups.md, once the
       // operator's backups exist); nothing else of it is.
@@ -276,17 +285,23 @@ export async function runLifecycle(now = Date.now(), opts: RunOptions = {}): Pro
 
 // ---------- the console ----------
 
-/** The families in the lifecycle, by stage, with their dates. */
+/** The families in the lifecycle, by stage, with their dates, and whether a final notice reached nobody. */
 export async function lifecycleFamilies(): Promise<LifecycleFamily[]> {
-  const [all, facts, s] = await Promise.all([families(), factsOf(), lifecycleSettings()]);
+  const [all, facts, s, reachedRows] = await Promise.all([
+    families(), factsOf(), lifecycleSettings(),
+    accounts().all<{ tree: string }>("SELECT DISTINCT tree FROM steward_notice WHERE kind = 'lifecycle_final' AND (emailed > 0 OR pushed > 0)"),
+  ]);
+  const reached = new Set(reachedRows.map((x) => x.tree));
   const out: LifecycleFamily[] = [];
   for (const f of all) {
     const x = facts.get(f.id);
     const r = x?.row;
     if (!r || r.claim) continue;
+    const noticed = r.stage === 'due' && s.autoDelete && r.finalNoticeAt !== null;
     out.push({
       id: f.id, name: f.name, stage: r.stage, lastActivity: x.lastActivity, warnedAt: r.warnedAt, readOnlyAt: r.readOnlyAt, dueAt: r.dueAt, finalNoticeAt: r.finalNoticeAt,
-      deleteAt: r.stage === 'due' && s.autoDelete && r.finalNoticeAt !== null ? r.finalNoticeAt + FINAL_NOTICE_DAYS * DAY : null,
+      deleteAt: noticed && reached.has(f.id) ? r.finalNoticeAt! + FINAL_NOTICE_DAYS * DAY : null,
+      undelivered: noticed && !reached.has(f.id),
     });
   }
   const order = { due: 0, readonly: 1, warned: 2 } as const;

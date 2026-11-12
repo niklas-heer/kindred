@@ -62,6 +62,7 @@ export default {
   "lifecycle.readonly_at": "Solo lectura desde",
   "lifecycle.due_at": "Pendiente desde",
   "lifecycle.delete_at": "Se elimina el",
+  "lifecycle.undelivered": "Su último aviso no llegó a ningún responsable por correo ni por notificación push, así que no se elimina automáticamente. Elimínala manualmente cuando no tengas dudas.",
   "lifecycle.delete": "Eliminar…",
   "lifecycle.err.periods": "Los meses deben ser números enteros en este orden: el aviso, luego solo lectura, luego la eliminación.",
   "lifecycle.err.not_due": "Esta familia ya no está pendiente de eliminación.",

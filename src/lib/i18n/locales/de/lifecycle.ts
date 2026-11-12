@@ -62,6 +62,7 @@ export default {
   "lifecycle.readonly_at": "Nur lesen seit",
   "lifecycle.due_at": "Zur Löschung seit",
   "lifecycle.delete_at": "Gelöscht am",
+  "lifecycle.undelivered": "Die letzte Nachricht hat niemanden aus der Familienverwaltung per E-Mail oder Push-Mitteilung erreicht, deshalb wird sie nicht automatisch gelöscht. Lösche sie selbst, wenn du dir sicher bist.",
   "lifecycle.delete": "Löschen …",
   "lifecycle.err.periods": "Die Monate müssen ganze Zahlen in dieser Reihenfolge sein: die Warnung, dann nur lesen, dann löschen.",
   "lifecycle.err.not_due": "Diese Familie steht nicht mehr zur Löschung an.",

@@ -62,6 +62,7 @@ export default {
   "lifecycle.readonly_at": "Alleen-lezen sinds",
   "lifecycle.due_at": "Te verwijderen sinds",
   "lifecycle.delete_at": "Verwijderd op",
+  "lifecycle.undelivered": "Het laatste bericht heeft geen beheerder bereikt per e-mail of pushmelding, dus wordt ze niet automatisch verwijderd. Verwijder haar zelf als je het zeker weet.",
   "lifecycle.delete": "Verwijderen…",
   "lifecycle.err.periods": "De maanden moeten hele getallen zijn, in deze volgorde: de waarschuwing, dan alleen-lezen, dan verwijderen.",
   "lifecycle.err.not_due": "Deze familie staat niet meer op de lijst om te verwijderen.",

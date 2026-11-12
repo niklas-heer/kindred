@@ -62,6 +62,7 @@ export default {
   "lifecycle.readonly_at": "読み取り専用の開始",
   "lifecycle.due_at": "削除対象になった日",
   "lifecycle.delete_at": "削除日",
+  "lifecycle.undelivered": "最後のお知らせがメールでもプッシュ通知でも世話役に届かなかったため、自動では削除されません。確かめたうえで、ご自身で削除してください。",
   "lifecycle.delete": "削除…",
   "lifecycle.err.periods": "月数は整数で、警告、読み取り専用、削除の順に大きくしてください。",
   "lifecycle.err.not_due": "この家族はもう削除の対象ではありません。",

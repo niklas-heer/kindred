@@ -62,6 +62,7 @@ export default {
   "lifecycle.readonly_at": "Lecture seule depuis",
   "lifecycle.due_at": "À supprimer depuis",
   "lifecycle.delete_at": "Supprimée le",
+  "lifecycle.undelivered": "Son dernier avis n’a atteint aucun gardien par e-mail ni par notification push : elle n’est donc pas supprimée automatiquement. Supprime-la toi-même quand tu n’as plus de doute.",
   "lifecycle.delete": "Supprimer…",
   "lifecycle.err.periods": "Les mois doivent être des nombres entiers, dans cet ordre : l’avertissement, puis la lecture seule, puis la suppression.",
   "lifecycle.err.not_due": "Cette famille n’est plus à supprimer.",

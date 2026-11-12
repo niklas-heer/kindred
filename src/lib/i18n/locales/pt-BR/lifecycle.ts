@@ -62,6 +62,7 @@ export default {
   "lifecycle.readonly_at": "Somente leitura desde",
   "lifecycle.due_at": "Para excluir desde",
   "lifecycle.delete_at": "Excluída em",
+  "lifecycle.undelivered": "O último aviso não chegou a nenhum responsável por e-mail nem por notificação push, por isso ela não é excluída automaticamente. Exclua-a manualmente quando não tiver dúvidas.",
   "lifecycle.delete": "Excluir…",
   "lifecycle.err.periods": "Os meses devem ser números inteiros nesta ordem: o aviso, depois somente leitura, depois a exclusão.",
   "lifecycle.err.not_due": "Esta família não está mais para ser excluída.",
