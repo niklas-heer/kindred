@@ -68,6 +68,6 @@ export default {
   "almanac.wedding.y50": "金婚",
   "almanac.wedding.y55": "翡翠婚",
   "almanac.wedding.y60": "钻石婚",
-  "almanac.wedding.y65": "深蓝宝石婚",
+  "almanac.wedding.y65": "",
   "almanac.wedding.y70": "白金婚",
 } satisfies Strings<typeof en, "zh-Hans">;
