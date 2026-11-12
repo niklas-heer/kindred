@@ -60,11 +60,12 @@ test('data protection: a request about a relative, your own data, the breach reg
   await expect(elin.getByRole('heading', { name: 'Who are you in this family?' })).toBeVisible();
   await elin.goto('/the-erasmuses');
   await settled(elin);
-  await elin.getByRole('complementary', { name: 'Would you like a quick tour?' }).getByRole('button', { name: 'Not now' }).click({ timeout: 8000 }).catch(() => undefined);
   await elin.getByLabel('Given name').fill('Elin');
   await elin.getByLabel('Surname').fill('Erasmus');
   await elin.getByRole('button', { name: /Add me/ }).click();
   await expect(elin.getByRole('heading', { name: 'Elin Erasmus', level: 2, exact: true })).toBeVisible();
+  // The tour is offered once the family has someone in it, that is now (FirstRun.tsx): its card sits over the tree's corner.
+  await elin.getByRole('complementary', { name: 'Would you like a quick tour?' }).getByRole('button', { name: 'Not now' }).click();
   await elin.getByRole('button', { name: 'Add a partner of Elin Erasmus' }).click();
   const add = elin.getByRole('dialog', { name: 'Add a partner of Elin Erasmus' });
   await add.getByLabel('Given name').fill('Cleo');
@@ -98,6 +99,8 @@ test('data protection: a request about a relative, your own data, the breach reg
   const erase = elin.getByRole('dialog', { name: 'Erase Cleo Vandermeer?' });
   await checkAxe(elin, 'erase dialog');
   await erase.getByLabel(/To confirm, type their name/).fill('Cleo Vandermeer');
+  // Erasing asks for a fresh proof: the server's first answer is the 403 that has the browser confirm with the passkey.
+  issues.allow(/status of 403 .*\/_serverFn\//);
   await erase.getByRole('button', { name: 'Erase for good' }).click();
   await expect(req.getByText(/^Erased: \d+ rows? removed or rewritten\.$/)).toBeVisible();
   await req.getByLabel('Name', { exact: true }).fill('Cleo');

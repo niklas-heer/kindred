@@ -104,6 +104,8 @@ test('passwords beside passkeys: the console, an invitation, two-step codes and 
     await settled(pip);
     await expect(pip.getByRole('button', { name: 'Sign in with a passkey' })).toBeVisible();
     await pip.getByLabel('Username').fill('pip.pennywhistle');
+    // The refusal is the server's 400, which the browser reports as a failed load.
+    issues.allow(/status of 400 .*\/api\/auth\/password-signin\)/);
     await pip.getByLabel('Password', { exact: true }).fill('a kettle sings at eight');
     await pip.getByRole('button', { name: 'Sign in', exact: true }).click();
     await expect(pip.getByText('That username and password don’t match.')).toBeVisible();
