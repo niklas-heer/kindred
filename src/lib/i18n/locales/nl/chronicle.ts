@@ -50,7 +50,7 @@ export default {
   "chronicle.someone": "iemand",
   "chronicle.heard_by": "gehoord door {author}",
   "chronicle.your_family": "je familie",
-  "chronicle.add": "Een herinnering toevoegen",
+  "chronicle.add": "Herinnering toevoegen",
   "chronicle.add_title": "Een herinnering toevoegen",
   "chronicle.add_intro": "Iets wat ze altijd zeiden, een recept, een verhaal van lang geleden. Alles wat je je herinnert, is het bewaren waard.",
   "chronicle.add_who": "Over wie gaat het?",

@@ -250,6 +250,24 @@
       ]
     }
   },
-  "sameAsEnglish": [],
+  "sameAsEnglish": [
+    "people.keysOpen",
+    "shell.cmd.atlas",
+    "tp.open",
+    "gallery.album_count",
+    "heraldry.charge.open-hand",
+    "look.beard.vandyke",
+    "look.glasses.cat_eye",
+    "character.preset.soldier",
+    "pw.method_oidc",
+    "oidc.section",
+    "oidc.kind_entra",
+    "needed.stopEsc",
+    "feedback.key_mod",
+    "campaign.tip.house",
+    "operator.status_open",
+    "signup.per_account",
+    "signup.ready_turnstile"
+  ],
   "ownWords": []
 }

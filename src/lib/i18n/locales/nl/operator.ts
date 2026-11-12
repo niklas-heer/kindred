@@ -39,7 +39,7 @@ export default {
   "operator.pending_steward_email": "Wacht op de eerste beheerder, {email} (de link werkt tot {date}).",
   "operator.cap_mb": "Opslaglimiet in MB",
   "operator.cap_none": "geen",
-  "operator.cap_save": "De limiet instellen",
+  "operator.cap_save": "Limiet instellen",
   "operator.recount": "Opnieuw tellen",
   "operator.recounting": "Tellen…",
   "operator.suspended": "Opgeschort",

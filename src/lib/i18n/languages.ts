@@ -176,7 +176,7 @@ export const LANGUAGES = {
     formal: "u",
     accepts: ["nl"],
     shortMonths: ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"],
-    complete: false,
+    complete: true,
   },
   pl: {
     native: "Polski",

@@ -14,7 +14,7 @@ export default {
   "presence.are_here": "{names} zijn hier",
   "presence.is_editing": "{name} bewerkt {person}",
   "presence.has_selected": "{name} heeft {person} geselecteerd",
-  "presence.share": "Laat anderen zien dat ik hier ben",
+  "presence.share": "Toon mij aan anderen",
   "presence.share_hint": "Familieleden die hier zijn, zien wie jij hebt geselecteerd, en jij ziet wie zij hebben geselecteerd.",
   "presence.and": "{first} en {second}",
   "presence.route.today": "op Vandaag",

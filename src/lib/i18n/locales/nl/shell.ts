@@ -93,7 +93,7 @@ export default {
   "shell.cmd.tour": "Rondleidingen",
   "shell.cmd.tourHint": "Een kort welkom, of de grote rondleiding langs alles",
   "shell.cmd.viewFamily": "Weergave: Familie (zandloper)",
-  "shell.cmd.viewDynasty": "Weergave: Dynastie",
+  "shell.cmd.viewDynasty": "Weergave: Dynastiestamboom",
   "shell.cmd.viewAncestors": "Weergave: Voorouders",
   "shell.cmd.goMe": "Ga naar mij",
   "shell.cmd.goHome": "Ga naar het begin",

@@ -157,7 +157,7 @@ export default {
   "family.empty": "Nog geen familieleden vastgelegd.",
   "family.addHint": "Gebruik de +-tekens rond de kaart om er toe te voegen.",
   "family.removeLink": "Koppeling verwijderen",
-  "family.removeYes": "Koppeling verwijderen",
+  "family.removeYes": "Verwijderen",
   "family.endEdit": "Einde instellen",
   "family.endChange": "Einde wijzigen",
   "family.endDate": "Beëindigd",

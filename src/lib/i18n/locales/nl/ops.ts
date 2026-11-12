@@ -85,7 +85,7 @@ export default {
   "ops.consent": "Controleren op nieuwe Kindred-releases? Eén keer per dag zou deze server GitHub (api.github.com) vragen naar de releases van {repo}.",
   "ops.consent_hint": "Er wordt niets over deze server of zijn families verstuurd: geen adres, geen versie, geen identificatie. Er wordt niets gevraagd tot je akkoord gaat.",
   "ops.consent_off": "De controle staat uit. Er wordt niets gevraagd tot je haar aanzet.",
-  "ops.consent_yes": "Eén keer per dag controleren",
+  "ops.consent_yes": "Dagelijks controleren",
   "ops.consent_no": "Nu niet",
   "ops.update_available": "Kindred {latest} is beschikbaar. Deze server draait {version}.",
   "ops.up_to_date": "Actueel, per {date}.",

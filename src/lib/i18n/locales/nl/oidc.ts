@@ -62,7 +62,7 @@ export default {
   "oidc.remove": "Verwijderen",
   "oidc.remove_title": "{name} verwijderen?",
   "oidc.remove_lede": { one: "{count} account logt ermee in. Dat account verliest deze manier van inloggen, en de sessies daarvan eindigen.", other: "{count} accounts loggen ermee in. Zij verliezen deze manier van inloggen, en hun sessies daarvan eindigen." },
-  "oidc.add": "Een aanbieder toevoegen",
+  "oidc.add": "Aanbieder toevoegen",
   "oidc.kind": "Aanbieder",
   "oidc.kind_google": "Google",
   "oidc.kind_entra": "Microsoft Entra ID",
