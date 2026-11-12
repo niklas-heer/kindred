@@ -68,7 +68,8 @@ export const sendDataRequest = createServerFn({ method: 'POST' })
     const [{ clientIP }, { refuseReadOnly }, r] = await Promise.all([import('../auth/throttle.server'), import('../read-only'), reqs()]);
     try {
       refuseReadOnly();
-      return await r.submitDataRequest(data, { ip: clientIP(), honeypot: data.website, turnstile: data.turnstile });
+      const [{ guestLocale }, { getRequest }] = await Promise.all([import('../auth/session.server'), import('@tanstack/react-start/server')]);
+      return await r.submitDataRequest(data, { ip: clientIP(), honeypot: data.website, turnstile: data.turnstile, locale: guestLocale(getRequest()) });
     } catch (e) {
       throw await failed(e);
     }

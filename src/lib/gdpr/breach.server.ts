@@ -102,13 +102,18 @@ export async function saveBreach(op: { id: string; name: string }, input: Breach
     : [q(`INSERT INTO breach (title, aware_at, occurred_at, description, data_categories, subjects, consequences, measures, risk, authority_at, authority_ref, late_reason,
           subjects_at, notice, notice_until, closed_at, created_at, created_by, updated_at, updated_by, id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ...v, now, op.id, now, op.id, key)];
-  if (id && !(await accounts().get('SELECT 1 FROM breach WHERE id = ?', id))) throw new AuthError('invalid', translate('en', 'gdpr.err.breach_gone'));
+  const before = id ? await accounts().get<{ notice: string }>('SELECT notice FROM breach WHERE id = ?', id) : undefined;
+  if (id && !before) throw new AuthError('invalid', translate('en', 'gdpr.err.breach_gone'));
   await accounts().batch([
     ...writes,
     q('DELETE FROM breach_family WHERE breach = ?', key),
     ...(families.length ? [q('INSERT INTO breach_family (breach, family) SELECT ?, value FROM json_each(?)', key, JSON.stringify(families))] : []),
     audit(op, id ? 'breach.update' : 'breach.record', null, { breach: key, risk: input.risk, families: families.length || 'all' }, now),
   ]);
+  // A new or changed notice of an open breach also goes to the affected families' stewards by email, when the server sends
+  // email (src/lib/email/notify.server.ts). The banner shows it either way.
+  const notice = text(input.notice, 1000);
+  if (notice && !input.closedAt && notice !== before?.notice) (await import('../email/notify.server.ts')).emailBreachNotice(families.length ? families : null, notice);
   return key;
 }
 

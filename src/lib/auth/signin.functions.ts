@@ -189,10 +189,10 @@ export const fetchResetLink = createServerFn({ method: 'POST' })
     return resetLinkInfo(data.token);
   });
 
-// ---------- the notice after an operator's reset link ----------
+// ---------- the notice after a reset link (an operator's, or one sent by email) ----------
 
 /** When an operator's reset link was used on the reader's account, and whether this session may dismiss it; null otherwise. */
-export const fetchResetNotice = createServerFn({ method: 'GET' }).handler(async (): Promise<{ at: number; dismissible: boolean } | null> => {
+export const fetchResetNotice = createServerFn({ method: 'GET' }).handler(async (): Promise<{ at: number; dismissible: boolean; via: 'operator' | 'email' } | null> => {
   const [{ currentSession, requireUser }, { resetNoticeOf }, { isDemo }] = await Promise.all([guard(), import('./password.server'), import('../demo')]);
   const user = await requireUser();
   const s = await currentSession();

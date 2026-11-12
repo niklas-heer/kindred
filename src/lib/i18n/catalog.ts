@@ -44,6 +44,7 @@ import * as policyArea from "./areas/policy.ts";
 import * as signupArea from "./areas/signup.ts";
 import * as gdprArea from "./areas/gdpr.ts";
 import * as backupArea from "./areas/backup.ts";
+import * as emailArea from "./areas/email.ts";
 import * as panelArea from "./areas/panel.ts";
 import * as photosArea from "./areas/photos.ts";
 import * as portraitArea from "./areas/portrait.ts";
@@ -131,6 +132,7 @@ export const AREAS = [
   signupArea,
   gdprArea,
   backupArea,
+  emailArea,
   historyArea,
   responsesArea,
   feedArea,

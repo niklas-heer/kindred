@@ -23,6 +23,7 @@ export const asForm = (b: Record<string, unknown>): SignupForm => ({
   accept: b.accept === true,
   age16: b.age16 === true,
   ...(typeof b.code === 'string' && b.code.trim() ? { code: b.code.slice(0, 64) } : {}),
+  ...(typeof b.emailProof === 'string' ? { emailProof: b.emailProof.slice(0, 64) } : {}),
 });
 
 /**

@@ -368,6 +368,10 @@ async function vouch(user: string, c: IdTokenClaims): Promise<void> {
   await accounts().run('UPDATE user SET email_verified = 1 WHERE id = ? AND email_verified = 0 AND lower(email) = lower(?)', user, c.email!);
 }
 
+/** The security email: a new way into the account (src/lib/email/notify.server.ts). Sent later, never in the way. */
+const ssoNotice = async (user: string, p: ProviderRow, request: Request) =>
+  (await import('../email/notify.server.ts')).securityNotice(user, 'sso_added', request, { provider: p.label });
+
 const insertIdentity = (p: ProviderRow, sub: string, user: string, facts: { email: string | null; verified: number }) =>
   q('INSERT INTO oidc_identity (provider, subject, user, email, email_verified, created, last_used) VALUES (?, ?, ?, ?, ?, ?, ?)', p.id, sub, user, facts.email, facts.verified, now(), now());
 
@@ -386,6 +390,7 @@ async function signIn(request: Request, p: ProviderRow, c: IdTokenClaims, identi
         throw new OidcFail('linked_elsewhere');
       }
       user = byEmail.id;
+      await ssoNotice(user, p, request);
     }
   }
   if (!user) throw new OidcFail('no_account');
@@ -489,6 +494,7 @@ async function link(request: Request, p: ProviderRow, c: IdTokenClaims, identity
       const winner = await accounts().get<IdentityRow>('SELECT * FROM oidc_identity WHERE provider = ? AND subject = ?', p.id, c.sub);
       throw new OidcFail(winner && winner.user !== user.id ? 'linked_elsewhere' : 'already_linked');
     }
+    await ssoNotice(user.id, p, request);
   }
   await vouch(user.id, c);
   return { location: withParam(flow.next ?? '/', 'oidc', 'linked'), cookies: [] };

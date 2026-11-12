@@ -16,6 +16,7 @@ import chargeLibrary from "./charge-library.ts";
 import chronicle from "./chronicle.ts";
 import common from "./common.ts";
 import contacts from "./contacts.ts";
+import email from "./email.ts";
 import events from "./events.ts";
 import exchange from "./exchange.ts";
 import faiths from "./faiths.ts";
@@ -80,6 +81,7 @@ export default {
   ...chronicle,
   ...common,
   ...contacts,
+  ...email,
   ...events,
   ...exchange,
   ...faiths,

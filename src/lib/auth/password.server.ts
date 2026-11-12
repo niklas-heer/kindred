@@ -253,6 +253,10 @@ const secondFactor = async (user: string, input: { code?: unknown; recovery?: un
   ? consumeRecoveryCode(user, input.recovery)
   : typeof input.code === 'string' && consumeTotp(user, input.code);
 
+/** The security email after a change to the ways in (src/lib/email/notify.server.ts): sent later, never in the way. */
+const notice = async (user: string, kind: 'password_reset' | 'operator_reset' | 'recovery_reset', request: Request) =>
+  (await import('../email/notify.server.ts')).securityNotice(user, kind, request);
+
 // ---------- a forgotten password ----------
 
 /**
@@ -274,23 +278,28 @@ export async function resetWithRecoveryCode(request: Request, input: { username?
   if (!ok || !user) throw invalid('pw.err.recovery');
   await accounts().batch([...(await passwordWrites(user.id, user.username!, password)), q('DELETE FROM session WHERE user = ?', user.id)]);
   await succeeded(keys);
+  await notice(user.id, 'recovery_reset', request);
   return { user: user.id };
 }
 
 // ---------- an operator's reset link ----------
 
-export interface ResetLinkRow { hash: string; user: string; created: number; created_by: string | null; expires: number; used_at: number | null; clear_totp: number }
+export interface ResetLinkRow { hash: string; user: string; created: number; created_by: string | null; expires: number; used_at: number | null; clear_totp: number; via?: 'operator' | 'email' }
 
-/** A one-hour link for `user`, made by an operator: the statements and the token (shown once). */
-export async function makeResetLink(user: string, by: string, clearTotp: boolean): Promise<{ token: string; expires: number; writes: Query[] }> {
+/**
+ * A one-hour link for `user`: the statements and the token (shown once). Made by an operator (`by`), or sent to the account's
+ * verified address when its holder asked (`via` 'email', `by` null; src/lib/email/reset.server.ts, accounts migration 0054).
+ */
+export async function makeResetLink(user: string, by: string | null, clearTotp: boolean, via: 'operator' | 'email' = 'operator'): Promise<{ token: string; expires: number; writes: Query[] }> {
   const token = randomToken(32);
   const t = now();
   return {
     token, expires: t + RESET_MS,
     writes: [
-      // A used link stays until its notice is seen (resetNoticeOf); an unused one goes when it runs out or is replaced.
-      q('DELETE FROM password_reset WHERE (expires < ? AND (used_at IS NULL OR seen_at IS NOT NULL)) OR (user = ? AND used_at IS NULL)', t, user),
-      q('INSERT INTO password_reset (hash, user, created, created_by, expires, clear_totp) VALUES (?, ?, ?, ?, ?, ?)', await hashToken('reset', token), user, t, by, t + RESET_MS, clearTotp ? 1 : 0),
+      // A used link stays until its notice is seen (resetNoticeOf); an unused one goes when it runs out or is replaced by one
+      // made the same way (a link asked for by email never cancels an operator's).
+      q('DELETE FROM password_reset WHERE (expires < ? AND (used_at IS NULL OR seen_at IS NOT NULL)) OR (user = ? AND used_at IS NULL AND via = ?)', t, user, via),
+      q('INSERT INTO password_reset (hash, user, created, created_by, expires, clear_totp, via) VALUES (?, ?, ?, ?, ?, ?, ?)', await hashToken('reset', token), user, t, by, t + RESET_MS, clearTotp ? 1 : 0, via),
     ],
   };
 }
@@ -342,6 +351,7 @@ export async function redeemResetLink(request: Request, input: { token?: unknown
     if (isGuardError(e)) throw gone;
     rethrowTaken(e);
   }
+  await notice(user.id, link.via === 'email' ? 'password_reset' : 'operator_reset', request);
   return { user: user.id };
 }
 
@@ -354,11 +364,12 @@ export const RESET_NOTICE_PASSWORD_DAYS = 30;
  * with only a password learns of it, but cannot dismiss it (whoever used the link with the new password could hide it from the
  * holder): there it runs out by itself after 30 days.
  */
-export async function resetNoticeOf(user: string, method: string | null | undefined, at = now()): Promise<{ at: number; dismissible: boolean } | null> {
-  const row = await accounts().get<{ at: number | null }>('SELECT max(used_at) AS at FROM password_reset WHERE user = ? AND used_at IS NOT NULL AND seen_at IS NULL', user);
+export async function resetNoticeOf(user: string, method: string | null | undefined, at = now()): Promise<{ at: number; dismissible: boolean; via: 'operator' | 'email' } | null> {
+  const row = await accounts().get<{ at: number | null; via: string }>('SELECT used_at AS at, via FROM password_reset WHERE user = ? AND used_at IS NOT NULL AND seen_at IS NULL ORDER BY used_at DESC LIMIT 1', user);
   if (!row?.at) return null;
-  if (method !== 'password') return { at: row.at, dismissible: true };
-  return at - row.at < RESET_NOTICE_PASSWORD_DAYS * 86_400_000 ? { at: row.at, dismissible: false } : null;
+  const via = row.via === 'email' ? 'email' as const : 'operator' as const;
+  if (method !== 'password') return { at: row.at, dismissible: true, via };
+  return at - row.at < RESET_NOTICE_PASSWORD_DAYS * 86_400_000 ? { at: row.at, dismissible: false, via } : null;
 }
 
 /** Dismisses the notice, from a session another way in started. */

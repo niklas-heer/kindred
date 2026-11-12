@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { Check, Copy, Eye, Ghost, KeyRound, Mail, RefreshCw, Share2, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { Check, Copy, Eye, Ghost, KeyRound, Mail, RefreshCw, Send, Share2, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import { ago, Initials } from '~/components/AccountMenu';
 import { Portrait } from '~/components/Portrait';
@@ -17,6 +17,7 @@ import { displayName } from '~/lib/graph';
 import { errorText } from '~/lib/errortext';
 import { opKeys } from '~/lib/api';
 import { updateFamilyDetails } from '~/lib/family-details.functions';
+import { emailInvite, mailOnQuery } from '~/lib/email/email.functions';
 import { dateText, translateMessage, useT, type Key, type Locale, type Translator } from '~/lib/i18n';
 import { toast } from '~/lib/toast';
 import '~/styles/manage.css';
@@ -384,15 +385,19 @@ function InviteDialog({ open, onClose, tree, familyName, onCreated }: { open: bo
   const [role, setRole] = useState<Role>('contributor');
   const [email, setEmail] = useState('');
   const [days, setDays] = useState('14');
-  const [made, setMade] = useState<{ url: string; expires: number; role: Role; email: string } | null>(null);
+  const [made, setMade] = useState<{ url: string; expires: number; role: Role; email: string; id: string; token: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  // While the server sends email, the invitation can go to the address typed (src/lib/email/); the link stays to copy.
+  const mailOn = useQuery({ ...mailOnQuery, enabled: open });
+  const mailed = useMutation({ mutationFn: () => emailInvite({ data: { tree, id: made!.id, token: made!.token } }) });
   const dateFmt = shortDate(t.locale);
   const create = useMutation({
     mutationFn: () => createInvite({ data: { tree, role, email: email.trim(), days: Number(days) } }),
     onSuccess: (r) => {
       const url = inviteUrl(r.token);
       rememberLink(r.id, url);
-      setMade({ url, expires: r.expires, role, email: email.trim() });
+      setMade({ url, expires: r.expires, role, email: email.trim(), id: r.id, token: r.token });
+      mailed.reset();
       onCreated();
     },
   });
@@ -435,8 +440,14 @@ function InviteDialog({ open, onClose, tree, familyName, onCreated }: { open: bo
           </div>
           <div className="acc-share">
             {share && <button className="btn" onClick={() => void navigator.share({ title: t('acc.shareTitle', { family: familyName }), text: message }).catch(() => {})}><Share2 size={15} /> {t('acc.share')}</button>}
+            {made.email && mailOn.data && (
+              <button className="btn" onClick={() => mailed.mutate()} disabled={mailed.isPending || mailed.isSuccess}>
+                {mailed.isSuccess ? <><Check size={15} /> {t('email.invite_sent', { email: mailed.data.email })}</> : <><Send size={15} /> {t('email.invite_send')}</>}
+              </button>
+            )}
             {made.email && <a className="btn" href={`mailto:${encodeURIComponent(made.email)}?subject=${encodeURIComponent(t('acc.mailSubject', { family: familyName }))}&body=${encodeURIComponent(message)}`}><Mail size={15} /> {t('acc.emailIt')}</a>}
           </div>
+          {mailed.isError && <p className="acc-error" role="alert">{errorText(mailed.error, t.locale)}</p>}
         </>
       ) : (
         <form id="acc-invite" className="acc-form" onSubmit={(e) => { e.preventDefault(); create.mutate(); }}>

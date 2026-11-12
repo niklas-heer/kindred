@@ -165,7 +165,33 @@ operator became aware, what happened, which data and whose, the likely consequen
 people at risk, the supervisory authority must be told **within 72 hours** of becoming aware (Art. 33(1)); the register shows the
 deadline, and after it asks for the reasons for the delay. A high risk also means telling the people (Art. 34). A breach can carry a
 **notice** for the stewards of the families it affects (all, or those ticked), shown on their family's pages until a date or until
-it is closed.
+it is closed. While the server sends email, a new or changed notice also goes by email to those families' stewards with a
+confirmed address.
+
+## Email
+
+Kindred sends email only when the operator sets it up (console → Email; [hosting-many-families.md](hosting-many-families.md#email)).
+The provider chosen there (Resend, Postmark, Mailgun, or an SMTP server) then receives the recipient's address and the text of
+each email, and is listed as a **subprocessor** on `/legal` and in the record of processing, with where it processes (Mailgun's
+EU region says EU). Sign its data processing agreement like any other processor's.
+
+What is emailed, and to whom:
+
+| Email | To | Can be unsubscribed |
+| --- | --- | --- |
+| A confirmation link (account menu) or a sign-up code | the address being confirmed | no (asked for) |
+| A password reset link | an account's **confirmed** address, only when its holder asked | no (asked for) |
+| Security notices: password changed or reset, a new way in, two-step codes off | the account's **confirmed** address | no |
+| An invitation | the address a steward typed, when they choose to send it | yes |
+| A new family request or data request is waiting (nothing of its content) | operators with a confirmed address | yes |
+| A receipt for a data request, with its deadline (nothing the requester wrote) | the address typed into `/privacy-request` | yes |
+| A data request handed to the family; a breach notice | the family's stewards with a confirmed address | yes |
+
+Apart from a code or link that confirms an address, the receipt for a data request is the only email to an address nobody
+confirmed, and it carries no text a stranger could fill in. Kindred keeps no copy of any email: `email_send` holds a keyed hash
+of the address, the kind of email, when, and whether it went out (30 days), and `email_optout` the hash and kind of each
+unsubscribe. Every email links only to this server and carries no tracking pixel; the providers' open and click tracking is
+switched off where their API allows it (Postmark, Mailgun). Nothing is sent in a demo or during a steward's *View as*.
 
 ## The operator's checklist
 

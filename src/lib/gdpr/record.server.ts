@@ -106,6 +106,16 @@ export async function processingRecord(now = new Date(), env: (name: string) => 
     transfers: 'To the providers listed (United States).',
     retention: 'Conversations stay until the member or the family deletes them; providers keep requests as their own terms say.',
   });
+  if (c.mail) activities.push({
+    name: 'Email', role: 'controller',
+    purposes: 'Confirming addresses, password resets, security notices about an account\'s ways in, invitations a steward sends, receipts for data requests, and notices to operators and stewards (src/lib/email/).',
+    legalBasis: 'Art. 6(1)(b) (the account and the invitation asked for); Art. 6(1)(c) (receipts and breach notices); Art. 6(1)(f) (security notices).',
+    subjects: 'Members with a confirmed address, people invited by email, people who sent a data request, operators.',
+    data: 'Email address, name, the email\'s text. Kindred keeps a keyed hash of the address per email sent (30 days) and per unsubscribe; never the text.',
+    recipients: subs.filter((x) => x.purpose === 'email').map((x) => x.name).join('; '),
+    transfers: subs.some((x) => x.purpose === 'email' && x.where !== 'EU' && x.where !== 'DE') ? 'Possible: see the email provider\'s location.' : 'None.',
+    retention: 'The send log 30 days; unsubscribes until the server is gone; the provider keeps messages as its own terms say.',
+  });
   if (c.push) activities.push({
     name: 'Reminders and notifications', role: 'processor',
     purposes: 'Pushes members asked for: birthdays, news of the week, new posts.',

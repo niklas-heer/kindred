@@ -21,6 +21,7 @@ import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SigninRouteImport } from './routes/signin'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as UiRouteImport } from './routes/ui'
+import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as WhatsNewRouteImport } from './routes/whats-new'
 import { Route as TreeIndexRouteImport } from './routes/$tree/index'
 import { Route as TreeAccessRouteImport } from './routes/$tree/access'
@@ -44,10 +45,12 @@ import { Route as ApiCspReportRouteImport } from './routes/api/csp-report'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiPresenceRouteImport } from './routes/api/presence'
 import { Route as ApiStatsRouteImport } from './routes/api/stats'
+import { Route as ApiUnsubscribeRouteImport } from './routes/api/unsubscribe'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as ResetTokenRouteImport } from './routes/reset.$token'
 import { Route as ShareTokenRouteImport } from './routes/share.$token'
 import { Route as UiCharacterRouteImport } from './routes/ui_.character'
+import { Route as VerifyEmailTokenRouteImport } from './routes/verify-email.$token'
 import { Route as TreeHouseHouseRouteImport } from './routes/$tree/house.$house'
 import { Route as TreePersonIdRouteImport } from './routes/$tree/person.$id'
 import { Route as TreeRecipeIdRouteImport } from './routes/$tree/recipe.$id'
@@ -131,6 +134,11 @@ const SignupRoute = SignupRouteImport.update({
 const UiRoute = UiRouteImport.update({
   id: '/ui',
   path: '/ui',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UnsubscribeRoute = UnsubscribeRouteImport.update({
+  id: '/unsubscribe',
+  path: '/unsubscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WhatsNewRoute = WhatsNewRouteImport.update({
@@ -248,6 +256,11 @@ const ApiStatsRoute = ApiStatsRouteImport.update({
   path: '/api/stats',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiUnsubscribeRoute = ApiUnsubscribeRouteImport.update({
+  id: '/api/unsubscribe',
+  path: '/api/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InviteTokenRoute = InviteTokenRouteImport.update({
   id: '/invite/$token',
   path: '/invite/$token',
@@ -266,6 +279,11 @@ const ShareTokenRoute = ShareTokenRouteImport.update({
 const UiCharacterRoute = UiCharacterRouteImport.update({
   id: '/ui_/character',
   path: '/ui/character',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerifyEmailTokenRoute = VerifyEmailTokenRouteImport.update({
+  id: '/verify-email/$token',
+  path: '/verify-email/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TreeHouseHouseRoute = TreeHouseHouseRouteImport.update({
@@ -403,6 +421,7 @@ export interface FileRoutesByFullPath {
   '/signin': typeof SigninRoute
   '/signup': typeof SignupRoute
   '/ui': typeof UiRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/whats-new': typeof WhatsNewRoute
   '/$tree/access': typeof TreeAccessRoute
   '/$tree/almanac': typeof TreeAlmanacRoute
@@ -425,10 +444,12 @@ export interface FileRoutesByFullPath {
   '/api/health': typeof ApiHealthRoute
   '/api/presence': typeof ApiPresenceRoute
   '/api/stats': typeof ApiStatsRoute
+  '/api/unsubscribe': typeof ApiUnsubscribeRoute
   '/invite/$token': typeof InviteTokenRoute
   '/reset/$token': typeof ResetTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/ui/character': typeof UiCharacterRoute
+  '/verify-email/$token': typeof VerifyEmailTokenRoute
   '/$tree/': typeof TreeIndexRoute
   '/$tree/house/$house': typeof TreeHouseHouseRoute
   '/$tree/person/$id': typeof TreePersonIdRoute
@@ -467,6 +488,7 @@ export interface FileRoutesByTo {
   '/signin': typeof SigninRoute
   '/signup': typeof SignupRoute
   '/ui': typeof UiRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/whats-new': typeof WhatsNewRoute
   '/$tree/access': typeof TreeAccessRoute
   '/$tree/almanac': typeof TreeAlmanacRoute
@@ -489,10 +511,12 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/api/presence': typeof ApiPresenceRoute
   '/api/stats': typeof ApiStatsRoute
+  '/api/unsubscribe': typeof ApiUnsubscribeRoute
   '/invite/$token': typeof InviteTokenRoute
   '/reset/$token': typeof ResetTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/ui/character': typeof UiCharacterRoute
+  '/verify-email/$token': typeof VerifyEmailTokenRoute
   '/$tree': typeof TreeIndexRoute
   '/$tree/house/$house': typeof TreeHouseHouseRoute
   '/$tree/person/$id': typeof TreePersonIdRoute
@@ -533,6 +557,7 @@ export interface FileRoutesById {
   '/signin': typeof SigninRoute
   '/signup': typeof SignupRoute
   '/ui': typeof UiRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/whats-new': typeof WhatsNewRoute
   '/$tree/access': typeof TreeAccessRoute
   '/$tree/almanac': typeof TreeAlmanacRoute
@@ -555,10 +580,12 @@ export interface FileRoutesById {
   '/api/health': typeof ApiHealthRoute
   '/api/presence': typeof ApiPresenceRoute
   '/api/stats': typeof ApiStatsRoute
+  '/api/unsubscribe': typeof ApiUnsubscribeRoute
   '/invite/$token': typeof InviteTokenRoute
   '/reset/$token': typeof ResetTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/ui_/character': typeof UiCharacterRoute
+  '/verify-email/$token': typeof VerifyEmailTokenRoute
   '/$tree/': typeof TreeIndexRoute
   '/$tree/house/$house': typeof TreeHouseHouseRoute
   '/$tree/person/$id': typeof TreePersonIdRoute
@@ -600,6 +627,7 @@ export interface FileRouteTypes {
     | '/signin'
     | '/signup'
     | '/ui'
+    | '/unsubscribe'
     | '/whats-new'
     | '/$tree/access'
     | '/$tree/almanac'
@@ -622,10 +650,12 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/presence'
     | '/api/stats'
+    | '/api/unsubscribe'
     | '/invite/$token'
     | '/reset/$token'
     | '/share/$token'
     | '/ui/character'
+    | '/verify-email/$token'
     | '/$tree/'
     | '/$tree/house/$house'
     | '/$tree/person/$id'
@@ -664,6 +694,7 @@ export interface FileRouteTypes {
     | '/signin'
     | '/signup'
     | '/ui'
+    | '/unsubscribe'
     | '/whats-new'
     | '/$tree/access'
     | '/$tree/almanac'
@@ -686,10 +717,12 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/presence'
     | '/api/stats'
+    | '/api/unsubscribe'
     | '/invite/$token'
     | '/reset/$token'
     | '/share/$token'
     | '/ui/character'
+    | '/verify-email/$token'
     | '/$tree'
     | '/$tree/house/$house'
     | '/$tree/person/$id'
@@ -729,6 +762,7 @@ export interface FileRouteTypes {
     | '/signin'
     | '/signup'
     | '/ui'
+    | '/unsubscribe'
     | '/whats-new'
     | '/$tree/access'
     | '/$tree/almanac'
@@ -751,10 +785,12 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/presence'
     | '/api/stats'
+    | '/api/unsubscribe'
     | '/invite/$token'
     | '/reset/$token'
     | '/share/$token'
     | '/ui_/character'
+    | '/verify-email/$token'
     | '/$tree/'
     | '/$tree/house/$house'
     | '/$tree/person/$id'
@@ -795,15 +831,18 @@ export interface RootRouteChildren {
   SigninRoute: typeof SigninRoute
   SignupRoute: typeof SignupRoute
   UiRoute: typeof UiRoute
+  UnsubscribeRoute: typeof UnsubscribeRoute
   WhatsNewRoute: typeof WhatsNewRoute
   ApiCspReportRoute: typeof ApiCspReportRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiPresenceRoute: typeof ApiPresenceRoute
   ApiStatsRoute: typeof ApiStatsRoute
+  ApiUnsubscribeRoute: typeof ApiUnsubscribeRoute
   InviteTokenRoute: typeof InviteTokenRoute
   ResetTokenRoute: typeof ResetTokenRoute
   ShareTokenRoute: typeof ShareTokenRoute
   UiCharacterRoute: typeof UiCharacterRoute
+  VerifyEmailTokenRoute: typeof VerifyEmailTokenRoute
   ApiAiChatTreeRoute: typeof ApiAiChatTreeRoute
   ApiAuthActionRoute: typeof ApiAuthActionRoute
   ApiBackupTreeRoute: typeof ApiBackupTreeRoute
@@ -904,6 +943,13 @@ declare module '@tanstack/react-router' {
       path: '/ui'
       fullPath: '/ui'
       preLoaderRoute: typeof UiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/unsubscribe': {
+      id: '/unsubscribe'
+      path: '/unsubscribe'
+      fullPath: '/unsubscribe'
+      preLoaderRoute: typeof UnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/whats-new': {
@@ -1067,6 +1113,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStatsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/unsubscribe': {
+      id: '/api/unsubscribe'
+      path: '/api/unsubscribe'
+      fullPath: '/api/unsubscribe'
+      preLoaderRoute: typeof ApiUnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/invite/$token': {
       id: '/invite/$token'
       path: '/invite/$token'
@@ -1093,6 +1146,13 @@ declare module '@tanstack/react-router' {
       path: '/ui/character'
       fullPath: '/ui/character'
       preLoaderRoute: typeof UiCharacterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verify-email/$token': {
+      id: '/verify-email/$token'
+      path: '/verify-email/$token'
+      fullPath: '/verify-email/$token'
+      preLoaderRoute: typeof VerifyEmailTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$tree/house/$house': {
@@ -1343,15 +1403,18 @@ const rootRouteChildren: RootRouteChildren = {
   SigninRoute: SigninRoute,
   SignupRoute: SignupRoute,
   UiRoute: UiRoute,
+  UnsubscribeRoute: UnsubscribeRoute,
   WhatsNewRoute: WhatsNewRoute,
   ApiCspReportRoute: ApiCspReportRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiPresenceRoute: ApiPresenceRoute,
   ApiStatsRoute: ApiStatsRoute,
+  ApiUnsubscribeRoute: ApiUnsubscribeRoute,
   InviteTokenRoute: InviteTokenRoute,
   ResetTokenRoute: ResetTokenRoute,
   ShareTokenRoute: ShareTokenRoute,
   UiCharacterRoute: UiCharacterRoute,
+  VerifyEmailTokenRoute: VerifyEmailTokenRoute,
   ApiAiChatTreeRoute: ApiAiChatTreeRoute,
   ApiAuthActionRoute: ApiAuthActionRoute,
   ApiBackupTreeRoute: ApiBackupTreeRoute,

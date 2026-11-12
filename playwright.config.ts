@@ -61,6 +61,8 @@ export default defineConfig({
       KINDRED_SETUP_CODE: SETUP_CODE,
       // Sign-up's Turnstile is a local stand-in (journey 32): nothing reaches Cloudflare.
       KINDRED_TURNSTILE_FAKE: '1',
+      // Email is off until journey 38 sets a provider; then every email lands in mail-outbox.jsonl, none is sent.
+      KINDRED_MAIL_FAKE: '1',
     },
   },
 });

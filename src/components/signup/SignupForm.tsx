@@ -19,6 +19,8 @@ import { errorText } from '~/lib/errortext';
 import { useT } from '~/lib/i18n';
 import { useSession } from '~/lib/session';
 import { publicHostingQuery, signupSignedIn, signupWaitlist } from '~/lib/signup/signup.functions';
+import { mailOnQuery } from '~/lib/email/email.functions';
+import { SignupEmailCode } from '~/components/email/SignupEmailCode';
 import type { PublicHosting } from '~/lib/signup/shared';
 import '~/components/operator/operator.css';
 import './signup.css';
@@ -84,8 +86,12 @@ function Form({ data, code, oidcError, onMade, onAsked }: { data: PublicHosting;
   const [turnstile, setTurnstile] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(oidcError ? t(oidcError === 'account_exists' ? 'oidc.err.signup_exists' : OIDC_ERRORS[oidcError] ?? 'oidc.err.failed') : null);
   const turnstileKey = data.turnstileSiteKey;
-  const waitlist = data.signup.waitlist && !signedIn;
-  const body = { ...form, accept, age16, theme: 'codex' as const, locale: t.locale, website, turnstile, ...(code ? { code } : {}) };
+  // While the server sends email, a code to the address proves it (src/lib/email/): a proved sign-up skips the waiting list.
+  const mailOn = useQuery({ ...mailOnQuery, enabled: !signedIn });
+  const [proof, setProof] = useState<{ proof: string; email: string } | null>(null);
+  const proved = !!proof && proof.email === form.email.trim().toLowerCase();
+  const waitlist = data.signup.waitlist && !signedIn && !proved;
+  const body = { ...form, accept, age16, theme: 'codex' as const, locale: t.locale, website, turnstile, ...(code ? { code } : {}), ...(proved ? { emailProof: proof!.proof } : {}) };
   const go = useMutation({
     mutationFn: async (): Promise<{ tree?: string; email?: string }> => {
       if (waitlist) return signupWaitlist({ data: body });
@@ -120,6 +126,7 @@ function Form({ data, code, oidcError, onMade, onAsked }: { data: PublicHosting;
           {(id, hint) => <input id={id} aria-describedby={hint} className="input" required maxLength={40} autoComplete="off" spellCheck={false} value={form.familyId} onChange={(e) => { setIdTouched(true); set('familyId')(e); }} />}
         </Labelled>
         <Labelled label={t('signup.email')} hint={t('signup.email_hint')}>{(id, hint) => <input id={id} aria-describedby={hint} className="input" type="email" required maxLength={254} autoComplete="email" value={form.email} onChange={set('email')} />}</Labelled>
+        {!signedIn && mailOn.data && <SignupEmailCode email={form.email} code={code} proved={proved} onProof={(p) => setProof(p ? { proof: p, email: form.email.trim().toLowerCase() } : null)} />}
         <div className="terms-check">
           <label>
             <input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} required />

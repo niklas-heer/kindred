@@ -1,5 +1,6 @@
 // Signing in with a username and password (src/lib/auth/password.server.ts): the form, the two-step code when the account
-// has them (or a recovery code instead), and "Forgot your password?" with a recovery code. Every answer for a wrong
+// has them (or a recovery code instead), and "Forgot your password?" with a link by email (while the server sends email) or a
+// recovery code. Every answer for a wrong
 // username or password is the same sentence. After a flood of failures on the whole server, the form shows Turnstile.
 import { useQuery } from '@tanstack/react-query';
 import { KeyRound, LifeBuoy, ShieldCheck } from 'lucide-react';
@@ -11,6 +12,8 @@ import { errorText } from '~/lib/errortext';
 import { useT } from '~/lib/i18n';
 import { publicInstanceQuery } from '~/lib/operator/operator.functions';
 import { NewPasswordFields, newPasswordReady } from './PasswordFields';
+import { ResetByEmail } from '~/components/email/ResetByEmail';
+import { mailOnQuery } from '~/lib/email/email.functions';
 
 const done = (next: string | undefined) => {
   forgetLocalIdentity();
@@ -20,7 +23,9 @@ const done = (next: string | undefined) => {
 
 export function PasswordSignIn({ next }: { next?: string }) {
   const t = useT();
-  const [mode, setMode] = useState<'password' | 'code' | 'recover'>('password');
+  const [mode, setMode] = useState<'password' | 'code' | 'recover' | 'email'>('password');
+  // While the server sends email, "Forgot your password?" offers a link by email first (src/lib/email/reset.server.ts).
+  const mailOn = useQuery(mailOnQuery);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [ticket, setTicket] = useState('');
@@ -68,6 +73,7 @@ export function PasswordSignIn({ next }: { next?: string }) {
   };
 
   if (mode === 'recover') return <Recover next={next} onBack={() => { setMode('password'); setError(null); }} />;
+  if (mode === 'email') return <ResetByEmail onRecovery={() => { setMode('recover'); setError(null); }} onBack={() => { setMode('password'); setError(null); }} />;
 
   if (mode === 'code') {
     return (
@@ -105,7 +111,7 @@ export function PasswordSignIn({ next }: { next?: string }) {
       <AuthError>{error}</AuthError>
       <button className="btn primary auth-go" disabled={busy || !username.trim() || !password}><KeyRound size={19} /> {busy ? t('pw.signing_in') : t('pw.sign_in')}</button>
       <div className="pw-links">
-        <button type="button" className="auth-link" onClick={() => { setMode('recover'); setError(null); }}>{t('pw.forgot')}</button>
+        <button type="button" className="auth-link" onClick={() => { setMode(mailOn.data ? 'email' : 'recover'); setError(null); }}>{t('pw.forgot')}</button>
       </div>
     </form>
   );

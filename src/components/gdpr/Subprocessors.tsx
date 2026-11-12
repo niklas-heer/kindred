@@ -9,7 +9,7 @@ export function SubprocessorList({ list }: { list: Subprocessor[] }) {
   return (
     <ul className="gdpr-subs">
       {list.map((s) => (
-        <li key={s.id}><a href={s.url} rel="noopener noreferrer">{s.name}</a> · {t(`gdpr.sub_${s.purpose}` as Key)} · <span className="muted">{s.where === 'global' ? t('gdpr.where_global') : s.where}</span></li>
+        <li key={s.id}>{s.url ? <a href={s.url} rel="noopener noreferrer">{s.name}</a> : s.name} · {t(`gdpr.sub_${s.purpose}` as Key)} · <span className="muted">{s.where === 'global' ? t('gdpr.where_global') : s.where}</span></li>
       ))}
     </ul>
   );

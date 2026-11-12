@@ -191,6 +191,8 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0050_round_seven_fixes.sql` | `ai_operator_overage.model`, `.acknowledged_at`, `.acknowledged_by` (an overage pauses the operator's AI for a family and model until acknowledged), `user.email_verified` (whether the address was verified, for `trust_email`) and `user.retiring`: the pseudonym an unused account's writing gets, claimed by the retention job before it changes anything ([gdpr.md](gdpr.md#retention)). |
 | `0051_backups.sql` | The automatic backups ([hosting-many-families.md](hosting-many-families.md#backups)): `family_backup` (each encrypted backup's manifest), `backup_status` (each scope's last attempt, last good backup and last restore drill) and `recovery_point` (a Durable Object's bookmark from before it migrated). The retention and the grace period are `instance_setting` rows (`backup_keep`, `backup_grace_days`). |
 | `0052_family_lifecycle.sql` | The lifecycle of quiet families ([hosting-many-families.md](hosting-many-families.md#lifecycle)): `family_lifecycle` (where a quiet family stands), `family_admin.active_at` and `.status_by`, `steward_notice` (what a family's stewards were told in the app) and `steward_notice_dismissal`. Off until the operator turns it on. |
+| `0053_email.sql` | Optional email ([hosting-many-families.md](hosting-many-families.md#email)): `email_token` (a confirmation link or a sign-up code, and the sign-up's proof), `email_send` (the send log for the limits and the Health tab) and `email_optout` (unsubscribes). |
+| `0054_email_reset.sql` | `password_reset.via`: `operator` (every row from before) or `email` (a link the holder asked for, sent to their confirmed address). |
 
 ### Tables
 
@@ -273,7 +275,9 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 - **`user.email_verified`** (0050): 1 when the account's address was verified: by Cloudflare Access, or by a sign-on provider
   whose ID token said `email_verified` for that same address (taking an invitation, signing up, signing in, adding the provider).
   0 for an address a steward typed into an invitation. A provider with `trust_email` finds only a verified address. The migration
-  verifies the addresses a linked identity already vouched for; an Access account is verified at its next visit.
+  verifies the addresses a linked identity already vouched for; an Access account is verified at its next visit. From 0053 the
+  holder can also confirm an address by email (a link from the account menu, which sets `email` and this flag together, or a
+  code at sign-up); a password reset by email and every security notice go only to a verified address.
 - **`user.retiring`** (0050): set while the retention job retires an unused account: the `former-…` pseudonym its writing gets,
   claimed in one batch guarded by the retention rule (which also ends the account's sessions) before anything of the account
   changes. While set, no session of the account is a way in, none is made, and a visit does not update `last_seen`. A run that
@@ -306,7 +310,23 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   key), `expires` (an hour), `used_at` (once: guarded in the batch that sets the password) and `clear_totp` (1: the link also
   turns two-step codes off). A new link for the account replaces an unused one. `seen_at` (0048): when the holder dismissed the
   notice that the link was used (only a session of another way in can; a password session shows it for 30 days); a used link's
-  row stays until then. Goes with the account.
+  row stays until then. Goes with the account. `via` (0054): `operator`, or `email` for a link the holder asked for on the
+  sign-in page, sent to the account's verified address (`created_by` NULL); the notice names which. A new link replaces only an
+  unused one made the same way.
+- **`email_token`** (0053): one row per proof of an address: `purpose` `verify` (a link from the account menu for `user`, which
+  it verifies; deleted with the account) or `signup` (a six-digit code typed into the sign-up form; no account yet). `secret`
+  is the SHA-256 of the link's token or of the code (never either), `email` the address it proves, `created`, `expires`
+  (24 hours for a link, 15 minutes for a code) and `tries` (wrong codes; five end it). A right code sets `proof` (the hash of a
+  token the form sends with the sign-up, UNIQUE) and `proved_at`, and has an hour more; `used_at` is set once, by the link's
+  confirmation or in the batch that makes the signed-up account. Expired rows go when new ones are made.
+- **`email_send`** (0053): one row per email Kindred meant to send: `at`, `recipient` (an HMAC of the address under the server
+  secret, never the address), `category` (`verify`, `signup`, `reset`, `security`, `test`, `invitation`, `operator`, `family`,
+  `receipt`), `status` (`sending`, `sent`, `failed`, `skipped`) and the provider's short `error`. The limits per address and per
+  server are guards on its counts in the batch that adds a row. Rows older than 30 days are deleted as new ones come. No `tree`.
+- **`email_optout`** (0053): `recipient` (the same hash) and `category` (`invitation`, `operator`, `family` or `receipt`): that
+  address unsubscribed from that kind, and `at`. Security emails have no row to leave. No `tree`.
+- The email settings are rows of `instance_setting` named `mail_*` (provider, sender, reply-to, Mailgun's domain and region,
+  the SMTP server, the hourly ceiling, and `mail_secret_sealed`, the key sealed with the server secret); no row: email is off.
 - **`signin_daily`** (0048): `day` (UTC, `YYYY-MM-DD`), `method` (`passkey`, `password`, `oidc`) and `count`: one added by every
   new session (`createSession`), in the same batch. Aggregates only, for the operator's statistics; names nobody.
 - **`auth_provider`** (0046): a single sign-on provider the operator added: `id` (the slug in the redirect URI

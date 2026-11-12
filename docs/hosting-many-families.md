@@ -241,6 +241,50 @@ is read-only, and while `KINDRED_AUTH_METHODS` is set it only shows what that se
   any family or role. Only operators can make one; stewards cannot reset anyone. Make sure it is really them before you hand it
   over.
 
+### Email
+
+Kindred sends no email until you set it up on the console's **Email** tab (`src/lib/email/`). Choose how it sends:
+
+- **Resend**, **Postmark** or **Mailgun** (with its **EU** region, which keeps the messages in the EU): they speak HTTP, so they
+  work on Node and on Cloudflare Workers alike. You need an account there, a sending domain it has verified, and its API key.
+- **SMTP**, a mail server of your own or your host's, over TLS (port 465) or STARTTLS (587), never in the clear. Node and Docker
+  only: a Worker cannot send by SMTP, and the tab does not offer it there.
+
+Then the sender's address and name (empty: the server's name), where replies go, and the key (or SMTP password). The key is
+stored sealed with the server secret and never shown again; `KINDRED_MAIL_API_KEY` or `KINDRED_SMTP_PASSWORD` in the
+environment wins over it ([self-host.md](self-host.md#settings)). Saving needs your fresh proof and goes into the log, without
+the key. **Send a test email** sends one to an address you type and shows the provider's answer when it fails. The provider
+receives the address and text of every email, so it becomes a subprocessor: the legal page and the record of processing list
+it while email is set up ([gdpr.md](gdpr.md#email)).
+
+What email makes possible, each only while it is on:
+
+- **Confirming an address.** *Your email* in the account menu sends a one-time link, good for 24 hours. The address becomes
+  the account's, confirmed, only when the link is opened and confirmed; moving away from a confirmed address needs a fresh
+  proof first. An address a steward typed into an invitation is never confirmed by that.
+- **Sign-up.** The sign-up form offers a six-digit code to the address typed (15 minutes, five tries). With the right code the
+  address is confirmed, so the family starts at once even while *unverified sign-ups go to the waiting list*.
+- **A forgotten password.** *Forgot your password?* on the sign-in page asks for the account's confirmed address. Kindred
+  answers the same, at once, for any address, and only then sends a one-hour, single-use link if an account with a password
+  has that confirmed address. The reset page works as for your reset link: a new password, the two-step code when those are
+  on, every other session ended, and the lasting notice at the next sign-in (here naming the email). Requests are counted
+  against the address and the network like sign-in tries.
+- **Security notices**, always, to a confirmed address: the password changed or reset (by email, a recovery code or your
+  link), a new passkey, password or single sign-on added, two-step codes turned off. They cannot be unsubscribed.
+- **Invitations.** When a steward invites someone with an address, *Send the invitation by email* sends the link (it stays
+  there to copy as well).
+- **Notices**: operators with a confirmed address about a new family request or data request (at most every ten minutes, and
+  nothing of what was asked); the person who sent a data request gets a receipt with the date it must be answered by (nothing
+  of what they wrote); a family's stewards when you hand them a data request, and when a breach notice concerns their family.
+
+Every email is in its recipient's language (their account's, else English; a receipt in the language the form was sent in),
+plain text with a simple HTML version: no images, no tracking, and no link but to this server. Every email that is not about
+an account's security carries a one-click unsubscribe for its kind (invitations, operator news, stewards' notices, receipts).
+Limits: a few emails an hour and a day to one address (codes and links fewer still), and the server's own ceiling an hour
+(**Emails an hour, at most**). Nothing is sent in a demo or during a steward's *View as*. The **Health** tab shows the last
+day's sends and the latest failures with the provider's reason; the log keeps a keyed hash of each address, never the address
+or the text.
+
 ### Policies
 
 What the families on this server may use, one card per feature, decided by the operator (`src/lib/operator/policy.server.ts`).

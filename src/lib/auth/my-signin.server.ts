@@ -74,6 +74,7 @@ export async function setMyPassword(request: Request, user: UserRow, input: { us
   } catch (e) {
     rethrowTaken(e);
   }
+  await notice(user.id, user.username ? 'password_changed' : 'password_added', request);
   return { username };
 }
 
@@ -126,7 +127,12 @@ export async function stopMyTotp(request: Request, user: UserRow): Promise<void>
   await changing(request, user);
   if (user.operator === 1 && (await passwordOf(user.id))) throw invalid('pw.err.operator_totp');
   await accounts().batch([removeTotp(user.id)]);
+  await notice(user.id, 'totp_off', request);
 }
+
+/** The security email after a change to the ways in (src/lib/email/notify.server.ts): sent later, never in the way. */
+const notice = async (user: string, kind: 'password_changed' | 'password_added' | 'totp_off', request: Request) =>
+  (await import('../email/notify.server.ts')).securityNotice(user, kind, request);
 
 /** Ten new recovery codes, replacing the ones left. */
 export async function renewMyRecoveryCodes(request: Request, user: UserRow): Promise<{ codes: string[] }> {

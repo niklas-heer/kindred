@@ -10,8 +10,9 @@
 // "thanks" and nothing is stored), Cloudflare Turnstile when the server has its keys (turnstile.server.ts), and then one
 // batch that reserves and stores together: its guards hold the limits per network (a short hash, never the address) and the
 // server-wide ceiling of open requests (OPEN_REQUESTS_MAX), so no number of processes, isolates or networks gets past them.
-// Kindred sends no email: the requester is told the operator will write to them, and the operator does, from their own mail.
-// Each new request tells the operators' devices that asked for it (operator-push.server.ts), with nothing of its content.
+// The operator writes to the requester from their own mail. When the server sends email (src/lib/email/), a data request's
+// requester gets a receipt with its deadline, and the operators an email; each new request also tells the operators' devices
+// that asked for it (operator-push.server.ts). Neither carries anything of what was asked.
 import { AuthError } from '../auth/errors.ts';
 import { families } from '../auth/trees.server.ts';
 import { networkOf } from '../auth/join-rules.ts';
@@ -23,7 +24,8 @@ import { audit, familyCreation } from './settings.server.ts';
 import { passesTurnstile } from './turnstile.server.ts';
 import { makeFamilyFor, type MadeFamily } from './operator.server.ts';
 import { notifyOperators } from './operator-push.server.ts';
-import { mayExtend, OPEN_REQUESTS_MAX, REQUEST_PAGE, type DataRequest, type DataRequestKind, type DataRequestOutcome, type DataRequestStatus, type FamilyRequest, type RequestStatus } from './shared.ts';
+import type { Locale } from '../i18n/languages.ts';
+import { dueAt, mayExtend, OPEN_REQUESTS_MAX, REQUEST_PAGE, type DataRequest, type DataRequestKind, type DataRequestOutcome, type DataRequestStatus, type FamilyRequest, type RequestStatus } from './shared.ts';
 import type { FamilyTheme } from '../families.server.ts';
 
 const accounts = () => store.accounts();
@@ -41,8 +43,8 @@ const line = (s: string, max: number) => s.replace(/[\u0000-\u001f\u007f]/g, ' '
 /** Text with its line breaks, at most `max` characters. */
 const text = (s: string, max: number) => s.replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, max);
 
-/** What a public form brings besides its fields. */
-export interface FormGuards { ip: string; honeypot?: string; turnstile?: string }
+/** What a public form brings besides its fields: where it came from, the hidden field, Turnstile's token, and the reader's language (for the receipt). */
+export interface FormGuards { ip: string; honeypot?: string; turnstile?: string; locale?: Locale }
 
 /** The short hash of the network a form came from: 4 characters, so it counts sends from one place and names nobody. */
 const networkKey = async (kind: string, ip: string) => (await hashToken('share-ip', `request:${kind}:${networkOf(ip)}`)).slice(0, 4);
@@ -106,6 +108,7 @@ export async function submitFamilyRequest(input: NewFamilyRequest, g: FormGuards
   await reserved('family_request', network, now, q('INSERT INTO family_request (id, name, email, family_name, message, locale, created, network) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     crypto.randomUUID(), name, email, familyName, text(input.message, 2000), input.locale ?? null, now, network));
   await notifyOperators('family');
+  (await import('../email/notify.server.ts')).emailOperators('family');
   return { email };
 }
 
@@ -189,6 +192,10 @@ export async function submitDataRequest(input: NewDataRequest, g: FormGuards, no
   await reserved('data_request', network, now, q('INSERT INTO data_request (id, name, email, family_text, family, kind, message, created, network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
     crypto.randomUUID(), name, email, familyText, await familyNamed(familyText), input.kind, message, now, network));
   await notifyOperators('data');
+  const mail = await import('../email/notify.server.ts');
+  mail.emailOperators('data');
+  // The receipt, with the date it must be answered by: nothing of what was asked (src/lib/email/notify.server.ts).
+  mail.emailDataReceipt(email, now, dueAt({ created: now }), g.locale ?? 'en');
   return { email };
 }
 
@@ -230,7 +237,7 @@ export async function familyDataRequests(tree: string): Promise<DataRequest[]> {
  * (which takes it back from them). Logged.
  */
 export async function setDataRequestStatus(op: UserRow, id: string, status: DataRequestStatus, outcome: DataRequestOutcome | null = null): Promise<void> {
-  const r = await accounts().get<{ family: string | null }>('SELECT family FROM data_request WHERE id = ?', id);
+  const r = await accounts().get<{ family: string | null; status: DataRequestStatus; created: number; extended_at: number | null }>('SELECT family, status, created, extended_at FROM data_request WHERE id = ?', id);
   if (!r) throw invalid('operator.err_request_gone');
   const t = Date.now();
   // Forwarded keeps the first time it was; open clears it; done leaves it as it was (answered with or without the stewards).
@@ -241,6 +248,10 @@ export async function setDataRequestStatus(op: UserRow, id: string, status: Data
     q(`UPDATE data_request SET status = ?, updated_at = ?, updated_by = ?, forwarded_at = ${forwarded.sql}, outcome = ${kept.sql} WHERE id = ?`, status, t, op.id, ...forwarded.params, ...kept.params, id),
     audit(actor(op), 'data_request.status', r.family, { request: id, status, ...(outcome ? { outcome } : {}) }),
   ]);
+  // The family's stewards hear of it by email when the server sends email (src/lib/email/notify.server.ts).
+  if (status === 'forwarded' && r.status !== 'forwarded' && r.family) {
+    (await import('../email/notify.server.ts')).emailStewardsDataRequest(r.family, dueAt({ created: r.created, extendedAt: r.extended_at }));
+  }
 }
 
 /**

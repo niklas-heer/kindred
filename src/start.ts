@@ -30,8 +30,11 @@ const securityHeaders = createMiddleware().server(async ({ next, request }) => {
 // functions are checked whatever their method, server routes (like /api/auth) when they change state.
 // Session cookies are also SameSite=Lax, so other sites' requests don't carry them in the first place.
 // Behind a proxy the request's own address is not the site's, so the Origin is compared with KINDRED_ORIGIN when it is set.
+// One route is left out: an email's one-click unsubscribe (RFC 8058), which a mail program posts from its own servers with no
+// Origin. It reads no cookie and does one thing, proved by the HMAC in its own address (src/routes/api/unsubscribe.ts).
+const ONE_CLICK = '/api/unsubscribe';
 const csrf = createCsrfMiddleware({
-  filter: (ctx) => ctx.handlerType === 'serverFn' || !SAFE.has(ctx.request.method),
+  filter: (ctx) => ctx.handlerType === 'serverFn' || (!SAFE.has(ctx.request.method) && new URL(ctx.request.url).pathname !== ONE_CLICK),
   origin: (value, ctx) => originAllowed(value, ctx.request),
   // A function, not a Response: workerd refuses to create a Response while the module loads, which would fail every route.
   failureResponse: () =>

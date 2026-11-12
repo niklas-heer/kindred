@@ -94,7 +94,7 @@ export interface Subprocessor {
   id: string;
   name: string;
   /** What it does here (a translation key's last part: `gdpr.sub_<purpose>`). */
-  purpose: 'hosting' | 'storage' | 'ai' | 'address' | 'archive' | 'push' | 'turnstile';
+  purpose: 'hosting' | 'storage' | 'ai' | 'address' | 'archive' | 'push' | 'turnstile' | 'email';
   /** Where it processes, as its own documentation says (a country or region code). */
   where: string;
   /** Its own privacy or data processing page. */

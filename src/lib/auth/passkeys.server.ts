@@ -193,6 +193,8 @@ export async function finishAdd(request: Request, user: UserRow, challengeId: un
   await requireFreshProof(request, user);
   const cred = await verifyNew(request, c.challenge, response);
   await accounts().batch([insertCredential({ ...cred, user: user.id, device: deviceName(request) })]);
+  // The security email: a new way into the account (src/lib/email/notify.server.ts). Sent later, never in the way.
+  await (await import('../email/notify.server.ts')).securityNotice(user.id, 'passkey_added', request);
 }
 
 /**

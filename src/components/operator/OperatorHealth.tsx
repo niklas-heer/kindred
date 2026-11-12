@@ -11,6 +11,7 @@ import type { FamilySchema } from '~/lib/operator/health-shared';
 import { formatBytes } from '~/lib/operator/shared';
 import { healthQuery, operatorAcknowledgeOverage } from '~/lib/operator/self-update.functions';
 import { DEFAULT_UPDATE_REPO } from '~/lib/operator/updates-shared';
+import { EmailHealth } from '~/components/email/OperatorEmail';
 import './operator.css';
 import './ops.css';
 
@@ -123,6 +124,7 @@ export function HealthTab({ onWorkers }: { onWorkers: boolean }) {
         </p>
         {data.check.updateAvailable && <p>{t('update.health_update')}</p>}
       </section>
+      <EmailHealth />
     </div>
   );
 }

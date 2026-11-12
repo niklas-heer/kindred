@@ -58,6 +58,9 @@ services:
       # docs/hosting-many-families.md). Empty: the forms rely on a hidden field and a limit per network.
       KINDRED_TURNSTILE_SITE_KEY: ${KINDRED_TURNSTILE_SITE_KEY:-}
       KINDRED_TURNSTILE_SECRET: ${KINDRED_TURNSTILE_SECRET:-}
+      # Email's key, instead of the one the console's Email tab stores sealed (docs/hosting-many-families.md, "Email").
+      KINDRED_MAIL_API_KEY: ${KINDRED_MAIL_API_KEY:-}
+      KINDRED_SMTP_PASSWORD: ${KINDRED_SMTP_PASSWORD:-}
       # The operator console's update check (docs/hosting-many-families.md): `off` turns it off; a fork names its repository.
       KINDRED_UPDATE_CHECK: ${KINDRED_UPDATE_CHECK:-}
       KINDRED_UPDATE_REPO: ${KINDRED_UPDATE_REPO:-}

@@ -5,7 +5,7 @@ import { translateMessage, formatDate, relativeTime, richText, useT, type Locale
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { graphQuery } from '~/lib/api';
-import { Activity, ArrowLeftRight, BarChart3, Bell, Check, Compass, Eye, Fingerprint, Info, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus, Gamepad2, Landmark, History, Printer, Scale, ServerCog, FileDown } from 'lucide-react';
+import { Activity, ArrowLeftRight, BarChart3, Bell, Check, Compass, Eye, Fingerprint, Info, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, Mail, MessageSquarePlus, Gamepad2, Landmark, History, Printer, Scale, ServerCog, FileDown } from 'lucide-react';
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import { publicInstanceQuery } from '~/lib/operator/operator.functions';
 import { updateDotQuery } from '~/lib/operator/insight.functions';
@@ -31,6 +31,8 @@ import { dropThisDevice, ReminderRefresh, RemindersDialog } from './Reminders';
 import { useMember, useMembership, useSession } from '~/lib/session';
 import { AboutDialog } from './AboutDialog';
 import { YourDataDialog } from './gdpr/YourData';
+import { YourEmailDialog } from './email/YourEmail';
+import { mailOnQuery } from '~/lib/email/email.functions';
 import { openViewAs, stopPreview } from './viewas/ViewAs';
 import { Dialog } from './ui/Dialog';
 import { isTopOverlay, useOverlayLayer } from './ui/overlay';
@@ -91,6 +93,9 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
   const [about, setAbout] = useState(false);
   const [yourData, setYourData] = useState(false);
   const [reminders, setReminders] = useState(false);
+  const [yourEmail, setYourEmail] = useState(false);
+  // "Your email" is offered only while the server sends email (src/lib/email/).
+  const mailOn = useQuery({ ...mailOnQuery, enabled: open && !session?.demo });
   // Reminders are offered only when this server has its VAPID keys (docs/self-host.md, "Reminders").
   const remindersOn = useQuery({ queryKey: ['reminders', 'available'], queryFn: () => fetchRemindersAvailable(), staleTime: 5 * 60_000 });
   // The server's legal texts, when its operator wrote any: a link to them (src/routes/legal.tsx).
@@ -235,6 +240,11 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
               <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setPasskeys(true); }}>
                 <KeyRound size={17} /> {session?.auth === 'cloudflare-access' ? t('auth.your_name') : t("accountmenu.your_name_passkeys")} </button>
               )}
+              {/* Confirming the account's email address, while the server sends email (src/lib/email/). Never in a preview. */}
+              {!demo && !preview && mailOn.data && session?.auth !== 'cloudflare-access' && (
+              <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setYourEmail(true); }}>
+                <Mail size={17} /> {t('email.menu')} </button>
+              )}
               {/* Download or delete the account (docs/gdpr.md): the reader's own, never during a preview. */}
               {!demo && !preview && (
               <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); setYourData(true); }}>
@@ -327,6 +337,7 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
       )}
       <AboutDialog open={about} onClose={() => setAbout(false)} />
       {!demo && <YourDataDialog open={yourData} onClose={() => setYourData(false)} />}
+      {!demo && <YourEmailDialog open={yourEmail} onClose={() => setYourEmail(false)} />}
       <PasskeysDialog open={passkeys} onClose={() => setPasskeys(false)} />
       {/* Reminders are the steward's own devices: a preview neither refreshes nor shows them. */}
       {!demo && !preview && tree && m && <ReminderRefresh tree={tree} />}

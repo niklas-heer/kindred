@@ -20,6 +20,26 @@ const AI: Record<string, Subprocessor> = {
   openrouter: { id: 'openrouter', name: 'OpenRouter', purpose: 'ai', where: 'US', url: 'https://openrouter.ai/privacy' },
 };
 
+/** The email provider: it receives every email's address and text (docs/gdpr.md, "Email"). */
+const MAIL: Record<NonNullable<Configuration['mail']>['provider'], (m: NonNullable<Configuration['mail']>) => Subprocessor> = {
+  resend: () => ({ id: 'resend', name: 'Resend (Plus Five Five, Inc.)', purpose: 'email', where: 'US', url: 'https://resend.com/legal/privacy-policy' }),
+  postmark: () => ({ id: 'postmark', name: 'Postmark (ActiveCampaign, LLC)', purpose: 'email', where: 'US', url: 'https://postmarkapp.com/privacy-policy' }),
+  mailgun: (m) => ({ id: 'mailgun', name: 'Mailgun Technologies, Inc.', purpose: 'email', where: m.region === 'eu' ? 'EU' : 'US', url: 'https://www.mailgun.com/legal/privacy-policy/' }),
+  smtp: (m) => ({ id: 'smtp', name: m.host ? `SMTP: ${m.host}` : 'SMTP', purpose: 'email', where: 'global', url: '' }),
+};
+
+/** The email provider this server is set up with, if any (a configuration that cannot send yet still names its provider). */
+async function mailUsed(): Promise<Configuration['mail']> {
+  try {
+    const { mailConfig } = await import('../email/settings.server.ts');
+    const c = await mailConfig();
+    if (c.provider === 'off') return null;
+    return { provider: c.provider, ...(c.provider === 'mailgun' ? { region: c.mailgunRegion } : {}), ...(c.provider === 'smtp' ? { host: c.smtpHost } : {}) };
+  } catch {
+    return null;
+  }
+}
+
 /** What the configuration says, gathered once so the list can be tested without a server. */
 export interface Configuration {
   workers: boolean;
@@ -30,6 +50,8 @@ export interface Configuration {
   githubArchive: boolean;
   push: boolean;
   turnstile: boolean;
+  /** How the server sends email (src/lib/email/), when it does: the provider, Mailgun's region, an SMTP server's name. */
+  mail?: { provider: 'resend' | 'postmark' | 'mailgun' | 'smtp'; region?: 'us' | 'eu'; host?: string } | null;
 }
 
 /**
@@ -48,6 +70,7 @@ export async function configuration(read: Read = fromEnv, env: Record<string, st
     githubArchive: Object.keys(env).some((k) => /^KINDRED_ARCHIVE_[A-Z0-9_]+_REPO$/.test(k) && !!read(k) && !!read(k.replace(/_REPO$/, '_TOKEN'))),
     push: !!vapidFrom(read),
     turnstile: !!turnstileKeys(env),
+    mail: await mailUsed(),
   };
 }
 
@@ -63,6 +86,7 @@ export function subprocessorsOf(c: Configuration): Subprocessor[] {
   for (const p of c.aiProviders) out.push(AI[p]!);
   if (c.addressLookup) out.push({ id: 'photon', name: 'komoot GmbH (Photon)', purpose: 'address', where: 'DE', url: 'https://www.komoot.com/privacy' });
   if (c.githubArchive) out.push({ id: 'github', name: 'GitHub, Inc.', purpose: 'archive', where: 'US', url: 'https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement' });
+  if (c.mail) out.push(MAIL[c.mail.provider](c.mail));
   if (c.push) out.push({ id: 'push', name: 'Web Push services of the browsers (Google, Mozilla, Apple, Microsoft)', purpose: 'push', where: 'global', url: 'https://developer.mozilla.org/docs/Web/API/Push_API' });
   return out;
 }

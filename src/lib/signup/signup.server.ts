@@ -12,7 +12,8 @@
 // from one network (a short hash, never the address), the families one account may make by sign-up, and a code's uses.
 // When the day's or the server's limit is reached, the page sends people to the request form instead (/request).
 //
-// The email is not verified (only a single sign-on provider could say it is, and none is here yet): it is the operator's
+// The email is not verified unless a single sign-on provider says it is, or the person typed the code Kindred emailed to it
+// (src/lib/email/verify.server.ts, while the server sends email). Unverified, it is the operator's
 // way to reach the family, kept with the sign-up, never the account's own email, so it can never be taken as proof of who
 // someone is (a later move to Cloudflare Access recognises accounts by email). With "unverified sign-ups go to the waiting
 // list", the form becomes a request instead (`waitlist`) and no account is made.
@@ -25,6 +26,7 @@ import { translate } from '../i18n/dictionary.ts';
 import { audit, instanceSettings } from '../operator/settings.server.ts';
 import { submitFamilyRequest } from '../operator/requests.server.ts';
 import { passesSignupTurnstile } from '../operator/turnstile.server.ts';
+import { signupProof, spendProof } from '../email/verify.server.ts';
 import { guard, q, store, type Query } from '../store/index.ts';
 import { codeHash, codeRow, codeUsable, hostingSettings, saveHosting, signupCounts, signupState, readiness } from './settings.server.ts';
 import {
@@ -60,9 +62,11 @@ export interface SignupForm {
   age16: boolean;
   code?: string;
   locale?: string;
+  /** The proof a code emailed to `email` gave (src/lib/email/verify.server.ts): the address is verified. */
+  emailProof?: string;
 }
 
-export interface CleanForm { name: string; familyName: string; familyId: string; email: string; theme: FamilyTheme; code?: string }
+export interface CleanForm { name: string; familyName: string; familyId: string; email: string; theme: FamilyTheme; code?: string; emailProof?: string }
 
 /** One line, spaces folded, at most `max` characters. */
 const line = (s: string | undefined, max: number) => (s ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -81,7 +85,8 @@ export function cleanForm(f: SignupForm, needName: boolean): CleanForm {
   if (!f.accept) throw err('invalid', 'signup.err.accept');
   if (!f.age16) throw err('invalid', 'signup.err.age');
   const code = f.code?.trim() ? f.code.trim().slice(0, 64) : undefined;
-  return { name, familyName, familyId, email, theme: f.theme === 'modern' ? 'modern' : 'codex', ...(code ? { code } : {}) };
+  const emailProof = typeof f.emailProof === 'string' && /^[A-Za-z0-9_-]{43}$/.test(f.emailProof) ? f.emailProof : undefined;
+  return { name, familyName, familyId, email, theme: f.theme === 'modern' ? 'modern' : 'codex', ...(code ? { code } : {}), ...(emailProof ? { emailProof } : {}) };
 }
 
 /** The short hash of the network a sign-up came from: 4 characters, so it counts sign-ups from one place and names nobody. */
@@ -97,8 +102,10 @@ export interface SignupGuards { ip: string; honeypot?: string; turnstile?: strin
  */
 export async function precheck(form: CleanForm, g: SignupGuards, now = Date.now()): Promise<{ state: SignupState; network: string } | null> {
   if (g.honeypot?.trim()) return null;
-  const state = await signupState(form.code, now);
-  if (!state.open) throw closedError(state.reason);
+  const listed = await signupState(form.code, now);
+  if (!listed.open) throw closedError(listed.reason);
+  // An address proved with an emailed code skips the waiting list (the proof is spent when the account is made).
+  const state = listed.waitlist && (await emailProved(form)) ? { ...listed, waitlist: false } : listed;
   if (!(await passesSignupTurnstile(g.turnstile, g.ip))) throw new AuthError('invalid', 'operator.err_turnstile');
   const network = await networkKey(g.ip);
   const row = await accounts().get<{ n: number }>('SELECT count(*) AS n FROM signup_tally WHERE network = ? AND created > ?', network, now - DAY);
@@ -122,9 +129,12 @@ export type NewAccount =
  * Makes the family, and the account when it is new, in one step whose last batch holds every limit. `verified`: the email
  * was verified by whoever signed the person in (a single sign-on provider); false for every sign-up this round.
  */
-export async function completeSignup(who: NewAccount, form: CleanForm, network: string, { verified = false, now = Date.now() }: { verified?: boolean; now?: number } = {}): Promise<{ tree: string; user: string }> {
+export async function completeSignup(who: NewAccount, form: CleanForm, network: string, { verified: byProvider = false, now = Date.now() }: { verified?: boolean; now?: number } = {}): Promise<{ tree: string; user: string }> {
   const state = await signupState(form.code, now);
   if (!state.open) throw closedError(state.reason);
+  // An address is verified by a sign-on provider, or by a code emailed to it (spent in the batch below, so once).
+  const proof = !byProvider && who.kind !== 'existing' ? await emailProved(form) : undefined;
+  const verified = byProvider || !!proof;
   if (state.waitlist && !verified) throw closedError('closed');
   const h = await hostingSettings();
   const code = form.code ? await codeRow(form.code) : undefined;
@@ -141,6 +151,7 @@ export async function completeSignup(who: NewAccount, form: CleanForm, network: 
   } else {
     user = who.user;
   }
+  if (proof) before.push(...spendProof(proof.id, now));
   // The limits, again, in the batch: two sign-ups at once cannot both take the last place. They count `signup_tally`, which
   // holds no account and no family, so deleting either lowers neither count (migration 0049).
   before.push(guard('(SELECT count(*) FROM signup_tally WHERE network = ? AND created > ?) < ?', network, now - DAY, SIGNUPS_PER_NETWORK));
@@ -175,6 +186,9 @@ export async function completeSignup(who: NewAccount, form: CleanForm, network: 
   });
   return { tree, user: user.id };
 }
+
+/** The emailed code behind the form's proof, when it proves the form's address and has not been used. */
+const emailProved = (form: CleanForm) => (form.emailProof ? signupProof(form.email, form.emailProof) : Promise.resolve(undefined));
 
 /** Unverified sign-ups wait (the operator's choice): the form becomes a request on the waiting list. No account is made. */
 export async function signupToWaitlist(form: CleanForm, g: SignupGuards): Promise<{ email: string }> {
