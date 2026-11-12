@@ -7,7 +7,6 @@ export default {
   "email.mail.greeting_plain": "Ciao,",
   "email.mail.sent_by": "Questa email è stata inviata da {server} ({address}).",
   "email.mail.security_footer": "Ti inviamo un’email come questa ogni volta che cambiano i modi per accedere al tuo account. Non si può disattivare.",
-  "email.mail.security_footer": "Ti scriviamo così ogni volta che cambiano i modi per entrare nel tuo account. Non si può disattivare.",
   "email.mail.notice_footer": "Ti scriviamo così quando succede qualcosa di importante a una famiglia di cui sei custode. Non si può disattivare.",
   "email.mail.unsubscribe_q": "Non vuoi più email come questa?",
   "email.mail.unsubscribe": "Annulla l’iscrizione",

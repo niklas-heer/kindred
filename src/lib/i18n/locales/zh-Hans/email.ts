@@ -121,7 +121,6 @@ export default {
   "email.verify_done": "{email}现在是你账户已确认的邮箱地址。",
   "email.verify_gone_title": "这个链接已经失效",
   "email.verify_gone": "它已被使用，或已超过24小时。请在账户菜单的“你的邮箱”里重新申请一个。",
-  "email.verify_gone": "它已被使用，或已超过 24 小时。请在账户菜单的“你的邮箱”里重新申请一个。",
   "email.verify_signin_title": "登录后确认你的邮箱地址",
   "email.verify_signin": "请登录申请这个链接的账户，之后会回到这里完成确认。",
   "email.verify_other": "这个浏览器登录的是另一个账户。请退出，登录申请这个链接的账户，然后重新打开它。",

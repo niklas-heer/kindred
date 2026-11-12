@@ -33,7 +33,6 @@ export default {
   "email.mail.sec_totp_off": "Kody dwuetapowe zostały wyłączone dla Twojego konta {date}.",
   "email.mail.invite_subject": "{inviter} zaprasza Cię do rodziny {family}",
   "email.mail.sec_email_changed": "Adres e-mail Twojego konta został zmieniony {date}. Na ten adres nie będą już przychodzić wiadomości z tego konta.",
-  "email.mail.invite_subject": "{inviter} zaprasza Cię do: {family}",
   "email.mail.invite_body": "{inviter} zaprasza Cię do drzewa genealogicznego {family} na {server}. Zaproszenie działa do {date}.",
   "email.mail.invite_action": "Otwórz zaproszenie",
   "email.mail.invite_unknown": "Jeśli nie znasz osoby {inviter}, możesz zignorować tę wiadomość.",
