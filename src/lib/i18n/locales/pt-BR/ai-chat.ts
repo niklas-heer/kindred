@@ -157,7 +157,7 @@ export default {
   "chat.chip.gaps": "O que falta de {name}?",
   "chat.chip.birthdays": "Quem faz aniversário em breve?",
   "chat.chip.anyGaps": "O que ainda falta na árvore?",
-  "chat.start.who": "Fale-me sobre {name}",
+  "chat.start.who": "Me fale sobre {name}",
   "chat.start.family": "Mostrar a família de {name}",
   "chat.start.timeline": "Mostrar a vida de {name} em ordem",
   "chat.start.gaps": "O que falta de {name}?",

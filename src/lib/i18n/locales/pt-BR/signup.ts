@@ -159,4 +159,6 @@ export default {
   "signup.audit_settings": "Mudou as configurações de hospedagem",
   "signup.audit_code_create": "Criou um código de cadastro",
   "signup.audit_code_revoke": "Retirou um código de cadastro",
+  "signup.password_button": "Criar sua conta e a família",
+  "signup.sso_skips_wait": "Ou crie agora mesmo entrando com um provedor que confirme o seu endereço de e-mail:",
 } satisfies Strings<typeof en, "pt-BR">;

@@ -210,7 +210,7 @@ export const LANGUAGES = {
     // The only Portuguese Kindred has, so a reader in Portugal gets it too rather than English.
     accepts: ["pt"],
     shortMonths: ["jan.", "fev.", "mar.", "abr.", "mai.", "jun.", "jul.", "ago.", "set.", "out.", "nov.", "dez."],
-    complete: false, // TOP-UP: 20 keys added after the translation; set back to true then
+    complete: true,
   },
   ja: {
     native: "日本語",

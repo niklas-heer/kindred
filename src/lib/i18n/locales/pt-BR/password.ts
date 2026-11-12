@@ -119,4 +119,11 @@ export default {
   "pw.reset_link_for": "Link de redefinição para {name}, até {time}",
   "pw.audit_methods": "Mudou as formas de entrar",
   "pw.audit_reset_link": "Criou um link de redefinição de senha",
+  "pw.err.operator_password_totp": "Como operador, ligue os códigos em duas etapas antes de definir uma senha.",
+  "pw.operator_totp_first": "Como operador, ligue primeiro os códigos em duas etapas; depois você pode adicionar uma senha.",
+  "pw.recovery_renew": "Os seus códigos de recuperação estão guardados do jeito antigo. Crie novos e guarde esses no lugar deles.",
+  "pw.err.reset_no_password": "Essa conta não tem senha, então um link de redefinição não pode dar uma a ela. A pessoa entra como sempre entrou.",
+  "pw.err.reset_notice_method": "Entre com a sua chave de acesso ou com o login único para dispensar este aviso.",
+  "pw.reset_notice": "Um operador deste servidor redefiniu a sua senha em {date}. Se você não pediu isso, mude a sua senha agora e avise o operador.",
+  "pw.reset_notice_label": "A segurança da sua conta",
 } satisfies Strings<typeof en, "pt-BR">;

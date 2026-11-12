@@ -55,6 +55,7 @@ export default {
   "events.err.too_many": "Uma pessoa pode ter até 200 eventos.",
   "events.err.changed": "Os eventos mudaram enquanto você os ordenava. A página os mostra como estão agora.",
   "events.atlas.mode": "Eventos",
+  "events.atlas.count": { one: "{count} evento", other: "{count} eventos" },
   "events.atlas.what": "eventos da vida",
   "events.atlas.kindword": "eventos",
   "events.atlas.here": "Eventos aqui",

@@ -8,6 +8,8 @@ export default {
   "policy.err.no_price": "O Kindred não conhece o preço deste modelo, então a IA deste servidor não pode usá-lo. Escolha um modelo com preço conhecido.",
   "policy.err.operator_model": "Escolha o provedor e o modelo que a IA deste servidor usa.",
   "policy.err.operator_budget": "A IA que este servidor oferece gastou o orçamento do mês. Ela recomeça no dia 1º, em UTC.",
+  "policy.err.operator_paused": "A IA que este servidor oferece está pausada para esta família: uma chamada custou mais do que estava reservado para ela. O operador do servidor a liga de novo.",
+  "policy.err.operator_unbounded": "A IA que este servidor oferece não pesquisa na web nem olha imagens: o custo não podia ser conhecido antes. Pergunte sem imagem, ou passe a usar a chave de IA da sua família.",
   "policy.err.not_offered": "Este servidor não oferece a sua IA a esta família.",
   "policy.err.announcement_title": "Um anúncio precisa de um título.",
   "policy.err.announcement_end": "Um anúncio precisa terminar depois de começar.",

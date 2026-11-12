@@ -226,4 +226,5 @@ export default {
   "request.full": "Há pedidos demais esperando resposta neste momento, então este formulário está fechado por ora. Tente de novo dentro de alguns dias.",
   "privacyreq.full": "Há pedidos demais esperando resposta neste momento, então este formulário está fechado por ora.",
   "privacyreq.full_write": "Você ainda pode escrever ao operador:",
+  "operator.err.needs_totp": "Essa conta tem senha, mas não tem códigos em duas etapas. A pessoa precisa ligá-los primeiro; depois a conta pode virar operador.",
 } satisfies Strings<typeof en, "pt-BR">;

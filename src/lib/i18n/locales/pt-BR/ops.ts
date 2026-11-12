@@ -156,4 +156,6 @@ export default {
   "ops.r200.access_text": "Convide familiares como leitores, colaboradores, editores ou responsáveis, ou compartilhe um link só de leitura.",
   "ops.r200.ai_title": "Um assistente opcional.",
   "ops.r200.ai_text": "Escolha um provedor e um orçamento mensal; nada muda sem aprovação.",
+  "ops.signins_password": "Entradas com senha (30 dias)",
+  "ops.signins_oidc": "Entradas com login único (30 dias)",
 } satisfies Strings<typeof en, "pt-BR">;
