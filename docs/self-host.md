@@ -118,10 +118,14 @@ Any combination works. A fresh install and an upgrade offer passkeys only, so up
   from `KINDRED_SECRET`, so a copied database alone cannot be guessed against. **Changing `KINDRED_SECRET` makes every password
   stop working**, as it does the saved AI keys: people then need a reset link. The stored hash names its scheme, so a later,
   stronger one replaces it at the next sign-in.
-- **Guessing** is limited in the accounts database, the same on Node and on every Worker isolate: 5 failures per username in 15
-  minutes, then a wait that doubles after each lockout (up to 16 hours, never permanent); 20 failures an hour per network; and
-  after 500 failures an hour on the whole server the form asks for Cloudflare Turnstile, when `KINDRED_TURNSTILE_*` is set. An
-  unknown username gets the same answer as a wrong password, after the same work. Two-step and recovery codes count too.
+- **Guessing** is limited in the accounts database, the same on Node and on every Worker isolate. Every try is counted before
+  it is checked, so tries sent at once cannot slip past the limit. 5 tries per username from one network in 15 minutes, then
+  that network waits, a wait that doubles after each lockout (up to 16 hours, never permanent); 20 tries an hour per network.
+  A username tried more than 5 times in 15 minutes from anywhere is never locked: each further try needs a Cloudflare Turnstile
+  answer when `KINDRED_TURNSTILE_*` is set, or else waits two seconds, so nobody can keep a known username (an operator's) out.
+  After 500 tries an hour on the whole server the sign-in form asks for Turnstile, when it is set. A right password gives its
+  try back. An unknown username gets the same answer as a wrong password, after the same work. Two-step and recovery codes
+  count too, and "this username is taken" costs the network a try, so usernames cannot be listed by trying them.
 - **Two-step codes** (an authenticator app, TOTP) are optional for everyone, set up from the account menu, and each code works
   once. An operator who signs in with a password reaches the console only with them on. Turning them on gives ten one-use
   **recovery codes**.

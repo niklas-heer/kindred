@@ -8,10 +8,11 @@
 // with an older scheme stores the password again in the current one. Comparisons take the same time whatever matches. An
 // unknown username is checked against a dummy hash, so it costs as long as a real one and gets the same answer.
 //
-// Guessing is limited in the database (./attempts.server.ts), counted before any hashing. A right password whose account has
+// Guessing is limited in the database (./attempts.server.ts): every try is counted before anything is checked, and only a try
+// within the limits is checked at all (`admit`). A right password whose account has
 // two-step codes is not a sign-in yet: it gets a five-minute ticket (`signin_step`) for the code, or a recovery code. Every
 // sign-in is a new session (session.server.ts, startSession). Nothing here works on the guest host, in a demo or in a preview.
-import { attemptKeys, fail as failAttempt, gate, succeeded, userKey, type AttemptKeys } from './attempts.server.ts';
+import { attemptKeys, begin, beginNetwork, refund, refundNetwork, succeeded, USER_SLOW_MS, type AttemptKeys } from './attempts.server.ts';
 import { isCommonPassword } from './common-passwords.ts';
 import { AuthError } from './errors.ts';
 import { authMethod } from './method.server.ts';
@@ -110,9 +111,15 @@ export function passwordRows(user: string, username: string, hash: string): Quer
 
 /** A taken username, as the error the form shows. */
 export const usernameTaken = () => invalid('pw.err.username_taken');
-/** Refuses a username another account has (the UNIQUE index still decides a race; rethrowTaken names it). */
-export async function requireFreeUsername(username: string): Promise<void> {
+/**
+ * Refuses a username another account has (the UNIQUE index still decides a race; rethrowTaken names it). "Taken" tells
+ * whether an account exists, so with `ip` each such answer costs the network one of its tries (./attempts.server.ts): names
+ * cannot be listed by trying them. A free name gives its try back.
+ */
+export async function requireFreeUsername(username: string, ip?: string): Promise<void> {
+  if (ip !== undefined && (await beginNetwork(ip))) throw throttled();
   if (await userByUsername(username)) throw usernameTaken();
+  if (ip !== undefined) await refundNetwork(ip);
 }
 export const rethrowTaken = (e: unknown): never => {
   throw isUniqueError(e) && /username/i.test(String((e as Error).message) + String((e as { cause?: unknown }).cause ?? '')) ? usernameTaken() : e;
@@ -133,30 +140,48 @@ export async function passwordAllowed(request: Request): Promise<void> {
 }
 
 const wrong = () => invalid('pw.err.wrong');
-const throttled = () => new AuthError('throttled', 'pw.err.throttled');
+function throttled() { return new AuthError('throttled', 'pw.err.throttled'); }
 export const turnstileNeeded = () => new AuthError('invalid', 'pw.err.turnstile');
 
-export interface Attempt { ip: string; turnstile?: (token: string | undefined) => Promise<boolean> }
+export interface Attempt {
+  ip: string;
+  /** Checks the form's Turnstile answer (true while the server has no keys). */
+  turnstile?: (token: string | undefined) => Promise<boolean>;
+  /** Whether the server has Turnstile keys: a username tried many times then asks for an answer instead of waiting. */
+  turnstileOn?: boolean;
+  /** How a slowed try waits (tests replace it). */
+  wait?: (ms: number) => Promise<void>;
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Counts one try, then decides whether it may be checked: refused when this username from this network (or the network) is
+ * over its limit; a Turnstile answer when the server is flooded or the username has had many tries and the form carries
+ * one (`token` is undefined for a form that has no Turnstile, null when it has none to send); otherwise a short delay.
+ */
+async function admit(keys: AttemptKeys, a: Attempt, token: string | undefined | null): Promise<void> {
+  const v = await begin(keys);
+  if (v.locked) throw throttled();
+  const form = token !== undefined && !!a.turnstile;
+  if (form && (v.turnstile || (v.slow && a.turnstileOn)) && !(await a.turnstile!(token ?? undefined))) throw turnstileNeeded();
+  if (v.slow && !(form && a.turnstileOn)) await (a.wait ?? sleep)(USER_SLOW_MS);
+}
 
 /**
  * Checks a username and password. Returns the account when the password is right; throws one answer for a wrong password
  * and an unknown username alike, after the same work. Counted against the username, the network and the server.
  */
-async function checkPassword(username: unknown, password: unknown, a: Attempt, turnstileToken?: string): Promise<{ user: UserRow; keys: AttemptKeys; rehash: boolean }> {
+async function checkPassword(username: unknown, password: unknown, a: Attempt, turnstileToken: string | undefined | null): Promise<{ user: UserRow; keys: AttemptKeys; rehash: boolean }> {
   const typed = typeof username === 'string' ? username.slice(0, 200) : '';
   const pw = typeof password === 'string' ? password.slice(0, PASSWORD_MAX * 4) : '';
   const keys = await attemptKeys(typed, a.ip);
-  const g = await gate(keys);
-  if (g.locked) throw throttled();
-  if (g.turnstile && a.turnstile && !(await a.turnstile(turnstileToken))) throw turnstileNeeded();
+  await admit(keys, a, turnstileToken);
   const name = normalizeUsername(typed);
   const user = USERNAME.test(name) ? await userByUsername(name) : undefined;
   const stored = user ? await passwordOf(user.id) : undefined;
   const ok = stored ? await verifyAccountPassword(pw, stored.hash) : await dummyVerify(pw);
-  if (!ok || !user) {
-    await failAttempt(keys);
-    throw wrong();
-  }
+  if (!ok || !user) throw wrong();
   return { user, keys, rehash: needsRehash(stored!.hash) };
 }
 
@@ -165,9 +190,11 @@ export type SignInResult = { kind: 'session'; user: string } | { kind: 'second';
 /** A password sign-in. With two-step codes on, a ticket for the code instead of a session. */
 export async function passwordSignIn(request: Request, input: { username?: unknown; password?: unknown; turnstile?: unknown }, a: Attempt): Promise<SignInResult> {
   await passwordAllowed(request);
-  const { user, keys, rehash } = await checkPassword(input.username, input.password, a, typeof input.turnstile === 'string' ? input.turnstile : undefined);
+  const { user, keys, rehash } = await checkPassword(input.username, input.password, a, typeof input.turnstile === 'string' ? input.turnstile : null);
   if (rehash) await accounts().batch((await passwordWrites(user.id, user.username!, input.password as string)).slice(1));
   if (await totpOn(user.id)) {
+    // The password was right: its try is given back; the code's tries are counted on their own.
+    await refund(keys);
     const ticket = randomToken(32);
     const t = now();
     await accounts().batch([
@@ -189,22 +216,15 @@ export async function passwordSecondStep(request: Request, input: { ticket?: unk
   const expired = invalid('pw.err.step_expired');
   if (typeof input.ticket !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(input.ticket)) throw expired;
   const hash = await hashToken('signin-step', input.ticket);
-  const step = await accounts().get<{ user: string; tries: number }>('SELECT user, tries FROM signin_step WHERE hash = ? AND expires > ?', hash, now());
-  const user = step && (await userById(step.user));
+  // The ticket's try is counted before the code is checked, like the username's: the count the update answers decides.
+  const step = await accounts().get<{ user: string; tries: number }>('UPDATE signin_step SET tries = tries + 1 WHERE hash = ? AND expires > ? RETURNING user, tries', hash, now());
+  if (step && step.tries > SIGNIN_STEP_TRIES) await accounts().run('DELETE FROM signin_step WHERE hash = ?', hash);
+  const user = step && step.tries <= SIGNIN_STEP_TRIES ? await userById(step.user) : undefined;
   if (!step || !user?.username) throw expired;
   const keys = await attemptKeys(user.username, a.ip);
-  if ((await gate(keys)).locked) throw throttled();
-  const ok = typeof input.recovery === 'string' && input.recovery
-    ? await consumeRecoveryCode(user.id, input.recovery)
-    : typeof input.code === 'string' && (await consumeTotp(user.id, input.code));
-  if (!ok) {
-    await failAttempt(keys);
-    await accounts().batch([
-      q('UPDATE signin_step SET tries = tries + 1 WHERE hash = ?', hash),
-      q('DELETE FROM signin_step WHERE hash = ? AND tries >= ?', hash, SIGNIN_STEP_TRIES),
-    ]);
-    throw invalid('pw.err.code');
-  }
+  await admit(keys, a, undefined);
+  const ok = await secondFactor(user.id, input);
+  if (!ok) throw invalid('pw.err.code');
   // The ticket is spent: deleting it is the check, so two requests with one ticket cannot both start a session.
   const spent = await accounts().run('DELETE FROM signin_step WHERE hash = ?', hash);
   if (spent.changes !== 1) throw expired;
@@ -219,18 +239,19 @@ export async function passwordSecondStep(request: Request, input: { ticket?: unk
 export async function checkOwnPassword(request: Request, user: UserRow, input: { password?: unknown; code?: unknown; recovery?: unknown }, a: Attempt): Promise<void> {
   await passwordAllowed(request);
   if (!user.username) throw invalid('pw.err.no_password');
-  const { keys } = await checkPassword(user.username, input.password, a);
+  const { keys } = await checkPassword(user.username, input.password, a, undefined);
   if (await totpOn(user.id)) {
-    const ok = typeof input.recovery === 'string' && input.recovery
-      ? await consumeRecoveryCode(user.id, input.recovery)
-      : typeof input.code === 'string' && (await consumeTotp(user.id, input.code));
-    if (!ok) {
-      await failAttempt(keys);
-      throw invalid('pw.err.code');
-    }
+    // The code is a try of its own, counted before it is checked.
+    await admit(keys, a, undefined);
+    if (!(await secondFactor(user.id, input))) throw invalid('pw.err.code');
   }
   await succeeded(keys);
 }
+
+/** A two-step code, or a recovery code in its place: used once. */
+const secondFactor = async (user: string, input: { code?: unknown; recovery?: unknown }) => typeof input.recovery === 'string' && input.recovery
+  ? consumeRecoveryCode(user, input.recovery)
+  : typeof input.code === 'string' && consumeTotp(user, input.code);
 
 // ---------- a forgotten password ----------
 
@@ -242,18 +263,15 @@ export async function checkOwnPassword(request: Request, user: UserRow, input: {
 export async function resetWithRecoveryCode(request: Request, input: { username?: unknown; recovery?: unknown; code?: unknown; password?: unknown }, a: Attempt): Promise<{ user: string }> {
   await passwordAllowed(request);
   const typed = typeof input.username === 'string' ? input.username.slice(0, 200) : '';
-  const keys = await attemptKeys(typed, a.ip);
-  if ((await gate(keys)).locked) throw throttled();
   const name = normalizeUsername(typed);
-  const user = USERNAME.test(name) ? await userByUsername(name) : undefined;
   // The new password's rules first: a typo there should not cost a try.
-  const password = checkNewPassword(input.password, user?.username ?? name);
+  const password = checkNewPassword(input.password, name);
+  const keys = await attemptKeys(typed, a.ip);
+  await admit(keys, a, undefined);
+  const user = USERNAME.test(name) ? await userByUsername(name) : undefined;
   const codeOk = async (u: UserRow) => !(await totpOn(u.id)) || (typeof input.code === 'string' && (await consumeTotp(u.id, input.code)));
   const ok = !!user && typeof input.recovery === 'string' && (await codeOk(user)) && (await consumeRecoveryCode(user.id, input.recovery));
-  if (!ok || !user) {
-    await failAttempt(keys);
-    throw invalid('pw.err.recovery');
-  }
+  if (!ok || !user) throw invalid('pw.err.recovery');
   await accounts().batch([...(await passwordWrites(user.id, user.username!, password)), q('DELETE FROM session WHERE user = ?', user.id)]);
   await succeeded(keys);
   return { user: user.id };
@@ -304,12 +322,8 @@ export async function redeemResetLink(request: Request, input: { token?: unknown
   const username = user.username ?? cleanUsername(input.username);
   const password = checkNewPassword(input.password, username);
   if (!link.clear_totp && (await totpOn(user.id))) {
-    const keys = { user: await userKey(username), network: (await attemptKeys(username, a.ip)).network };
-    if ((await gate(keys)).locked) throw throttled();
-    if (typeof input.code !== 'string' || !(await consumeTotp(user.id, input.code))) {
-      await failAttempt(keys);
-      throw invalid('pw.err.code');
-    }
+    await admit(await attemptKeys(username, a.ip), a, undefined);
+    if (typeof input.code !== 'string' || !(await consumeTotp(user.id, input.code))) throw invalid('pw.err.code');
   }
   const t = now();
   try {

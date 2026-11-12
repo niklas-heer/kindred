@@ -53,11 +53,11 @@ export const Route = createFileRoute('/api/auth/$action')({
         if (!body || typeof body !== 'object') return json({ error: 'Expected JSON' }, 400);
         const str = (v: unknown, max = 200) => (typeof v === 'string' && v.length <= max ? v : '');
         const pw = () => import('~/lib/auth/password.server');
-        // Failed password tries are counted in the database (src/lib/auth/attempts.server.ts); Turnstile joins in when the
-        // whole server sees a flood of them and has its keys.
+        // Password tries are counted in the database before they are checked (src/lib/auth/attempts.server.ts); Turnstile joins
+        // in when the whole server sees a flood of them, or one username many, and the server has its keys.
         const attempt = async () => {
-          const { passesTurnstile } = await import('~/lib/operator/turnstile.server');
-          return { ip, turnstile: (token: string | undefined) => passesTurnstile(token, ip) };
+          const [{ passesTurnstile }, { turnstileKeys }] = await Promise.all([import('~/lib/operator/turnstile.server'), import('~/lib/operator/settings.server')]);
+          return { ip, turnstileOn: !!turnstileKeys(), turnstile: (token: string | undefined) => passesTurnstile(token, ip) };
         };
         /** A password sign-in that went all the way: the same checks as a passkey's, then a brand-new session. */
         const passwordSession = async (user: string) => {
@@ -127,7 +127,7 @@ export const Route = createFileRoute('/api/auth/$action')({
               return json({ ok: true, tree }, 200, await s.startSession(request, user, null, true, 'password'));
             }
             case 'password-invite': {
-              const { user } = await (await import('~/lib/auth/password-accounts.server')).inviteWithPassword(request, body);
+              const { user } = await (await import('~/lib/auth/password-accounts.server')).inviteWithPassword(request, body, ip);
               return json({ ok: true }, 200, await s.startSession(request, user, null, true, 'password'));
             }
             // Which proof the signed-in reader can give (a passkey, or the password), and the password's own proof.

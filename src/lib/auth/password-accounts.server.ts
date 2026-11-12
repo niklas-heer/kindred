@@ -44,7 +44,7 @@ export async function setupWithPassword(
 
 /** Takes an invitation with a new account that signs in with a password. */
 export async function inviteWithPassword(
-  request: Request, input: { token?: unknown; name?: unknown; username?: unknown; password?: unknown; acceptTerms?: unknown },
+  request: Request, input: { token?: unknown; name?: unknown; username?: unknown; password?: unknown; acceptTerms?: unknown }, ip?: string,
 ): Promise<{ user: string }> {
   await passwordAllowed(request);
   const gone = 'This invitation has expired, was already used, or was withdrawn. Ask for a new one.';
@@ -53,7 +53,7 @@ export async function inviteWithPassword(
   const name = cleanName(input.name);
   const username = cleanUsername(input.username);
   const password = checkNewPassword(input.password, username);
-  await requireFreeUsername(username);
+  await requireFreeUsername(username, ip);
   const hash = await hashAccountPassword(password);
   try {
     return await commit(async () => {

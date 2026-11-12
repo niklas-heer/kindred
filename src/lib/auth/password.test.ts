@@ -110,44 +110,45 @@ test('a right password signs in; with the username typed in another case too', a
 
 // ---------- the throttle ----------
 
-test('five wrong passwords lock the username, even for the right password, and the lock holds in another copy of the module', async () => {
+test('five wrong passwords from one network lock the username there, even for the right password, and the lock holds in another copy of the module', async () => {
   await account('Ada Example', 'ada');
-  for (let i = 0; i < attempts.USER_LIMIT; i++) await assert.rejects(pw.passwordSignIn(req(), { username: 'ada', password: `wrong ${i} guess here` }, { ip: `198.51.100.${i}` }), /pw\.err\.wrong/);
+  for (let i = 0; i < attempts.PAIR_LIMIT; i++) await assert.rejects(pw.passwordSignIn(req(), { username: 'ada', password: `wrong ${i} guess here` }, at), /pw\.err\.wrong/);
   await assert.rejects(pw.passwordSignIn(req(), { username: 'ada', password: GOOD }, at), /pw\.err\.throttled/);
   // Another isolate: a fresh copy of the module code, with nothing in memory. It reads the same table.
   const other = await import(`./password.server.ts?isolate=${Date.now()}`) as typeof pw;
   await assert.rejects(other.passwordSignIn(req(), { username: 'ada', password: GOOD }, at), /pw\.err\.throttled/);
-  const row = await store.accounts().get<{ count: number }>('SELECT count FROM auth_attempt WHERE key = ?', (await attempts.attemptKeys('ada', ip)).user);
-  assert.equal(row!.count, attempts.USER_LIMIT, 'a locked try is refused before it is counted or hashed');
+  const row = await store.accounts().get<{ count: number }>('SELECT count FROM auth_attempt WHERE key = ?', (await attempts.attemptKeys('ada', ip)).pair);
+  assert.equal(row!.count, attempts.PAIR_LIMIT + 2, 'every try is counted, a refused one too (and refused before any hashing)');
 });
 
 test('two copies counting at once lose no failure: the count is one statement', async () => {
   const other = await import(`./attempts.server.ts?isolate=${Date.now()}`) as typeof attempts;
   const keys = await attempts.attemptKeys('ada', ip);
-  await Promise.all(Array.from({ length: 6 }, (_, i) => (i % 2 ? other : attempts).fail(keys)));
-  const row = await store.accounts().get<{ count: number }>('SELECT count FROM auth_attempt WHERE key = ?', keys.user);
+  const verdicts = await Promise.all(Array.from({ length: 6 }, (_, i) => (i % 2 ? other : attempts).begin(keys)));
+  const row = await store.accounts().get<{ count: number }>('SELECT count FROM auth_attempt WHERE key = ?', keys.pair);
   assert.equal(row!.count, 6);
-  assert.equal((await attempts.gate(keys)).locked, true);
+  assert.equal(verdicts.filter((v) => v.locked).length, 1, 'only the sixth is over the limit');
+  assert.equal(await attempts.lockedNow(keys), true);
 });
 
 test('the delay grows after a lockout and never becomes permanent; a success starts over', async () => {
   const keys = await attempts.attemptKeys('ada', ip);
   const t0 = 1_000_000_000_000;
-  for (let i = 0; i < 5; i++) await attempts.fail(keys, t0);
-  assert.equal((await attempts.gate(keys, t0 + attempts.USER_WINDOW_MS - 1)).locked, true);
-  assert.equal((await attempts.gate(keys, t0 + attempts.USER_WINDOW_MS)).locked, false, 'after fifteen minutes the username may try again');
-  const t1 = t0 + attempts.USER_WINDOW_MS;
-  for (let i = 0; i < 5; i++) await attempts.fail(keys, t1);
-  assert.equal((await attempts.gate(keys, t1 + attempts.USER_WINDOW_MS)).locked, true, 'a second lockout lasts longer');
-  assert.equal((await attempts.gate(keys, t1 + 2 * attempts.USER_WINDOW_MS)).locked, false, 'thirty minutes, then free again');
+  for (let i = 0; i < 5; i++) await attempts.begin(keys, t0);
+  assert.equal((await attempts.begin(keys, t0 + attempts.PAIR_WINDOW_MS - 1)).locked, true);
+  assert.equal((await attempts.begin(keys, t0 + attempts.PAIR_WINDOW_MS)).locked, false, 'after fifteen minutes the username may try again from there');
+  const t1 = t0 + attempts.PAIR_WINDOW_MS;
+  for (let i = 0; i < 5; i++) await attempts.begin(keys, t1);
+  assert.equal(await attempts.lockedNow(keys, t1 + attempts.PAIR_WINDOW_MS), true, 'a second lockout lasts longer');
+  assert.equal(await attempts.lockedNow(keys, t1 + 2 * attempts.PAIR_WINDOW_MS), false, 'thirty minutes, then free again');
   await attempts.succeeded(keys);
-  assert.equal(await store.accounts().get('SELECT 1 FROM auth_attempt WHERE key = ?', keys.user), undefined);
+  assert.equal(await store.accounts().get('SELECT 1 FROM auth_attempt WHERE key IN (?, ?)', keys.user, keys.pair), undefined);
 });
 
 test('one network gets twenty failures an hour across usernames', async () => {
-  for (let i = 0; i < attempts.NETWORK_LIMIT; i++) await attempts.fail(await attempts.attemptKeys(`user${i}`, ip));
-  assert.equal((await attempts.gate(await attempts.attemptKeys('fresh-name', ip))).locked, true);
-  assert.equal((await attempts.gate(await attempts.attemptKeys('fresh-name', '198.51.100.99'))).locked, false, 'another network is not affected');
+  for (let i = 0; i < attempts.NETWORK_LIMIT; i++) await attempts.begin(await attempts.attemptKeys(`user${i}`, ip));
+  assert.equal((await attempts.begin(await attempts.attemptKeys('fresh-name', ip))).locked, true);
+  assert.equal((await attempts.begin(await attempts.attemptKeys('fresh-name', '198.51.100.99'))).locked, false, 'another network is not affected');
 });
 
 test('after 500 failures an hour on the server, the form needs a Turnstile answer', async () => {
@@ -324,4 +325,61 @@ test('a reset link for an account with two-step codes asks for a code, unless th
   await pw.redeemResetLink(req(), { token: clear.token, password: 'a reset evening light' }, at);
   assert.equal(await totp.totpOn(user.id), false);
   assert.equal((await pw.passwordSignIn(req(), { username: 'ada', password: 'a reset evening light' }, at)).kind, 'session');
+});
+
+// ---------- council round 7: the throttle counts before it checks, and never locks the right person out ----------
+
+test('thirty guesses at once: the try is counted before the hash, so at most the limit are checked', async () => {
+  await account('Ada Example', 'ada');
+  const results = await Promise.allSettled(Array.from({ length: 30 }, (_, i) => pw.passwordSignIn(req(), { username: 'ada', password: `wrong guess number ${i}` }, at)));
+  const checked = results.filter((r) => r.status === 'rejected' && code(r.reason) === 'pw.err.wrong').length;
+  const refused = results.filter((r) => r.status === 'rejected' && code(r.reason) === 'pw.err.throttled').length;
+  assert.ok(checked <= attempts.PAIR_LIMIT, `${checked} guesses were hashed; at most ${attempts.PAIR_LIMIT} may be`);
+  assert.equal(checked + refused, 30);
+});
+
+test('thirty codes at once on one ticket: at most the ticket’s tries are checked', async () => {
+  await withTotp('Ada Example', 'ada');
+  const t = await pw.passwordSignIn(req(), { username: 'ada', password: GOOD }, at) as { ticket: string };
+  const results = await Promise.allSettled(Array.from({ length: 30 }, () => pw.passwordSecondStep(req(), { ticket: t.ticket, code: '000000' }, at)));
+  const checked = results.filter((r) => r.status === 'rejected' && code(r.reason) === 'pw.err.code').length;
+  assert.ok(checked <= 5, `${checked} codes were checked; at most five may be`);
+});
+
+test('thirty recovery tries at once: at most the limit are checked', async () => {
+  await withTotp('Ada Example', 'ada');
+  const results = await Promise.allSettled(Array.from({ length: 30 }, (_, i) =>
+    pw.resetWithRecoveryCode(req(), { username: 'ada', recovery: `AAAAA-BBBB${'CDEFGHJKLMNPQRSTUVWXYZ234567'[i]}`, code: '000000', password: 'a brand new evening' }, at)));
+  const checked = results.filter((r) => r.status === 'rejected' && code(r.reason) === 'pw.err.recovery').length;
+  assert.ok(checked <= attempts.PAIR_LIMIT, `${checked} recovery codes were checked`);
+});
+
+test('a username guessed at from one network still signs in with the right password from another (no lockout by name)', async () => {
+  const ada = await account('Ada Example', 'ada');
+  for (let i = 0; i < 12; i++) await pw.passwordSignIn(req(), { username: 'ada', password: `wrong guess number ${i}` }, { ip: '198.51.100.1' }).catch(() => undefined);
+  await assert.rejects(pw.passwordSignIn(req(), { username: 'ada', password: GOOD }, { ip: '198.51.100.1' }), /pw\.err\.throttled/, 'the guessing network is locked for that name');
+  let waited = 0;
+  const elsewhere = { ip: '192.0.2.50', wait: async (ms: number) => { waited += ms; } };
+  assert.deepEqual(await pw.passwordSignIn(req(), { username: 'ada', password: GOOD }, elsewhere), { kind: 'session', user: ada.id });
+  assert.ok(waited > 0 && waited <= 5_000, 'without Turnstile keys, a short fixed delay instead of a lock');
+});
+
+test('a username guessed at: with Turnstile keys the next try from anywhere needs a Turnstile answer, never a lock', async () => {
+  const ada = await account('Ada Example', 'ada');
+  for (let i = 0; i < 6; i++) await pw.passwordSignIn(req(), { username: 'ada', password: `wrong guess number ${i}` }, { ip: `198.51.100.${i + 10}` }).catch(() => undefined);
+  const withKeys = { ip: '192.0.2.51', turnstileOn: true, turnstile: async (t: string | undefined) => t === 'good-token', wait: async () => assert.fail('no delay when Turnstile asks') };
+  await assert.rejects(pw.passwordSignIn(req(), { username: 'ada', password: GOOD }, withKeys), /pw\.err\.turnstile/);
+  assert.deepEqual(await pw.passwordSignIn(req(), { username: 'ada', password: GOOD, turnstile: 'good-token' }, withKeys), { kind: 'session', user: ada.id });
+});
+
+test('a right password gives back the network’s and the server’s count: signing in often never throttles a household', async () => {
+  await account('Ada Example', 'ada');
+  for (let i = 0; i < attempts.NETWORK_LIMIT + 5; i++) assert.equal((await pw.passwordSignIn(req(), { username: 'ada', password: GOOD }, at)).kind, 'session');
+});
+
+test('“username taken” counts against the network, so names cannot be listed by trying them', async () => {
+  await account('Ada Example', 'ada');
+  for (let i = 0; i < attempts.NETWORK_LIMIT; i++) await assert.rejects(pw.requireFreeUsername('ada', ip), /pw\.err\.username_taken/);
+  await assert.rejects(pw.requireFreeUsername('a-free-name', ip), /pw\.err\.throttled/, 'the network has used its tries');
+  await pw.requireFreeUsername('a-free-name', '192.0.2.77');
 });

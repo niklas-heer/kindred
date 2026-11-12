@@ -276,7 +276,7 @@ export async function joinWithPassword(
   const network = await networkKey(link.id, ip);
   if ((await openFromNetwork(link.id, network)) >= MAX_OPEN_PER_NETWORK) throw refuse('join.err_network');
   if (!(await spendJoinTry(link.id, ip))) throw new AuthError('throttled', 'join.err_slow');
-  await requireFreeUsername(username);
+  await requireFreeUsername(username, ip);
   const hash = await hashAccountPassword(password);
   const handle = isoBase64URL.fromBuffer(crypto.getRandomValues(new Uint8Array(32)));
   try {
