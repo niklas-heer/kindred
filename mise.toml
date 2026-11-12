@@ -69,6 +69,14 @@ run = "tsc --noEmit"
 description = "Lint with oxlint: unused code, React hook rules and the correctness checks (npm run lint)"
 run = "npm run lint"
 
+[tasks."i18n:check"]
+description = "Check the translations: every language's summary, or one language's findings (mise run i18n:check -- fr); docs/translating.md"
+run = "node scripts/i18n-check.ts"
+
+[tasks."i18n:scaffold"]
+description = "Give every language a file for each area and rewrite its index (src/lib/i18n/locales/); docs/translating.md"
+run = "node scripts/i18n-scaffold.ts"
+
 [tasks."ai-eval"]
 description = "Measure which AI models do Kindred's jobs best, on made-up data. Sends real requests and costs money: --provider, --models, --max-usd (default 1, one budget for the whole run), --web, --out, --dry-run (plans and estimates, sends nothing). Key: KINDRED_AI_EVAL_KEY or --saved-family. --provider cursor: a subscription through the agent CLI, no key or budget"
 run = 'node scripts/ai-eval.ts "$@"'

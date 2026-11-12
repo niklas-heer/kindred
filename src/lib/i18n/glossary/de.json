@@ -1,0 +1,265 @@
+{
+  "terms": {
+    "family": {
+      "use": "Familie",
+      "accept": [
+        "famili"
+      ]
+    },
+    "tree": {
+      "use": "Stammbaum (die Seite, der Baum im Satz); Tab auf dem Handy: Baum",
+      "accept": [
+        "baum"
+      ]
+    },
+    "person": {
+      "use": "Person, Personen",
+      "accept": [
+        "person",
+        "leute",
+        "mensch"
+      ]
+    },
+    "relative": {
+      "use": "Verwandte (neutral im Plural)",
+      "accept": [
+        "verwandt",
+        "angehörig",
+        "famili"
+      ]
+    },
+    "member": {
+      "use": "Mitglied, Mitglieder",
+      "accept": [
+        "mitglied"
+      ]
+    },
+    "guest": {
+      "use": "Gast, Gäste",
+      "accept": [
+        "gast",
+        "gäste"
+      ]
+    },
+    "viewer": {
+      "use": "Lesen (die Rolle), Lesende",
+      "accept": [
+        "lese",
+        "lesen"
+      ]
+    },
+    "contributor": {
+      "use": "Mitwirken (die Rolle), Mitwirkende",
+      "accept": [
+        "mitwirk"
+      ]
+    },
+    "editor": {
+      "use": "Bearbeiten (die Rolle), alle mit Bearbeitungsrecht",
+      "accept": [
+        "bearbeit"
+      ]
+    },
+    "steward": {
+      "use": "Verwalten (die Rolle), die Familienverwaltung; eine Verwalterin oder ein Verwalter",
+      "accept": [
+        "verwalt"
+      ]
+    },
+    "operator": {
+      "use": "der Serverbetrieb",
+      "accept": [
+        "serverbetrieb",
+        "betreib"
+      ]
+    },
+    "house": {
+      "use": "Haus, Häuser (eine Linie der Familie, nie ein Gebäude)",
+      "accept": [
+        "haus",
+        "häuser"
+      ]
+    },
+    "head of the house": {
+      "use": "Oberhaupt des Hauses",
+      "accept": [
+        "oberhaupt"
+      ]
+    },
+    "arms": {
+      "use": "Wappen",
+      "accept": [
+        "wappen"
+      ]
+    },
+    "blazon": {
+      "use": "Blasonierung",
+      "accept": [
+        "blason"
+      ]
+    },
+    "tincture": {
+      "use": "Farbe (Tinktur)",
+      "accept": [
+        "farb",
+        "tinktur"
+      ]
+    },
+    "charge": {
+      "use": "Figur, Figuren",
+      "accept": [
+        "figur"
+      ]
+    },
+    "source": {
+      "use": "Quelle, Quellen",
+      "accept": [
+        "quelle"
+      ]
+    },
+    "memory": {
+      "use": "Erinnerung, Erinnerungen",
+      "accept": [
+        "erinner"
+      ]
+    },
+    "story": {
+      "use": "Geschichte, Geschichten",
+      "accept": [
+        "geschicht",
+        "erinner",
+        "erzähl"
+      ]
+    },
+    "Today": {
+      "use": "Heute",
+      "accept": [
+        "heute"
+      ]
+    },
+    "question of the week": {
+      "use": "Frage der Woche",
+      "accept": [
+        "frage der woche",
+        "wochenfrage"
+      ]
+    },
+    "quiz": {
+      "use": "Quiz",
+      "accept": [
+        "quiz"
+      ]
+    },
+    "the Campaign": {
+      "use": "der Feldzug",
+      "accept": [
+        "feldzug"
+      ]
+    },
+    "Chronicle": {
+      "use": "Chronik",
+      "accept": [
+        "chronik"
+      ]
+    },
+    "Almanac": {
+      "use": "Kalender",
+      "accept": [
+        "kalender"
+      ]
+    },
+    "Atlas": {
+      "use": "Atlas",
+      "accept": [
+        "atlas"
+      ]
+    },
+    "Register": {
+      "use": "Verzeichnis",
+      "accept": [
+        "verzeichnis",
+        "register"
+      ]
+    },
+    "Gallery": {
+      "use": "Galerie",
+      "accept": [
+        "galerie"
+      ]
+    },
+    "Information needed": {
+      "use": "Fehlende Angaben",
+      "accept": [
+        "fehlende angaben",
+        "fehlenden angaben"
+      ]
+    },
+    "Who is this?": {
+      "use": "Wer ist das?",
+      "accept": [
+        "wer ist das"
+      ]
+    },
+    "assistant": {
+      "use": "Assistent",
+      "accept": [
+        "assistent"
+      ]
+    },
+    "proposal": {
+      "use": "Vorschlag, Vorschläge",
+      "accept": [
+        "vorschl"
+      ]
+    },
+    "share link": {
+      "use": "geteilter Link, Link zum Teilen",
+      "accept": [
+        "link"
+      ]
+    },
+    "passkey": {
+      "use": "Passkey",
+      "accept": [
+        "passkey"
+      ]
+    },
+    "invitation": {
+      "use": "Einladung",
+      "accept": [
+        "einlad"
+      ]
+    },
+    "history": {
+      "use": "Verlauf",
+      "accept": [
+        "verlauf"
+      ]
+    },
+    "Cookbook": {
+      "use": "Kochbuch",
+      "accept": [
+        "kochbuch"
+      ]
+    }
+  },
+  "sameAsEnglish": [
+    "houses.mottoLabel",
+    "look.beard.vandyke"
+  ],
+  "ownWords": [
+    "also",
+    "an",
+    "bin",
+    "die",
+    "hat",
+    "in",
+    "man",
+    "so",
+    "um",
+    "war",
+    "was",
+    "wer",
+    "will"
+  ]
+}

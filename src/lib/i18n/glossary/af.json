@@ -1,0 +1,271 @@
+{
+  "terms": {
+    "family": {
+      "use": "familie",
+      "accept": [
+        "famili"
+      ]
+    },
+    "tree": {
+      "use": "stamboom (die bladsy); boom in 'n sin en op die foon se oortjie",
+      "accept": [
+        "boom"
+      ]
+    },
+    "person": {
+      "use": "persoon, mense",
+      "accept": [
+        "persoon",
+        "mense",
+        "persone"
+      ]
+    },
+    "relative": {
+      "use": "familielid, familielede",
+      "accept": [
+        "famili"
+      ]
+    },
+    "member": {
+      "use": "lid, lede",
+      "accept": [
+        "lid",
+        "lede"
+      ]
+    },
+    "guest": {
+      "use": "gas, gaste",
+      "accept": [
+        "gas"
+      ]
+    },
+    "viewer": {
+      "use": "kyker, kykers",
+      "accept": [
+        "kyk",
+        "lees",
+        "lesers"
+      ]
+    },
+    "contributor": {
+      "use": "bydraer, bydraers",
+      "accept": [
+        "bydra"
+      ]
+    },
+    "editor": {
+      "use": "redigeerder, redigeerders",
+      "accept": [
+        "redigeer"
+      ]
+    },
+    "steward": {
+      "use": "rentmeester, rentmeesters",
+      "accept": [
+        "rentmeester"
+      ]
+    },
+    "operator": {
+      "use": "operateur",
+      "accept": [
+        "operateur"
+      ]
+    },
+    "house": {
+      "use": "huis, huise (’n lyn van die familie, nooit ’n gebou nie)",
+      "accept": [
+        "huis",
+        "huise"
+      ]
+    },
+    "head of the house": {
+      "use": "hoof van die huis",
+      "accept": [
+        "hoof"
+      ]
+    },
+    "arms": {
+      "use": "wapen, wapens",
+      "accept": [
+        "wapen"
+      ]
+    },
+    "blazon": {
+      "use": "blasonering",
+      "accept": [
+        "blason"
+      ]
+    },
+    "tincture": {
+      "use": "kleur",
+      "accept": [
+        "kleur"
+      ]
+    },
+    "charge": {
+      "use": "figuur, figure",
+      "accept": [
+        "figu"
+      ]
+    },
+    "source": {
+      "use": "bron, bronne",
+      "accept": [
+        "bron"
+      ]
+    },
+    "memory": {
+      "use": "herinnering, herinneringe",
+      "accept": [
+        "herinner"
+      ]
+    },
+    "story": {
+      "use": "storie, verhaal",
+      "accept": [
+        "stori",
+        "verhaal",
+        "verhale",
+        "herinner",
+        "vertel"
+      ]
+    },
+    "Today": {
+      "use": "Vandag",
+      "accept": [
+        "vandag"
+      ]
+    },
+    "question of the week": {
+      "use": "vraag van die week",
+      "accept": [
+        "vraag van die week",
+        "weeksvraag"
+      ]
+    },
+    "quiz": {
+      "use": "vasvra",
+      "accept": [
+        "vasvra"
+      ]
+    },
+    "the Campaign": {
+      "use": "die Veldtog",
+      "accept": [
+        "veldtog"
+      ]
+    },
+    "Chronicle": {
+      "use": "Kroniek",
+      "accept": [
+        "kroniek"
+      ]
+    },
+    "Almanac": {
+      "use": "Almanak",
+      "accept": [
+        "almanak"
+      ]
+    },
+    "Atlas": {
+      "use": "Atlas",
+      "accept": [
+        "atlas"
+      ]
+    },
+    "Register": {
+      "use": "Register",
+      "accept": [
+        "register"
+      ]
+    },
+    "Gallery": {
+      "use": "Galery",
+      "accept": [
+        "galery"
+      ]
+    },
+    "Information needed": {
+      "use": "Inligting nodig",
+      "accept": [
+        "inligting nodig",
+        "inligting benodig"
+      ]
+    },
+    "Who is this?": {
+      "use": "Wie is dit?",
+      "accept": [
+        "wie is dit"
+      ]
+    },
+    "assistant": {
+      "use": "assistent",
+      "accept": [
+        "assistent"
+      ]
+    },
+    "proposal": {
+      "use": "voorstel, voorstelle",
+      "accept": [
+        "voorstel"
+      ]
+    },
+    "share link": {
+      "use": "deelskakel",
+      "accept": [
+        "deelskakel",
+        "skakel"
+      ]
+    },
+    "passkey": {
+      "use": "passkey",
+      "accept": [
+        "passkey",
+        "wagwoordsleutel"
+      ]
+    },
+    "invitation": {
+      "use": "uitnodiging",
+      "accept": [
+        "uitnodig"
+      ]
+    },
+    "history": {
+      "use": "geskiedenis",
+      "accept": [
+        "geskiedenis"
+      ]
+    },
+    "Cookbook": {
+      "use": "Kookboek",
+      "accept": [
+        "kookboek"
+      ]
+    }
+  },
+  "sameAsEnglish": [
+    "gallery.album_count",
+    "needed.stopEsc",
+    "look.beard.vandyke",
+    "feedback.key_mod"
+  ],
+  "ownWords": [
+    "as",
+    "die",
+    "dit",
+    "en",
+    "help",
+    "het",
+    "hier",
+    "in",
+    "is",
+    "kind",
+    "net",
+    "op",
+    "storie",
+    "stories",
+    "van",
+    "wat",
+    "week"
+  ]
+}

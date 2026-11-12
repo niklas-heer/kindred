@@ -9,13 +9,14 @@
 // wins the lookup. This applies to those namespaces only: a "Try again" or "Name" somewhere does not keep any other key alive.
 //
 //   node scripts/unused-i18n-keys.ts            list the unused keys
-//   node scripts/unused-i18n-keys.ts --remove   delete them from every area file (en, de and af)
+//   node scripts/unused-i18n-keys.ts --remove   delete them from every area file and every language's file (locales/)
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const AREAS_DIR = join(root, "src/lib/i18n/areas");
+const LOCALES_DIR = join(root, "src/lib/i18n/locales");
 const SCAN = ["src", "server", "scripts", "e2e"];
 const EXT = /\.(?:ts|tsx|js|mjs|json)$/;
 
@@ -29,10 +30,10 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/** The English keys of one area file, with the line range of each entry in the `en` object. */
+/** The English keys of one area file: the entries of its `en` object (the only language an area file holds). */
 export function areaKeys(file: string): string[] {
   const text = readFileSync(file, "utf8");
-  const enBlock = text.slice(text.indexOf("export const en"), text.indexOf("export const de"));
+  const enBlock = text.slice(text.indexOf("export const en"));
   return [...enBlock.matchAll(/^ {2}"([^"]+)":/gm)].map((m) => m[1]);
 }
 
@@ -66,7 +67,7 @@ export async function findUnused(): Promise<Report> {
   const firstSegments = new Set(keys.map((k) => k.split(".")[0]));
   const { KEYS: lookupOrder } = await import("../src/lib/i18n/dictionary.ts");
   const source = SCAN.flatMap((d) => walk(join(root, d)))
-    .filter((f) => !f.startsWith(AREAS_DIR) && !f.endsWith("unused-i18n-keys.ts") && !f.endsWith("unused-i18n-keys.test.ts"))
+    .filter((f) => !f.startsWith(AREAS_DIR) && !f.startsWith(LOCALES_DIR) && !f.endsWith("unused-i18n-keys.ts") && !f.endsWith("unused-i18n-keys.test.ts"))
     .map((f) => ({ file: relative(root, f), text: readFileSync(f, "utf8") }));
   const all = source.map((s) => s.text).join("\n");
 
@@ -125,7 +126,7 @@ export async function findUnused(): Promise<Report> {
   return { keys, unused, byText, prefixes: prefixList.sort(), unresolved };
 }
 
-/** Removes the entries of `drop` from the en, de and af objects of one area file. An entry runs from its key line to the next key, comment or closing brace. */
+/** Removes the entries of `drop` from the objects of one area file or one language's file. An entry runs from its key line to the next key, comment or closing brace. */
 export function removeKeys(text: string, drop: Set<string>): string {
   const lines = text.split("\n");
   const out: string[] = [];
@@ -143,8 +144,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const report = await findUnused();
   if (process.argv.includes("--remove")) {
     const drop = new Set(report.unused);
-    for (const f of readdirSync(AREAS_DIR).filter((n) => n.endsWith(".ts"))) {
-      const p = join(AREAS_DIR, f);
+    const files = [
+      ...readdirSync(AREAS_DIR).filter((n) => n.endsWith(".ts")).map((f) => join(AREAS_DIR, f)),
+      ...readdirSync(LOCALES_DIR).flatMap((l) => readdirSync(join(LOCALES_DIR, l)).filter((n) => n.endsWith(".ts") && n !== "index.ts").map((f) => join(LOCALES_DIR, l, f))),
+    ];
+    for (const p of files) {
       const before = readFileSync(p, "utf8");
       const after = removeKeys(before, drop);
       if (after !== before) writeFileSync(p, after);

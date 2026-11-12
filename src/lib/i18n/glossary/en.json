@@ -1,0 +1,171 @@
+{
+  "about": "Kindred's own words: the genealogy and app terms every translation renders the same way everywhere (menu, heading, page title, tour). Each term has its meaning for translators and `match`, the pattern that finds it in the English text (case-insensitive unless `case` is true). A language's glossary/<locale>.json gives its rendering of each term; `node scripts/i18n-check.ts <locale>` reports a key whose English uses a term and whose translation does not. See docs/translating.md.",
+  "terms": {
+    "family": {
+      "meaning": "One family's space in Kindred: its tree, people, stories and members. Warm, not 'account' or 'workspace'.",
+      "match": "\\bfamil(y|ies)\\b(?!['’]s)(?! trees?\\b)"
+    },
+    "tree": {
+      "meaning": "The family tree: the drawn chart of people and their ties, and the page that shows it.",
+      "match": "\\b(family )?trees?\\b"
+    },
+    "person": {
+      "meaning": "Someone in the family's records, living or dead (not an account).",
+      "match": "\\b(person|people)\\b"
+    },
+    "relative": {
+      "meaning": "A family member who uses Kindred, or someone related to a person.",
+      "match": "\\brelatives?\\b"
+    },
+    "member": {
+      "meaning": "Someone with an account in a family (not a guest).",
+      "match": "\\bmembers?\\b"
+    },
+    "guest": {
+      "meaning": "Someone who opened a family through its share link, without an account. Not a member.",
+      "match": "\\bguests?\\b"
+    },
+    "viewer": {
+      "meaning": "The role that may read the family's records and add nothing.",
+      "match": "\\bviewers?\\b"
+    },
+    "contributor": {
+      "meaning": "The role that may add stories, photos and memories but not change people.",
+      "match": "\\bcontributors?\\b"
+    },
+    "editor": {
+      "meaning": "The role that may add and change people, links, places and contacts.",
+      "match": "\\beditors?\\b",
+      "keys": "^(?!heraldry\\.|character\\.|tour\\.g\\.(look|arms)\\.|portrait\\.)"
+    },
+    "steward": {
+      "meaning": "The role that manages a family: invitations, roles, houses and their arms, settings. Caring, not 'admin'.",
+      "match": "\\bstewards?\\b",
+      "keys": "^(?!canting\\.)"
+    },
+    "operator": {
+      "meaning": "Whoever runs the server for families that are not theirs. Grants no access to any family's records.",
+      "match": "\\boperators?\\b"
+    },
+    "house": {
+      "meaning": "A line of the family under one surname, with its own arms and head (as in 'the House of Hofmann'). Never a building.",
+      "match": "\\bhouses?\\b"
+    },
+    "head of the house": {
+      "meaning": "The person who leads a house now; succession says who follows.",
+      "match": "\\bhead of (the|a|this) house\\b"
+    },
+    "arms": {
+      "meaning": "A coat of arms: the shield and what surrounds it. Heraldic, never weapons.",
+      "match": "\\b(coat of arms|arms)\\b"
+    },
+    "blazon": {
+      "meaning": "The formal written description of a coat of arms.",
+      "match": "\\bblazons?\\b"
+    },
+    "tincture": {
+      "meaning": "A heraldic colour, metal or fur.",
+      "match": "\\btinctures?\\b"
+    },
+    "charge": {
+      "meaning": "A figure placed on a shield (a lion, a star).",
+      "match": "\\bcharges?\\b",
+      "keys": "^heraldry\\."
+    },
+    "source": {
+      "meaning": "Where a fact comes from: a register, a certificate, a letter. Genealogy's citation, not code.",
+      "match": "\\bsources?\\b"
+    },
+    "memory": {
+      "meaning": "Something a relative remembers about a person, written down.",
+      "match": "\\bmemor(y|ies)\\b"
+    },
+    "story": {
+      "meaning": "A memory, note, anecdote or quote kept in the record.",
+      "match": "\\bstor(y|ies)\\b"
+    },
+    "Today": {
+      "meaning": "The page a relative opens each day: the question of the week, the quiz, this week's dates.",
+      "match": "\\bToday\\b",
+      "case": true,
+      "keys": "^(shell|today|tour|presence)\\."
+    },
+    "question of the week": {
+      "meaning": "One question a week, answered by the family on Today.",
+      "match": "\\bquestion of the week\\b"
+    },
+    "quiz": {
+      "meaning": "The daily game on Today that asks about the family.",
+      "match": "\\bquiz\\b"
+    },
+    "the Campaign": {
+      "meaning": "The game between the family's houses (its name: keep it a proper name).",
+      "match": "\\bCampaign\\b",
+      "case": true
+    },
+    "Chronicle": {
+      "meaning": "The page of the family's stories in time order.",
+      "match": "\\bChronicle\\b",
+      "case": true
+    },
+    "Almanac": {
+      "meaning": "The calendar page: birthdays, anniversaries and days to remember.",
+      "match": "\\bAlmanac\\b",
+      "case": true
+    },
+    "Atlas": {
+      "meaning": "The map page: where the family lived.",
+      "match": "\\bAtlas\\b",
+      "case": true
+    },
+    "Register": {
+      "meaning": "The page listing every person, A to Z.",
+      "match": "\\bRegister\\b",
+      "case": true
+    },
+    "Gallery": {
+      "meaning": "The family's photographs and albums.",
+      "match": "\\bGallery\\b",
+      "case": true
+    },
+    "Information needed": {
+      "meaning": "The page of facts the family has not recorded yet.",
+      "match": "\\bInformation needed\\b",
+      "case": true
+    },
+    "Who is this?": {
+      "meaning": "Naming the people in untagged photographs.",
+      "match": "\\bWho is this\\b"
+    },
+    "assistant": {
+      "meaning": "The family's AI helper, which only proposes and never changes the record itself.",
+      "match": "\\bassistant\\b"
+    },
+    "proposal": {
+      "meaning": "A change the assistant suggests, which a person accepts or declines.",
+      "match": "\\bproposals?\\b"
+    },
+    "share link": {
+      "meaning": "A link that lets guests read a family without an account.",
+      "match": "\\bshare links?\\b"
+    },
+    "passkey": {
+      "meaning": "The sign-in key a device keeps instead of a password (WebAuthn).",
+      "match": "\\bpasskeys?\\b"
+    },
+    "invitation": {
+      "meaning": "A link that lets someone join a family with a role.",
+      "match": "\\binvitations?\\b"
+    },
+    "history": {
+      "meaning": "The record of every change to the family's records, and who made it.",
+      "match": "\\bhistory\\b",
+      "keys": "^history\\."
+    },
+    "Cookbook": {
+      "meaning": "The family's recipes.",
+      "match": "\\bCookbook\\b",
+      "case": true
+    }
+  }
+}
