@@ -218,13 +218,24 @@ const driver: Driver = {
     return durable(id);
   },
 
+  // The move into a Durable Object (src/lib/store/move.server.ts) writes here while a D1 binding may still serve the family.
+  async durableTree(id) {
+    checkId(id);
+    if (!namespace()) throw new Error('No FAMILIES Durable Object namespace is bound; see wrangler.jsonc');
+    await checkPlace();
+    await stub(objectName(id)).create('tree');
+    await driver.accounts().run('INSERT INTO family_store (tree, driver, created_at) VALUES (?, ?, ?) ON CONFLICT(tree) DO NOTHING', id, DURABLE, new Date().toISOString());
+    return { db: durable(id), serving: !isD1(env[treeBinding(id)]) };
+  },
+
   // A bound D1 database cannot be removed from inside the Worker: it is emptied, and stays bound for a family to come. A
   // Durable Object deletes everything it stores, and the family leaves the registry.
+  // A copy a move into a Durable Object left beside a bound D1 database goes too, or the family would still be listed.
   async dropTree(id) {
     checkId(id);
     if (isD1(env[treeBinding(id)]) || !namespace()) {
       await emptyDatabase(driver.tree(id));
-      return;
+      if (!namespace() || !(await driver.accounts().get('SELECT 1 FROM family_store WHERE tree = ?', id).catch(() => undefined))) return;
     }
     await checkPlace();
     await stub(objectName(id)).drop();

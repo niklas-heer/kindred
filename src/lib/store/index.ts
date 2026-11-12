@@ -55,6 +55,14 @@ if (!patched.has(driver)) {
     check();
     return guardedOf(await ensureTree.call(driver, id));
   };
+  if (driver.durableTree) {
+    const durableTree = driver.durableTree;
+    driver.durableTree = async (id) => {
+      check();
+      const made = await durableTree.call(driver, id);
+      return { ...made, db: guardedOf(made.db) };
+    };
+  }
   driver.accounts = () => guardedOf(accounts.call(driver));
   driver.media.put = (...args) => refused() ?? put.apply(driver.media, args);
   driver.media.delete = (...args) => refused() ?? remove.apply(driver.media, args);

@@ -73,6 +73,8 @@ test('after an upgrade only the new migration file is applied, before anything i
 
 test('a dropped family is gone, unlisted, and can be made again empty', { timeout: 60_000 }, () => phase('a dropped family is gone and can be made again empty', treeFiles));
 
+test('a family still served by D1 is copied into its Durable Object step by step', { timeout: 60_000 }, () => phase('a family moves into its Durable Object step by step', treeFiles));
+
 test('a demo refuses to make, change or drop a Durable Object family', { timeout: 60_000 }, () => phase('a demo refuses to make, change or drop a family', treeFiles, { vars: { KINDRED_DEMO: '1' } }));
 
 test('changing KINDRED_JURISDICTION after the first family is refused', { timeout: 60_000 }, () => phase('a changed jurisdiction is refused', treeFiles, { vars: { KINDRED_JURISDICTION: 'eu' } }));

@@ -53,6 +53,7 @@ import { Route as TreeSettingsImportRouteImport } from './routes/$tree/settings.
 import { Route as ApiAiChatTreeRouteImport } from './routes/api/ai-chat.$tree'
 import { Route as ApiAuthActionRouteImport } from './routes/api/auth/$action'
 import { Route as ApiExportTreeRouteImport } from './routes/api/export.$tree'
+import { Route as ApiMoveTreeRouteImport } from './routes/api/move.$tree'
 import { Route as ApiFeedbackTreeKeyRouteImport } from './routes/api/feedback.$tree.$key'
 import { Route as ApiMediaTreeKeyRouteImport } from './routes/api/media.$tree.$key'
 import { Route as ApiPaintTreeKeyRouteImport } from './routes/api/paint.$tree.$key'
@@ -282,6 +283,11 @@ const ApiExportTreeRoute = ApiExportTreeRouteImport.update({
   path: '/api/export/$tree',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMoveTreeRoute = ApiMoveTreeRouteImport.update({
+  id: '/api/move/$tree',
+  path: '/api/move/$tree',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiFeedbackTreeKeyRoute = ApiFeedbackTreeKeyRouteImport.update({
   id: '/api/feedback/$tree/$key',
   path: '/api/feedback/$tree/$key',
@@ -368,6 +374,7 @@ export interface FileRoutesByFullPath {
   '/api/ai-chat/$tree': typeof ApiAiChatTreeRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
   '/api/export/$tree': typeof ApiExportTreeRoute
+  '/api/move/$tree': typeof ApiMoveTreeRoute
   '/api/feedback/$tree/$key': typeof ApiFeedbackTreeKeyRoute
   '/api/media/$tree/$key': typeof ApiMediaTreeKeyRoute
   '/api/paint/$tree/$key': typeof ApiPaintTreeKeyRoute
@@ -421,6 +428,7 @@ export interface FileRoutesByTo {
   '/api/ai-chat/$tree': typeof ApiAiChatTreeRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
   '/api/export/$tree': typeof ApiExportTreeRoute
+  '/api/move/$tree': typeof ApiMoveTreeRoute
   '/api/feedback/$tree/$key': typeof ApiFeedbackTreeKeyRoute
   '/api/media/$tree/$key': typeof ApiMediaTreeKeyRoute
   '/api/paint/$tree/$key': typeof ApiPaintTreeKeyRoute
@@ -476,6 +484,7 @@ export interface FileRoutesById {
   '/api/ai-chat/$tree': typeof ApiAiChatTreeRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
   '/api/export/$tree': typeof ApiExportTreeRoute
+  '/api/move/$tree': typeof ApiMoveTreeRoute
   '/api/feedback/$tree/$key': typeof ApiFeedbackTreeKeyRoute
   '/api/media/$tree/$key': typeof ApiMediaTreeKeyRoute
   '/api/paint/$tree/$key': typeof ApiPaintTreeKeyRoute
@@ -532,6 +541,7 @@ export interface FileRouteTypes {
     | '/api/ai-chat/$tree'
     | '/api/auth/$action'
     | '/api/export/$tree'
+    | '/api/move/$tree'
     | '/api/feedback/$tree/$key'
     | '/api/media/$tree/$key'
     | '/api/paint/$tree/$key'
@@ -585,6 +595,7 @@ export interface FileRouteTypes {
     | '/api/ai-chat/$tree'
     | '/api/auth/$action'
     | '/api/export/$tree'
+    | '/api/move/$tree'
     | '/api/feedback/$tree/$key'
     | '/api/media/$tree/$key'
     | '/api/paint/$tree/$key'
@@ -639,6 +650,7 @@ export interface FileRouteTypes {
     | '/api/ai-chat/$tree'
     | '/api/auth/$action'
     | '/api/export/$tree'
+    | '/api/move/$tree'
     | '/api/feedback/$tree/$key'
     | '/api/media/$tree/$key'
     | '/api/paint/$tree/$key'
@@ -666,6 +678,7 @@ export interface RootRouteChildren {
   ApiAiChatTreeRoute: typeof ApiAiChatTreeRoute
   ApiAuthActionRoute: typeof ApiAuthActionRoute
   ApiExportTreeRoute: typeof ApiExportTreeRoute
+  ApiMoveTreeRoute: typeof ApiMoveTreeRoute
   ApiFeedbackTreeKeyRoute: typeof ApiFeedbackTreeKeyRoute
   ApiMediaTreeKeyRoute: typeof ApiMediaTreeKeyRoute
   ApiPaintTreeKeyRoute: typeof ApiPaintTreeKeyRoute
@@ -986,6 +999,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiExportTreeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/move/$tree': {
+      id: '/api/move/$tree'
+      path: '/api/move/$tree'
+      fullPath: '/api/move/$tree'
+      preLoaderRoute: typeof ApiMoveTreeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/feedback/$tree/$key': {
       id: '/api/feedback/$tree/$key'
       path: '/api/feedback/$tree/$key'
@@ -1126,6 +1146,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAiChatTreeRoute: ApiAiChatTreeRoute,
   ApiAuthActionRoute: ApiAuthActionRoute,
   ApiExportTreeRoute: ApiExportTreeRoute,
+  ApiMoveTreeRoute: ApiMoveTreeRoute,
   ApiFeedbackTreeKeyRoute: ApiFeedbackTreeKeyRoute,
   ApiMediaTreeKeyRoute: ApiMediaTreeKeyRoute,
   ApiPaintTreeKeyRoute: ApiPaintTreeKeyRoute,

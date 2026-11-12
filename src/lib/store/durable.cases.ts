@@ -3,6 +3,7 @@
 // workerd on the real Cloudflare driver (./durable.worker.ts); ./durable.test.ts runs them, phase by phase, and restarts
 // the Worker in between to upgrade it, turn it into a demo or move it to another jurisdiction.
 import assert from 'node:assert/strict';
+import { move } from './move.server.ts';
 import { q, store } from './index.ts';
 
 const migrationsOf = async (tree: string) => (await store.tree(tree).all<{ name: string }>('SELECT name FROM d1_migrations ORDER BY id')).map((r) => r.name);
@@ -70,6 +71,29 @@ export const durableCases: Record<string, (expect: string[]) => Promise<void>> =
     const again = await store.ensureTree('birch');
     assert.equal((await again.get<{ n: number }>('SELECT count(*) AS n FROM person'))?.n, 0);
     assert.deepEqual(await migrationsOf('birch'), files);
+  },
+
+  /**
+   * A family still served by its D1 binding is copied into its Durable Object step by step (POST /api/move): only INSERTs
+   * go in, the counts come back, a second copy needs `replace`, and D1 keeps serving it until the binding is removed.
+   * Deleting the family then takes the copy too.
+   */
+  'a family moves into its Durable Object step by step': async () => {
+    assert.deepEqual(await move('old', { step: 'begin' }), { ok: true, serving: false });
+    await move('old', { step: 'rows', statements: ["INSERT INTO meta (key, value) VALUES ('id', 'old');", "INSERT OR REPLACE INTO person (id, given) VALUES ('o1', 'Olga')"] });
+    await assert.rejects(move('old', { step: 'rows', statements: ['DELETE FROM person'] }), /Only INSERT/);
+    await assert.rejects(move('old', { step: 'rows', statements: ["INSERT INTO d1_migrations (name) VALUES ('x')"] }), /Only INSERT/);
+    await assert.rejects(move('old', { step: 'rows', statements: ["INSERT INTO person (id, given) VALUES ('o2', 'x'); DELETE FROM meta"] }), /One statement/);
+    assert.deepEqual(await move('old', { step: 'finish', tables: ['meta', 'person'] }), { ok: true, serving: false, counts: { meta: 1, person: 1 } });
+    await assert.rejects(move('old', { step: 'begin' }), /already holds a family/);
+    await move('old', { step: 'begin', replace: true });
+    assert.deepEqual((await move('old', { step: 'finish', tables: ['person'] })).counts, { person: 0 });
+    // D1 still serves it, and the family is listed once.
+    await assert.rejects(store.tree('old').all('SELECT * FROM meta'), /no such table/);
+    assert.equal((await store.treeIds()).filter((id) => id === 'old').length, 1);
+    assert.ok((await registry()).includes('old:durable-object'));
+    await store.dropTree('old');
+    assert.ok(!(await registry()).some((r) => r.startsWith('old:')), 'deleting the family takes the copy too');
   },
 
   /** A demo refuses every write, making and dropping a family included; reads still work. */

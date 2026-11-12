@@ -34,6 +34,35 @@ const MIGRATIONS_TABLE = `CREATE TABLE IF NOT EXISTS d1_migrations(
 /** A write that `changes()` counts. A read, and anything else (CREATE, DROP), changes nothing. */
 const isWrite = (sql: string) => !isReadSql(sql) && /^\s*(INSERT|UPDATE|DELETE|REPLACE|WITH)\b/i.test(sql);
 
+/**
+ * Refuses SQL with a second statement after the first. The Durable Object's `exec` would run them all, where D1 and
+ * node:sqlite run one statement per query; a value that ended up in the SQL text must never become a statement of its own.
+ * Strings, quoted names and comments are skipped; a trailing `;` is fine.
+ */
+export function checkOneStatement(sql: string) {
+  let ended = false;
+  for (let i = 0; i < sql.length; i++) {
+    const c = sql[i]!;
+    if (c === '-' && sql[i + 1] === '-') {
+      const nl = sql.indexOf('\n', i);
+      i = nl < 0 ? sql.length : nl;
+    } else if (c === '/' && sql[i + 1] === '*') {
+      const close = sql.indexOf('*/', i + 2);
+      i = close < 0 ? sql.length : close + 1;
+    } else if (/\s/.test(c) || c === ';') {
+      if (c === ';') ended = true;
+    } else if (ended) {
+      throw new Error(`One statement at a time: ${sql.slice(0, 120)}`);
+    } else if (c === "'" || c === '"' || c === '`' || c === '[') {
+      const close = c === '[' ? ']' : c;
+      let j = sql.indexOf(close, i + 1);
+      // A quote is escaped by doubling it.
+      while (j >= 0 && close !== ']' && sql[j + 1] === close) j = sql.indexOf(close, j + 2);
+      i = j < 0 ? sql.length : j;
+    }
+  }
+}
+
 function row(r: Row): Row {
   for (const k in r) if (r[k] instanceof ArrayBuffer) r[k] = new Uint8Array(r[k] as ArrayBuffer);
   return r;
@@ -79,6 +108,7 @@ export class FamilyStore extends DurableObject {
   #exec(sql: string, params: Param[]): Result {
     const s = this.#sql();
     checkStatement(sql, params);
+    checkOneStatement(sql);
     const rows = s.exec<Row>(sql, ...params).toArray().map(row);
     const after = s.exec<{ c: number; id: number }>('SELECT changes() AS c, last_insert_rowid() AS id').one();
     return { rows, changes: isWrite(sql) ? after.c : 0, lastRowId: after.id };
@@ -108,6 +138,7 @@ export class FamilyStore extends DurableObject {
 
   all(sql: string, params: Param[]): Row[] {
     checkStatement(sql, params);
+    checkOneStatement(sql);
     return this.#sql().exec<Row>(sql, ...params).toArray().map(row);
   }
 
@@ -121,7 +152,10 @@ export class FamilyStore extends DurableObject {
 
   batch(queries: Query[]): Result[] {
     this.#sql();
-    for (const x of queries) checkStatement(x.sql, x.params);
+    for (const x of queries) {
+      checkStatement(x.sql, x.params);
+      checkOneStatement(x.sql);
+    }
     if (!queries.length) return [];
     return this.ctx.storage.transactionSync(() => queries.map((x) => this.#exec(x.sql, x.params)));
   }
@@ -129,7 +163,10 @@ export class FamilyStore extends DurableObject {
   readBatch(queries: Query[]): Row[][] {
     const s = this.#sql();
     checkReads(queries);
-    for (const x of queries) checkStatement(x.sql, x.params);
+    for (const x of queries) {
+      checkStatement(x.sql, x.params);
+      checkOneStatement(x.sql);
+    }
     return queries.map((x) => s.exec<Row>(x.sql, ...x.params).toArray().map(row));
   }
 }

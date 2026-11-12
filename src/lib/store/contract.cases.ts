@@ -139,6 +139,17 @@ export const contractCases: Record<string, () => Promise<void>> = {
     same(await d.all('SELECT conv FROM ai_thread WHERE conv = ?', conv), []);
   },
 
+  'a second statement in one query never runs, alone or in a batch': async () => {
+    const d = await scratch();
+    const [a, b, c] = [uid('a'), uid('b'), uid('c')];
+    await d.run(`INSERT INTO contract_value (txt) VALUES ('${a}'); INSERT INTO contract_value (txt) VALUES ('${b}')`).catch(() => {});
+    await d.batch([q(`INSERT INTO contract_value (txt) VALUES ('${c}'); DELETE FROM contract_value`)]).catch(() => {});
+    same(await d.all('SELECT txt FROM contract_value WHERE txt = ?', b), []);
+    // A semicolon inside a string and a trailing one are not a second statement.
+    await d.run("INSERT INTO contract_value (txt) VALUES ('x;y');");
+    assert.ok(await d.get("SELECT 1 FROM contract_value WHERE txt = 'x;y'"));
+  },
+
   'an empty batch does nothing and returns nothing': async () => {
     same(await tree().batch([]), []);
   },

@@ -127,6 +127,12 @@ export interface Driver {
    * Object deletes everything it stores and leaves `family_store`.
    */
   dropTree(id: string): Promise<void>;
+  /**
+   * Workers with FAMILIES only: the family's Durable Object, made if needed, whether or not a TREE_<ID> D1 binding serves the
+   * family now, and whether it is the one that serves it (`serving`: no binding). Moving a family from D1 or a Node file into
+   * a Durable Object writes here (src/lib/store/move.server.ts); every other code path uses `tree` and `ensureTree`.
+   */
+  durableTree?(id: string): Promise<{ db: Db; serving: boolean }>;
   /** The accounts database: people, passkeys, sessions, invitations, memberships. */
   accounts(): Db;
   /** The offline place gazetteer (data/gazetteer.db), only on Node and only once built. */
