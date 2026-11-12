@@ -8,6 +8,7 @@ export default {
   "policy.err.no_price": "Kindred ken nie hierdie model se prys nie, so hierdie bediener se KI kan dit nie gebruik nie. Kies ’n model met ’n bekende prys.",
   "policy.err.operator_model": "Kies die verskaffer en die model wat hierdie bediener se KI gebruik.",
   "policy.err.operator_budget": "Die KI wat hierdie bediener verskaf, het sy begroting vir die maand opgebruik. Dit begin weer op die 1ste, UTC.",
+  "policy.err.operator_paused": "Die KI wat hierdie bediener verskaf, is vir hierdie familie gepouseer: ’n oproep het meer gekos as wat daarvoor gereserveer is. Die bediener se operateur skakel dit weer aan.",
   "policy.err.operator_unbounded": "Die KI wat hierdie bediener verskaf, soek nie op die web nie en kyk nie na prente nie: die koste sou nie vooraf bekend wees nie. Vra sonder ’n prent, of skakel oor na jou familie se eie KI-sleutel.",
   "policy.err.not_offered": "Hierdie bediener bied nie sy KI aan hierdie familie nie.",
   "policy.err.announcement_title": "’n Aankondiging het ’n titel nodig.",

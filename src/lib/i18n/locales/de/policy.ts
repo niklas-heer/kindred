@@ -8,6 +8,7 @@ export default {
   "policy.err.no_price": "Kindred kennt den Preis dieses Modells nicht, deshalb kann die KI dieses Servers es nicht nutzen. Wähle ein Modell mit bekanntem Preis.",
   "policy.err.operator_model": "Wähle den Anbieter und das Modell, die die KI dieses Servers nutzt.",
   "policy.err.operator_budget": "Die KI, die dieser Server stellt, hat ihr Budget für den Monat aufgebraucht. Es beginnt am 1. des Monats neu (UTC).",
+  "policy.err.operator_paused": "Die KI, die dieser Server stellt, ist für diese Familie pausiert: Ein Aufruf hat mehr gekostet als für ihn reserviert war. Wer den Server betreibt, schaltet sie wieder ein.",
   "policy.err.operator_unbounded": "Die KI, die dieser Server stellt, sucht nicht im Web und sieht keine Bilder an: ihre Kosten wären vorher nicht bekannt. Frag ohne Bild, oder wechsle zum eigenen KI-Schlüssel deiner Familie.",
   "policy.err.not_offered": "Dieser Server bietet dieser Familie seine KI nicht an.",
   "policy.err.announcement_title": "Eine Ankündigung braucht einen Titel.",

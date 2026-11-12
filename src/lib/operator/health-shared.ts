@@ -24,6 +24,9 @@ export interface FamilySchema {
   at: number;
 }
 
+/** A family and model (`provider:model`) whose operator-funded AI waits for the operator to acknowledge an overage. */
+export interface PausedAi { family: string; model: string; calls: number; micros: number; since: number }
+
 export interface Health {
   version: string | null;
   commit: string | null;
@@ -42,7 +45,10 @@ export interface Health {
   };
   /** The nightly archive is this install's automatic backup when configured. */
   backup: { configured: boolean; lastOkAt: number | null; failing: boolean };
-  /** Operator-funded AI calls the provider billed above their reservation this UTC month (booked at the reservation); null for none. */
-  aiOverage: { month: string; calls: number; micros: number } | null;
+  /**
+   * Operator-funded AI calls the provider billed above their reservation this UTC month (booked in full), and each family and
+   * model the operator's AI is paused for until the operator acknowledges its overage; null for neither.
+   */
+  aiOverage: { month: string; calls: number; micros: number; paused: PausedAi[] } | null;
   check: { enabled: boolean; checkedAt: number | null; latest: string | null; error: string | null; updateAvailable: boolean };
 }

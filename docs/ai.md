@@ -112,10 +112,12 @@ $2.00 this month".
 - **Nothing that cannot be bounded.** A web search (the pages it reads in cannot be counted beforehand, and it is billed per
   use) and a picture (each provider counts an image its own way) are refused on the operator's money; the assistant offers no
   web search while a family is operator-funded, and the background tasks' name research runs without one.
-- **Settled once, at most the reservation.** After the call the booking is replaced by what it cost (the provider's reported
-  cost, or its usage at the model's price; a failure as described above), but never more than was reserved, so neither limit
-  can be passed. Anything a provider billed above the reservation is kept in `ai_operator_overage`, logged, and shown on the
-  console's Health tab. The settlement is guarded on the booking not being settled yet, so settling it twice changes nothing. A
+- **Settled once, at what it cost.** After the call the booking is replaced by what it cost (the provider's reported cost, or
+  its usage at the model's price; a failure as described above). Should a provider bill more than was reserved (a price that
+  changed, a provider counting differently), the whole cost is booked, so the month's figures and both limits count it, and
+  the difference is kept in `ai_operator_overage`, logged and shown on the console's Health tab. The bound did not hold, so
+  the operator's AI is **paused for that family and model** (its calls are refused) until the operator acknowledges it on the
+  Health tab (logged). The settlement is guarded on the booking not being settled yet, so settling it twice changes nothing. A
   booking that is never settled (the server stopped mid-call) keeps its reservation.
 - **Only known prices.** The operator's model must have a price in Kindred's table or OpenRouter's list: a model without one is
   refused when the operator saves it and again when a call is made. A family's own prices never count for the operator's money.

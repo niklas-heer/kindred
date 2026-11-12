@@ -365,28 +365,44 @@ const familyMonth = async (tree: string) => (await store.accounts().get<{ micros
 const serverMonth = async () => (await store.accounts().get<{ micros: number }>(
   'SELECT micros FROM ai_operator_month WHERE month = ?', new Date().toISOString().slice(0, 7)))?.micros ?? 0;
 
-test('the operator’s reservation is the most a call books: racing calls that the provider overbills stay under both limits', async () => {
+test('an overbilled call counts in full against both limits and pauses the operator’s AI for that family and model until acknowledged', async () => {
   const c = (k: string) => k;
   const month = new Date().toISOString().slice(0, 7);
   await store.accounts().run('DELETE FROM ai_operator_month WHERE month = ?', month);
-  const before = await serverMonth();
   const limits = { familyMicros: 300_000, ceilingMicros: 500_000 };
   const seen: { maxTokens?: number }[] = [];
   const fam = (tree: string) => funding.operatorBudgeted(tree, overbilling(seen) as never, HAIKU, limits, c as never);
   const req = { system: 'You are a test.', messages: [{ role: 'user' as const, text: 'Hello' }], maxTokens: 400 };
   const tries = await Promise.allSettled([...Array.from({ length: 15 }, () => fam('cap-a').complete(req)), ...Array.from({ length: 15 }, () => fam('cap-b').complete(req))]);
-  assert.ok(tries.some((r) => r.status === 'fulfilled') && tries.some((r) => r.status === 'rejected'), 'some ran, the rest were refused at a limit');
-  assert.ok(await familyMonth('cap-a') <= limits.familyMicros, 'the family’s budget holds');
-  assert.ok(await familyMonth('cap-b') <= limits.familyMicros);
-  assert.ok((await serverMonth()) - before <= limits.ceilingMicros, 'the server’s ceiling holds');
-  // What the provider billed above the reservations is kept for the operator, not booked.
+  const ran = tries.filter((r) => r.status === 'fulfilled').length;
+  assert.ok(ran > 0 && tries.some((r) => r.status === 'rejected'), 'some ran, the rest were refused');
+  // Each call the provider billed 6 dollars (a million tokens in at $1, a million out at $5): the months count what was billed.
   const over = await store.accounts().get<{ n: number; micros: number }>("SELECT count(*) AS n, sum(micros) AS micros FROM ai_operator_overage WHERE family IN ('cap-a', 'cap-b') AND month = ?", month);
-  assert.equal(over!.n, tries.filter((r) => r.status === 'fulfilled').length);
-  assert.ok(over!.micros > 0);
+  assert.equal(over!.n, ran, 'each overbilled call is kept for the operator');
+  assert.equal((await familyMonth('cap-a')) + (await familyMonth('cap-b')), ran * 6_000_000, 'the overage is booked, not only the reservation');
+  assert.equal(await serverMonth(), ran * 6_000_000, 'and counts against the server’s ceiling');
   // The reply's length is capped at what was reserved for it.
   assert.ok(seen.every((s) => s.maxTokens === 8_000), 'the output cap the reservation counted is the one sent');
-  const h = await (await load<typeof import('./health.server.ts')>('/src/lib/operator/health.server.ts')).readHealth({ archive: false });
+
+  // Paused for that family and model, whatever budget is left, until the operator acknowledges it on Health.
+  const roomy = { familyMicros: 500_000_000, ceilingMicros: 5_000_000_000 };
+  const call = (tree: string, model = 'claude-haiku-5-5') => funding.operatorBudgeted(tree, { ...overbilling(), model } as never, HAIKU, roomy, c as never);
+  await assert.rejects(call('cap-a').complete(req), /policy\.err\.operator_paused/);
+  const healthMod = await load<typeof import('./health.server.ts')>('/src/lib/operator/health.server.ts');
+  const h = await healthMod.readHealth({ archive: false });
   assert.equal(h.aiOverage?.calls, over!.n, 'the Health tab tells the operator');
+  const overFamilies = (await store.accounts().all<{ family: string }>("SELECT DISTINCT family FROM ai_operator_overage WHERE family IN ('cap-a', 'cap-b') ORDER BY family")).map((r) => r.family);
+  assert.deepEqual(h.aiOverage?.paused.filter((p) => p.family.startsWith('cap-')).map((p) => [p.family, p.model]), overFamilies.map((f) => [f, 'anthropic:claude-haiku-5-5']));
+  assert.ok(overFamilies.includes('cap-a'));
+  const op = { id: 'op-overage', name: 'Orla Operator' };
+  await healthMod.acknowledgeOverage(op, 'cap-a', 'anthropic:claude-haiku-5-5');
+  assert.ok(await store.accounts().get("SELECT 1 FROM operator_audit WHERE action = 'ai.overage_acknowledged'"), 'logged');
+  assert.ok(!(await healthMod.readHealth({ archive: false })).aiOverage?.paused.some((p) => p.family === 'cap-a'));
+  // Its next call runs again (and, overbilled once more, pauses it again).
+  await call('cap-a').complete(req);
+  await assert.rejects(call('cap-a').complete(req), /policy\.err\.operator_paused/);
+  // This month's server-wide spend is the later tests' own again.
+  await store.accounts().run('DELETE FROM ai_operator_month WHERE month = ?', month);
 });
 
 test('the operator’s reservation: input bounded by its bytes, and what cannot be bounded is refused', async () => {

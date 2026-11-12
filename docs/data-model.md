@@ -188,7 +188,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0047_updates_health.sql` | The console's Update button and Health tab ([hosting-many-families.md](hosting-many-families.md), "Updates" and "Health"): `update_github` (the install's repository and sealed GitHub token, and the last update's run), `job_run` (each daily job's last run) and `family_schema` (the schema each family last reported). |
 | `0048_signin_fixes.sql` | Fixes to the ways in: `password_reset.seen_at` (the holder dismissed the notice of a used reset link), `signin_daily` (sign-ins per day and way in, for the statistics) and `oidc_flow` made again with the purpose `signup`. |
 | `0049_lasting_counts.sql` | Counts that outlive what they count, and bookkeeping for complete erasure ([gdpr.md](gdpr.md), [ai.md](ai.md#operator-funded-ai)): `ai_operator_family_month` (replaces `ai_operator_spend`, kept by the family's id when a family is deleted; rows copied), `ai_operator_overage`, `signup_tally` (rows copied from `signup`), `family_left`, `subject_action.pending` and `job_run.code`. |
-| `0050_round_seven_fixes.sql` | `user.email_verified` (whether the address was verified, for `trust_email`) and `user.retiring`: the pseudonym an unused account's writing gets, claimed by the retention job before it changes anything ([gdpr.md](gdpr.md#retention)). |
+| `0050_round_seven_fixes.sql` | `ai_operator_overage.model`, `.acknowledged_at`, `.acknowledged_by` (an overage pauses the operator's AI for a family and model until acknowledged), `user.email_verified` (whether the address was verified, for `trust_email`) and `user.retiring`: the pseudonym an unused account's writing gets, claimed by the retention job before it changes anything ([gdpr.md](gdpr.md#retention)). |
 
 ### Tables
 
@@ -419,7 +419,9 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   same for all families together (no `tree`: it outlives a deleted family, so the ceiling holds). **`ai_operator_booking`**:
   one row per operator-funded call, its reservation until it is settled once (`settled_at`); settled rows go after two days.
   **`ai_operator_overage`** (0049): what a provider billed above a call's reservation (`family`, `month`, `micros`, `at`); the
-  settlement books the reservation and keeps the rest here for the Health tab.
+  settlement books the whole cost and keeps the difference here for the Health tab. `model` (`provider:model`),
+  `acknowledged_at` and `acknowledged_by` (0050): an unacknowledged row pauses the operator's AI for that family and model
+  (the reservation's guard) until the operator acknowledges it; rows from before 0050 have no model and pause nothing.
 - **`announcement`** (0042): a banner from the operator: `title`, `body` (plain text), `audience` (`stewards`, `everyone`),
   `starts_at`, `ends_at` (null: until ended), `created_at`, `created_by`.
 - **`update_github`** (0047): one row (`id` 1) for a copy made by the Deploy to Cloudflare button: its `repo` (`owner/name`) and

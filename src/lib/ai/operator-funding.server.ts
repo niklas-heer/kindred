@@ -13,8 +13,10 @@
 // the provider as the call's max_tokens) and its input bounded by its bytes (a tokenizer makes at most one token of a byte,
 // plus a little for each message's framing). What cannot be bounded before it is sent is refused: a web search (the pages it
 // reads in are input nobody can count beforehand, and a search is billed per use) and an image (each provider counts an
-// image's tokens its own way). The settlement books at most the reservation; anything the provider billed above it is kept
-// in `ai_operator_overage` for the operator's Health tab, and logged.
+// image's tokens its own way). Should the provider still bill more (a price that changed, a provider counting differently),
+// the settlement books what it billed, so the month's figures and both limits count the real cost, and keeps the difference
+// in `ai_operator_overage` (logged). That pauses the operator's AI for the family and model until the operator acknowledges
+// it on the Health tab (accounts migration 0050): the bound did not hold, so nothing more is spent on it unseen.
 //
 // The per-family spend is kept by the family's id in `ai_operator_family_month` (migration 0049), which a deleted family does
 // not take with it: a family deleted and made again under the same id within the month does not start again at 0.
@@ -94,15 +96,23 @@ export const priceKnown = async (provider: Provider, model: string) => (await op
 
 // ---------- the booking ----------
 
-export interface OperatorBooking { id: string; tree: string; month: string; amount: number }
+export interface OperatorBooking { id: string; tree: string; month: string; amount: number; model: string }
+
+/** The model an overage pauses, as `provider:model`. */
+export const overageModel = (provider: string, model: string) => `${provider}:${model}`;
+const UNACKNOWLEDGED = 'EXISTS (SELECT 1 FROM ai_operator_overage WHERE family = ? AND model = ? AND acknowledged_at IS NULL)';
 export interface OperatorLimits { familyMicros: number; ceilingMicros: number }
 
-/** Books `amount` against the family's operator budget and the server's ceiling at once, or throws `budget`. */
-export async function reserveOperator(tree: string, amount: number, limits: OperatorLimits, c: Tr, now = new Date()): Promise<OperatorBooking> {
+/**
+ * Books `amount` against the family's operator budget and the server's ceiling at once, or throws `budget`. Refused while an
+ * overage of this family and model waits for the operator (`model`, as overageModel writes it).
+ */
+export async function reserveOperator(tree: string, amount: number, limits: OperatorLimits, c: Tr, now = new Date(), model = ''): Promise<OperatorBooking> {
   const month = monthNow(now);
   const id = crypto.randomUUID();
   try {
     await accounts().batch([
+      guard(`NOT ${UNACKNOWLEDGED}`, tree, model),
       q('INSERT INTO ai_operator_family_month (family, month, micros) VALUES (?, ?, 0) ON CONFLICT (family, month) DO NOTHING', tree, month),
       q('INSERT INTO ai_operator_month (month, micros) VALUES (?, 0) ON CONFLICT (month) DO NOTHING', month),
       guard('(SELECT micros FROM ai_operator_family_month WHERE family = ? AND month = ?) + ? <= ?', tree, month, amount, limits.familyMicros),
@@ -112,33 +122,36 @@ export async function reserveOperator(tree: string, amount: number, limits: Oper
       q('INSERT INTO ai_operator_booking (id, tree, month, amount, created) VALUES (?, ?, ?, ?, ?)', id, tree, month, amount, now.getTime()),
     ]);
   } catch (e) {
-    if (isGuardError(e)) throw new AiError('budget', c('policy.err.operator_budget'));
+    if (isGuardError(e)) {
+      const paused = await accounts().get(`SELECT 1 WHERE ${UNACKNOWLEDGED}`, tree, model);
+      throw new AiError('budget', c(paused ? 'policy.err.operator_paused' : 'policy.err.operator_budget'));
+    }
     throw e;
   }
-  return { id, tree, month, amount };
+  return { id, tree, month, amount, model };
 }
 
 /** Settled bookings are kept this long, so a late second settlement still finds its row and does nothing. */
 const SETTLED_KEPT_MS = 2 * 86_400_000;
 
 /**
- * Replaces a reservation with what the call cost, once: settling the same booking again changes nothing. It books at most the
- * reservation, so neither limit is passed; what the provider billed above it is kept as an overage for the operator.
+ * Replaces a reservation with what the call cost, once: settling the same booking again changes nothing. It books what the
+ * provider billed, so the month counts the real cost; anything above the reservation is also kept as an overage, which pauses
+ * the operator's AI for this family and model until the operator acknowledges it.
  */
 export async function settleOperator(b: OperatorBooking, actual: number, now = Date.now()): Promise<boolean> {
   const billed = Math.max(0, Math.round(actual));
-  const cost = Math.min(billed, b.amount);
-  const over = billed - cost;
+  const over = Math.max(0, billed - b.amount);
   try {
     await accounts().batch([
       guard('EXISTS (SELECT 1 FROM ai_operator_booking WHERE id = ? AND settled_at IS NULL)', b.id),
-      q('UPDATE ai_operator_family_month SET micros = MAX(0, micros - ? + ?) WHERE family = ? AND month = ?', b.amount, cost, b.tree, b.month),
-      q('UPDATE ai_operator_month SET micros = MAX(0, micros - ? + ?) WHERE month = ?', b.amount, cost, b.month),
+      q('UPDATE ai_operator_family_month SET micros = MAX(0, micros - ? + ?) WHERE family = ? AND month = ?', b.amount, billed, b.tree, b.month),
+      q('UPDATE ai_operator_month SET micros = MAX(0, micros - ? + ?) WHERE month = ?', b.amount, billed, b.month),
       q('UPDATE ai_operator_booking SET settled_at = ? WHERE id = ?', now, b.id),
       q('DELETE FROM ai_operator_booking WHERE settled_at IS NOT NULL AND settled_at < ?', now - SETTLED_KEPT_MS),
-      ...(over > 0 ? [q('INSERT INTO ai_operator_overage (id, family, month, micros, at) VALUES (?, ?, ?, ?, ?)', b.id, b.tree, b.month, over, now)] : []),
+      ...(over > 0 ? [q('INSERT INTO ai_operator_overage (id, family, month, micros, at, model) VALUES (?, ?, ?, ?, ?, ?)', b.id, b.tree, b.month, over, now, b.model)] : []),
     ]);
-    if (over > 0) console.warn(`[kindred] operator-funded AI: a call billed ${over} micro-dollars above its reservation (family ${b.tree}); booked at the reservation`);
+    if (over > 0) console.warn(`[kindred] operator-funded AI: a call billed ${over} micro-dollars above its reservation (family ${b.tree}, ${b.model}); booked in full, and paused for that family and model until acknowledged on Health`);
     return true;
   } catch (e) {
     if (isGuardError(e)) return false;
@@ -190,7 +203,7 @@ export function operatorBudgeted(tree: string, adapter: AiAdapter, price: Price,
       const req = { ...request, maxTokens: cap };
       const reserve = costMicros({ inputTokens: inputBound(req), outputTokens: cap, searches: 0 }, price);
       if (limits.familyMicros >= TINY_BUDGET_MICROS && reserve > limits.familyMicros * SINGLE_CALL_SHARE) throw new AiError('budget', c('ai.errBudgetShare'));
-      const booked = await reserveOperator(tree, reserve, limits, c);
+      const booked = await reserveOperator(tree, reserve, limits, c, new Date(), overageModel(adapter.provider, adapter.model));
       let actual = booked.amount;
       try {
         const reply = await adapter.complete(req);

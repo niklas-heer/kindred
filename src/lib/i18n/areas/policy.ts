@@ -7,6 +7,7 @@ export const en = {
   "policy.err.no_price": "Kindred does not know this model’s price, so this server’s AI cannot use it. Choose a model with a known price.",
   "policy.err.operator_model": "Choose the provider and the model this server’s AI uses.",
   "policy.err.operator_budget": "The AI this server provides has used its budget for the month. It starts again on the 1st, UTC.",
+  "policy.err.operator_paused": "The AI this server provides is paused for this family: a call cost more than was reserved for it. The server’s operator turns it back on.",
   "policy.err.operator_unbounded": "The AI this server provides does not search the web or look at pictures: its cost could not be known beforehand. Ask without a picture, or switch to your family’s own AI key.",
   "policy.err.not_offered": "This server does not offer its AI to this family.",
   "policy.err.announcement_title": "An announcement needs a title.",

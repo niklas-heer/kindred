@@ -1,23 +1,30 @@
 // The operator console's Health tab (docs/hosting-many-families.md, "Health"): the daily jobs' last runs, families whose
 // migration failed or that have not caught up, the age of the last backup, the running version and the update check's last
-// answer (src/lib/operator/health.server.ts). Read only.
-import { useQuery } from '@tanstack/react-query';
+// answer (src/lib/operator/health.server.ts). Read only, but for acknowledging an operator-funded AI overage, which resumes
+// that family's and model's calls.
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ExternalLink } from 'lucide-react';
 import { ErrorState, Notice, Skeleton } from '~/components/ui';
 import { formatDate, useT } from '~/lib/i18n';
 import type { FamilySchema } from '~/lib/operator/health-shared';
-import { healthQuery } from '~/lib/operator/self-update.functions';
+import { healthQuery, operatorAcknowledgeOverage } from '~/lib/operator/self-update.functions';
 import { DEFAULT_UPDATE_REPO } from '~/lib/operator/updates-shared';
 import './operator.css';
 import './ops.css';
 
 export function HealthTab({ onWorkers }: { onWorkers: boolean }) {
   const t = useT();
+  const qc = useQueryClient();
   const { data, isPending, isError, refetch } = useQuery(healthQuery);
+  const acknowledge = useMutation({
+    mutationFn: (p: { family: string; model: string }) => operatorAcknowledgeOverage({ data: p }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: healthQuery.queryKey }),
+  });
   if (isPending) return <div aria-busy="true" aria-label={t('operator.loading')}><Skeleton lines={6} /></div>;
   if (isError) return <ErrorState title={t('operator.err_load')} onRetry={() => { void refetch(); }} />;
   const when = (ms: number) => formatDate(ms, t.locale, { dateStyle: 'long', timeStyle: 'short' });
   const f = data.families;
+  const usd = (micros: number) => new Intl.NumberFormat(t.locale, { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(micros / 1_000_000);
   const backupDocs = `https://github.com/${DEFAULT_UPDATE_REPO}/blob/main/docs/${onWorkers ? 'deploy-cloudflare.md#backups' : 'self-host.md#backups'}`;
   return (
     <div className="operator-panel">
@@ -55,12 +62,23 @@ export function HealthTab({ onWorkers }: { onWorkers: boolean }) {
       {data.aiOverage && (
         <section aria-labelledby="health-ai" className="ops-section">
           <h2 id="health-ai" className="rule">{t('update.health_ai')}</h2>
-          <Notice icon={<AlertTriangle size={15} aria-hidden />}>
-            {t('update.health_ai_overage', {
-              count: data.aiOverage.calls,
-              amount: new Intl.NumberFormat(t.locale, { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(data.aiOverage.micros / 1_000_000),
-            })}
-          </Notice>
+          {data.aiOverage.calls > 0 && (
+            <Notice icon={<AlertTriangle size={15} aria-hidden />}>
+              {t('update.health_ai_overage', { count: data.aiOverage.calls, amount: usd(data.aiOverage.micros) })}
+            </Notice>
+          )}
+          {data.aiOverage.paused.length > 0 && (
+            <ul className="ops-list">
+              {data.aiOverage.paused.map((p) => (
+                <li key={`${p.family} ${p.model}`}>
+                  <span className="families-error"><AlertTriangle size={13} aria-hidden /> {t('update.health_ai_paused', { count: p.calls, family: p.family, model: p.model, amount: usd(p.micros), date: when(p.since) })}</span>{' '}
+                  <button type="button" className="btn" disabled={acknowledge.isPending} onClick={() => acknowledge.mutate({ family: p.family, model: p.model })}>
+                    {t('update.health_ai_acknowledge')}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 

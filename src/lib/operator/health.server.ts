@@ -6,8 +6,9 @@
 import type { JobRun } from '../jobs/index.ts';
 import { sanitiseFailure } from '../jobs/failure.ts';
 import { appCommit, appVersion } from '../version.ts';
-import { store } from '../store/index.ts';
-import type { Health } from './health-shared.ts';
+import { q, store } from '../store/index.ts';
+import type { Health, PausedAi } from './health-shared.ts';
+import { audit } from './settings.server.ts';
 import { updateStatus } from './updates.server.ts';
 
 const accounts = () => store.accounts();
@@ -41,7 +42,7 @@ export const archiveConfigured = (env: Record<string, string | undefined> = proc
 /** Everything the Health tab shows, at `now`. `version` and `commit` are for tests (a test build has none). */
 export async function readHealth(opts: { version?: string | null; commit?: string | null; archive?: boolean } = {}): Promise<Health> {
   const month = new Date().toISOString().slice(0, 7);
-  const [jobs, schemas, families, check, overage] = await Promise.all([
+  const [jobs, schemas, families, check, overage, paused] = await Promise.all([
     accounts().all<{ job: string; started_at: number; finished_at: number; ok: number; error: string | null; code: string | null; last_ok_at: number | null }>(
       'SELECT job, started_at, finished_at, ok, error, code, last_ok_at FROM job_run ORDER BY job'),
     accounts().all<{ tree: string; migration: string | null; error: string | null; reported_at: number }>(
@@ -50,6 +51,9 @@ export async function readHealth(opts: { version?: string | null; commit?: strin
     updateStatus({ version: opts.version, commit: opts.commit }),
     // Operator-funded AI calls the provider billed above their reservation this month (operator-funding.server.ts).
     accounts().get<{ calls: number; micros: number | null }>('SELECT count(*) AS calls, sum(micros) AS micros FROM ai_operator_overage WHERE month = ?', month),
+    // Each family and model paused by an overage the operator has not acknowledged yet, from any month.
+    accounts().all<PausedAi>(`SELECT family, model, count(*) AS calls, sum(micros) AS micros, min(at) AS since FROM ai_operator_overage
+      WHERE acknowledged_at IS NULL AND model IS NOT NULL GROUP BY family, model ORDER BY min(at)`),
   ]);
   const known = new Set(families);
   const rows = schemas.filter((s) => known.has(s.tree));
@@ -73,7 +77,20 @@ export async function readHealth(opts: { version?: string | null; commit?: strin
       unreported: families.filter((f) => !reported.has(f)).length,
     },
     backup: archive ? { configured: true, lastOkAt: archiveRun?.last_ok_at ?? null, failing: archiveRun ? archiveRun.ok === 0 : false } : { configured: false, lastOkAt: null, failing: false },
-    aiOverage: overage && overage.calls > 0 ? { month, calls: overage.calls, micros: Number(overage.micros ?? 0) } : null,
+    aiOverage: (overage && overage.calls > 0) || paused.length
+      ? { month, calls: overage?.calls ?? 0, micros: Number(overage?.micros ?? 0), paused: paused.map((p) => ({ ...p, calls: Number(p.calls), micros: Number(p.micros), since: Number(p.since) })) }
+      : null,
     check: { enabled: check.enabled, checkedAt: check.checkedAt, latest: check.latest, error: check.error, updateAvailable: check.updateAvailable },
   };
+}
+
+/**
+ * The operator acknowledges the overage of a family and model (operator-funding.server.ts): its operator-funded AI runs again.
+ * Logged.
+ */
+export async function acknowledgeOverage(op: { id: string; name: string }, family: string, model: string, now = Date.now()): Promise<void> {
+  await accounts().batch([
+    q('UPDATE ai_operator_overage SET acknowledged_at = ?, acknowledged_by = ? WHERE family = ? AND model = ? AND acknowledged_at IS NULL', now, op.id, family, model),
+    audit(op, 'ai.overage_acknowledged', family, { model }, now),
+  ]);
 }

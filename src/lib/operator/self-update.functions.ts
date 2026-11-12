@@ -92,3 +92,12 @@ export const fetchHealth = createServerFn({ method: 'GET' }).handler(async (): P
   return (await import('./health.server')).readHealth();
 });
 export const healthQuery = queryOptions({ queryKey: ['operator', 'health'], queryFn: () => fetchHealth() });
+
+/** The operator acknowledges an operator-funded AI overage of a family and model, so that AI runs there again. Logged. */
+export const operatorAcknowledgeOverage = createServerFn({ method: 'POST' })
+  .validator(z.object({ family: z.string().min(1).max(200), model: z.string().min(1).max(300) }))
+  .handler(async ({ data }) => {
+    const op = await operatorForChange();
+    await (await import('./health.server')).acknowledgeOverage({ id: op.id, name: op.name }, data.family, data.model);
+    return { ok: true as const };
+  });
