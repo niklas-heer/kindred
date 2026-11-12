@@ -45,6 +45,13 @@ export const CHECKS: Record<CheckName, { severity: Severity; what: string }> = {
 
 const I18N = fileURLToPath(new URL("./", import.meta.url));
 
+/**
+ * The keys of the vocabularies (docs/translating.md, "Vocabularies"): names of faiths, occupations, colours, favourites and
+ * heraldic charges. They are single names and short words, many the same in two languages, so a translator is held to
+ * giving every one (missing, extra) but not to the prose checks (still English, leftover words, address, glossary, length).
+ */
+export const VOCABULARY_KEY = /^(?:faith|occupation|colour|favourite|heraldry\.library)\./;
+
 /** Kindred's terms (glossary/en.json): each with its meaning for translators and the pattern that finds it in English. */
 export interface EnglishGlossary {
   about: string;
@@ -218,6 +225,8 @@ export function checkLocale(
       const has = placeholders(text);
       if (has !== want) add("placeholders", `${form}: {${has}} where English has {${want}}`, key);
     }
+    // Placeholders and plurals above hold for every key; the prose checks below are not for a vocabulary's names.
+    if (VOCABULARY_KEY.test(key)) continue;
     // Still English: more than one word the same, or one everyday interface word.
     if (!same.has(key)) {
       for (const category of ["one", "other"] as const) {

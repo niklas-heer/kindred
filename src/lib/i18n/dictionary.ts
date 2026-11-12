@@ -34,6 +34,21 @@ for (const [locale, table] of Object.entries(PRELOADED) as [Locale, Table][]) ta
 // On the server every language is ready, even one with no words yet (it falls back to English); in the browser, the ones it has.
 const ready = new Set<Locale>(seen.size ? LOCALES : LOCALES.filter((locale) => Object.keys(tables[locale]).length > 0));
 const loading = new Map<Locale, Promise<void>>();
+let loaded = 0;
+
+/**
+ * A number that changes whenever a language's words arrive (never, on the server). A cache of text built from several
+ * languages (a search index of names) is stale when this has moved.
+ */
+export const tablesVersion = (): number => loaded;
+
+/**
+ * Every language's own text for a key, without repeats (a language with no entry yet adds nothing): for matching what a
+ * reader typed in any language this page has. For vocabulary entries, which are plain strings.
+ */
+export function namesInEveryLanguage(key: Key): string[] {
+  return [...new Set(LOCALES.map((l) => tables[l][key]).filter((m): m is string => typeof m === "string"))];
+}
 
 /** Whether a language's words are here, so translate() gives them rather than English. Always true on the server. */
 export function hasLocale(locale: Locale): boolean {
@@ -52,6 +67,7 @@ export function loadLocale(locale: Locale): Promise<void> {
       (table) => {
         tables[locale] = table;
         ready.add(locale);
+        loaded++;
       },
       (error: unknown) => {
         // A failed chunk (offline, a deploy replaced it) may be retried on the next attempt.

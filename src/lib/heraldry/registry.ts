@@ -3,7 +3,7 @@
 // lookup before that returns undefined and the caller shows the id, then re-renders when the library arrives.
 //
 // Pure (no React, no `~` imports), so the test runner and the server load it.
-import { translate } from '../i18n/dictionary.ts';
+import { namesInEveryLanguage, translate } from '../i18n/dictionary.ts';
 import type { Locale } from '../i18n/types.ts';
 import { CHARGE_BY_ID, CHARGES_V2, type ChargeDef } from './catalogue.ts';
 
@@ -24,9 +24,9 @@ export function allChargeDefs(): ChargeDef[] {
   return [...CHARGES_V2, ...library.values()];
 }
 
-/** A charge's name in a language: its own name for a library charge, its translated label for a catalogue charge. */
+/** A charge's name in a language (English where that language has not named it yet). */
 export function chargeLabel(def: ChargeDef, locale: Locale): string {
-  return def.name ? (def.name[locale] ?? def.name.en) : translate(locale, def.label!);
+  return translate(locale, def.label);
 }
 
 /** The name of a charge by id, or the id itself while the charge is unknown. */
@@ -35,8 +35,10 @@ export function chargeName(id: string, locale: Locale): string {
   return def ? chargeLabel(def, locale) : id;
 }
 
-/** Every word a charge answers to in every language (its names and its search words), lower case, for matching. */
+/**
+ * Every word a charge answers to (its names in every language this page has, and its search words), for matching. The
+ * browser holds English and the reader's language; the server holds all of them.
+ */
 export function chargeWords(def: ChargeDef): string {
-  const names = def.name ? [def.name.en, def.name.de, def.name.af] : [translate('en', def.label!), translate('de', def.label!), translate('af', def.label!)];
-  return [...names, def.id.replace(/-/g, ' '), def.keys ?? ''].join(' ');
+  return [...namesInEveryLanguage(def.label), def.id.replace(/-/g, ' '), def.keys ?? ''].join(' ');
 }

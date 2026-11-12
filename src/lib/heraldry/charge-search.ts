@@ -1,5 +1,6 @@
 // Finds charges by words, in any language: the picker's search, and the candidates the AI is shown for the meanings a
 // family chose. Pure, so the server and the test runner use the same matching as the picker.
+import { tablesVersion } from '../i18n/dictionary.ts';
 import type { ChargeDef } from './catalogue.ts';
 import { allChargeDefs, chargeWords } from './registry.ts';
 
@@ -9,11 +10,13 @@ export const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀
 const tokens = (s: string) => fold(s).split(/[^a-z0-9]+/).filter(Boolean);
 
 /** A charge's own words, folded and split, kept per charge so a keystroke does not fold the library again. */
-const ownCache = new WeakMap<ChargeDef, string[]>();
+const ownCache = new WeakMap<ChargeDef, { version: number; own: string[] }>();
 function ownTokens(def: ChargeDef): string[] {
-  let own = ownCache.get(def);
-  if (!own) ownCache.set(def, (own = tokens(`${chargeWords(def)} ${def.cat}`)));
-  return own;
+  const version = tablesVersion();
+  let entry = ownCache.get(def);
+  // The names are in every language the page has, so a language that arrives later makes the words stale.
+  if (!entry || entry.version !== version) ownCache.set(def, (entry = { version, own: tokens(`${chargeWords(def)} ${def.cat}`) }));
+  return entry.own;
 }
 
 /** Every word the charges know: what tells a whole word ("staff") from a word still being typed ("staf…"). */

@@ -19,6 +19,7 @@ import * as recipesArea from "./areas/recipes.ts";
 import * as todayArea from "./areas/today.ts";
 import * as todayQuestionsArea from "./areas/today-questions.ts";
 import * as atlasArea from "./areas/atlas.ts";
+import * as chargeLibraryArea from "./areas/charge-library.ts";
 import * as characterArea from "./areas/character.ts";
 import * as chronicleArea from "./areas/chronicle.ts";
 import * as commonArea from "./areas/common.ts";
@@ -92,6 +93,7 @@ export const AREAS = [
   exchangeArea,
   housesArea,
   heraldryArea,
+  chargeLibraryArea,
   portraitArea,
   characterArea,
   profileArea,

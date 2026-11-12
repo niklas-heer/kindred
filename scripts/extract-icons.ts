@@ -80,7 +80,6 @@ interface LibraryRow {
   id: string;
   gi: string;
   cat: ChargeCategory;
-  name: { en: string; de: string; af: string };
   keys: string;
   facing: boolean;
 }
@@ -93,10 +92,10 @@ const rows: LibraryRow[] = readFileSync(new URL('./charge-library.tsv', import.m
   .split('\n')
   .filter((l) => l.trim() && !l.startsWith('#'))
   .map((line) => {
-    const [id, gi, cat, en, de, af, keys, flags = ''] = line.split('|');
-    if (!id || !gi || !cat || !en || !de || !af || !keys) throw new Error(`charge-library.tsv: a row is incomplete: ${line}`);
+    const [id, gi, cat, keys, flags = ''] = line.split('|');
+    if (!id || !gi || !cat || !keys) throw new Error(`charge-library.tsv: a row is incomplete: ${line}`);
     if (!LIBRARY_CATEGORIES.includes(cat as ChargeCategory)) throw new Error(`charge-library.tsv: ${id} has no category "${cat}"`);
-    return { id, gi, cat: cat as ChargeCategory, name: { en, de, af }, keys, facing: flags.split(' ').includes('f') };
+    return { id, gi, cat: cat as ChargeCategory, keys, facing: flags.split(' ').includes('f') };
   });
 
 const seen = new Set<string>();
@@ -129,7 +128,7 @@ const metaOut = `${HEADER}// The charges added to the heraldry library, from scr
 import type { ChargeDef } from '../../../lib/heraldry/catalogue.ts';
 
 export const LIBRARY_CHARGES: ChargeDef[] = [
-${rows.map((r) => `  { id: ${JSON.stringify(r.id)}, gi: ${JSON.stringify(r.gi)}, cat: '${r.cat}', name: ${JSON.stringify(r.name)}, keys: ${JSON.stringify(r.keys)}${r.facing ? ', facing: true' : ''} },`).join('\n')}
+${rows.map((r) => `  { id: ${JSON.stringify(r.id)}, gi: ${JSON.stringify(r.gi)}, cat: '${r.cat}', label: ${JSON.stringify(`heraldry.library.${r.id}`)}, keys: ${JSON.stringify(r.keys)}${r.facing ? ', facing: true' : ''} },`).join('\n')}
 ];
 `;
 writeFileSync(new URL('charges.gen.ts', libraryDir), metaOut);

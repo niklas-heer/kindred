@@ -4,8 +4,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { en } from '../i18n/areas/heraldry.ts';
+import { en as libraryEn } from '../i18n/areas/charge-library.ts';
 import af from '../i18n/locales/af/heraldry.ts';
+import afLibrary from '../i18n/locales/af/charge-library.ts';
 import de from '../i18n/locales/de/heraldry.ts';
+import deLibrary from '../i18n/locales/de/charge-library.ts';
 import type { Key } from '../i18n/dictionary.ts';
 import { CATEGORIES } from './catalogue.ts';
 import { LIBRARY_CHARGES } from '../../components/heraldry/library/charges.gen.ts';
@@ -86,12 +89,12 @@ test('no name in the panel stays in English when the language is German or Afrik
     ...LINES_V2.map((l) => l.label), ...ORDINARIES.map((o) => o.label), ...HELMS.map((h) => h.label),
     ...CATEGORIES.map((c) => c.label),
   ];
-  const areas = { en, de, af } as unknown as Record<string, Record<string, string>>;
+  const areas = { en: { ...en, ...libraryEn }, de: { ...de, ...deLibrary }, af: { ...af, ...afLibrary } } as unknown as Record<string, Record<string, string>>;
   for (const lang of ['de', 'af'] as const) {
     const bad: string[] = [];
     for (const key of keys) if (areas[lang][key] === areas.en[key] && !SHARED_WORDS[lang].has(areas.en[key])) bad.push(`${key} (${areas.en[key]})`);
     for (const c of CHARGES) {
-      const [english, local] = c.name ? [c.name.en, c.name[lang]] : [areas.en[c.label!], areas[lang][c.label!]];
+      const [english, local] = [areas.en[c.label], areas[lang][c.label]];
       if (local === english && !SHARED_WORDS[lang].has(english)) bad.push(`charge ${c.id} (${english})`);
     }
     assert.deepEqual(bad, [], `${lang}: still English`);

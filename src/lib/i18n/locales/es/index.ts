@@ -11,6 +11,7 @@ import almanac from "./almanac.ts";
 import atlas from "./atlas.ts";
 import campaign from "./campaign.ts";
 import character from "./character.ts";
+import chargeLibrary from "./charge-library.ts";
 import chronicle from "./chronicle.ts";
 import common from "./common.ts";
 import contacts from "./contacts.ts";
@@ -69,6 +70,7 @@ export default {
   ...atlas,
   ...campaign,
   ...character,
+  ...chargeLibrary,
   ...chronicle,
   ...common,
   ...contacts,

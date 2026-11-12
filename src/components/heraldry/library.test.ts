@@ -46,8 +46,8 @@ test('every charge has a drawing: a core glyph, or its category module’s glyph
 
 test('every library charge names itself in English, German and Afrikaans, and has search words', () => {
   for (const c of LIBRARY_CHARGES) {
-    assert.ok(c.name, `${c.id}: no names`);
-    for (const lang of ['en', 'de', 'af'] as const) assert.ok(c.name![lang].trim().length > 0, `${c.id}: no ${lang} name`);
+    assert.equal(c.label, `heraldry.library.${c.id}`);
+    for (const lang of ['en', 'de', 'af'] as const) assert.ok(chargeLabel(c, lang).trim().length > 0, `${c.id}: no ${lang} name`);
     assert.ok(c.keys && c.keys.trim().length > 0, `${c.id}: no search words`);
   }
   // The eager charges resolve in all three languages too, through their i18n labels.
