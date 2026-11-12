@@ -17,6 +17,7 @@ export const OIDC_ERRORS: Record<string, Key> = {
   token: 'oidc.err.token', no_account: 'oidc.err.no_account', account_exists: 'oidc.err.account_exists', linked_elsewhere: 'oidc.err.linked_elsewhere',
   already_linked: 'oidc.err.already_linked', not_linked: 'oidc.err.not_linked', invite_gone: 'oidc.err.invite_gone', pending: 'oidc.err.pending',
   session: 'oidc.err.session', proof: 'oidc.err.proof', failed: 'oidc.err.failed', throttled: 'oidc.err.throttled',
+  signup_unverified: 'oidc.err.signup_unverified', signup_failed: 'oidc.err.signup_failed',
 };
 
 /** The providers the sign-in pages offer (none while single sign-on is off). */
@@ -25,10 +26,13 @@ export function useSignInProviders(): PublicProvider[] {
   return data?.providers ?? [];
 }
 
-/** A button per provider. `purpose` `signin` or `invite` (with the invitation's token, the name and the terms). */
-export function SsoButtons({ providers, purpose, next, token, name, acceptTerms, disabled, onError }: {
-  providers: PublicProvider[]; purpose: 'signin' | 'invite'; next?: string; token?: string; name?: string; acceptTerms?: boolean; disabled?: boolean;
-  onError: (message: string) => void;
+/**
+ * A button per provider. `purpose` `signin`, `invite` (with the invitation's token, the name and the terms) or `signup` (with
+ * the sign-up form in `form`).
+ */
+export function SsoButtons({ providers, purpose, next, token, name, acceptTerms, form, disabled, onError }: {
+  providers: PublicProvider[]; purpose: 'signin' | 'invite' | 'signup'; next?: string; token?: string; name?: string; acceptTerms?: boolean;
+  form?: Record<string, unknown>; disabled?: boolean; onError: (message: string) => void;
 }) {
   const t = useT();
   const [busy, setBusy] = useState<string | null>(null);
@@ -36,8 +40,10 @@ export function SsoButtons({ providers, purpose, next, token, name, acceptTerms,
   const go = async (provider: string) => {
     setBusy(provider);
     try {
-      if (purpose === 'signin') forgetLocalIdentity();
-      await startSingleSignOn({ provider, purpose, next, token, name, acceptTerms });
+      if (purpose !== 'invite') forgetLocalIdentity();
+      // Only what is set: an unset name must not hide the sign-up form's own.
+      const set = Object.fromEntries(Object.entries({ next, token, name, acceptTerms }).filter(([, v]) => v !== undefined));
+      await startSingleSignOn({ ...form, ...set, provider, purpose });
     } catch (e) {
       onError(errorText(e, t.locale));
       setBusy(null);

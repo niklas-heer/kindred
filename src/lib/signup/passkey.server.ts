@@ -13,7 +13,8 @@ import { cleanForm, closedError, completeSignup, networkKey, precheck, type Sign
 /** The form as the browser sends it, with its guards. */
 export type SignupBody = SignupForm & { turnstile?: string; website?: string };
 
-const asForm = (b: Record<string, unknown>): SignupForm => ({
+/** The sign-up form's fields from a request's body, cut to size (a password sign-up and single sign-on read them too). */
+export const asForm = (b: Record<string, unknown>): SignupForm => ({
   name: typeof b.name === 'string' ? b.name.slice(0, 400) : '',
   familyName: typeof b.familyName === 'string' ? b.familyName.slice(0, 400) : '',
   familyId: typeof b.familyId === 'string' ? b.familyId.slice(0, 80) : '',

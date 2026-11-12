@@ -11,6 +11,9 @@ export const INSTANCE_MODES = ['single', 'hosting'] as const;
 export type InstanceMode = (typeof INSTANCE_MODES)[number];
 export const DEFAULT_INSTANCE_MODE: InstanceMode = 'single';
 
+/** The ways a new account may be made at sign-up: those the server offers (single sign-on only with a provider on). */
+export type SignupMethod = 'passkey' | 'password' | 'oidc';
+
 /** What sign-up does with a sign-up whose email nobody verified (every passkey or password sign-up, this round). */
 export const UNVERIFIED = ['open', 'waitlist'] as const;
 export type Unverified = (typeof UNVERIFIED)[number];
@@ -73,8 +76,8 @@ export interface SignupState {
   waitlist: boolean;
   /** The request form is open as a way in when sign-up is not. */
   requests: boolean;
-  /** The sign-in methods a new account may use. Passkey only, until the password lane adds "password". */
-  methods: ('passkey')[];
+  /** The ways in a new account may be made with: the server's own, never one it does not offer. */
+  methods: SignupMethod[];
 }
 
 /** What anyone may know of the hosting side: the landing page reads this signed out. Never a family, never a count. */

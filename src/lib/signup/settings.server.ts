@@ -2,13 +2,14 @@
 // is open now (docs/hosting-many-families.md, "Hosting and sign-up"). A missing row is its default, so an install that never
 // opened the console's Hosting tab is `single` and takes no sign-ups: it behaves as it always has.
 import { authMethod } from '../auth/method.server.ts';
+import { enabledMethods } from '../auth/methods.server.ts';
 import { hashToken } from '../auth/tokens.server.ts';
 import { instanceSettings } from '../operator/settings.server.ts';
 import { signupTurnstileSite } from '../operator/turnstile.server.ts';
 import { onWorkers, q, store, type Query } from '../store/index.ts';
 import {
   DEMO_URL_MAX, HOSTING_DEFAULTS, INSTANCE_MODES, LANDING_TEXT_MAX, PER_ACCOUNT_MAX, PER_DAY_MAX, TOTAL_MAX, UNVERIFIED, isDemoUrl, missingForSignup, normCode,
-  type HostingSettings, type InstanceMode, type PublicHosting, type Readiness, type SignupState,
+  type HostingSettings, type InstanceMode, type PublicHosting, type Readiness, type SignupMethod, type SignupState,
 } from './shared.ts';
 
 const accounts = () => store.accounts();
@@ -73,19 +74,32 @@ export function saveHosting(next: HostingSettings, by: string, at = Date.now()):
 }
 
 /**
+ * The ways a new account may be made at sign-up: each way in the server offers that sign-up implements, single sign-on only
+ * while a provider is on. Empty under Cloudflare Access, which decides who exists itself.
+ */
+export async function signupMethods(): Promise<SignupMethod[]> {
+  if (authMethod() !== 'kindred') return [];
+  const on = await enabledMethods();
+  const providers = on.includes('oidc') ? (await (await import('../auth/oidc.server.ts')).signInProviders()).length : 0;
+  return (['passkey', 'password', 'oidc'] as const).filter((m) => on.includes(m) && (m !== 'oidc' || providers > 0));
+}
+
+/**
  * What a public service needs, item by item (the console's checklist). `mode` and `defaultCapBytes` may be given to judge
  * settings not saved yet (turning sign-up on in the same save that changes them).
  */
 export async function readiness(over: { mode?: InstanceMode; settings?: Awaited<ReturnType<typeof instanceSettings>> } = {}): Promise<Readiness> {
-  const [s, h, ops] = await Promise.all([
+  const [s, h, ops, methods] = await Promise.all([
     over.settings ?? instanceSettings(), hostingSettings(),
     accounts().all<{ id: string; n: number }>('SELECT u.id, (SELECT count(*) FROM credential c WHERE c.user = u.id) AS n FROM user u WHERE u.operator = 1'),
+    signupMethods(),
   ]);
   const set = (v: string) => !!v.trim();
   return {
     hosting: (over.mode ?? h.mode) === 'hosting',
-    // Sign-up makes an account with a passkey: Kindred's own sign-in, not Cloudflare Access (which decides who exists itself).
-    auth: authMethod() === 'kindred',
+    // Sign-up makes an account with a way in the server offers: Kindred's own sign-in (not Cloudflare Access, which decides
+    // who exists itself), with at least one such way usable now.
+    auth: methods.length > 0,
     turnstile: !!signupTurnstileSite(),
     impressum: set(s.impressum),
     privacy: set(s.privacy),
@@ -133,10 +147,10 @@ export async function signupCounts(now = Date.now()): Promise<{ day: number; tot
  * batch that makes the family holds the same limits again (signup.server.ts): this answer is for the page.
  */
 export async function signupState(code?: string, now = Date.now()): Promise<SignupState> {
-  const [s, h, ready, c] = await Promise.all([instanceSettings(), hostingSettings(), readiness(), codeRow(code)]);
+  const [s, h, ready, c, methods] = await Promise.all([instanceSettings(), hostingSettings(), readiness(), codeRow(code), signupMethods()]);
   const mode = s.familyCreation;
   const requests = mode === 'requests' || mode === 'signup';
-  const base = { requests, methods: ['passkey' as const] };
+  const base = { requests, methods };
   const withCode = codeUsable(c, now);
   if (code && !withCode && (mode === 'signup' || mode === 'requests')) return { ...base, open: false, reason: 'code', waitlist: false };
   if (mode !== 'signup' && !(withCode && mode === 'requests')) return { ...base, open: false, reason: 'closed', waitlist: false };

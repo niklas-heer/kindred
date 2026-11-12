@@ -52,6 +52,7 @@ const load = <T>(path: string) => vite.ssrLoadModule(path) as Promise<T>;
 
 const signup = await load<typeof import('./signup.server.ts')>('/src/lib/signup/signup.server.ts');
 const hosting = await load<typeof import('./settings.server.ts')>('/src/lib/signup/settings.server.ts');
+const signupPw = await load<typeof import('./password.server.ts')>('/src/lib/signup/password.server.ts');
 const fns = await load<typeof import('./signup.functions.ts')>('/src/lib/signup/signup.functions.ts');
 const opFns = await load<typeof import('../operator/operator.functions.ts')>('/src/lib/operator/operator.functions.ts');
 const opSettings = await load<typeof import('../operator/settings.server.ts')>('/src/lib/operator/settings.server.ts');
@@ -374,4 +375,66 @@ test('sign-up records the terms and the processing agreement, each once, in the 
   const rows = await acc.accounts().all<{ kind: string; family: string }>('SELECT kind, family FROM terms_acceptance WHERE user = ? ORDER BY id', id);
   assert.deepEqual(rows.map((r) => ({ ...r })), [{ kind: 'terms', family: tree }, { kind: 'dpa', family: tree }]);
   await sql("DELETE FROM instance_setting WHERE key = 'processing_agreement'");
+});
+
+// ---------- council round 7: sign-up with the ways in the server offers ----------
+
+const setMethods = (list: string[]) =>
+  sql("INSERT INTO instance_setting (key, value, updated_at) VALUES ('auth_methods', ?, 0) ON CONFLICT(key) DO UPDATE SET value = excluded.value", JSON.stringify(list));
+const fields = (extra: Record<string, unknown> = {}) => {
+  n++;
+  return { name: `Pia ${n}`, familyName: `The Pikes ${n}`, familyId: `pikes-${n}`, email: `pia${n}@example.org`, accept: true, age16: true, turnstile: 'good', ...extra };
+};
+const signupRequest = () => new Request('http://localhost/api/auth/signup-password');
+
+test('sign-up offers the ways in the server has on; with none usable the server is not ready for sign-up', async () => {
+  await open({ perDay: 500 });
+  try {
+    assert.deepEqual((await hosting.signupState()).methods, ['passkey'], 'an upgrade: passkeys only, as before');
+    await setMethods(['passkey', 'password']);
+    assert.deepEqual((await hosting.signupState()).methods, ['passkey', 'password']);
+    await setMethods(['password']);
+    assert.deepEqual((await hosting.signupState()).methods, ['password'], 'never a passkey the server does not offer');
+    // Single sign-on with no provider on is no way to sign up: nothing is usable, so sign-up is not ready.
+    await setMethods(['oidc']);
+    assert.deepEqual((await hosting.signupState()).methods, []);
+    assert.equal((await hosting.readiness()).auth, false);
+    assert.equal((await hosting.signupState()).reason, 'not_ready');
+  } finally {
+    await setMethods(['passkey']);
+  }
+});
+
+test('a password sign-up: one step makes the account with its username and password, the family and its steward', async () => {
+  await sql('DELETE FROM signup');
+  await open({ perDay: 500 });
+  await setMethods(['passkey', 'password']);
+  try {
+    const f = fields({ username: 'Pia.Pike', password: 'a kettle sings at seven' });
+    const { user: id, tree } = await signupPw.signupWithPassword(signupRequest(), f, '10.61.0.1');
+    assert.equal(tree, f.familyId);
+    const u = await one<{ username: string; email: string | null }>('SELECT username, email FROM user WHERE id = ?', id);
+    assert.deepEqual({ ...u }, { username: 'pia.pike', email: null });
+    assert.equal(await count('SELECT count(*) AS n FROM password WHERE user = ?', id), 1);
+    assert.equal(await count('SELECT count(*) AS n FROM credential WHERE user = ?', id), 0);
+    assert.deepEqual({ ...(await one<object>('SELECT role FROM membership WHERE user = ? AND tree = ?', id, tree)) }, { role: 'steward' });
+    assert.deepEqual({ ...(await one<object>('SELECT verified FROM signup WHERE user = ?', id)) }, { verified: 0 });
+    // A taken username: refused, and no family is left behind.
+    const again = fields({ username: 'pia.pike', password: 'a kettle sings at eight' });
+    await assert.rejects(signupPw.signupWithPassword(signupRequest(), again, '10.61.0.2'), /pw\.err\.username_taken/);
+    assert.ok(!(await store.treeIds()).includes(again.familyId));
+    // Turnstile, the form's rules and the password's rules hold as for a passkey.
+    await assert.rejects(signupPw.signupWithPassword(signupRequest(), fields({ username: 'pia.two', password: 'a kettle sings at nine', turnstile: 'bad' }), '10.61.0.3'), /Turnstile|turnstile/);
+    await assert.rejects(signupPw.signupWithPassword(signupRequest(), fields({ username: 'pia.two', password: 'password1234' }), '10.61.0.3'), /pw\.err\.common/);
+    // Passwords off: refused.
+    await setMethods(['passkey']);
+    await assert.rejects(signupPw.signupWithPassword(signupRequest(), fields({ username: 'pia.three', password: 'a kettle sings at ten' }), '10.61.0.4'), /pw\.err\.method_off/);
+    // Unverified sign-ups wait: a password sign-up is never verified, so it is refused (the page sends a request instead).
+    await setMethods(['passkey', 'password']);
+    await open({ perDay: 500, unverified: 'waitlist' });
+    await assert.rejects(signupPw.signupWithPassword(signupRequest(), fields({ username: 'pia.four', password: 'a kettle sings at noon' }), '10.61.0.5'), /does not take new families/);
+  } finally {
+    await setMethods(['passkey']);
+    await open();
+  }
 });

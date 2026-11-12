@@ -93,4 +93,7 @@ export default {
   "oidc.enabled": "Anbieten",
   "oidc.turn_off_warning": { one: "Beim Ausschalten enden die Sitzungen, die er begonnen hat; {count} Konto verliert diesen Weg hinein, bis er wieder an ist.", other: "Beim Ausschalten enden die Sitzungen, die er begonnen hat; {count} Konten verlieren diesen Weg hinein, bis er wieder an ist." },
   "oidc.save": "Anbieter speichern",
+  "oidc.err.signup_unverified": "Dein Anbieter hat deine E-Mail-Adresse nicht bestätigt, und dieser Server sieht sich solche Anmeldungen zuerst an. Schick stattdessen eine Anfrage, oder nimm einen Anbieter, der sie bestätigt.",
+  "oidc.err.signup_failed": "Die Familie konnte nicht angelegt werden: Vielleicht ist ihre Adresse schon vergeben, oder der Server nimmt gerade keine neuen Familien an. Prüfe das Formular und versuche es noch einmal.",
+  "oidc.err.signup_exists": "Diese Anmeldung gehört schon zu einem Kindred-Konto. Melde dich zuerst damit an und lege die Familie dann von dort aus an.",
 } satisfies Strings<typeof en, "de">;

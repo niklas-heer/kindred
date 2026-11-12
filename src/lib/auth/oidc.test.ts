@@ -104,7 +104,7 @@ o.setOidcFetch(async (url, init) => {
 
 // ---------- the browser ----------
 
-const TABLES = ['oidc_flow', 'session', 'oidc_identity', 'auth_provider', 'credential', 'password', 'membership', 'invite', 'join_request', 'instance_setting', 'operator_audit', 'user'];
+const TABLES = ['oidc_flow', 'session', 'oidc_identity', 'auth_provider', 'credential', 'password', 'membership', 'invite', 'join_request', 'instance_setting', 'operator_audit', 'signup', 'family_admin', 'terms_acceptance', 'user'];
 beforeEach(async () => {
   resetIdp();
   await store.accounts().batch(TABLES.map((t) => store.q(`DELETE FROM ${t}`)));
@@ -516,4 +516,56 @@ test('nothing on the guest host, in a demo, in a preview, or with single sign-on
   await store.accounts().run("UPDATE instance_setting SET value = ? WHERE key = 'auth_methods'", JSON.stringify(['passkey']));
   await assert.rejects(start(new Browser(), { purpose: 'signin' }), /oidc\.err\.off/);
   assert.deepEqual(await o.signInProviders(), []);
+});
+
+// ---------- council round 7: starting a family by signing in at a provider ----------
+
+test('sign-up with single sign-on: a verified email makes the sign-up verified (past the waiting list); unverified waits; an identity signs up once', async () => {
+  const [opSettings, hosting, turnstile] = await Promise.all([import('../operator/settings.server.ts'), import('../signup/settings.server.ts'), import('../operator/turnstile.server.ts')]);
+  process.env.KINDRED_TURNSTILE_SITE_KEY = 'site-key';
+  process.env.KINDRED_TURNSTILE_SECRET = 'secret';
+  turnstile.setTurnstileVerifier(async (token) => token === 'good');
+  try {
+    const op = await account('Orla Operator', { operator: true, passkey: true });
+    const s = await opSettings.instanceSettings();
+    await store.accounts().batch([
+      ...hosting.saveHosting({ ...(await hosting.hostingSettings()), mode: 'hosting', unverified: 'waitlist' }, op.id),
+      ...opSettings.saveSettings({ ...s, impressum: 'Orla, 1 Example Street', privacy: 'We keep what you write.', terms: 'Be kind.', defaultCapBytes: 500_000_000, familyCreation: 'signup' }, op.id),
+    ]);
+    await provider();
+    assert.deepEqual((await hosting.signupState()).methods, ['passkey', 'oidc']);
+    const form = (familyId: string, email: string) => ({ purpose: 'signup', name: 'Wren Example', familyName: `The ${familyId}`, familyId, email, accept: true, age16: true, turnstile: 'good' });
+
+    // Turnstile is checked before the browser leaves for the provider.
+    await assert.rejects(start(new Browser(), { ...form('wrens', 'wren@example.org'), turnstile: 'bad' }), /turnstile|Turnstile/i);
+    const b = new Browser();
+    const p = await start(b, form('wrens', 'wren@example.org'));
+    const r = await callback(b, p.get('state'), authorize(p, { sub: 'wren', email: 'Wren@Example.org', email_verified: true }));
+    assert.equal(r.location, '/wrens');
+    const wren = (await identityOf('wren'))!.user;
+    assert.equal((await store.userById(wren))?.email, 'wren@example.org', 'the provider verified it: it becomes the account’s');
+    assert.equal((await store.accounts().get<{ verified: number }>('SELECT verified FROM signup WHERE user = ?', wren))?.verified, 1);
+    assert.equal((await store.accounts().get<{ role: string }>("SELECT role FROM membership WHERE user = ? AND tree = 'wrens'", wren))?.role, 'steward');
+    assert.deepEqual((await sessionsOf(wren)).map((x) => x.method), ['oidc']);
+
+    // The provider does not vouch for the email: on the waiting list, no account is made.
+    const b2 = new Browser();
+    const p2 = await start(b2, form('finches', 'finch@example.org'));
+    assert.equal((await callback(b2, p2.get('state'), authorize(p2, { sub: 'finch', email: 'finch@example.org', email_verified: false }))).location, '/signup?oidc_error=signup_unverified');
+    assert.equal(await identityOf('finch'), undefined);
+
+    // The same identity again: it has an account already.
+    const b3 = new Browser();
+    const p3 = await start(b3, form('robins', 'robin@example.org'));
+    assert.equal((await callback(b3, p3.get('state'), authorize(p3, { sub: 'wren', email: 'wren@example.org', email_verified: true }))).location, '/signup?oidc_error=account_exists');
+
+    // Someone signed in starts a family with their own account, never a second one made here.
+    const signedIn = new Browser();
+    await signedIn.signInAs(op.id);
+    await assert.rejects(start(signedIn, form('larks', 'lark@example.org')), /signed in/);
+  } finally {
+    turnstile.setTurnstileVerifier(undefined);
+    delete process.env.KINDRED_TURNSTILE_SITE_KEY;
+    delete process.env.KINDRED_TURNSTILE_SECRET;
+  }
 });

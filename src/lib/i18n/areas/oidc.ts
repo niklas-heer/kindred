@@ -92,4 +92,7 @@ export const en = {
   "oidc.enabled": "Offer it",
   "oidc.turn_off_warning": { one: "Turning it off ends the sessions it started; {count} account loses this way in until it is on again.", other: "Turning it off ends the sessions it started; {count} accounts lose this way in until it is on again." },
   "oidc.save": "Save the provider",
+  "oidc.err.signup_unverified": "Your provider did not confirm your email address, and this server looks at such sign-ups first. Send a request instead, or use a provider that confirms it.",
+  "oidc.err.signup_failed": "The family could not be started: its address may be taken, or the server takes no more new families just now. Check the form and try again.",
+  "oidc.err.signup_exists": "That sign-in already belongs to a Kindred account. Sign in with it first, then start the family from there.",
 } as const;

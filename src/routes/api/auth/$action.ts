@@ -14,7 +14,7 @@ const ACTIONS = new Set([
   // Username and password (src/lib/auth/password.server.ts): each refuses unless the operator turned passwords on.
   'password-signin', 'password-second', 'password-setup', 'password-invite', 'password-recover', 'password-reset', 'proof-kinds', 'confirm-password',
   // Sign-up for a new family (src/lib/operator/signup.server.ts), while the operator allows it.
-  'signup-options', 'signup',
+  'signup-options', 'signup', 'signup-password',
   // Single sign-on (src/lib/auth/oidc.server.ts): starts a flow and answers with the provider's address to go to.
   'oidc-start',
 ]);
@@ -45,7 +45,7 @@ export const Route = createFileRoute('/api/auth/$action')({
           (action === 'setup-options' && (!allow(`setup:${ip}`, 5, 60_000) || !allow('setup:all', 20, 10 * 60_000))) ||
           ((action === 'invite-options' || action === 'password-invite') && !allow(`invite:${ip}`, 20, 10 * 60_000)) ||
           (action === 'password-setup' && (!allow(`setup:${ip}`, 5, 60_000) || !allow('setup:all', 20, 10 * 60_000))) ||
-          (action === 'signup-options' && !allow(`signup:${ip}`, 10, 10 * 60_000)) ||
+          ((action === 'signup-options' || action === 'signup-password') && !allow(`signup:${ip}`, 10, 10 * 60_000)) ||
           (action === 'oidc-start' && !allow(`oidc:${ip}`, 30, 10 * 60_000));
         if (limited) return json({ error: 'Too many attempts. Please wait a minute and try again.' }, 429);
 
@@ -109,6 +109,12 @@ export const Route = createFileRoute('/api/auth/$action')({
               const { user, tree, credential } = await (await import('~/lib/signup/passkey.server')).finishSignup(request, body, ip);
               return json({ ok: true, tree }, 200, await s.startSession(request, user, credential));
             }
+            // The same with a username and password, while the operator offers them: one step, as there is no device ceremony.
+            case 'signup-password': {
+              if (await s.sessionOf(request)) throw new AuthError('invalid', (await import('~/lib/i18n/dictionary')).translate('en', 'signup.err.signed_in'));
+              const { user, tree } = await (await import('~/lib/signup/password.server')).signupWithPassword(request, body, ip);
+              return json({ ok: true, tree }, 200, await s.startSession(request, user, null, true, 'password'));
+            }
             case 'signout':
               return json({ ok: true }, 200, await s.endAllSessions(request));
             case 'password-signin': {
@@ -140,7 +146,8 @@ export const Route = createFileRoute('/api/auth/$action')({
               // Adding a provider to the account and a fresh proof belong to the signed-in reader; the guard also makes a
               // "View as" preview's request read-only, which the start refuses.
               const user = body.purpose === 'link' || body.purpose === 'proof' ? await requireUser() : undefined;
-              const { url, cookie } = await (await import('~/lib/auth/oidc.server')).startOidc(request, body, user);
+              if (body.purpose === 'signup' && !allow(`signup:${ip}`, 10, 10 * 60_000)) return json({ error: 'Too many attempts. Please wait a minute and try again.' }, 429);
+              const { url, cookie } = await (await import('~/lib/auth/oidc.server')).startOidc(request, body, user, ip);
               return json({ url }, 200, cookie);
             }
           }

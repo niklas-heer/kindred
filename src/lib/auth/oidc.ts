@@ -30,7 +30,7 @@ export const PROVIDER_ID = /^[a-z0-9][a-z0-9-]{1,31}$/;
 export const callbackPath = (provider: string) => `/api/auth/oidc/${provider}/callback`;
 
 /** What a flow is for: signing in, taking an invitation, adding the provider to the signed-in account, or a fresh proof. */
-export type OidcPurpose = 'signin' | 'invite' | 'link' | 'proof';
+export type OidcPurpose = 'signin' | 'invite' | 'link' | 'proof' | 'signup';
 
 /** A provider as the sign-in pages see it. */
 export interface PublicProvider { id: string; label: string; kind: OidcKind }

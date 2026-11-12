@@ -60,6 +60,9 @@ export const acceptWithPasskey = (token: string, name: string, acceptTerms?: boo
 export const signUpWithPasskey = (form: Record<string, unknown>) =>
   create<{ ok: boolean; tree: string }>('signup-options', 'signup', form, form);
 
+/** The same with a username and password (while the server offers them): one step. Returns the family's id. */
+export const signUpWithPassword = (form: Record<string, unknown>) => post<{ ok: boolean; tree: string }>('signup-password', form);
+
 /** Confirms with one of the reader's passkeys, on this session, that it is them (see proof.server.ts). */
 async function provePasskey() {
   const { startAuthentication } = await import('@simplewebauthn/browser');
@@ -165,7 +168,7 @@ export const acceptWithPassword = (body: { token: string; name: string; username
  * to /api/auth/oidc/<provider>/callback, which goes on to `next` (a path on this site). `link` and `proof` need the reader
  * signed in; `invite` takes the invitation with a new account.
  */
-export async function startSingleSignOn(body: { provider: string; purpose: 'signin' | 'invite' | 'link' | 'proof'; next?: string; token?: string; name?: string; acceptTerms?: boolean }) {
+export async function startSingleSignOn(body: { provider: string; purpose: 'signin' | 'invite' | 'link' | 'proof' | 'signup'; next?: string; token?: string; name?: string; acceptTerms?: boolean; [field: string]: unknown }) {
   const { url } = await post<{ url: string }>('oidc-start', body);
   window.location.assign(url);
 }

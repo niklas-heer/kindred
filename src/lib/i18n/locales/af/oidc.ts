@@ -93,4 +93,7 @@ export default {
   "oidc.enabled": "Bied dit aan",
   "oidc.turn_off_warning": { one: "As jy dit afskakel, eindig die sessies wat dit begin het; {count} rekening verloor hierdie weg in totdat dit weer aan is.", other: "As jy dit afskakel, eindig die sessies wat dit begin het; {count} rekeninge verloor hierdie weg in totdat dit weer aan is." },
   "oidc.save": "Stoor die verskaffer",
+  "oidc.err.signup_unverified": "Jou verskaffer het nie jou e-posadres bevestig nie, en hierdie bediener kyk eers na sulke aansluitings. Stuur eerder ’n versoek, of gebruik ’n verskaffer wat dit bevestig.",
+  "oidc.err.signup_failed": "Die familie kon nie begin word nie: sy adres is dalk reeds geneem, of die bediener neem nou geen nuwe families nie. Kyk na die vorm en probeer weer.",
+  "oidc.err.signup_exists": "Daardie aanmelding behoort reeds aan ’n Kindred-rekening. Meld eers daarmee aan en begin dan die familie van daar af.",
 } satisfies Strings<typeof en, "af">;

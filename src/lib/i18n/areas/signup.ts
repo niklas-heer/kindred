@@ -118,8 +118,8 @@ export const en = {
   "signup.ready_required": "Needed for sign-up",
   "signup.ready_hosting": "The hosting mode",
   "signup.ready_hosting_how": "Choose “Hosting families” above.",
-  "signup.ready_auth": "Kindred’s own sign-in",
-  "signup.ready_auth_how": "Behind Cloudflare Access, Access decides who has an account: sign-up cannot make one.",
+  "signup.ready_auth": "A way to sign up",
+  "signup.ready_auth_how": "A new account needs a way in this server offers: passkeys, passwords, or single sign-on with a provider turned on. Behind Cloudflare Access, Access decides who has an account, so sign-up cannot make one.",
   "signup.ready_turnstile": "Cloudflare Turnstile",
   "signup.ready_turnstile_how": "Set KINDRED_TURNSTILE_SITE_KEY and KINDRED_TURNSTILE_SECRET, then restart or redeploy.",
   "signup.ready_impressum": "Impressum",
@@ -164,4 +164,6 @@ export const en = {
   "signup.audit_settings": "Changed the hosting settings",
   "signup.audit_code_create": "Made a sign-up code",
   "signup.audit_code_revoke": "Withdrew a sign-up code",
+  "signup.password_button": "Create your account and the family",
+  "signup.sso_skips_wait": "Or start it at once by signing in with a provider that confirms your email address:",
 } as const;

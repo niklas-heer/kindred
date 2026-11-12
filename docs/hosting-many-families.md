@@ -400,25 +400,30 @@ The console's **Hosting** tab says how the server is used, and lets people start
 ### Who may sign up
 
 **Who may make a family** on the Settings tab gains **Anyone may start a family**. Turning it on is refused, with what is
-missing, unless the server is ready (the first seven items of the checklist below): hosting mode, Kindred's own sign-in (behind
-Cloudflare Access, Access decides who has an account), [Turnstile](#cloudflare-turnstile), the Impressum, a privacy policy, terms
+missing, unless the server is ready (the first seven items of the checklist below): hosting mode, a way to sign up (Kindred's own
+sign-in with at least one way in on that a new account can use: passkeys, passwords, or single sign-on with a provider turned on;
+behind Cloudflare Access, Access decides who has an account), [Turnstile](#cloudflare-turnstile), the Impressum, a privacy policy, terms
 of use and a storage cap for new families. If one of them goes missing later, sign-up pauses ("finishing setting it up") instead
 of running without it.
 
 The sign-up form asks for the person's name, the family's name and address (filled in from the name), a contact email, **I
 accept this server's terms of use and its agreement to process our family's data for us** and **I am 16 or older** (Kindred's
-policy for whoever starts a family), and passes Turnstile; the server checks Turnstile once, before the passkey is made. Then the
-device makes a **passkey** and one step makes the account, the family and its first steward (a password, once that sign-in
-method is on, is the other way to make the account). They land on "add yourself", as after setup. Someone already signed in
-starts the family with their own account, with no new passkey.
+policy for whoever starts a family), and passes Turnstile; the server checks Turnstile once, before the account's way in is made.
+The new account gets one of the ways in the server offers, and only those: the device makes a **passkey**, or the person picks a
+**username and password** (when passwords are on), or signs in at a **single sign-on provider** (when one is on), and one step
+makes the account, the family and its first steward. A passkey or password lands on "add yourself", as after setup; single
+sign-on lands in the family. Someone already signed in starts the family with their own account, with no new way in.
 
 Kindred records the terms' acceptance (`terms_acceptance`, as for any family made), the processing agreement (a second row with
 `kind = 'dpa'` once the server's `terms_acceptance` has that column; until then the terms' row is the record, and the agreement's
 version is the terms' version), and the sign-up itself (`signup`: name, contact email, whether it was verified, the age answer,
 the code, a 4-character network hash, when). The contact email is **not verified** (Kindred sends no email) and so never becomes
-the account's own email: it is only how you reach them, listed under **Latest sign-ups** on the Hosting tab. **Sign-ups whose
-email nobody checked** (every passkey sign-up) can **start their family** (the default) or **go to the waiting list**: the form
-then becomes a [request](#waiting-list), no account is made, and you approve it as any other.
+the account's own email: it is only how you reach them, listed under **Latest sign-ups** on the Hosting tab. A single sign-on
+provider that says the address it signed the person in with is verified (`email_verified`) makes the sign-up **verified**: that
+address becomes the contact email and the account's own. **Sign-ups whose email nobody checked** (every passkey and password
+sign-up, and single sign-on without a verified address) can **start their family** (the default) or **go to the waiting list**:
+the form then becomes a [request](#waiting-list), no account is made, and you approve it as any other. A verified sign-up starts
+its family either way.
 
 ### Limits
 

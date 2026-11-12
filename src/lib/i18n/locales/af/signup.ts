@@ -113,8 +113,8 @@ export default {
   "signup.ready_required": "Nodig vir aanmelding",
   "signup.ready_hosting": "Die aanbiedmodus",
   "signup.ready_hosting_how": "Kies “Families aanbied” hierbo.",
-  "signup.ready_auth": "Kindred se eie aanteken",
-  "signup.ready_auth_how": "Agter Cloudflare Access besluit Access wie ’n rekening het: aanmelding kan nie een maak nie.",
+  "signup.ready_auth": "’n Manier om in te kom vir nuwe rekeninge",
+  "signup.ready_auth_how": "’n Nuwe rekening het ’n manier om in te kom nodig wat hierdie bediener aanbied: passkeys, wagwoorde, of enkelaanmelding met ’n verskaffer aangeskakel. Agter Cloudflare Access besluit Access wie ’n rekening het, so aansluiting kan nie een maak nie.",
   "signup.ready_turnstile": "Cloudflare Turnstile",
   "signup.ready_turnstile_how": "Stel KINDRED_TURNSTILE_SITE_KEY en KINDRED_TURNSTILE_SECRET, en herbegin of ontplooi weer.",
   "signup.ready_impressum": "Impressum",
@@ -159,4 +159,6 @@ export default {
   "signup.audit_settings": "Het die aanbiedinstellings verander",
   "signup.audit_code_create": "Het ’n aanmeldkode gemaak",
   "signup.audit_code_revoke": "Het ’n aanmeldkode teruggetrek",
+  "signup.password_button": "Skep jou rekening en die familie",
+  "signup.sso_skips_wait": "Of begin dit dadelik deur aan te meld by ’n verskaffer wat jou e-posadres bevestig:",
 } satisfies Strings<typeof en, "af">;

@@ -107,12 +107,15 @@ export async function precheck(form: CleanForm, g: SignupGuards, now = Date.now(
 }
 
 /**
- * Who signs up. `passkey`: a new account and the passkey its device just made (verified by passkeys.server.ts). An account
- * signed in already starts another family with its own account (`existing`), within its families per account.
- * A password account plugs in here as another kind once the password sign-in method is on (lane `auth`).
+ * Who signs up. `passkey`: a new account and the passkey its device just made (verified by passkeys.server.ts). `new`: a new
+ * account with another way in (a password, ./password.server.ts; a single sign-on identity, oidc.server.ts): `writes` adds
+ * it to the account, with its own guards, and `conflict` names the refusal when one of those guards stopped the batch (the
+ * username or the identity was taken meanwhile). An account signed in already starts another family with its own account
+ * (`existing`), within its families per account.
  */
 export type NewAccount =
   | { kind: 'passkey'; name: string; handle: string; locale: UserRow['locale']; credential: Omit<Parameters<typeof insertCredential>[0], 'user'> }
+  | { kind: 'new'; name: string; locale: UserRow['locale']; writes: (user: string) => Query[]; conflict: () => Promise<Error | undefined> }
   | { kind: 'existing'; user: UserRow };
 
 /**
@@ -129,12 +132,12 @@ export async function completeSignup(who: NewAccount, form: CleanForm, network: 
 
   let user: UserRow;
   const before: Query[] = [];
-  if (who.kind === 'passkey') {
+  if (who.kind === 'passkey' || who.kind === 'new') {
     // A verified email becomes the account's (if nobody has it); an unverified one never does.
     const email = verified && !(await userByEmail(form.email)) ? form.email : null;
-    const made = newUser(who.name, email, who.handle, who.locale);
+    const made = newUser(who.name, email, who.kind === 'passkey' ? who.handle : undefined, who.locale);
     user = made.user;
-    before.push(made.insert, insertCredential({ ...who.credential, user: user.id }));
+    before.push(made.insert, ...(who.kind === 'passkey' ? [insertCredential({ ...who.credential, user: user.id })] : who.writes(user.id)));
   } else {
     user = who.user;
   }
@@ -152,12 +155,14 @@ export async function completeSignup(who: NewAccount, form: CleanForm, network: 
   const after: Query[] = [
     q('UPDATE family_admin SET self_signed = 1 WHERE tree = ?', id),
     q('INSERT INTO signup (id, user, family, name, email, verified, age_confirmed, code, network, created) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)',
-      signupId, user.id, id, who.kind === 'passkey' ? who.name : user.name, form.email, verified ? 1 : 0, withCode?.id ?? null, network, now),
+      signupId, user.id, id, who.kind === 'existing' ? user.name : who.name, form.email, verified ? 1 : 0, withCode?.id ?? null, network, now),
     q('INSERT INTO signup_tally (id, network, created) VALUES (?, ?, ?)', signupId, network, now),
     q('DELETE FROM signup_tally WHERE created < ?', now - 2 * DAY),
     ...(withCode ? [q('UPDATE signup_code SET uses = uses + 1 WHERE id = ?', withCode.id)] : []),
   ];
   const refused = async (): Promise<Error> => {
+    const conflict = who.kind === 'new' ? await who.conflict() : undefined;
+    if (conflict) return conflict;
     const again = await signupState(form.code, Date.now());
     if (!again.open) return closedError(again.reason);
     const mine = await accounts().get<{ n: number }>('SELECT count(*) AS n FROM family_admin WHERE created_by = ?', user.id);

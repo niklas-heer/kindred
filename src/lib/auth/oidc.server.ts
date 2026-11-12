@@ -14,6 +14,9 @@
 // operator turned on `trust_email` for that provider and the token says `email_verified`. A provider is added to an account
 // only from a signed-in session with a fresh proof (`link`), or by taking an invitation with it (a new account). A fresh proof
 // by single sign-on asks the provider to sign the person in again (`max_age=0`, `prompt=login`) and checks `auth_time`.
+// Starting a family (`signup`, src/lib/signup/) checks the sign-up form, sign-up open and Turnstile before the browser leaves,
+// and makes the account with this identity, the family and its steward on the way back; a provider's verified email makes
+// the sign-up verified (so "unverified sign-ups go to the waiting list" lets it through) and becomes the contact email.
 // Nothing here works on the guest host, in a demo or in a preview. After the flow, the browser goes only to a path on this site.
 import { AuthError } from './errors.ts';
 import { authMethod } from './method.server.ts';
@@ -193,15 +196,19 @@ const pkceChallenge = async (verifier: string) => b64u(new Uint8Array(await cryp
 
 // ---------- starting a flow ----------
 
-export interface StartInput { provider?: unknown; purpose?: unknown; next?: unknown; token?: unknown; name?: unknown; acceptTerms?: unknown }
+export interface StartInput {
+  provider?: unknown; purpose?: unknown; next?: unknown; token?: unknown; name?: unknown; acceptTerms?: unknown;
+  /** Sign-up's form (src/lib/signup/): the family, the contact email, the terms, the age, a code, Turnstile and the hidden field. */
+  familyName?: unknown; familyId?: unknown; email?: unknown; theme?: unknown; accept?: unknown; age16?: unknown; code?: unknown; turnstile?: unknown; website?: unknown;
+}
 
-const PURPOSES: readonly OidcPurpose[] = ['signin', 'invite', 'link', 'proof'];
+const PURPOSES: readonly OidcPurpose[] = ['signin', 'invite', 'link', 'proof', 'signup'];
 
 /**
  * Starts a flow: returns the provider's authorization URL to send the browser to, and the flow cookie to set. `user` is the
- * signed-in reader, needed for `link` (with a fresh proof) and `proof`.
+ * signed-in reader, needed for `link` (with a fresh proof) and `proof`; `ip` the request's address (sign-up's limits).
  */
-export async function startOidc(request: Request, input: StartInput, user?: UserRow): Promise<{ url: string; cookie: string }> {
+export async function startOidc(request: Request, input: StartInput, user?: UserRow, ip = ''): Promise<{ url: string; cookie: string }> {
   await oidcAllowed(request);
   const purpose = PURPOSES.find((p) => p === input.purpose);
   if (!purpose) throw invalid('oidc.err.expired');
@@ -213,6 +220,8 @@ export async function startOidc(request: Request, input: StartInput, user?: User
     if (!invite) throw invalid('oidc.err.invite_gone');
     if (input.acceptTerms !== true && (await inviteNeedsTerms(invite))) throw termsRefused();
     data = JSON.stringify({ invite: invite.id, name: cleanName(input.name), acceptTerms: input.acceptTerms === true });
+  } else if (purpose === 'signup') {
+    data = JSON.stringify(await signupStart(request, input, ip));
   } else if (purpose === 'link' || purpose === 'proof') {
     if (!user) throw invalid('oidc.err.session');
     const s = await sessionOf(request);
@@ -297,7 +306,7 @@ export async function finishOidc(request: Request, providerId: string): Promise<
   } catch (e) {
     const code = e instanceof OidcFail ? e.code : e instanceof AuthError && e.message.startsWith('oidc.err.') ? e.message.slice('oidc.err.'.length) : 'failed';
     if (!(e instanceof OidcFail) || ['provider', 'token', 'failed'].includes(code)) console.error('[oidc]', providerId, e instanceof Error ? e.message : e);
-    const back = flow && (flow.purpose === 'link' || flow.purpose === 'proof') ? flow.next ?? '/' : '/signin';
+    const back = flow && (flow.purpose === 'link' || flow.purpose === 'proof') ? flow.next ?? '/' : flow?.purpose === 'signup' ? '/signup' : '/signin';
     return { location: withParam(back, 'oidc_error', code), cookies: [] };
   }
 }
@@ -342,6 +351,7 @@ async function callback(request: Request, providerId: string, seen: (f: FlowRow)
     case 'invite': return takeInvite(request, p, claims, identity, reauthenticated, flow);
     case 'link': return link(request, p, claims, identity, flow);
     case 'proof': return prove(request, identity, reauthenticated, flow);
+    case 'signup': return signUp(request, p, claims, identity, reauthenticated, flow);
   }
 }
 
@@ -396,6 +406,51 @@ async function takeInvite(request: Request, p: ProviderRow, c: IdTokenClaims, id
   } catch (e) {
     if (e instanceof OidcFail) throw e;
     if (e instanceof Error && e.message === inviteUsed().message) throw new OidcFail('invite_gone');
+    throw e;
+  }
+  return { location: `/${made.tree}`, cookies: [await sessionFor(request, made.user, p, proved)] };
+}
+
+// ---------- starting a family ----------
+
+interface SignupData { form: import('../signup/signup.server.ts').CleanForm; network: string }
+
+/** Before the browser leaves: nobody signed in, the form right, sign-up open, Turnstile and this network's count (signup.server.ts). */
+async function signupStart(request: Request, input: StartInput, ip: string): Promise<SignupData> {
+  const [{ cleanForm, closedError, precheck }, { asForm }, { translate }] = await Promise.all([
+    import('../signup/signup.server.ts'), import('../signup/passkey.server.ts'), import('../i18n/dictionary.ts'),
+  ]);
+  // Someone signed in starts a family with their own account (signup.functions.ts), never with a second one made here.
+  if (await sessionOf(request)) throw invalid(translate('en', 'signup.err.signed_in'));
+  const form = cleanForm(asForm(input as Record<string, unknown>), true);
+  cleanName(form.name);
+  const checked = await precheck(form, { ip, honeypot: typeof input.website === 'string' ? input.website : undefined, turnstile: typeof input.turnstile === 'string' ? input.turnstile : undefined });
+  if (!checked) throw closedError('closed');
+  return { form, network: checked.network };
+}
+
+/** A family started with this provider: a new account with this identity, the family and its steward, in one step. */
+async function signUp(request: Request, p: ProviderRow, c: IdTokenClaims, identity: IdentityRow | undefined, proved: boolean, flow: FlowRow): Promise<CallbackResult> {
+  if (identity) throw new OidcFail('account_exists');
+  const data = JSON.parse(flow.data ?? '{}') as Partial<SignupData>;
+  if (!data.form || !data.network) throw new OidcFail('expired');
+  const [{ completeSignup }, { signupState }] = await Promise.all([import('../signup/signup.server.ts'), import('../signup/settings.server.ts')]);
+  const facts = identityFacts(c);
+  // The provider vouches for this address: the sign-up is verified, and the address is the one the operator reaches them at.
+  const verified = facts.verified === 1 && !!facts.email;
+  const form = verified ? { ...data.form, email: facts.email!.toLowerCase() } : data.form;
+  if (!verified && (await signupState(form.code)).waitlist) throw new OidcFail('signup_unverified');
+  const taken = async () => (await accounts().get('SELECT 1 FROM oidc_identity WHERE provider = ? AND subject = ?', p.id, c.sub)) ? new OidcFail('account_exists') : undefined;
+  let made: { tree: string; user: string };
+  try {
+    made = await completeSignup({
+      kind: 'new', name: cleanName(data.form.name), locale: guestChoice(request),
+      writes: (user) => [guard('NOT EXISTS (SELECT 1 FROM oidc_identity WHERE provider = ? AND subject = ?)', p.id, c.sub), insertIdentity(p, c.sub, user, facts)],
+      conflict: taken,
+    }, form, data.network, { verified });
+  } catch (e) {
+    if (e instanceof OidcFail) throw e;
+    if (e instanceof AuthError) throw new OidcFail('signup_failed', e.message);
     throw e;
   }
   return { location: `/${made.tree}`, cookies: [await sessionFor(request, made.user, p, proved)] };

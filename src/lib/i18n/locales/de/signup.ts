@@ -113,8 +113,8 @@ export default {
   "signup.ready_required": "Für die Anmeldung nötig",
   "signup.ready_hosting": "Der Hosting-Modus",
   "signup.ready_hosting_how": "Wähle oben „Familien hosten“.",
-  "signup.ready_auth": "Kindreds eigene Anmeldung",
-  "signup.ready_auth_how": "Hinter Cloudflare Access entscheidet Access, wer ein Konto hat: Die Anmeldung kann keins anlegen.",
+  "signup.ready_auth": "Ein Anmeldeweg für neue Konten",
+  "signup.ready_auth_how": "Ein neues Konto braucht einen Anmeldeweg, den dieser Server anbietet: Passkeys, Passwörter oder Single Sign-on mit einem eingeschalteten Anbieter. Hinter Cloudflare Access entscheidet Access, wer ein Konto hat: Die Anmeldung kann keins anlegen.",
   "signup.ready_turnstile": "Cloudflare Turnstile",
   "signup.ready_turnstile_how": "Setze KINDRED_TURNSTILE_SITE_KEY und KINDRED_TURNSTILE_SECRET, dann neu starten oder neu ausrollen.",
   "signup.ready_impressum": "Impressum",
@@ -159,4 +159,6 @@ export default {
   "signup.audit_settings": "Hat die Hosting-Einstellungen geändert",
   "signup.audit_code_create": "Hat einen Anmeldecode erstellt",
   "signup.audit_code_revoke": "Hat einen Anmeldecode zurückgezogen",
+  "signup.password_button": "Konto und Familie anlegen",
+  "signup.sso_skips_wait": "Oder lege sie sofort an, indem du dich bei einem Anbieter anmeldest, der deine E-Mail-Adresse bestätigt:",
 } satisfies Strings<typeof en, "de">;
