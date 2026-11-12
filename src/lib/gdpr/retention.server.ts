@@ -12,7 +12,7 @@
 // operator reads the report in the console's Privacy tab and switches deletion on (logged). Family records are the family's
 // business (a family decides what its tree keeps) and are not touched here; the history keeps its own three years
 // (KINDRED_HISTORY_YEARS, src/lib/jobs/history.ts), and join requests and guest statistics their own (src/lib/jobs/join.ts).
-import { q, store } from '../store/index.ts';
+import { guard, isGuardError, q, store } from '../store/index.ts';
 import { addMonths } from '../operator/shared.ts';
 import { audit } from '../operator/settings.server.ts';
 import { removeAccount } from './account.server.ts';
@@ -26,7 +26,13 @@ export const RECORD_YEARS = 3;
 
 export type RetentionMode = 'report' | 'delete';
 export interface RetentionCounts { accounts: number; invites: number; familyRequests: number; dataRequests: number; termsRecords: number }
-export interface RetentionReport { at: number; mode: RetentionMode; counts: RetentionCounts; deleted: boolean }
+/** What became of each account the deletion run selected: deleted, kept (it was used or joined a family meanwhile), or failed. */
+export interface AccountOutcome { deleted: number; kept: number; failed: number }
+/**
+ * A day's run. `counts` is what the rules name (in a deletion run, `accounts` is how many were really deleted); `deleted` whether
+ * it deleted; `outcome` and `failedAccounts` (ids, to look at; they still exist) what became of each selected account.
+ */
+export interface RetentionReport { at: number; mode: RetentionMode; counts: RetentionCounts; deleted: boolean; outcome?: AccountOutcome; failedAccounts?: string[] }
 
 const MODE_KEY = 'retention_mode';
 const REPORT_KEY = 'retention_report';
@@ -53,6 +59,28 @@ function cutoffs(now: number) {
 const STALE_ACCOUNTS = `SELECT id, name, operator FROM user u WHERE operator = 0 AND coalesce(last_seen, created) < ?
   AND NOT EXISTS (SELECT 1 FROM membership m WHERE m.user = u.id)
   AND NOT EXISTS (SELECT 1 FROM join_request j WHERE j.user = u.id AND j.status = 'open')`;
+/** The same rule for one account (its id, then the cut-off), as a guard: the deletion's batch holds it again. */
+const STILL_STALE = `EXISTS (SELECT 1 FROM user u WHERE u.id = ? AND operator = 0 AND coalesce(last_seen, created) < ?
+  AND NOT EXISTS (SELECT 1 FROM membership m WHERE m.user = u.id)
+  AND NOT EXISTS (SELECT 1 FROM join_request j WHERE j.user = u.id AND j.status = 'open'))`;
+
+/**
+ * Deletes one account the rules selected, if it still qualifies: checked again just before (it may have signed in or joined a
+ * family since it was selected) and held as a guard in the deletion's batch.
+ */
+export async function retireAccount(u: { id: string; name: string; operator: number }, now: number): Promise<'deleted' | 'kept' | 'failed'> {
+  const cutoff = cutoffs(now).account;
+  if (!(await accounts().get(`SELECT 1 WHERE ${STILL_STALE}`, u.id, cutoff))) return 'kept';
+  try {
+    await removeAccount(u, { guards: [guard(STILL_STALE, u.id, cutoff)] });
+    return 'deleted';
+  } catch (e) {
+    // The guard: it came back between the check and the batch. (A stale account is no steward and no operator, so no other
+    // guard of the deletion's can refuse it.)
+    if (isGuardError(e)) return 'kept';
+    throw e;
+  }
+}
 const STALE_INVITES = 'FROM invite WHERE used_at IS NULL AND ((revoked_at IS NOT NULL AND revoked_at < ?) OR (revoked_at IS NULL AND expires < ?))';
 const OLD_DECLINED = "FROM family_request WHERE status = 'declined' AND decided_at < ?";
 const OLD_ANSWERED = "FROM data_request WHERE status = 'done' AND coalesce(updated_at, created) < ?";
@@ -79,13 +107,22 @@ export async function runRetention(now = Date.now(), { dryRun = false, log }: { 
   const mode = await retentionMode();
   const counts = await retentionCounts(now);
   const deleting = mode === 'delete' && !dryRun;
+  const outcome: AccountOutcome = { deleted: 0, kept: 0, failed: 0 };
+  const failedAccounts: string[] = [];
   if (deleting) {
     const c = cutoffs(now);
     // Accounts one at a time, as each touches its families; one failing leaves the rest to go.
     const stale = await accounts().all<{ id: string; name: string; operator: number }>(STALE_ACCOUNTS, c.account);
     for (const u of stale) {
-      try { await removeAccount(u); } catch (e) { log?.(`an account could not be deleted: ${e instanceof Error ? e.message : String(e)}`); }
+      try {
+        outcome[await retireAccount(u, now)] += 1;
+      } catch (e) {
+        outcome.failed += 1;
+        failedAccounts.push(u.id);
+        log?.(`account ${u.id} could not be deleted: ${e instanceof Error ? e.message : String(e)}`);
+      }
     }
+    counts.accounts = outcome.deleted;
     await accounts().batch([
       q(`DELETE ${STALE_INVITES}`, c.stale, c.stale),
       q(`DELETE ${OLD_DECLINED}`, c.stale),
@@ -93,7 +130,7 @@ export async function runRetention(now = Date.now(), { dryRun = false, log }: { 
       q(`DELETE ${ORPHAN_TERMS}`, c.record),
     ]);
   }
-  const report: RetentionReport = { at: now, mode, counts, deleted: deleting };
+  const report: RetentionReport = deleting ? { at: now, mode, counts, deleted: true, outcome, failedAccounts } : { at: now, mode, counts, deleted: false };
   if (!dryRun) {
     await accounts().run('INSERT INTO instance_setting (key, value, updated_at, updated_by) VALUES (?, ?, ?, NULL) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at',
       REPORT_KEY, JSON.stringify(report), now);

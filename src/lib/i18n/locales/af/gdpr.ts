@@ -97,6 +97,8 @@ export default {
   "gdpr.ret_family_requests": { one: "{count} afgewese familieversoek", other: "{count} afgewese familieversoeke" },
   "gdpr.ret_data_requests": { one: "{count} beantwoorde dataversoek", other: "{count} beantwoorde dataversoeke" },
   "gdpr.ret_terms": { one: "{count} aanvaardingsrekord", other: "{count} aanvaardingsrekords" },
+  "gdpr.ret_kept": { one: "{count} rekening is behou: dit is gebruik of het by ’n familie aangesluit nadat dit gekies is.", other: "{count} rekeninge is behou: hulle is gebruik of het by ’n familie aangesluit nadat hulle gekies is." },
+  "gdpr.ret_failed": { one: "{count} rekening kon nie geskrap word nie. Dit word môre weer probeer; die bediener se logboek sê hoekom.", other: "{count} rekeninge kon nie geskrap word nie. Dit word môre weer probeer; die bediener se logboek sê hoekom." },
   "gdpr.breach_title": "Oortredingsregister",
   "gdpr.breach_hint": "Teken elke persoonlike data-oortreding aan, aangemeld of nie (AVBR art. 33(5)). ’n Oortreding wat mense in gevaar kan stel, word binne 72 uur nadat jy daarvan bewus geword het by jou toesighoudende owerheid aangemeld. Kindred meld niks aan nie: jy doen dit, en teken dit hier aan.",
   "gdpr.breach_new": "Teken ’n oortreding aan",

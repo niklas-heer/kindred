@@ -104,6 +104,8 @@ function Retention({ data }: { data: PrivacyConsole }) {
         <div>
           <p>{t(last.deleted ? 'gdpr.last_deleted' : 'gdpr.last_report', { date: formatDate(last.at, t.locale) })}</p>
           <Counts c={last.counts} />
+          {last.outcome && last.outcome.kept > 0 && <p className="families-hint">{t('gdpr.ret_kept', { count: last.outcome.kept })}</p>}
+          {last.outcome && last.outcome.failed > 0 && <p className="families-error">{t('gdpr.ret_failed', { count: last.outcome.failed })}</p>}
         </div>
       ) : <p className="muted">{t('gdpr.no_report')}</p>}
       <div className="families-row">

@@ -97,6 +97,8 @@ export default {
   "gdpr.ret_family_requests": { one: "{count} abgelehnte Familienanfrage", other: "{count} abgelehnte Familienanfragen" },
   "gdpr.ret_data_requests": { one: "{count} beantwortete Datenanfrage", other: "{count} beantwortete Datenanfragen" },
   "gdpr.ret_terms": { one: "{count} Zustimmungsnachweis", other: "{count} Zustimmungsnachweise" },
+  "gdpr.ret_kept": { one: "{count} Konto wurde behalten: Es wurde nach der Auswahl benutzt oder ist einer Familie beigetreten.", other: "{count} Konten wurden behalten: Sie wurden nach der Auswahl benutzt oder sind einer Familie beigetreten." },
+  "gdpr.ret_failed": { one: "{count} Konto konnte nicht gelöscht werden. Morgen wird es erneut versucht; das Protokoll des Servers sagt, warum.", other: "{count} Konten konnten nicht gelöscht werden. Morgen wird es erneut versucht; das Protokoll des Servers sagt, warum." },
   "gdpr.breach_title": "Register der Datenpannen",
   "gdpr.breach_hint": "Erfasse jede Datenpanne, gemeldet oder nicht (DSGVO Art. 33(5)). Eine Panne, die Menschen gefährden kann, meldest du deiner Aufsichtsbehörde innerhalb von 72 Stunden, nachdem du davon erfahren hast. Kindred meldet nichts: Du meldest und hältst es hier fest.",
   "gdpr.breach_new": "Datenpanne erfassen",

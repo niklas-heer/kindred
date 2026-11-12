@@ -455,6 +455,36 @@ test('retention: reports first, deletes only once switched on, and only what the
   await retention.setRetentionMode(OP, 'report');
 });
 
+test('retention: an account that came back meanwhile is kept, and a deletion that fails is recorded as failed', async () => {
+  const back = user(33, 'Back Again', 0, T - 800 * DAY);
+  const stuck = user(34, 'Stuck Account', 0, T - 800 * DAY);
+  for (const u of [back, stuck]) await addUser(u);
+  await retention.setRetentionMode(OP, 'delete');
+  const accountsDb = a();
+  const batch = accountsDb.batch.bind(accountsDb);
+  const deleting = (qs: { sql: string; params: unknown[] }[], id: string) => qs.some((x) => x.sql === 'DELETE FROM user WHERE id = ?' && x.params[0] === id);
+  accountsDb.batch = (async (qs: { sql: string; params: unknown[] }[]) => {
+    // "Back Again" signs in just before its deletion's batch runs; "Stuck Account"'s batch fails.
+    if (deleting(qs, back.id)) await run('UPDATE user SET last_seen = ? WHERE id = ?', T, back.id);
+    if (deleting(qs, stuck.id)) throw new Error('the disk is full');
+    return batch(qs as never);
+  }) as typeof accountsDb.batch;
+  let r: Awaited<ReturnType<typeof retention.runRetention>>;
+  try {
+    r = await retention.runRetention(T);
+  } finally {
+    accountsDb.batch = batch;
+    await retention.setRetentionMode(OP, 'report');
+  }
+  assert.ok(await one('SELECT 1 FROM user WHERE id = ?', back.id), 'kept: it signed in before its deletion ran');
+  assert.ok(await one('SELECT 1 FROM user WHERE id = ?', stuck.id));
+  assert.deepEqual(r.outcome, { deleted: 0, kept: 1, failed: 1 });
+  assert.equal(r.counts.accounts, 0, 'none was deleted');
+  assert.deepEqual(r.failedAccounts, [stuck.id], 'the one to look at');
+  assert.deepEqual((await retention.lastReport())?.outcome, r.outcome);
+  await run('DELETE FROM user WHERE id = ?', stuck.id);
+});
+
 // ---------- breaches ----------
 
 test('a breach: the 72-hour clock, the reasons for a late notification, and the notice for the families it affects', async () => {

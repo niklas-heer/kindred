@@ -96,6 +96,8 @@ export const en = {
   "gdpr.ret_family_requests": { one: "{count} declined family request", other: "{count} declined family requests" },
   "gdpr.ret_data_requests": { one: "{count} answered data request", other: "{count} answered data requests" },
   "gdpr.ret_terms": { one: "{count} acceptance record", other: "{count} acceptance records" },
+  "gdpr.ret_kept": { one: "{count} account was kept: it was used or joined a family after it was selected.", other: "{count} accounts were kept: they were used or joined a family after they were selected." },
+  "gdpr.ret_failed": { one: "{count} account could not be deleted. It is tried again tomorrow; the server's log says why.", other: "{count} accounts could not be deleted. They are tried again tomorrow; the server's log says why." },
   "gdpr.breach_title": "Breach register",
   "gdpr.breach_hint": "Record every personal data breach, notified or not (GDPR Art. 33(5)). A breach that may put people at risk is reported to your supervisory authority within 72 hours of becoming aware of it. Kindred notifies nobody: you do, and record it here.",
   "gdpr.breach_new": "Record a breach",

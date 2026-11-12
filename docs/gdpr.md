@@ -109,6 +109,10 @@ A daily job (`retention`) counts what the server no longer needs. It **only repo
 | An answered data request | 3 years after the answer |
 | A record of terms accepted, by an account that is gone | 3 years after it was accepted |
 
+Each account is checked again just before it is deleted, and the deletion's batch holds the rule once more, so an account that
+signed in or joined a family after the day's list was made is kept. The report says how many were deleted, kept that way, or
+could not be deleted (tried again the next day; the server's log names the account and why).
+
 Kept by other jobs: the change history (3 years, `KINDRED_HISTORY_YEARS`), join requests (30 days unanswered) and guest
 statistics (90 days after the last visit), usage statistics (3 years). A family's own records stay until the family deletes them,
 or the operator deletes the family.

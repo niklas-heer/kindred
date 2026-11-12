@@ -170,9 +170,9 @@ export async function deleteAccount(user: { id: string; name: string; email: str
 
 /**
  * The deletion itself, without the typed confirmation: the families first, then the accounts database. The retention job
- * (retention.server.ts) uses it for accounts nobody has used for two years.
+ * (retention.server.ts) uses it for accounts nobody has used for two years, with a guard that they still qualify.
  */
-export async function removeAccount(user: { id: string; name: string; operator?: number }): Promise<DeletionReport> {
+export async function removeAccount(user: { id: string; name: string; operator?: number }, { guards = [] }: { guards?: Query[] } = {}): Promise<DeletionReport> {
   const accountTables = await tablesOf(accounts());
   const trees = await familiesOf(user.id, accountTables);
   const pseudonym = `former-${crypto.randomUUID()}`;
@@ -185,7 +185,8 @@ export async function removeAccount(user: { id: string; name: string; operator?:
     await once(tree, undefined, 'deleteAccount', () => ({ writes: statements, history: [], result: null }));
   }
   try {
-    await accounts().batch([...(await deletionGuards(user)), ...accountDeletion(accountTables, user.id)]);
+    // `guards`: the caller's own conditions, held in the same batch (the retention job's "still unused").
+    await accounts().batch([...(await deletionGuards(user)), ...guards, ...accountDeletion(accountTables, user.id)]);
   } catch (e) {
     if (isGuardError(e)) throw (await deletionBlocked(user)) ?? e;
     throw e;
