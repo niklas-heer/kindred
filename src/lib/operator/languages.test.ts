@@ -14,7 +14,7 @@ delete process.env.KINDRED_DEMO;
 
 const settings = await import('./settings.server.ts');
 const { store } = await import('../store/index.ts');
-const { COMPLETE_LOCALES } = await import('../i18n/languages.ts');
+const { COMPLETE_LOCALES, LOCALES } = await import('../i18n/languages.ts');
 
 const save = async (languages: Awaited<ReturnType<typeof settings.instanceSettings>>['languages']) => {
   const s = await settings.instanceSettings();
@@ -31,9 +31,15 @@ test('no setting offers every complete language; a choice offers those of it tha
   await save([]);
   assert.deepEqual((await settings.instanceSettings()).languages, ['en']);
   assert.deepEqual(await settings.offeredLanguages(), ['en']);
-  // A language still being translated stays off even when chosen.
-  await save(['de', 'ja']);
-  assert.deepEqual(await settings.offeredLanguages(), ['en', 'de']);
+  // Complete languages chosen are offered, in the registry's order.
+  await save(['ja', 'de']);
+  assert.deepEqual(await settings.offeredLanguages(), ['en', 'de', 'ja']);
+  // A language still being translated stays off even when chosen (while there is one: every language is complete in 2.4.0).
+  const unfinished = LOCALES.find((l) => !COMPLETE_LOCALES.includes(l));
+  if (unfinished) {
+    await save(['de', unfinished]);
+    assert.deepEqual(await settings.offeredLanguages(), ['en', 'de']);
+  }
   await save(null);
   assert.deepEqual(await settings.offeredLanguages(), COMPLETE_LOCALES);
 });
