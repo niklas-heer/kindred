@@ -60,7 +60,9 @@
   color: var(--muted);
 }
 .ruler-row b { font-family: var(--font-display); font-weight: 600; font-size: 1.0625rem; line-height: 1; }
-.ruler-row span { font-size: var(--fs-1, 0.75rem); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* The era is two words in most languages ("Années 1950", "lata 1980"): they go one above the other rather than off both
+   edges of the gutter. Balanced, so that a phone's narrower gutter sets Japanese "1980年代" as "1980" over "年代". */
+.ruler-row span { max-width: 100%; font-size: var(--fs-1, 0.75rem); line-height: 1.15; color: var(--muted); font-variant-numeric: tabular-nums; text-align: center; text-wrap: balance; word-break: normal; }
 /* The current generation: a 2px accent bar and the faintest tint, not a selection slab. */
 .ruler-row.active { color: var(--text); box-shadow: inset 2px 0 0 var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .ruler-row.active b { color: var(--accent); }

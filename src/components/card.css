@@ -183,6 +183,10 @@
 /* Paper and Night: a name outweighs its dates. Garamond at 600 a size up, the dates in Inter a size down. */
 [data-theme='modern'] .card.mid .card-name, [data-theme='night'] .card.mid .card-name { font-size: calc(var(--name-mid, 24px) + 1px); font-weight: 600; }
 [data-theme='modern'] .card.mid .card-years, [data-theme='night'] .card.mid .card-years { font-size: 20.5px; letter-spacing: 0; color: var(--muted); }
+/* At this size "né(e) en 1958" or "1958年生まれ" and the age are wider than the plate, and the age ran out over its edge
+   (where the next card or a marriage line is). The line may wrap but shows one row only: an age that does not fit beside
+   the year is left out, and the panel still has it. */
+.card.mid .card-years { flex-wrap: wrap; justify-content: center; max-width: 100%; height: 1.2em; line-height: 1.2; overflow: hidden; }
 
 /* Far: a shield in the house colour. */
 .card.far {
