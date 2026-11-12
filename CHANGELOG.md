@@ -7,7 +7,67 @@ moving to before you upgrade ([docs/self-host.md](docs/self-host.md), "Upgrading
 
 ## [Unreleased]
 
-Changes on `main` since 2.3.0. They are not in a release yet.
+Changes on `main` since 2.4.0. They are not in a release yet.
+
+## [2.4.0] - 2026-11-12
+
+Kindred in eleven languages, more ways to sign in, data protection for members and operators, and a server you can run for
+many families: hosting mode with sign-up, a policy for each feature, AI on the operator's key with budgets, statistics,
+health and updates. Twelve accounts migrations are new since 2.3.0; read the [release notes](docs/releases/v2.4.0.md)
+before upgrading.
+
+Database changes, all in `migrations/accounts` and all adding tables or columns:
+
+- `0038_operator_insight.sql`: daily statistics, the update check and "New in Kindred".
+- `0040_password.sql`, `0041_signin_step.sql`, `0048_signin_fixes.sql`: usernames and passwords, two-step codes, recovery
+  codes, the database-backed limit on guessing, reset links and sign-in counts.
+- `0042_policies.sql`: policies per feature, operator-funded AI and announcements.
+- `0043_signup.sql`: hosting mode, sign-up and sign-up codes.
+- `0044_gdpr.sql`, `0045_breach.sql`: data requests' deadlines and outcomes, restrictions and erasures, the processing
+  agreement, the breach register, statements of reasons.
+- `0046_oidc.sql`: single sign-on providers and identities.
+- `0047_updates_health.sql`: the Update button, job runs and each family's schema.
+- `0049_lasting_counts.sql`, `0050_round_seven_fixes.sql`: counts that outlive deletions, retiring accounts, verified
+  emails, AI overages.
+
+On Node they are applied when the server starts, after a copy of the accounts database; on Cloudflare `mise run deploy`
+applies them before the new Worker goes live. Rule adopted from this release on: a release's migrations are additive, so the
+previous release's code still runs against them.
+
+New settings: `KINDRED_AUTH_METHODS` (break-glass override of the ways in), `KINDRED_UPDATE_CHECK`, `KINDRED_UPDATE_REPO`,
+`KINDRED_UPDATE_VIA` (`github-actions` for Deploy-button copies). Changing `KINDRED_SECRET` now also invalidates every
+password and recovery code.
+
+### Added
+- **Eleven languages.** Spanish, French, Italian, Dutch, Polish, Brazilian Portuguese, Japanese and Simplified Chinese join
+  English, German and Afrikaans, each with its own words for relatives, plural rules, date order, heraldry and occupations,
+  translated and then reviewed by a second model. The operator chooses which languages a server offers; only complete ones are
+  offered. `mise run i18n:check` checks a translation; [docs/translating.md](docs/translating.md) says how to add a language.
+- **Ways in.** Username and password beside passkeys, with optional two-step codes (QR code), ten recovery codes and one-hour
+  reset links only an operator can make; single sign-on with any OpenID Connect provider (presets for Google, Microsoft Entra,
+  Authentik, Keycloak). The operator turns each on or off; an account can have several. Failed guesses are counted in the
+  database before each check, never lock a username for good, and an operator's password needs two-step codes.
+- **Hosting mode and sign-up.** A landing page; stewards may sign up for a new family (with a passkey, a password or single
+  sign-on) with Turnstile, terms, a processing agreement and an age confirmation; limits per day, network, account and in
+  total; sign-up codes; a readiness checklist.
+- **Policies.** For the Campaign, the assistant, painted portraits, address lookup and push: off for everyone, each family
+  decides, or only chosen families. AI may run on the operator's key with per-family and server-wide monthly budgets reserved
+  before every call. Announcements to stewards or everyone.
+- **Data protection.** Members download or delete their account; stewards answer data requests about relatives (a copy, a
+  restriction, erasure everywhere); calendar-month deadlines with extensions; the operator's Privacy tab with the record of
+  processing, the subprocessors, a breach register with its 72-hour clock and a retention job that reports before it deletes.
+  See [docs/gdpr.md](docs/gdpr.md).
+- **For the operator:** Statistics (counts only, small numbers hidden), a Health tab, a release check, a one-click Update
+  for Deploy-button copies (`.github/workflows/update.yml`), and statements of reasons when a family is suspended or closed.
+- **New in Kindred** at `/whats-new`: each release's highlights in every language, by role, with a card after an upgrade.
+
+### Changed
+- Sentences once built from fragments are whole sentences in every language; year-only dates follow the language.
+- Layout holds in all eleven languages (the phone's language grid, tree labels, Japanese line breaks, the console on phones).
+
+### Fixed
+- A policy save says "Saved."; an erasure shows what it erased; the suspended bar's reason is readable; presence works in a
+  new, empty family; the Campaign legend's toggle is easier to tap.
 
 ## [2.3.0] - 2026-11-12
 
@@ -418,7 +478,8 @@ on Node 26 with SQLite or on Cloudflare Workers with D1 and R2.
 Read the [release notes](docs/releases/v2.0.0.md) for the full list and for moving from v1 (also
 [docs/migration-plan.md](docs/migration-plan.md)). Cloudflare Access installs must set `KINDRED_AUTH=cloudflare-access` before deploying.
 
-[Unreleased]: https://github.com/niklas-heer/kindred/compare/v2.3.0...HEAD
+[Unreleased]: https://github.com/niklas-heer/kindred/compare/v2.4.0...HEAD
+[2.4.0]: https://github.com/niklas-heer/kindred/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/niklas-heer/kindred/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/niklas-heer/kindred/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/niklas-heer/kindred/compare/v2.0.0...v2.1.0

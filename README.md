@@ -35,7 +35,7 @@ week's birthdays and wedding anniversaries, and what is new since your last visi
   few hours.
 
 - **The question of the week.** One question for the whole family ("What did the kitchen of your childhood look like?"),
-  chosen from sixty written for the purpose, in English, German and Afrikaans. A relative answers in a few sentences, about
+  chosen from sixty written for the purpose, in every language Kindred speaks. A relative answers in a few sentences, about
   themselves or about anyone in the tree, and the answer is kept as a memory in the Chronicle.
 - **The daily quiz.** "Do you know your family?" asks one question a day made from the family's own records: whose shield
   this is, who this is, who someone's parents were, where someone was born, who came first. Everyone gets the same question, you
@@ -153,13 +153,18 @@ records, so they also work in the public demo and in a steward's preview. Both a
 
 ## Who sees what
 
-Everyone signs in with a **passkey**, so there are no passwords to forget. If you already manage people in Cloudflare, you can make Cloudflare Access the only sign-in instead: one method per installation, [your choice](docs/self-host.md#choosing-how-people-sign-in).
+People sign in with a **passkey** by default. The operator can also offer a **username and password** (with two-step codes and recovery codes) and **single sign-on** through any OpenID Connect provider (Google, Microsoft Entra, Authentik, Keycloak), in any combination; one account can have several ways in. Failed guesses are limited across the whole server. If you already manage people in Cloudflare, you can make Cloudflare Access the only sign-in instead ([choosing how people sign in](docs/self-host.md#choosing-how-people-sign-in)).
 A member is a viewer, contributor, editor or steward, and the server checks every change. A person's fields and notes have three levels: personal (only the
 account that added them), editors, or the whole family. A relative who doesn't want an account can have a read-only **share link**, protected by a password by default, that by default shows living people only by name, face and place in the tree. A guest can ask the stewards for an account of their own from it; to show the stewards how the link was used, a guest's visit is counted in a few totals, never with a page log or an address, and not at all under Do Not Track.
 
 Stewards get counts-only **statistics**, which never hold names or what anyone
-wrote and can be turned off, and a **feedback** inbox that stays inside the family's own Kindred. The app comes in English,
-German and Afrikaans, in the Codex, Paper and Night themes.
+wrote and can be turned off, and a **feedback** inbox that stays inside the family's own Kindred. Every member can download
+what their account holds or delete it, and stewards can answer a relative's data request (a copy, a restriction, or erasure
+everywhere in the family); [docs/gdpr.md](docs/gdpr.md) says what Kindred does for each right.
+
+Kindred speaks **eleven languages**: English, German, Afrikaans, Spanish, French, Italian, Dutch, Polish, Brazilian
+Portuguese, Japanese and Simplified Chinese, including the words for relatives ("your great-aunt") in each, and comes in the
+Codex, Paper and Night themes. [docs/translating.md](docs/translating.md) says how a language is added and checked.
 
 [docs/roles-and-privacy.md](docs/roles-and-privacy.md) has the details.
 
@@ -189,8 +194,8 @@ families from `mise run data` appear after you create the first account.
 
 ## Running it for your family
 
-Pick how people sign in with `KINDRED_AUTH`. `kindred` (the default) is Kindred's own accounts and passkeys, and needs nothing more than HTTPS.
-`cloudflare-access` hands sign-in to a Cloudflare Access policy you manage. It suits people who already run one.
+Kindred's own accounts (the default) need nothing more than HTTPS: passkeys, and whichever other ways in the operator turns on
+in the console. `KINDRED_AUTH=cloudflare-access` hands sign-in to a Cloudflare Access policy you manage instead.
 
 - **Docker**, on your own machine or server: `docker compose up -d --build` (or, from the next release, a published image), then open <http://localhost:4901/setup>. Each family is a SQLite file. See [docs/self-host.md](docs/self-host.md), which also covers HTTPS, backups and reminders.
 - **Node**, without a container: `mise run build:node && mise run start`, on Node 26.
@@ -207,8 +212,16 @@ not a family's, that sees how each family is run (its size, storage and stewards
 console at `/operator` makes a family for someone and hands them a steward invitation, keeps a waiting list from a public
 request form (with optional Cloudflare Turnstile), handles data requests from relatives who never signed up, sets storage
 caps, can make a family read-only or close it, keeps an audit log, and holds the Impressum, privacy policy and terms that
-the server shows. A setting decides who may make families: the operator, any steward, or anyone by request. See
-[docs/hosting-many-families.md](docs/hosting-many-families.md). `KINDRED_DEMO=1` runs a read-only demo of the invented
+the server shows. A setting decides who may make families: the operator, any steward, anyone by request, or anyone who signs
+up (with limits, sign-up codes and a readiness checklist). In **hosting mode** the server greets visitors with a landing page.
+
+The operator also decides, feature by feature, which families may use the Campaign, the assistant, painted portraits,
+address suggestions and push, and may offer AI on the operator's own key with per-family and server-wide monthly budgets.
+**Announcements** reach stewards or everyone. **Statistics** show how the server grows (counts only, never anyone's records),
+a **Health** tab shows the daily jobs and backups, and the console says when a new Kindred release is out; installs made with
+the Deploy button update with one click. The **Privacy** tab holds the record of processing, the subprocessors, the breach
+register and a retention job, and the server can offer a processing agreement ([template](docs/processing-agreement.md)).
+Members see what is new in each release under **New in Kindred**. See [docs/hosting-many-families.md](docs/hosting-many-families.md). `KINDRED_DEMO=1` runs a read-only demo of the invented
 families that anyone can open without signing in ([docs/self-host.md](docs/self-host.md#a-public-demo)).
 
 ## Your data is yours
@@ -225,7 +238,9 @@ Exports leave some things out, so back up the databases and pictures as well.
 - [Self-hosting](docs/self-host.md) and [deploying on Cloudflare](docs/deploy-cloudflare.md)
 - [The AI features](docs/ai.md): what they send, what they cost, and how keys are kept
 - [Roles and privacy](docs/roles-and-privacy.md)
-- [Hosting many families](docs/hosting-many-families.md): the operator, the waiting list, data requests, storage caps and legal pages
+- [Hosting many families](docs/hosting-many-families.md): the operator, sign-up, policies, statistics, updates, data requests and legal pages
+- [Data protection](docs/gdpr.md) and a [processing agreement template](docs/processing-agreement.md)
+- [Translating Kindred](docs/translating.md)
 - [The family feed](docs/feed.md): messages to the family, and the stream on Today
 - [Today](docs/today.md): the question of the week and the daily quiz
 - [Drawn portraits](docs/portraits.md): the character editor, what a portrait can say, and who may change one
@@ -236,7 +251,7 @@ Exports leave some things out, so back up the databases and pictures as well.
 - [Reactions and comments](docs/responses.md): answering messages, memories and photographs
 - [GEDCOM and the Markdown archive](docs/exchange.md)
 - [The data model](docs/data-model.md)
-- [Changelog](CHANGELOG.md), [release notes for 2.0.0](docs/releases/v2.0.0.md) and [for 2.3.0](docs/releases/v2.3.0.md) and [moving from v1](docs/migration-plan.md)
+- [Changelog](CHANGELOG.md), [release notes for 2.0.0](docs/releases/v2.0.0.md), [2.3.0](docs/releases/v2.3.0.md) and [2.4.0](docs/releases/v2.4.0.md) and [moving from v1](docs/migration-plan.md)
 - [The model evaluations](docs/evals/README.md) behind the AI recommendations
 
 Version 2 is a web app that replaces the earlier Rust CLI and its Markdown archive. It is a migration, not an upgrade.
@@ -252,8 +267,8 @@ mise run test    # the unit tests
 mise run e2e     # browser journeys, on scratch data
 ```
 
-[CONTRIBUTING.md](CONTRIBUTING.md) says how to send a change, and [AGENTS.md](AGENTS.md) holds the conventions. Schema changes are new numbered files in `migrations/`, and a file that has shipped is never edited. Text lives in
-`src/lib/i18n/areas/`, in all three languages; [src/lib/i18n/README.md](src/lib/i18n/README.md) says how to add a string.
+[CONTRIBUTING.md](CONTRIBUTING.md) says how to send a change, and [AGENTS.md](AGENTS.md) holds the conventions. Schema changes are new numbered files in `migrations/`, and a file that has shipped is never edited. English text lives in
+`src/lib/i18n/areas/`, and each other language in `src/lib/i18n/locales/<language>/`; [src/lib/i18n/README.md](src/lib/i18n/README.md) says how to add a string.
 
 ## Licence and credits
 

@@ -31,7 +31,7 @@ const h = (title: Key, text: Key, audience: Audience = 'everyone'): Highlight =>
 export const RELEASES: readonly Release[] = [
   // Filled in by the release: 3 to 8 highlights.
   {
-    version: '2.4.0', date: '2026-11-13',
+    version: '2.4.0', date: '2026-11-12',
     highlights: [
       h('ops.r240.languages_title', 'ops.r240.languages_text'),
       h('ops.r240.signin_title', 'ops.r240.signin_text'),
