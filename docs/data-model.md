@@ -14,8 +14,8 @@ Migrations are plain SQL files named `NNNN_name.sql`. They run in order: on Node
 `mise run cf:migrate` or `cf:migrate:remote`, and in a Durable Object by the object itself, when it is made and whenever it
 starts again after a deploy, before it answers anything (`src/lib/store/durable.ts`; the files are bundled into the Worker).
 All three use the same files and the same `d1_migrations` table. A file that
-has shipped is never edited: a change is a new file. A migration must run on SQLite and on D1, so it has no `PRAGMA`,
-no `BEGIN` and no `COMMIT`, and a new `NOT NULL` column has a default.
+has shipped is never edited: a change is a new file. A migration must run on SQLite, on D1 and in a Durable Object, so it
+has no `PRAGMA`, no `BEGIN` and no `COMMIT`, and a new `NOT NULL` column has a default.
 
 The schema is the sum of the files in the `migrations/` folders. On Node, `src/lib/store/node.ts` applies the pending ones
 when it opens a file and backs the file up first. A migration runs while the Worker that is still serving is on the old
