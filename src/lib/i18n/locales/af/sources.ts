@@ -12,7 +12,7 @@ export default {
   "sources.load_failed": "Die bronne kon nie gelaai word nie.",
   "sources.empty_title": "Nog geen bronne nie",
   "sources.empty_text": "Voeg die kerkregister, die brief of die webwerf by waaruit ’n feit kom, en haal dit dan op ’n persoon se Wysig-oortjie aan.",
-  "sources.empty_viewer": "Wanneer die familie se redakteurs aanteken waar ’n feit vandaan kom, verskyn die bronne hier.",
+  "sources.empty_viewer": "Wanneer die familie se redigeerders aanteken waar ’n feit vandaan kom, verskyn die bronne hier.",
   "sources.members_only_title": "Bronne is vir die familie",
   "sources.members_only": "’n Gedeelde skakel wys nie die familie se bronne nie. Vra vir ’n rekening om hulle te sien.",
   "sources.filter": "Soek ’n bron",

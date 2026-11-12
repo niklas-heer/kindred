@@ -82,7 +82,7 @@ export default {
   "ai.setupHint": "Stel KI op om dit te gebruik",
   "ai.settingsTitle": "KI-instellings",
   "ai.budgetOff": "Af",
-  "ai.settingsSubtitle": "Koppel die verskaffers wat jy gebruik, en kies dan wat elke werk gebruik. Net vir bestuurders.",
+  "ai.settingsSubtitle": "Koppel die verskaffers wat jy gebruik, en kies dan wat elke werk gebruik. Net vir rentmeesters.",
   "ai.stewardsOnly": "Net rentmeesters kan die KI-instellings verander.",
   "ai.model": "Model",
   "ai.apiKey": "API-sleutel",

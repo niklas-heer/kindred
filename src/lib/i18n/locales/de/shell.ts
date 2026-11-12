@@ -53,7 +53,7 @@ export default {
   "shell.contacts": "Kontakte",
   "shell.register": "Verzeichnis",
   "shell.houses": "Häuser",
-  "shell.information_needed": "Was noch fehlt",
+  "shell.information_needed": "Fehlende Angaben",
   "shell.needed": "Fehlende Angaben",
   "shell.chronicle": "Chronik",
   "shell.gallery": "Galerie",

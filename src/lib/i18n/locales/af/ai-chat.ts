@@ -41,7 +41,7 @@ export default {
   "chat.field.picture": "Prent",
   "chat.field.tagline": "Slagspreuk",
   "chat.vis.family": "die familie",
-  "chat.vis.editors": "redakteurs en bestuurders",
+  "chat.vis.editors": "redigeerders en rentmeesters",
   "chat.union.marriage": "huwelik",
   "chat.union.partnership": "vennootskap",
   "chat.union.betrothal": "verlowing",

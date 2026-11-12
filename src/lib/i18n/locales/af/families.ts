@@ -23,7 +23,7 @@ export default {
   "families.yours": "Jou families",
   "families.none": "Jy is nie hier lid van 'n familie nie.",
   "families.people": { "one": "{count} persoon", "other": "{count} mense" },
-  "families.not_steward": "Net die familie se bestuurders kan dit verander of skrap.",
+  "families.not_steward": "Net die familie se rentmeesters kan dit verander of skrap.",
   "families.name": "Naam",
   "families.tagline": "Leuse (opsioneel)",
   "families.theme": "Maak oop in",
@@ -57,7 +57,7 @@ export default {
   "families.deleting": "Skrap tans…",
   "families.cancel": "Kanselleer",
 
-  "families.err_not_steward": "Net 'n bestuurder van 'n familie op hierdie bediener kan nog 'n familie maak.",
+  "families.err_not_steward": "Net 'n rentmeester van 'n familie op hierdie bediener kan nog 'n familie maak.",
   "families.err_id_length": "'n Adres is {min} tot {max} karakters lank.",
   "families.err_id_chars": "'n Adres begin met 'n letter en gebruik net kleinletters, syfers en enkele koppeltekens.",
   "families.err_id_reserved": "Die adres “{id}” word deur Kindred self gebruik. Kies 'n ander.",

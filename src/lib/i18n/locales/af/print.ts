@@ -8,7 +8,7 @@ export default {
   "print.link": "Druk",
   "print.link_person": "Druk ’n kaart of ’n boek vir {name}",
   "print.members_only_title": "Druk is vir lede",
-  "print.members_only": "Kaarte en die familieboek is vir lede van die familie. Vra ’n bestuurder vir jou eie rekening.",
+  "print.members_only": "Kaarte en die familieboek is vir lede van die familie. Vra ’n rentmeester vir jou eie rekening.",
   "print.options": "Wat gedruk word",
   "print.product": "Drukstuk",
   "print.product.ancestors": "Voorouerkaart",

@@ -54,7 +54,7 @@ export default {
   "shell.contacts": "Kontakte",
   "shell.register": "Register",
   "shell.houses": "Huise",
-  "shell.information_needed": "Wat nog ontbreek",
+  "shell.information_needed": "Inligting nodig",
   "shell.needed": "Inligting nodig",
   "shell.chronicle": "Kroniek",
   "shell.gallery": "Galery",

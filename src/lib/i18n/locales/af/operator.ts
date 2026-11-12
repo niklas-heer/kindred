@@ -3,11 +3,11 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/operator.ts";
 
 export default {
-  "operator.menu": "Bedienerbestuur",
-  "operator.title": "Bedienerbestuur",
+  "operator.menu": "Operateurkonsole",
+  "operator.title": "Operateurkonsole",
   "operator.subtitle": "Bedryf hierdie bediener vir families. Jy sien hoe elke familie bestuur word, nooit wat dit bevat nie.",
-  "operator.loading": "Bedienerbestuur laai…",
-  "operator.err_load": "Bedienerbestuur kon nie laai nie.",
+  "operator.loading": "Operateurkonsole laai…",
+  "operator.err_load": "Operateurkonsole kon nie laai nie.",
   "operator.tab_families": "Families",
   "operator.tab_requests": "Waglys",
   "operator.tab_data": "Dataversoeke",

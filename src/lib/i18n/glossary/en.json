@@ -7,7 +7,8 @@
     },
     "tree": {
       "meaning": "The family tree: the drawn chart of people and their ties, and the page that shows it.",
-      "match": "\\b(family )?trees?\\b"
+      "match": "\\b(family )?trees?\\b",
+      "keys": "^(?!heraldry\\.(?:charge|library|means)\\.|canting\\.)"
     },
     "person": {
       "meaning": "Someone in the family's records, living or dead (not an account).",

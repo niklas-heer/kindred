@@ -61,7 +61,7 @@ export default {
   'paint.close': 'Maak toe',
 
   'paint.setTitle': 'Geskilderde portrette uit foto’s',
-  'paint.setIntro': 'Skilder ‘n persoon se foto as ‘n portret in ‘n grootstrategie-styl, met die gelykenis behou. Af totdat ‘n bestuurder dit aanskakel.',
+  'paint.setIntro': 'Skilder ’n persoon se foto as ’n portret in ’n grootstrategie-styl, met die gelykenis behou. Af totdat ’n rentmeester dit aanskakel.',
   'paint.setOn': 'Geskilderde portrette',
   'paint.setOnHint': 'Redigeerders kan ‘n portret uit ‘n foto skilder en dit nasien voordat dit behou word.',
   'paint.setKeyLabel': 'OpenRouter-sleutel',

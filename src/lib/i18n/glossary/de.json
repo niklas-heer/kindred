@@ -9,7 +9,8 @@
     "tree": {
       "use": "Stammbaum (die Seite, der Baum im Satz); Tab auf dem Handy: Baum",
       "accept": [
-        "baum"
+        "baum",
+        "bäum"
       ]
     },
     "person": {
@@ -70,7 +71,8 @@
       "use": "der Serverbetrieb",
       "accept": [
         "serverbetrieb",
-        "betreib"
+        "betreib",
+        "betrieb"
       ]
     },
     "house": {

@@ -93,7 +93,7 @@ export default {
   "exchange.import.list.issues": "Notas uit die lêer",
   "exchange.import.placed": "Plekke vir die atlas: {located} uit die plekregister ingeplaas, {unplaced} sonder ’n seker dorp.",
   "exchange.import.placesWillBe": "Plekke vir die atlas: {located} kan ingeplaas word, {unplaced} kan nie seker ingeplaas word nie.",
-  "exchange.import.noGazetteer": "Hierdie bediener het geen plekkelys nie. Hierdie plekke verskyn eers op die atlas as die bedienaar een byvoeg.",
+  "exchange.import.noGazetteer": "Hierdie bediener het geen plekkelys nie. Hierdie plekke verskyn eers op die atlas as die operateur een byvoeg.",
   "exchange.import.housesText": "Die mense sonder ’n huis kan volgens van in huise bymekaargemaak word, een vir elke van.",
   "exchange.import.list.unplaced": "Nie op die atlas nie (geen seker dorp)",
   "exchange.import.more": "…en {count} meer",
