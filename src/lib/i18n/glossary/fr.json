@@ -1,0 +1,298 @@
+{
+  "terms": {
+    "family": {
+      "use": "famille, familles",
+      "accept": [
+        "famill"
+      ]
+    },
+    "tree": {
+      "use": "arbre généalogique (la page et l'arbre dans une phrase); onglet sur mobile : Arbre",
+      "accept": [
+        "arbre"
+      ]
+    },
+    "person": {
+      "use": "personne, personnes",
+      "accept": [
+        "personne",
+        "gens"
+      ]
+    },
+    "relative": {
+      "use": "proches (les membres de la famille qui utilisent Kindred), parents au sens de « apparentés » seulement si le contexte est clair",
+      "accept": [
+        "proche",
+        "parent",
+        "famill",
+        "apparent"
+      ]
+    },
+    "member": {
+      "use": "membre, membres",
+      "accept": [
+        "membre"
+      ]
+    },
+    "guest": {
+      "use": "invité, invités (invitée si le sexe est connu)",
+      "accept": [
+        "invité"
+      ]
+    },
+    "viewer": {
+      "use": "Lecture (le rôle), lecteur",
+      "accept": [
+        "lect",
+        "lire",
+        "lis"
+      ]
+    },
+    "contributor": {
+      "use": "Contribution (le rôle), contributeur",
+      "accept": [
+        "contribu"
+      ]
+    },
+    "editor": {
+      "use": "Édition (le rôle), éditeur",
+      "accept": [
+        "édit",
+        "modif"
+      ]
+    },
+    "steward": {
+      "use": "gardien de la famille (gardien), jamais « administrateur »",
+      "accept": [
+        "gardien"
+      ]
+    },
+    "operator": {
+      "use": "exploitant (du serveur)",
+      "accept": [
+        "exploitant"
+      ]
+    },
+    "house": {
+      "use": "maison (la Maison Hofmann), jamais un bâtiment",
+      "accept": [
+        "maison"
+      ]
+    },
+    "head of the house": {
+      "use": "chef de la maison",
+      "accept": [
+        "chef"
+      ]
+    },
+    "arms": {
+      "use": "armoiries",
+      "accept": [
+        "armoiries",
+        "armes",
+        "blason"
+      ]
+    },
+    "blazon": {
+      "use": "blasonnement (la description écrite des armoiries)",
+      "accept": [
+        "blason"
+      ]
+    },
+    "tincture": {
+      "use": "émail, émaux (couleurs, métaux et fourrures)",
+      "accept": [
+        "émail",
+        "émaux",
+        "couleur",
+        "teinte"
+      ]
+    },
+    "charge": {
+      "use": "meuble (le meuble d'un écu)",
+      "accept": [
+        "meuble",
+        "pièce",
+        "figure"
+      ]
+    },
+    "source": {
+      "use": "source, sources",
+      "accept": [
+        "source"
+      ]
+    },
+    "memory": {
+      "use": "souvenir, souvenirs",
+      "accept": [
+        "souvenir"
+      ]
+    },
+    "story": {
+      "use": "histoire, histoires",
+      "accept": [
+        "histoire",
+        "récit"
+      ]
+    },
+    "Today": {
+      "use": "Aujourd'hui",
+      "accept": [
+        "aujourd"
+      ]
+    },
+    "question of the week": {
+      "use": "question de la semaine",
+      "accept": [
+        "question"
+      ]
+    },
+    "quiz": {
+      "use": "quiz",
+      "accept": [
+        "quiz"
+      ]
+    },
+    "the Campaign": {
+      "use": "la Campagne (nom propre)",
+      "accept": [
+        "campagne"
+      ]
+    },
+    "Chronicle": {
+      "use": "Chronique",
+      "accept": [
+        "chronique"
+      ]
+    },
+    "Almanac": {
+      "use": "Almanach",
+      "accept": [
+        "almanach"
+      ]
+    },
+    "Atlas": {
+      "use": "Atlas",
+      "accept": [
+        "atlas"
+      ]
+    },
+    "Register": {
+      "use": "Registre",
+      "accept": [
+        "registre"
+      ]
+    },
+    "Gallery": {
+      "use": "Galerie",
+      "accept": [
+        "galerie"
+      ]
+    },
+    "Information needed": {
+      "use": "Infos manquantes",
+      "accept": [
+        "manquant",
+        "info"
+      ]
+    },
+    "Who is this?": {
+      "use": "Qui est-ce ?",
+      "accept": [
+        "qui est"
+      ]
+    },
+    "assistant": {
+      "use": "assistant",
+      "accept": [
+        "assistant"
+      ]
+    },
+    "proposal": {
+      "use": "proposition, propositions",
+      "accept": [
+        "proposition",
+        "propos"
+      ]
+    },
+    "share link": {
+      "use": "lien de partage",
+      "accept": [
+        "lien de partage",
+        "partage"
+      ]
+    },
+    "passkey": {
+      "use": "clé d'accès",
+      "accept": [
+        "clé d",
+        "clés d"
+      ]
+    },
+    "invitation": {
+      "use": "invitation, invitations",
+      "accept": [
+        "invit"
+      ]
+    },
+    "history": {
+      "use": "historique",
+      "accept": [
+        "historique"
+      ]
+    },
+    "Cookbook": {
+      "use": "Livre de recettes",
+      "accept": [
+        "recette"
+      ]
+    }
+  },
+  "sameAsEnglish": [],
+  "ownWords": [
+    "a",
+    "action",
+    "an",
+    "art",
+    "base",
+    "ce",
+    "comme",
+    "en",
+    "est",
+    "image",
+    "la",
+    "le",
+    "les",
+    "ma",
+    "me",
+    "message",
+    "mode",
+    "moment",
+    "nom",
+    "note",
+    "on",
+    "ou",
+    "page",
+    "pain",
+    "par",
+    "pas",
+    "photo",
+    "plus",
+    "portrait",
+    "position",
+    "pour",
+    "quand",
+    "question",
+    "service",
+    "session",
+    "si",
+    "son",
+    "sur",
+    "table",
+    "ton",
+    "un",
+    "une",
+    "version",
+    "à"
+  ]
+}

@@ -1,0 +1,282 @@
+{
+  "terms": {
+    "family": {
+      "use": "famiglia, famiglie",
+      "accept": [
+        "famigli"
+      ]
+    },
+    "tree": {
+      "use": "albero genealogico (la pagina e l'albero in una frase); scheda sul telefono: Albero",
+      "accept": [
+        "albero",
+        "alberi"
+      ]
+    },
+    "person": {
+      "use": "persona, persone",
+      "accept": [
+        "person",
+        "gente"
+      ]
+    },
+    "relative": {
+      "use": "parente, parenti",
+      "accept": [
+        "parent",
+        "famigli"
+      ]
+    },
+    "member": {
+      "use": "membro, membri",
+      "accept": [
+        "membr"
+      ]
+    },
+    "guest": {
+      "use": "ospite, ospiti",
+      "accept": [
+        "ospit"
+      ]
+    },
+    "viewer": {
+      "use": "Lettura (il ruolo), lettore",
+      "accept": [
+        "lett",
+        "leggere",
+        "leggi"
+      ]
+    },
+    "contributor": {
+      "use": "Collaborazione (il ruolo), collaboratore",
+      "accept": [
+        "collabor",
+        "contribu"
+      ]
+    },
+    "editor": {
+      "use": "Modifica (il ruolo), chi può modificare",
+      "accept": [
+        "modific",
+        "editor"
+      ]
+    },
+    "steward": {
+      "use": "custode (della famiglia), mai « amministratore »",
+      "accept": [
+        "custod"
+      ]
+    },
+    "operator": {
+      "use": "gestore (del server)",
+      "accept": [
+        "gestor"
+      ]
+    },
+    "house": {
+      "use": "casata (la Casata Hofmann), mai un edificio",
+      "accept": [
+        "casat"
+      ]
+    },
+    "head of the house": {
+      "use": "capo della casata",
+      "accept": [
+        "capo"
+      ]
+    },
+    "arms": {
+      "use": "stemma, stemmi",
+      "accept": [
+        "stemm"
+      ]
+    },
+    "blazon": {
+      "use": "blasone (la descrizione scritta dello stemma)",
+      "accept": [
+        "blason"
+      ]
+    },
+    "tincture": {
+      "use": "smalto, smalti (colori, metalli e pellicce)",
+      "accept": [
+        "smalt",
+        "color",
+        "metall"
+      ]
+    },
+    "charge": {
+      "use": "figura (la figura di uno scudo)",
+      "accept": [
+        "figur",
+        "pezz"
+      ]
+    },
+    "source": {
+      "use": "fonte, fonti",
+      "accept": [
+        "font"
+      ]
+    },
+    "memory": {
+      "use": "ricordo, ricordi",
+      "accept": [
+        "ricord"
+      ]
+    },
+    "story": {
+      "use": "storia, storie",
+      "accept": [
+        "stori"
+      ]
+    },
+    "Today": {
+      "use": "Oggi",
+      "accept": [
+        "oggi"
+      ]
+    },
+    "question of the week": {
+      "use": "domanda della settimana",
+      "accept": [
+        "domanda"
+      ]
+    },
+    "quiz": {
+      "use": "quiz",
+      "accept": [
+        "quiz"
+      ]
+    },
+    "the Campaign": {
+      "use": "la Campagna (nome proprio)",
+      "accept": [
+        "campagna"
+      ]
+    },
+    "Chronicle": {
+      "use": "Cronaca",
+      "accept": [
+        "cronaca",
+        "cronache"
+      ]
+    },
+    "Almanac": {
+      "use": "Almanacco",
+      "accept": [
+        "almanacc"
+      ]
+    },
+    "Atlas": {
+      "use": "Atlante",
+      "accept": [
+        "atlante"
+      ]
+    },
+    "Register": {
+      "use": "Registro",
+      "accept": [
+        "registr"
+      ]
+    },
+    "Gallery": {
+      "use": "Galleria",
+      "accept": [
+        "galleri"
+      ]
+    },
+    "Information needed": {
+      "use": "Dati mancanti",
+      "accept": [
+        "mancant",
+        "manca",
+        "dati"
+      ]
+    },
+    "Who is this?": {
+      "use": "Chi è?",
+      "accept": [
+        "chi è"
+      ]
+    },
+    "assistant": {
+      "use": "assistente",
+      "accept": [
+        "assistent"
+      ]
+    },
+    "proposal": {
+      "use": "proposta, proposte",
+      "accept": [
+        "propost"
+      ]
+    },
+    "share link": {
+      "use": "link di condivisione",
+      "accept": [
+        "condivision"
+      ]
+    },
+    "passkey": {
+      "use": "passkey",
+      "accept": [
+        "passkey"
+      ]
+    },
+    "invitation": {
+      "use": "invito, inviti",
+      "accept": [
+        "invit"
+      ]
+    },
+    "history": {
+      "use": "cronologia",
+      "accept": [
+        "cronologia"
+      ]
+    },
+    "Cookbook": {
+      "use": "Ricettario",
+      "accept": [
+        "ricett"
+      ]
+    }
+  },
+  "sameAsEnglish": [],
+  "ownWords": [
+    "a",
+    "base",
+    "casa",
+    "che",
+    "ci",
+    "come",
+    "con",
+    "da",
+    "dei",
+    "del",
+    "di",
+    "e",
+    "era",
+    "fa",
+    "in",
+    "la",
+    "le",
+    "lo",
+    "ma",
+    "me",
+    "mi",
+    "no",
+    "non",
+    "note",
+    "oro",
+    "per",
+    "se",
+    "sera",
+    "si",
+    "su",
+    "ti",
+    "tra",
+    "un",
+    "una"
+  ]
+}
