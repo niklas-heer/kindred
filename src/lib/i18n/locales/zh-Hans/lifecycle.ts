@@ -18,6 +18,7 @@ export default {
   "lifecycle.copy_link": "下载副本",
   "lifecycle.backup": "备份",
   "lifecycle.families_readonly": "由于长时间无人访问，目前为只读。负责人可以在家族内重新启用。",
+  "lifecycle.email_action": "打开家族",
   "lifecycle.readonly_text": "由于{count}个月没人来过，这个家族自{date}起是只读的。负责人可以重新启用它。",
   "lifecycle.due_text": "它即将被删除：服务器运营者可以从{date}起删除它。",
   "lifecycle.due_auto_text": "它将于{date}被删除。",

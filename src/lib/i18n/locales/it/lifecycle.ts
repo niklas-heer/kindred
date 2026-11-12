@@ -18,6 +18,7 @@ export default {
   "lifecycle.copy_link": "Scarica una copia",
   "lifecycle.backup": "Backup",
   "lifecycle.families_readonly": "Sola lettura perché nessuno la visita da tempo. Un custode può riattivarla dall’interno della famiglia.",
+  "lifecycle.email_action": "Apri la famiglia",
   "lifecycle.readonly_text": { one: "Questa famiglia è di sola lettura dal {date} perché nessuno è passato da {count} mese. Un custode può riattivarla.", other: "Questa famiglia è di sola lettura dal {date} perché nessuno è passato da {count} mesi. Un custode può riattivarla." },
   "lifecycle.due_text": "È da eliminare: il gestore del server può eliminarla dal {date}.",
   "lifecycle.due_auto_text": "Sarà eliminata il {date}.",

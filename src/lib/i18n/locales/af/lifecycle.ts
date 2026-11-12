@@ -18,6 +18,7 @@ export default {
   "lifecycle.copy_link": "Laai ’n kopie af",
   "lifecycle.backup": "Rugsteun",
   "lifecycle.families_readonly": "Net leesbaar omdat lank niemand kom kuier het nie. ’n Rentmeester kan dit binne die familie weer aanskakel.",
+  "lifecycle.email_action": "Maak die familie oop",
   "lifecycle.readonly_text": { one: "Hierdie familie is sedert {date} net-lees omdat niemand al {count} maand kom kuier het nie. ’n Rentmeester kan dit weer aanskakel.", other: "Hierdie familie is sedert {date} net-lees omdat niemand al {count} maande kom kuier het nie. ’n Rentmeester kan dit weer aanskakel." },
   "lifecycle.due_text": "Dit staan om uitgevee te word: die bediener se operateur kan dit vanaf {date} uitvee.",
   "lifecycle.due_auto_text": "Dit word op {date} uitgevee.",

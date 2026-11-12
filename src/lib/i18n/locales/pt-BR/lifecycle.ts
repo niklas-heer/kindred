@@ -18,6 +18,7 @@ export default {
   "lifecycle.copy_link": "Baixar uma cópia",
   "lifecycle.backup": "Backup",
   "lifecycle.families_readonly": "Somente leitura porque ninguém a visita há muito tempo. Um responsável pode reativá-la dentro da família.",
+  "lifecycle.email_action": "Abrir a família",
   "lifecycle.readonly_text": { one: "Esta família é somente leitura desde {date} porque ninguém visitou por {count} mês. Um responsável pode reativá-la.", other: "Esta família é somente leitura desde {date} porque ninguém visitou por {count} meses. Um responsável pode reativá-la." },
   "lifecycle.due_text": "Ela está para ser excluída: o operador do servidor pode excluí-la a partir de {date}.",
   "lifecycle.due_auto_text": "Ela será excluída em {date}.",

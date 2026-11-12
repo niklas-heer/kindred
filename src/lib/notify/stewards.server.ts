@@ -2,7 +2,7 @@
 // abandoned families (src/lib/lifecycle/). One call, `notifyStewards(tree, kind, vars)`, reaches them every way the server has:
 //   in the app   a notice row the family's bar reads (src/components/lifecycle/LifecycleNotice.tsx)
 //   by push      every device of the family's stewards that has push on, in that device's language
-//   by email     not yet (see EMAIL below)
+//   by email     each steward with a verified address, when the server sends email (src/lib/email/)
 // Never throws past the in-app notice, and logs nothing that names anyone. `vars` are dates and numbers, never record content.
 import { formatDate, translate, type Key } from '../i18n/dictionary.ts';
 import type { Locale } from '../i18n/types.ts';
@@ -49,8 +49,15 @@ export interface NotifyOptions {
 export async function notifyStewards(tree: string, kind: StewardNoticeKind, vars: NoticeVars, opts: NotifyOptions): Promise<number> {
   const now = opts.now ?? Date.now();
   await accounts().batch([q('INSERT INTO steward_notice (tree, kind, vars, at) VALUES (?, ?, ?, ?)', tree, kind, JSON.stringify(vars), now)]);
-  // EMAIL: once the server can send email (the `email` lane), each steward with a verified address gets this notice too,
-  // in their language, with the same title and body (noticeText) and a link to the family.
+  // By email too, where the server sends email: each steward with a verified address, in their language, with the same title
+  // and body and a link to the family. Sent after the answer; never fails the notice (src/lib/email/notify.server.ts).
+  try {
+    const { emailStewards } = await import('../email/notify.server.ts');
+    emailStewards(tree, (_t, { origin, family, locale }) => {
+      const n = noticeText(kind, vars, locale, family);
+      return { subject: n.title, paragraphs: [n.body], action: { label: translate(locale, 'lifecycle.email_action'), url: `${origin}/${tree}` } };
+    }, { category: 'family' });
+  } catch {}
   return pushToStewards(tree, kind, vars, opts);
 }
 

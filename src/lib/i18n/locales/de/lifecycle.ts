@@ -18,6 +18,7 @@ export default {
   "lifecycle.copy_link": "Kopie herunterladen",
   "lifecycle.backup": "Sicherung",
   "lifecycle.families_readonly": "Nur lesbar, weil lange niemand hier war. Die Familienverwaltung kann sie in der Familie wieder einschalten.",
+  "lifecycle.email_action": "Familie öffnen",
   "lifecycle.readonly_text": { one: "Diese Familie ist seit {date} nur noch lesbar, weil seit {count} Monat niemand da war. Die Familienverwaltung kann sie wieder einschalten.", other: "Diese Familie ist seit {date} nur noch lesbar, weil seit {count} Monaten niemand da war. Die Familienverwaltung kann sie wieder einschalten." },
   "lifecycle.due_text": "Sie steht zur Löschung an: der Serverbetrieb kann sie ab {date} löschen.",
   "lifecycle.due_auto_text": "Sie wird am {date} gelöscht.",

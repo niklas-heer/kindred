@@ -18,6 +18,7 @@ export default {
   "lifecycle.copy_link": "Télécharger une copie",
   "lifecycle.backup": "Sauvegarde",
   "lifecycle.families_readonly": "En lecture seule, car personne n’est venu depuis longtemps. Un gardien peut la réactiver depuis la famille.",
+  "lifecycle.email_action": "Ouvrir la famille",
   "lifecycle.readonly_text": { one: "Cette famille est en lecture seule depuis le {date}, car personne n’est venu depuis {count} mois. Un gardien peut la rallumer.", other: "Cette famille est en lecture seule depuis le {date}, car personne n’est venu depuis {count} mois. Un gardien peut la rallumer." },
   "lifecycle.due_text": "Elle est à supprimer : l’exploitant du serveur peut la supprimer à partir du {date}.",
   "lifecycle.due_auto_text": "Elle sera supprimée le {date}.",
