@@ -3,6 +3,7 @@
 // text stays in the box until the reader sends it. The microphone is asked for only when the reader presses the button
 // (start() is only ever called from a click), and nothing listens after the reader stops.
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { LANGUAGES, LOCALES } from '~/lib/i18n/languages';
 
 export type DictationState = 'off' | 'listening' | 'denied' | 'error';
 
@@ -31,7 +32,7 @@ export function speechRecognitionCtor(): RecognitionCtor | null {
 }
 
 /** The language tag the recogniser listens in, for each language the app speaks. */
-export const SPEECH_LANG: Record<string, string> = { en: 'en-US', de: 'de-DE', af: 'af-ZA' };
+export const SPEECH_LANG: Record<string, string> = Object.fromEntries(LOCALES.map((l) => [l, LANGUAGES[l].speech]));
 
 /**
  * Listens while `state` is 'listening': final phrases go to `onFinal` as they are recognised, and the words still being

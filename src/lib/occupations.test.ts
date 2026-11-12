@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { tableOf } from './i18n/dictionary.ts';
 import {
   OCCUPATIONS,
-  germanLabel,
   germanPair,
   occupationById,
   occupationCodeFor,
@@ -20,23 +20,23 @@ test('the vocabulary has unique, well-formed ids and every label in every langua
   assert.equal(new Set(ids).size, ids.length, 'ids are unique');
   for (const o of OCCUPATIONS) {
     assert.match(o.id, /^[a-z][a-z0-9_]*$/, `${o.id} is a stable ascii id`);
-    for (const v of [o.en, o.de.m, o.de.f, o.af]) assert.ok(v.trim().length > 0, `${o.id} has every label`);
+    for (const l of ['en', 'de', 'af'] as const) assert.ok(String(tableOf(l)[`occupation.${o.id}`]).trim().length > 0, `${o.id} has a label in ${l}`);
     assert.ok(o.keywords.length >= 1, `${o.id} has search keywords`);
   }
   assert.ok(OCCUPATIONS.length >= 200, `about 250 entries, found ${OCCUPATIONS.length}`);
 });
 
 test('German gives the form for the person’s sex, and the pair when the sex is x or unknown', () => {
-  assert.equal(germanLabel(baker, 'm'), 'Bäcker');
-  assert.equal(germanLabel(baker, 'f'), 'Bäckerin');
-  assert.equal(germanLabel(baker, 'x'), 'Bäcker:in');
-  assert.equal(germanLabel(baker, undefined), 'Bäcker:in');
+  assert.equal(occupationLabel(baker, 'de', 'm'), 'Bäcker');
+  assert.equal(occupationLabel(baker, 'de', 'f'), 'Bäckerin');
+  assert.equal(occupationLabel(baker, 'de', 'x'), 'Bäcker:in');
+  assert.equal(occupationLabel(baker, 'de', undefined), 'Bäcker:in');
   assert.equal(occupationLabel(teacher, 'de', 'f'), 'Lehrerin');
   assert.equal(occupationLabel(teacher, 'de', 'x'), 'Lehrer:in');
   assert.equal(germanPair('Lehrer', 'Lehrerin'), 'Lehrer:in');
   assert.equal(germanPair('Bauer', 'Bäuerin'), 'Bauer/Bäuerin');
   assert.equal(occupationLabel(teacher, 'en', 'f'), 'Teacher', 'English and Afrikaans ignore sex');
-  assert.equal(occupationLabel(teacher, 'af', 'm'), teacher.af);
+  assert.equal(occupationLabel(teacher, 'af', 'm'), 'Onderwyser');
 });
 
 test('with a code the reader sees the entry in their language; without one, the text as written', () => {

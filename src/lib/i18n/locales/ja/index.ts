@@ -29,6 +29,7 @@ import history from "./history.ts";
 import houses from "./houses.ts";
 import join from "./join.ts";
 import needed from "./needed.ts";
+import occupations from "./occupations.ts";
 import oidc from "./oidc.ts";
 import operator from "./operator.ts";
 import ops from "./ops.ts";
@@ -90,6 +91,7 @@ export default {
   ...houses,
   ...join,
   ...needed,
+  ...occupations,
   ...oidc,
   ...operator,
   ...ops,

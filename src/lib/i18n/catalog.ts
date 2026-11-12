@@ -36,6 +36,7 @@ import * as historyArea from "./areas/history.ts";
 import * as housesArea from "./areas/houses.ts";
 import * as joinArea from "./areas/join.ts";
 import * as neededArea from "./areas/needed.ts";
+import * as occupationsArea from "./areas/occupations.ts";
 import * as operatorArea from "./areas/operator.ts";
 import * as opsArea from "./areas/ops.ts";
 import * as policyArea from "./areas/policy.ts";
@@ -139,6 +140,7 @@ export const AREAS = [
   chargeLibraryArea,
   faithsArea,
   favouritesArea,
+  occupationsArea,
 ] as const;
 
 type Table = Partial<Record<string, Message>>;

@@ -31,6 +31,13 @@ export interface Language {
   address: string;
   /** How an instruction to the assistant names the language it answers in. */
   assistant: string;
+  /** The language tag the browser's speech recognition listens in (dictating to the assistant). */
+  speech: string;
+  /**
+   * For a language that names a job differently for a man and a woman: one example, "masculine/feminine", which the
+   * assistant is shown when it translates an occupation. Absent for a language with one form.
+   */
+  jobForms?: string;
   /**
    * The Accept-Language tags this locale answers, lower case; a tag also matches its longer forms ("pt" matches "pt-pt").
    * `not` lists longer forms that must not match ("zh-tw" is Traditional Chinese, not zh-Hans).
@@ -52,6 +59,7 @@ export const LANGUAGES = {
     plurals: ["one", "other"],
     address: "you",
     assistant: "English",
+    speech: "en-US",
     accepts: ["en"],
     shortMonths: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
     complete: true,
@@ -64,6 +72,8 @@ export const LANGUAGES = {
     plurals: ["one", "other"],
     address: "du",
     assistant: "German, in the informal \"du\" form",
+    speech: "de-DE",
+    jobForms: "Bäcker/Bäckerin",
     accepts: ["de"],
     shortMonths: ["Jan.", "Feb.", "März", "Apr.", "Mai", "Juni", "Juli", "Aug.", "Sept.", "Okt.", "Nov.", "Dez."],
     complete: true,
@@ -76,6 +86,7 @@ export const LANGUAGES = {
     plurals: ["one", "other"],
     address: "jy",
     assistant: "Afrikaans, in the informal \"jy\" form",
+    speech: "af-ZA",
     accepts: ["af"],
     shortMonths: ["Jan.", "Feb.", "Mrt.", "Apr.", "Mei", "Jun.", "Jul.", "Aug.", "Sep.", "Okt.", "Nov.", "Des."],
     complete: true,
@@ -88,6 +99,8 @@ export const LANGUAGES = {
     plurals: ["one", "many", "other"],
     address: "tú",
     assistant: "Spanish, addressing the reader with \"tú\"",
+    speech: "es-ES",
+    jobForms: "panadero/panadera",
     accepts: ["es"],
     shortMonths: ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"],
     complete: false,
@@ -100,6 +113,8 @@ export const LANGUAGES = {
     plurals: ["one", "many", "other"],
     address: "tu",
     assistant: "French, addressing the reader with \"tu\"",
+    speech: "fr-FR",
+    jobForms: "boulanger/boulangère",
     accepts: ["fr"],
     shortMonths: ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."],
     complete: false,
@@ -112,6 +127,8 @@ export const LANGUAGES = {
     plurals: ["one", "many", "other"],
     address: "tu",
     assistant: "Italian, addressing the reader with \"tu\"",
+    speech: "it-IT",
+    jobForms: "fornaio/fornaia",
     accepts: ["it"],
     shortMonths: ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"],
     complete: false,
@@ -124,6 +141,7 @@ export const LANGUAGES = {
     plurals: ["one", "other"],
     address: "je/jij",
     assistant: "Dutch, addressing the reader with \"je\" and \"jij\"",
+    speech: "nl-NL",
     accepts: ["nl"],
     shortMonths: ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"],
     complete: false,
@@ -136,6 +154,8 @@ export const LANGUAGES = {
     plurals: ["one", "few", "many", "other"],
     address: "ty",
     assistant: "Polish, addressing the reader with \"ty\"",
+    speech: "pl-PL",
+    jobForms: "piekarz/piekarka",
     accepts: ["pl"],
     shortMonths: ["sty", "lut", "mar", "kwi", "maj", "cze", "lip", "sie", "wrz", "paź", "lis", "gru"],
     complete: false,
@@ -148,6 +168,8 @@ export const LANGUAGES = {
     plurals: ["one", "many", "other"],
     address: "você",
     assistant: "Brazilian Portuguese, addressing the reader with \"você\"",
+    speech: "pt-BR",
+    jobForms: "padeiro/padeira",
     // The only Portuguese Kindred has, so a reader in Portugal gets it too rather than English.
     accepts: ["pt"],
     shortMonths: ["jan.", "fev.", "mar.", "abr.", "mai.", "jun.", "jul.", "ago.", "set.", "out.", "nov.", "dez."],
@@ -161,6 +183,7 @@ export const LANGUAGES = {
     plurals: ["other"],
     address: "です/ます",
     assistant: "Japanese, in the polite です/ます form",
+    speech: "ja-JP",
     accepts: ["ja"],
     // A Japanese date writes its month as a number ("9月"), so these are never put into one; kept for completeness.
     shortMonths: ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"],
@@ -174,6 +197,7 @@ export const LANGUAGES = {
     plurals: ["other"],
     address: "你",
     assistant: "Simplified Chinese, addressing the reader with 你",
+    speech: "zh-CN",
     // Simplified Chinese: mainland China, Singapore, Malaysia, and a bare "zh". Taiwan, Hong Kong and Macau read Traditional.
     accepts: ["zh"],
     not: ["zh-tw", "zh-hk", "zh-mo", "zh-hant"],

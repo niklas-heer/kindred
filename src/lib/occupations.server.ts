@@ -9,7 +9,7 @@ import { db } from './db.server.ts';
 import { AiError, type AiAdapter } from './ai/adapters.ts';
 import { tr } from './ai/labels.ts';
 import { adapterForFeature } from './ai/settings.server.ts';
-import { LANGUAGES, LOCALES, type Locale } from './i18n/languages.ts';
+import { LANGUAGES, LOCALES, type Language, type Locale } from './i18n/languages.ts';
 import { translation } from './occupations.translate.ts';
 
 const LANGUAGE = Object.fromEntries(LOCALES.map((l) => [l, LANGUAGES[l].english])) as Record<Locale, string>;
@@ -31,11 +31,12 @@ export async function isTreeOccupation(tree: string, text: string): Promise<bool
  */
 export async function askForOccupation(adapter: AiAdapter, text: string, locale: Locale): Promise<unknown> {
   const language = LANGUAGE[locale];
+  const jobForms = (LANGUAGES[locale] as Language).jobForms;
   const reply = await adapter.complete({
     system: [
       `You translate one occupation, as a family wrote it in a family tree, into ${language} for the reader.`,
       `Answer with the common name of that job in ${language}: singular, a few words at most, no explanation and no quotation marks.`,
-      locale === 'de' ? 'Give the masculine and the feminine form joined with a slash, like "Bäcker/Bäckerin".' : '',
+      jobForms ? `Give the masculine and the feminine form joined with a slash, like "${jobForms}".` : '',
       'For a historical or regional title, give its closest common equivalent.',
     ].filter(Boolean).join('\n'),
     messages: [{ role: 'user', text: text.trim() }],

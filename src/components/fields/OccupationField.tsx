@@ -3,7 +3,7 @@
 // stores a code only when the text names exactly one entry. The text is always what the family wrote.
 import { useId, useMemo, useState, type KeyboardEvent } from 'react';
 import { useT } from '~/lib/i18n';
-import { occupationById, occupationForText, occupationLabel, suggestOccupations, type Sex } from '~/lib/occupations';
+import { occupationById, occupationEnglish, occupationForText, occupationLabel, suggestOccupations, type Sex } from '~/lib/occupations';
 import './occupation.css';
 
 export function OccupationField({
@@ -98,7 +98,7 @@ export function OccupationField({
                   }}
                 >
                   <span>{shown}</span>
-                  {shown !== o.en && <small>{o.en}</small>}
+                  {shown !== occupationEnglish(o) && <small>{occupationEnglish(o)}</small>}
                 </li>
               );
             })}
