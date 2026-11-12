@@ -111,8 +111,6 @@ function renderFr(k: Kinship, view: KinshipView): FrKin {
     owner.alts
       .map((n) => (view === "you" && !owner.through ? `de ${possessive(n)} ${n.word}` : `${ofArticle(n)}${ofArticle(n).endsWith("’") ? "" : " "}${n.word}`))
       .join(" ou ") + owner.tail;
-  /** One word for a man and one for a woman, both when the English word leaves the sex open. */
-  const bySex = (sex: "m" | "f" | undefined, m: string, f: string) => one(sex === "m" ? [noun(m, "m")] : sex === "f" ? [noun(f, "f")] : [noun(m, "m"), noun(f, "f")]);
   const spouseWord = (sex: "m" | "f" | undefined) => words(sex === "m" ? "husband" : sex === "f" ? "wife" : "partner")!;
 
   const render = (label: string): FrKin => {

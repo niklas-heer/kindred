@@ -143,7 +143,7 @@ export const LANGUAGES = {
     jobForms: "boulanger/boulangère",
     accepts: ["fr"],
     shortMonths: ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."],
-    complete: false,
+    complete: true,
   },
   it: {
     native: "Italiano",
