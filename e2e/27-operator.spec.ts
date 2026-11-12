@@ -114,22 +114,31 @@ test('the operator console: a family for someone else, the waiting list, data re
   await settled(page);
   const own = page.getByRole('listitem').filter({ has: page.getByRole('heading', { name: new RegExp(`/${tree}`) }) });
   await own.getByRole('radio', { name: 'Read-only' }).click();
+  // Suspending asks for a statement of reasons first (EU DSA Art. 17), which the family's members then read.
+  const reasons = page.getByRole('dialog', { name: /read-only\?/ });
+  await reasons.getByLabel('Statement of reasons').fill('Testing the read-only bar.');
+  await reasons.getByRole('button', { name: 'Read-only' }).click();
   await expect(own.getByText('Suspended', { exact: true })).toBeVisible();
   await page.goto(`/${tree}`);
   await settled(page);
   await expect(page.getByText(/This family is suspended by the server’s operator/)).toBeVisible();
   await expect(page.getByText(/to have the family deleted/)).toBeVisible();
+  await expect(page.getByText('Testing the read-only bar.')).toBeVisible();
   await checkAxe(page, 'suspended family');
   // Closed: a page of its own instead of the family. Then it is let go again.
   await page.goto('/operator');
   await settled(page);
   await own.getByRole('radio', { name: 'Closed' }).click();
+  const closing = page.getByRole('dialog', { name: /^Close / });
+  await closing.getByLabel('Statement of reasons').fill('Testing the closed page.');
+  await closing.getByRole('button', { name: 'Closed' }).click();
   await expect(own.locator('.operator-chip', { hasText: 'Closed' })).toBeVisible();
   // Like a family one is not a member of, the closed family's page answers 404.
   issues.allow(new RegExp(`status of 404 .*/${tree}\\)`));
   await page.goto(`/${tree}`);
   await settled(page);
   await expect(page.getByRole('heading', { name: 'This family is closed' })).toBeVisible();
+  await expect(page.getByText('Testing the closed page.')).toBeVisible();
   await checkAxe(page, 'closed family');
   await page.goto('/operator');
   await settled(page);
