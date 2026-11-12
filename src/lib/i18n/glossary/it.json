@@ -243,7 +243,10 @@
     }
   },
   "sameAsEnglish": [
+    "chat.no",
     "feedback.key_mod",
+    "look.beard.vandyke",
+    "pw.method_oidc",
     "shell.themeCodex"
   ],
   "ownWords": [
