@@ -5,7 +5,7 @@
 import { RULES, openReign, play, provincesOf, scoreOf, terrainOf, townsOf, type Move, type Reign, type Score, type State } from './engine.ts';
 
 /** A reign's title, most telling first: the first whose deed the reign did is the one it carries. */
-export const TITLES = ['conqueror', 'townlord', 'bold', 'seafarer', 'unbroken', 'relentless', 'prudent', 'unlucky', 'peaceable', 'steadfast'] as const;
+export const TITLES = ['hard', 'conqueror', 'townlord', 'bold', 'seafarer', 'unbroken', 'relentless', 'prudent', 'unlucky', 'peaceable', 'steadfast'] as const;
 export type Title = (typeof TITLES)[number];
 
 export const isTitle = (value: unknown): value is Title => typeof value === 'string' && (TITLES as readonly string[]).includes(value);
@@ -48,7 +48,10 @@ export interface Chronicle {
   state: State;
 }
 
-function titleOf(deeds: Deeds, state: State, reign: Reign, score: Score): Title {
+/** The title a reign carries: `hard` when it ends with no points, else the first deed in TITLES' order that it did. */
+export function titleOf(deeds: Deeds, state: State, reign: Reign, score: Score): Title {
+  // A reign that ends with no points is not praised for a deed along the way.
+  if (score.total <= 0) return 'hard';
   if (score.provinces >= 9) return 'conqueror';
   if (townsOf(state, reign.map, reign.player) >= 4) return 'townlord';
   if (deeds.bold >= 1) return 'bold';

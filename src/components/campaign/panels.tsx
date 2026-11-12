@@ -18,15 +18,22 @@ export function LeaderboardPanel({ board, sides }: { board: Leaderboard; sides: 
   const t = useT();
   const [tab, setTab] = useState<'week' | 'all' | 'houses'>('week');
   const sideOf = (id: string) => sides.find((s) => s.id === id);
+  // The note about renown and the quiz shows only where a line carries one of them.
+  const advantaged = [...(tab === 'week' ? board.week : board.allTime), ...((tab === 'week' ? board.earlier?.week : board.earlier?.allTime) ?? [])].some((r) => (r.renown ?? 0) > 0 || (r.grant ?? 0) > 0);
   const rows = (list: BoardRow[], all: boolean) => (
     <ol className="cg-table">
       {list.map((r, i) => {
         const side = sideOf(r.side);
         return (
           <li key={`${r.name}-${i}`} className={r.mine ? 'is-mine' : ''} aria-current={r.mine ? 'true' : undefined}>
-            <span className="cg-table-rank">{i + 1}</span>
+            <span className="cg-table-rank">{r.rank}</span>
             {side ? <Arms arms={side.arms} size={22} /> : <span />}
             <span className="cg-table-name"><b>{r.name}</b><small>{all ? t('campaign.board.week_of', { week: r.week?.slice(6) ?? '' }) : t('campaign.board.runs', { count: r.runs ?? 0 })}{r.title && <> · {t(TITLE_NAME[r.title])}</>}</small></span>
+            {/* What the levy had beyond the base, beside the score it helped to make. */}
+            <span className="cg-table-adv">
+              {(r.renown ?? 0) > 0 && <span className="cg-adv is-renown">{t('campaign.board.adv_renown', { count: r.renown ?? 0 })}</span>}
+              {(r.grant ?? 0) > 0 && <span className="cg-adv is-quiz">{t('campaign.board.adv_grant', { count: r.grant ?? 0 })}</span>}
+            </span>
             <span className="cg-table-score">{r.score}</span>
           </li>
         );
@@ -56,18 +63,23 @@ export function LeaderboardPanel({ board, sides }: { board: Leaderboard; sides: 
       {tab === 'all' && (board.allTime.length ? rows(board.allTime, true) : <p className="muted cg-note">{t('campaign.board.empty_all')}</p>)}
       {tab === 'all' && earlier(board.earlier?.allTime)}
       {tab === 'houses' && (board.houses.length ? (
-        <ol className="cg-table">
-          {board.houses.map((h, i) => (
-            <li key={h.side}>
-              <span className="cg-table-rank">{i + 1}</span>
-              <Arms arms={h.arms} size={22} />
-              <span className="cg-table-name"><b>{h.name}</b><small>{t('campaign.board.members', { count: h.members })}</small></span>
-              <span className="cg-table-score">{h.total}</span>
-            </li>
-          ))}
-        </ol>
+        <>
+          <h3 className="cg-table-label">{t('campaign.board.houses_label')}</h3>
+          <ol className="cg-table">
+            {board.houses.map((h) => (
+              <li key={h.side}>
+                <span className="cg-table-rank">{h.rank}</span>
+                <Arms arms={h.arms} size={22} />
+                <span className="cg-table-name"><b>{h.name}</b><small>{t('campaign.board.members', { count: h.members })}</small></span>
+                <span className="cg-table-adv" />
+                <span className="cg-table-score">{h.total}</span>
+              </li>
+            ))}
+          </ol>
+        </>
       ) : <p className="muted cg-note">{t('campaign.board.empty')}</p>)}
       <p className="subtle cg-note">{tab === 'houses' ? t('campaign.board.houses_note') : t('campaign.board.note')}</p>
+      {tab !== 'houses' && advantaged && <p className="subtle cg-note">{t('campaign.board.adv_note')}</p>}
     </section>
   );
 }
@@ -173,7 +185,7 @@ export function HowItWorks({ open, onClose, onPlay, playLabel }: { open: boolean
       onClose={onClose}
       variant="event"
       title={t('campaign.how.title')}
-      width="min(580px, 100vw - 24px)"
+      width="min(640px, 100vw - 24px)"
       initialFocus="[data-autofocus]"
       footer={
         onPlay ? (

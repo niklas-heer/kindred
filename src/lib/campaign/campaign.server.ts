@@ -16,6 +16,9 @@
 //   on the board but its houses: no place, no person.
 // - A reign and a week's field carry the rules' version (RULESET, migration 0035). The tables rank a reign only among
 //   reigns of the same rules; reigns of earlier rules are listed apart, and one begun under them can no longer be sent.
+// - One reign a day counts for the tables: of the reigns a member begins on a day (UTC), the first they finish. The rest
+//   are extra: kept, never ranked, and still a personal best. Nothing stores "counted": it follows from the reigns
+//   themselves (COUNTED), so it cannot drift, and two reigns finished at once cannot both count.
 import { db, guard, NOT_A_RECORD, once, q, store, type Db, type Query } from '../db.server.ts';
 import { readOnly } from '../read-only.ts';
 import { dayOf, weekOf, weekStart } from '../today/week.ts';
@@ -227,7 +230,23 @@ async function quizGrant(d: Db, account: string, now: Date): Promise<number> {
 
 // ---------- the tables ----------
 
-interface ScoreRow { account: string; name_then: string; side: string; score: number; week: string; result: string | null }
+/**
+ * Whether the reign `r` counts for the tables: it is finished, and of the reigns its member began that day (UTC) under
+ * the same rules, none was finished before it. One counted reign a day, however many are played.
+ */
+const COUNTED = (r: string) => `(${r}.finished_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM campaign_run o WHERE o.account = ${r}.account AND o.ruleset = ${r}.ruleset
+  AND o.finished_at IS NOT NULL AND substr(o.created_at, 1, 10) = substr(${r}.created_at, 1, 10)
+  AND (o.finished_at < ${r}.finished_at OR (o.finished_at = ${r}.finished_at AND o.id < ${r}.id))))`;
+
+/** A reign of this member's, begun on this day under today's rules, that is finished: the day's counted reign is played. */
+const playedSql = 'EXISTS (SELECT 1 FROM campaign_run WHERE account = ? AND ruleset = ? AND finished_at IS NOT NULL AND substr(created_at, 1, 10) = ?)';
+
+/** Whether a reign this member begins now can still be the day's counted one. */
+async function countsToday(d: Db, account: string, now: Date): Promise<boolean> {
+  return !(await d.get<{ ok: number }>(`SELECT ${playedSql} AS ok`, account, RULESET, dayOf(now)))?.ok;
+}
+
+interface ScoreRow { account: string; name_then: string; side: string; score: number; week: string; result: string | null; renown: number | null; quiz: number | null }
 
 /** A reign's title as its result keeps it, if it has one the page knows. */
 function titleIn(result: string | null): Title | undefined {
@@ -239,25 +258,41 @@ function titleIn(result: string | null): Title | undefined {
   }
 }
 
-const SCORE_COLUMNS = 'account, name_then, side, score, week, result';
+/** A reign's line, with what its levy had beyond the base: the house's renown each turn, and the quiz's reward. */
+const SCORE_COLUMNS = "r.account, r.name_then, r.side, r.score, r.week, r.result, json_extract(r.field, '$.renown') AS renown, json_extract(r.field, '$.grant') AS quiz";
 
-/** Each member's best of a week under one ruleset, best first, with how many reigns they finished; `without` leaves one reign out. */
+const listed = (r: ScoreRow, account: string): Omit<BoardRow, 'rank'> => ({ name: r.name_then, side: r.side, score: r.score, week: r.week, title: titleIn(r.result), renown: r.renown ?? 0, grant: r.quiz ?? 0, mine: r.account === account });
+
+/** Places for rows that come best first: equal points share a place, and the next place is skipped ("1, 1, 3"). */
+function ranked<T>(rows: T[], points: (row: T) => number): (T & { rank: number })[] {
+  const out: (T & { rank: number })[] = [];
+  rows.forEach((row, i) => out.push({ ...row, rank: i > 0 && points(row) === points(rows[i - 1]) ? out[i - 1].rank : i + 1 }));
+  return out;
+}
+
+/**
+ * Each member's best counted reign of a week under one ruleset, best first, with how many counted reigns they have;
+ * `without` leaves one reign out.
+ */
 async function weekBests(d: Db, week: string, account: string, ruleset: number, without = ''): Promise<BoardRow[]> {
   const rows = await d.all<ScoreRow>(
-    `SELECT ${SCORE_COLUMNS} FROM campaign_run WHERE week = ? AND ruleset = ? AND finished_at IS NOT NULL AND id <> ? ORDER BY score DESC, finished_at, id`, week, ruleset, without,
+    `SELECT ${SCORE_COLUMNS} FROM campaign_run r WHERE r.week = ? AND r.ruleset = ? AND r.id <> ? AND ${COUNTED('r')} ORDER BY r.score DESC, r.finished_at, r.id`, week, ruleset, without,
   );
-  const best = new Map<string, BoardRow>();
+  const best = new Map<string, Omit<BoardRow, 'rank'>>();
   const runs = new Map<string, number>();
   for (const r of rows) {
     runs.set(r.account, (runs.get(r.account) ?? 0) + 1);
-    if (!best.has(r.account)) best.set(r.account, { name: r.name_then, side: r.side, score: r.score, title: titleIn(r.result), mine: r.account === account });
+    if (!best.has(r.account)) best.set(r.account, listed(r, account));
   }
-  return [...best].map(([acc, row]) => ({ ...row, runs: runs.get(acc) ?? 0 }));
+  return ranked([...best].map(([acc, row]) => ({ ...row, week: undefined, runs: runs.get(acc) ?? 0 })), (r) => r.score);
 }
 
-/** Each house's total: the sum of its members' bests, by the side each one ruled. */
+/**
+ * Each house's total: the sum of its members' bests, by the side each one ruled. It grows with every member who plays,
+ * so it says how much a house took part, not how well: the page calls it a participation total.
+ */
 function houseTotals(rows: BoardRow[], sides: Pick<StoredSide, 'id' | 'name' | 'arms'>[]): HouseTotal[] {
-  const houses = new Map<string, HouseTotal>();
+  const houses = new Map<string, Omit<HouseTotal, 'rank'>>();
   for (const row of rows) {
     const side = sides.find((s) => s.id === row.side);
     if (!side) continue;
@@ -266,30 +301,52 @@ function houseTotals(rows: BoardRow[], sides: Pick<StoredSide, 'id' | 'name' | '
     total.members += 1;
     houses.set(side.id, total);
   }
-  return [...houses.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+  return ranked([...houses.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name)), (h) => h.total);
 }
 
 /**
- * The family's tables. Only reigns under today's rules are ranked; reigns of earlier rules (this week's, and the best
- * ever) are listed apart in `earlier`, so an old score is still there and is never set against a new one.
+ * What may be said of a reign that has just been finished. A best needs something it beat, and a score: a member's first
+ * reign is a first reign, a reign that equals their best is not a new best, and no points are never a best.
+ * `earlier` is the member's other finished reigns (how many, and the best of them); `weekBefore` their best counted reign
+ * of the week before this one, or null.
  */
-async function leaderboard(d: Db, week: string, account: string, sides: SideView[] | StoredSide[]): Promise<Leaderboard> {
-  const top = (where: string, ...args: (string | number)[]) => d.all<ScoreRow>(`SELECT ${SCORE_COLUMNS} FROM campaign_run WHERE finished_at IS NOT NULL AND ${where} ORDER BY score DESC, finished_at, id LIMIT 10`, ...args);
-  const listed = (rows: ScoreRow[]): BoardRow[] => rows.map((r) => ({ name: r.name_then, side: r.side, score: r.score, week: r.week, title: titleIn(r.result), mine: r.account === account }));
-  const [weekRows, allTime, record, oldWeek, oldAll] = await Promise.all([
+export function praiseOf(total: number, counted: boolean, earlier: { n: number; best: number | null }, weekBefore: number | null): { personalBest: boolean; record: boolean; first: boolean } {
+  return {
+    personalBest: counted && total > 0 && weekBefore !== null && total > weekBefore,
+    record: total > 0 && earlier.n > 0 && total > (earlier.best ?? 0),
+    first: earlier.n === 0,
+  };
+}
+
+/** Whether a row shares its place with another. */
+const tiedIn = (rows: { rank: number }[], at: number) => at >= 0 && rows.some((r, i) => i !== at && r.rank === rows[at].rank);
+
+/**
+ * The family's tables. Only counted reigns under today's rules are ranked; reigns of earlier rules (this week's, and the
+ * best ever) are listed apart in `earlier`, so an old score is still there and is never set against a new one.
+ */
+async function leaderboard(d: Db, week: string, account: string, sides: SideView[] | StoredSide[], now: Date): Promise<Leaderboard> {
+  const top = (where: string, ...args: (string | number)[]) => d.all<ScoreRow>(`SELECT ${SCORE_COLUMNS} FROM campaign_run r WHERE r.finished_at IS NOT NULL AND ${where} ORDER BY r.score DESC, r.finished_at, r.id LIMIT 10`, ...args);
+  const list = (rows: ScoreRow[]): BoardRow[] => ranked(rows.map((r) => listed(r, account)), (r) => r.score);
+  const [weekRows, allTime, record, oldWeek, oldAll, open] = await Promise.all([
     weekBests(d, week, account, RULESET),
-    top('ruleset = ?', RULESET),
+    top(`r.ruleset = ? AND ${COUNTED('r')}`, RULESET),
+    // A personal best is any finished reign's, counted or extra.
     d.get<{ best: number | null }>('SELECT max(score) AS best FROM campaign_run WHERE account = ? AND ruleset = ? AND finished_at IS NOT NULL', account, RULESET),
-    d.all<ScoreRow>(`SELECT ${SCORE_COLUMNS} FROM campaign_run WHERE week = ? AND ruleset < ? AND finished_at IS NOT NULL ORDER BY score DESC, finished_at, id LIMIT 10`, week, RULESET),
-    top('ruleset < ?', RULESET),
+    top('r.week = ? AND r.ruleset < ?', week, RULESET),
+    top('r.ruleset < ?', RULESET),
+    countsToday(d, account, now),
   ]);
   const at = weekRows.findIndex((r) => r.mine);
   return {
     week: weekRows,
-    allTime: listed(allTime),
+    allTime: list(allTime),
     houses: houseTotals(weekRows, sides),
-    me: { best: at >= 0 ? weekRows[at].score : null, runs: at >= 0 ? weekRows[at].runs ?? 0 : 0, rank: at >= 0 ? at + 1 : null, of: weekRows.length, record: record?.best ?? null },
-    ...(oldAll.length ? { earlier: { week: listed(oldWeek), allTime: listed(oldAll) } } : {}),
+    me: {
+      best: at >= 0 ? weekRows[at].score : null, runs: at >= 0 ? weekRows[at].runs ?? 0 : 0, rank: at >= 0 ? weekRows[at].rank : null, of: weekRows.length,
+      tied: tiedIn(weekRows, at), record: record?.best ?? null, today: !open,
+    },
+    ...(oldAll.length ? { earlier: { week: list(oldWeek), allTime: list(oldAll) } } : {}),
   };
 }
 
@@ -392,7 +449,9 @@ export async function startRun(tree: string, who: Who, asked: string | null, now
     const { side } = await sideFor(dd, who, field.sides, asked);
     if (!side) throw new Error('campaign.err.no_side');
     const renown = (await renownOfSides(tree, field.sides)).get(side)?.bonus ?? 0;
-    const grant = await quizGrant(dd, who.account, now);
+    // Whether this reign can be the day's counted one. The quiz's reward waits for a reign that can.
+    const counts = await countsToday(dd, who.account, now);
+    const grant = counts ? await quizGrant(dd, who.account, now) : 0;
     const stored: StoredField = { ...field, renown, grant };
     const at = now.toISOString();
     return {
@@ -413,7 +472,7 @@ export async function startRun(tree: string, who: Who, asked: string | null, now
         // A reign begun and never finished is forgotten after two weeks.
         q('DELETE FROM campaign_run WHERE account = ? AND finished_at IS NULL AND created_at < ?', who.account, new Date(now.getTime() - 14 * DAY_MS).toISOString()),
       ],
-      result: { id, week, seed, field, side, renown, grant },
+      result: { id, week, seed, field, side, renown, grant, counts },
     };
   });
 }
@@ -454,26 +513,29 @@ export async function finishRun(tree: string, who: Who, id: string, moves: Move[
   });
   const d = db(tree);
   const total = done.score.total;
-  const [rows, before, others, record] = await Promise.all([
+  const [rows, before, counted, earlier] = await Promise.all([
     weekBests(d, done.week, who.account, RULESET),
     weekBests(d, done.week, who.account, RULESET, id),
-    d.get<{ n: number }>('SELECT count(*) AS n FROM campaign_run WHERE account = ? AND week = ? AND ruleset = ? AND finished_at IS NOT NULL AND id <> ? AND score >= ?', who.account, done.week, RULESET, id, total),
-    d.get<{ n: number }>('SELECT count(*) AS n FROM campaign_run WHERE account = ? AND ruleset = ? AND finished_at IS NOT NULL AND id <> ? AND score >= ?', who.account, RULESET, id, total),
+    d.get<{ ok: number }>(`SELECT ${COUNTED('r')} AS ok FROM campaign_run r WHERE r.id = ?`, id),
+    d.get<{ n: number; best: number | null }>('SELECT count(*) AS n, max(score) AS best FROM campaign_run WHERE account = ? AND ruleset = ? AND finished_at IS NOT NULL AND id <> ?', who.account, RULESET, id),
   ]);
   const at = rows.findIndex((r) => r.mine);
+  const was = before.find((r) => r.mine);
+  const ranks = !!counted?.ok;
   // Where the member's house stands among the houses this week, and whether this reign lifted it.
   const houses = houseTotals(rows, done.sides);
-  const place = houses.findIndex((h) => h.side === done.side);
-  const was = houseTotals(before, done.sides).findIndex((h) => h.side === done.side);
+  const place = houses.find((h) => h.side === done.side);
+  const placeBefore = houseTotals(before, done.sides).find((h) => h.side === done.side);
   return {
     score: done.score,
     title: done.title,
-    best: at >= 0 ? rows[at].score : total,
-    rank: at >= 0 ? at + 1 : 1,
+    counted: ranks,
+    best: at >= 0 ? rows[at].score : null,
+    rank: at >= 0 ? rows[at].rank : null,
     of: rows.length,
-    personalBest: !others?.n,
-    record: !record?.n,
-    house: place >= 0 ? { name: houses[place].name, rank: place + 1, of: houses.length, rose: was > place } : null,
+    tied: tiedIn(rows, at),
+    ...praiseOf(total, ranks, { n: earlier?.n ?? 0, best: earlier?.best ?? null }, was?.score ?? null),
+    house: ranks && place ? { name: place.name, rank: place.rank, of: houses.length, rose: !!placeBefore && placeBefore.rank > place.rank } : null,
   };
 }
 
@@ -505,9 +567,12 @@ export async function campaignView(tree: string, who: Who, now: Date = new Date(
     side: mine.side,
     chooses: mine.chooses,
     renown: Object.fromEntries(shown.map((s) => [s.id, s.renown.bonus])),
-    grant: await quizGrant(d, who.account, now),
+    grant: 0,
+    counts: await countsToday(d, who.account, now),
   };
-  return { enabled: true, kit, mySide, challenge, board: await leaderboard(d, week, who.account, shown), fame };
+  // The quiz's reward goes to the day's counted reign, so it waits only while that reign is still to play.
+  if (challenge.counts) challenge.grant = await quizGrant(d, who.account, now);
+  return { enabled: true, kit, mySide, challenge, board: await leaderboard(d, week, who.account, shown, now), fame };
 }
 
 /** The few facts the Today page's card and the navigation need. Reads only. */
@@ -515,6 +580,6 @@ export async function campaignStatus(tree: string, who: Who, now: Date = new Dat
   const d = db(tree);
   if (!(await campaignRow(d))?.enabled) return { enabled: false };
   const week = weekOf(now);
-  const { me } = await leaderboard(d, week, who.account, []);
-  return { enabled: true, week, best: me.best, runs: me.runs, rank: me.rank, of: me.of, record: me.record };
+  const { me } = await leaderboard(d, week, who.account, [], now);
+  return { enabled: true, week, best: me.best, runs: me.runs, rank: me.rank, of: me.of, tied: me.tied, record: me.record, today: me.today };
 }

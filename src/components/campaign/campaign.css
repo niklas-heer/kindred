@@ -362,6 +362,13 @@
 .cg-local { margin: 0 0 12px; padding: 8px 12px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--border); font-family: var(--font-ui); font-size: var(--fs-2); }
 .cg-practice-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 12px; }
 .cg-practice-bar .cg-note { margin: 0; flex: 1 1 260px; }
+/* One reign a day counts: whether today's is still to play. */
+.cg-week-today { display: flex; align-items: flex-start; gap: 6px; margin-top: 6px !important; font-family: var(--font-ui); font-size: var(--fs-2) !important; color: var(--muted); }
+.cg-week-today svg { flex: none; margin-top: 2px; }
+.cg-week-today.is-open { color: var(--text); font-weight: 600; }
+.cg-week-today.is-open svg { color: var(--accent); }
+.cg-extra { font-family: var(--font-ui); font-size: var(--fs-2) !important; color: var(--muted); }
+.cg-card-today { color: var(--muted); font-size: var(--fs-2); }
 .cg-score-parts { font-family: var(--font-ui); font-size: var(--fs-2); color: var(--muted); }
 .cg-best { color: var(--accent); display: inline-flex; align-items: center; gap: 4px; }
 [data-theme='modern'] .cg-best { color: #7a5c12; }
@@ -406,7 +413,12 @@
   .cc-tale li:nth-child(4) { animation-delay: 360ms; } .cc-tale li:nth-child(5) { animation-delay: 480ms; }
 }
 .cg-table { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 4px; }
-.cg-table li { display: grid; grid-template-columns: 22px 24px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 5px 8px; border-radius: var(--radius); }
+.cg-table li { display: grid; grid-template-columns: 22px 24px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 5px 8px; border-radius: var(--radius); }
+/* Beside a score: what the levy had beyond the base (the house's renown, the quiz's reward). */
+.cg-table-adv { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.cg-adv { padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel-2); font-family: var(--font-ui); font-size: var(--fs-1); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cg-table-label { margin: 12px 0 0; font-family: var(--font-ui); font-size: var(--fs-2); font-weight: 600; color: var(--muted); }
+.cg-table-label + .cg-table { margin-top: 6px; }
 .cg-table li.is-mine { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .cg-table-rank { font-family: var(--font-display); color: var(--subtle); text-align: center; }
 .cg-table-name { display: grid; min-width: 0; }

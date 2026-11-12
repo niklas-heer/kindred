@@ -6,7 +6,7 @@
 // it is played (src/lib/campaign/saved.ts), so a reload or a visit elsewhere comes back to it.
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { CircleHelp, Crown, ExternalLink, Play as PlayIcon, RotateCcw, Swords, TrendingUp, Undo2 } from 'lucide-react';
+import { Check, CircleHelp, Crown, ExternalLink, Play as PlayIcon, RotateCcw, Sunrise, Swords, TrendingUp, Undo2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Board } from '~/components/campaign/Board';
 import { CampaignMap } from '~/components/campaign/CampaignMap';
@@ -159,7 +159,7 @@ function Week({ view, tree, help, begin, startPractice }: { view: CampaignView; 
   const go = async () => {
     if (localOnly) {
       // Played here only: the week's field and seed, as the server would have begun it, and nothing is sent.
-      begin({ id: 'local', week: challenge.week, seed: challenge.seed, field: challenge.field, side, renown: challenge.renown[side] ?? 0, grant: 0 }, false);
+      begin({ id: 'local', week: challenge.week, seed: challenge.seed, field: challenge.field, side, renown: challenge.renown[side] ?? 0, grant: 0, counts: false }, false);
       return;
     }
     try {
@@ -185,9 +185,16 @@ function Week({ view, tree, help, begin, startPractice }: { view: CampaignView; 
             <h2 id="cg-week-h">{t('campaign.week.title')}</h2>
             <p>{t('campaign.week.text', { turns: RULES.TURNS, house: mine?.name ?? '' })}</p>
             <p className="cg-week-me" data-testid="week-me">
-              {me.best === null ? t('campaign.week.none') : t('campaign.week.best', { score: me.best, count: me.runs, rank: ordinal(me.rank ?? 1, t.locale), of: me.of })}
+              {me.best === null ? t('campaign.week.none') : <>
+                {t('campaign.week.best', { score: me.best, count: me.runs })}{' '}
+                {me.of < 2 ? t('campaign.week.place_alone') : t(me.tied ? 'campaign.week.place_shared' : 'campaign.week.place', { rank: ordinal(me.rank ?? 1, t.locale), of: me.of })}
+              </>}
             </p>
             {me.record !== null && <p className="cg-week-record"><Laurel size={14} /> {t('campaign.week.record', { score: me.record })}</p>}
+            {/* One reign a day counts: whether today's is still to play, which is the reason to come back tomorrow. */}
+            <p className={`cg-week-today${challenge.counts ? ' is-open' : ''}`} data-testid="week-today">
+              {challenge.counts ? <Sunrise size={15} aria-hidden /> : <Check size={15} aria-hidden />} {t(challenge.counts ? 'campaign.week.today_open' : 'campaign.week.today_done')}
+            </p>
           </div>
         </div>
         {challenge.chooses && (
@@ -308,7 +315,7 @@ function WeekReign({ tree, account, run, submit, saved, help, leave, again }: { 
           actions={<>{help}<button type="button" className="btn" onClick={askLeave}><Undo2 size={16} /> {t('campaign.reign.leave')}</button></>}
         />
       }
-      note={!submit ? <p className="cg-local" role="note">{t('campaign.week.local')}</p> : run.grant > 0 ? <p className="cg-local">{t('campaign.week.grant', { count: run.grant })}</p> : null}
+      note={!submit ? <p className="cg-local" role="note">{t('campaign.week.local')}</p> : run.counts === false ? <p className="cg-local" role="note">{t('campaign.reign.extra')}</p> : run.grant > 0 ? <p className="cg-local">{t('campaign.week.grant', { count: run.grant })}</p> : null}
       over={(moves) => ({
         status: !submit ? <p className="subtle">{t('campaign.result.local')}</p> : <Submit finish={finish} moves={moves} />,
         actions: <>
@@ -333,11 +340,17 @@ function Submit({ finish, moves }: { finish: UseMutationResult<FinishResult, Err
   if (!finish.data) return <p className="subtle" aria-live="polite">{t('campaign.result.sending')}</p>;
   const r = finish.data;
   const house = r.house && r.house.of > 1 ? r.house : null;
+  // A best is said only of a reign that beat something; a first reign is called that, and nothing more.
+  const praise = r.record ? 'campaign.result.record' : r.personalBest ? 'campaign.result.best' : null;
+  const stands = r.rank === null || r.best === null ? null
+    : r.of < 2 ? t('campaign.result.alone', { best: r.best })
+    : t(r.tied ? 'campaign.result.rank_shared' : 'campaign.result.rank', { rank: ordinal(r.rank, t.locale), of: r.of, best: r.best });
   return (
     <div aria-live="polite">
+      {!r.counted && <p className="cg-extra" data-testid="result-extra">{t('campaign.result.extra')}</p>}
       <p data-testid="result-rank">
-        {(r.record || r.personalBest) && <><b className="cg-best"><Laurel size={15} /> {t(r.record ? 'campaign.result.record' : 'campaign.result.best')}</b>{' '}</>}
-        {t('campaign.result.rank', { rank: ordinal(r.rank, t.locale), of: r.of, best: r.best })}
+        {praise ? <><b className="cg-best"><Laurel size={15} /> {t(praise)}</b>{' '}</> : r.first ? <><b>{t('campaign.result.first')}</b>{' '}</> : null}
+        {stands}
       </p>
       {house && (
         <p className={house.rose ? 'cg-rose' : 'subtle'} data-testid="result-house">

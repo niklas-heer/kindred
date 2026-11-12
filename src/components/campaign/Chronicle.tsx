@@ -10,11 +10,11 @@ import { useT, type Key } from '~/lib/i18n';
 import { Laurel, reducedMotion, seasonLine, type BoardSide } from './parts';
 
 export const TITLE_NAME: Record<Title, Key> = {
-  conqueror: 'campaign.epithet.conqueror', townlord: 'campaign.epithet.townlord', bold: 'campaign.epithet.bold', seafarer: 'campaign.epithet.seafarer', unbroken: 'campaign.epithet.unbroken',
+  hard: 'campaign.epithet.hard', conqueror: 'campaign.epithet.conqueror', townlord: 'campaign.epithet.townlord', bold: 'campaign.epithet.bold', seafarer: 'campaign.epithet.seafarer', unbroken: 'campaign.epithet.unbroken',
   relentless: 'campaign.epithet.relentless', prudent: 'campaign.epithet.prudent', unlucky: 'campaign.epithet.unlucky', peaceable: 'campaign.epithet.peaceable', steadfast: 'campaign.epithet.steadfast',
 };
 const TITLE_WHY: Record<Title, Key> = {
-  conqueror: 'campaign.epithet.conqueror_why', townlord: 'campaign.epithet.townlord_why', bold: 'campaign.epithet.bold_why', seafarer: 'campaign.epithet.seafarer_why', unbroken: 'campaign.epithet.unbroken_why',
+  hard: 'campaign.epithet.hard_why', conqueror: 'campaign.epithet.conqueror_why', townlord: 'campaign.epithet.townlord_why', bold: 'campaign.epithet.bold_why', seafarer: 'campaign.epithet.seafarer_why', unbroken: 'campaign.epithet.unbroken_why',
   relentless: 'campaign.epithet.relentless_why', prudent: 'campaign.epithet.prudent_why', unlucky: 'campaign.epithet.unlucky_why', peaceable: 'campaign.epithet.peaceable_why', steadfast: 'campaign.epithet.steadfast_why',
 };
 

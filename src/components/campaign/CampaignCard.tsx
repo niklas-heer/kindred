@@ -73,13 +73,15 @@ export function CampaignCard({ tree }: { tree: string }) {
       <div className="cg-card-text">
         <span className="muted">{t('campaign.card.week')}</span>
         {played ? (
-          <b>{t('campaign.card.rank', { rank: ordinal(data.rank!, t.locale), of: data.of ?? 1 })}</b>
+          <b>{(data.of ?? 1) < 2 ? t('campaign.card.alone') : t(data.tied ? 'campaign.card.rank_shared' : 'campaign.card.rank', { rank: ordinal(data.rank!, t.locale), of: data.of ?? 1 })}</b>
         ) : (
           <b>{t('campaign.card.invite')}</b>
         )}
         {played && <span>{t('campaign.card.best', { score: data.best!, count: data.runs ?? 0 })}</span>}
+        {/* One reign a day counts, so the card says whether today's is still to play. */}
+        {played && <span className="cg-card-today">{t(data.today ? 'campaign.card.today_done' : 'campaign.card.today_open')}</span>}
       </div>
-      <Link className="btn primary" to="/$tree/campaign" params={{ tree }}>{played ? t('campaign.card.open') : t('campaign.card.play')}</Link>
+      <Link className={`btn${data.today ? '' : ' primary'}`} to="/$tree/campaign" params={{ tree }}>{!played ? t('campaign.card.play') : data.today ? t('campaign.card.open') : t('campaign.card.play_today')}</Link>
     </section>
   );
 }

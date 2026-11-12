@@ -38,8 +38,10 @@ export interface Challenge {
   chooses: boolean;
   /** What renown adds to the levy each turn for each side the reader could play. */
   renown: Record<string, number>;
-  /** The daily quiz's reward waiting for the reader's next reign today: extra levy on its first turn. */
+  /** The daily quiz's reward waiting for the reader's counted reign today: extra levy on its first turn. */
   grant: number;
+  /** Whether a reign begun now can still be today's counted one: false once the reader has finished a reign today. */
+  counts: boolean;
 }
 
 /** A reign the server has begun: what the browser plays it with. */
@@ -51,14 +53,21 @@ export interface RunStart {
   side: string;
   renown: number;
   grant: number;
+  /** Whether this reign can be the day's counted one; an extra reign is kept and never ranked. Missing in a reign kept from before. */
+  counts?: boolean;
 }
 
-/** One line of a table: a member's best (or one reign), by the name they had then. */
+/** One line of a table: a member's best counted reign (or one reign), by the name they had then. */
 export interface BoardRow {
   name: string;
   side: string;
   score: number;
-  /** Reigns finished this week (the weekly table only). */
+  /** The place: equal scores share one, and the next is skipped. */
+  rank: number;
+  /** What the levy had beyond the base when the reign began: the house's renown each turn, and the quiz's reward on the first. */
+  renown?: number;
+  grant?: number;
+  /** Counted reigns this week, one a day at most (the weekly table only). */
   runs?: number;
   /** The week it was played (the all-time list only). */
   week?: string;
@@ -67,14 +76,18 @@ export interface BoardRow {
   mine: boolean;
 }
 
-export interface HouseTotal { side: string; name: string; arms: House['arms']; total: number; members: number }
+/** A house's participation total: the sum of its members' bests, so it grows with every member who plays. */
+export interface HouseTotal { side: string; name: string; arms: House['arms']; total: number; members: number; rank: number }
 
 export interface Leaderboard {
   week: BoardRow[];
   allTime: BoardRow[];
   houses: HouseTotal[];
-  /** The reader this week (best, reigns, place), and `record`: their best reign ever under today's rules. */
-  me: { best: number | null; runs: number; rank: number | null; of: number; record: number | null };
+  /**
+   * The reader this week: their best counted reign, how many counted reigns, their place (`tied` when shared), and
+   * `record`, their best reign ever under today's rules, counted or extra. `today` says the day's counted reign is played.
+   */
+  me: { best: number | null; runs: number; rank: number | null; of: number; tied: boolean; record: number | null; today: boolean };
   /** Reigns played under earlier rules, shown apart and never ranked with today's: this week's, and the best ever. */
   earlier?: { week: BoardRow[]; allTime: BoardRow[] };
 }
@@ -108,22 +121,32 @@ export interface CampaignStatus {
   runs?: number;
   rank?: number | null;
   of?: number;
+  /** Whether they share that place. */
+  tied?: boolean;
   /** Their best reign ever under today's rules. */
   record?: number | null;
+  /** Whether today's counted reign is played. */
+  today?: boolean;
 }
 
 /** What finishing a reign answers: its score as the server worked it out, its title, and where it stands. */
 export interface FinishResult {
   score: Score;
   title: Title;
-  /** The member's best this week, and their place among the members who played. */
-  best: number;
-  rank: number;
+  /** Whether it is the day's counted reign. An extra reign is kept and can be a personal best, but is never ranked. */
+  counted: boolean;
+  /** The member's best counted reign this week and their place among the members who played; null with none counted. */
+  best: number | null;
+  rank: number | null;
   of: number;
-  /** Their best this week, and their best ever under today's rules. */
+  /** Whether they share that place. */
+  tied: boolean;
+  /** It beat their earlier best counted reign of the week; it beat every reign they finished before. Never with no points. */
   personalBest: boolean;
   record: boolean;
-  /** Where the house they ruled stands among the houses this week, and whether this reign lifted it. */
+  /** Their first finished reign under today's rules. */
+  first: boolean;
+  /** Where the house they ruled stands among the houses this week, and whether this reign lifted it (a counted reign only). */
   house: { name: string; rank: number; of: number; rose: boolean } | null;
 }
 

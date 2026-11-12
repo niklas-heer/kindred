@@ -6,7 +6,7 @@
 // chronicle and a title, and a reign between regents stays open to the end.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { TITLES, chronicleOf, highlights, seasonOf } from './chronicle.ts';
+import { TITLES, chronicleOf, highlights, seasonOf, titleOf } from './chronicle.ts';
 import {
   CampaignError, MAP_H, MAP_W, RULES, RULESET, adjacent, battle, capOf, crossingOf, groundOf, levyOf, neighbours, openReign, orderTroops, play, provincesOf, regentMoves,
   roundsOn, rulesetOf, sendable,
@@ -486,6 +486,11 @@ test('a reign has a chronicle: the provinces held turn by turn, what is worth te
   const idle = chronicleOf(field.start, reign, Array.from({ length: 5 }, () => ({ t: 'end' }) as Move));
   assert.equal(idle.held.length, 6);
   assert.equal(idle.deeds.attacks, 0);
+  // A reign that ends with no points is a hard one, whatever it did on the way: it is not called bold or conquering.
+  const deeds = { attacks: 9, taken: 3, lost: 3, held: 0, bold: 2, unlucky: 0, bySea: 1 };
+  assert.equal(titleOf(deeds, idle.state, reign, { ...idle.score, total: 0 }), 'hard');
+  assert.equal(titleOf(deeds, idle.state, reign, { ...idle.score, provinces: 2, total: 12 }), 'bold');
+  assert.ok((TITLES as readonly string[]).includes('hard'));
   assert.deepEqual([seasonOf(0), seasonOf(3), seasonOf(4), seasonOf(11)], [{ season: 'spring', year: 1 }, { season: 'winter', year: 1 }, { season: 'spring', year: 2 }, { season: 'winter', year: 3 }]);
 });
 
