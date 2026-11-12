@@ -17,6 +17,7 @@ export default {
   "lifecycle.dismiss": "30 dagen verbergen",
   "lifecycle.copy_link": "Download een kopie",
   "lifecycle.backup": "Back-up",
+  "lifecycle.families_readonly": "Alleen-lezen omdat er lang niemand is geweest. Een beheerder kan het binnen de familie weer aanzetten.",
   "lifecycle.readonly_text": { one: "Deze familie is sinds {date} alleen-lezen, omdat er al {count} maand niemand is geweest. Een beheerder kan haar weer aanzetten.", other: "Deze familie is sinds {date} alleen-lezen, omdat er al {count} maanden niemand is geweest. Een beheerder kan haar weer aanzetten." },
   "lifecycle.due_text": "Ze staat op de lijst om te verwijderen: de serverbeheerder kan haar vanaf {date} verwijderen.",
   "lifecycle.due_auto_text": "Ze wordt op {date} verwijderd.",

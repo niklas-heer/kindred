@@ -84,6 +84,8 @@ export interface FamilyAdminRow {
   /** For its stewards: the media storage it uses, and its cap when the operator set one. */
   storage?: { usedBytes: number; capBytes: number | null };
   suspended?: boolean;
+  /** Read-only because nobody visited (the lifecycle), not by the operator's decision. */
+  inactive?: boolean;
   /** The operator closed it: its members see a page that says so instead. */
   closed?: boolean;
 }
@@ -116,9 +118,11 @@ export async function overview(user: UserRow, memberships: MembershipRow[]): Pro
   const made = new Set(all.map((f) => f.id));
   const suspended = new Set(memberships.filter((m) => m.suspended).map((m) => m.tree));
   const closed = new Set(memberships.filter((m) => m.closed).map((m) => m.tree));
+  // Made read-only by the lifecycle (src/lib/lifecycle/): said so, rather than "suspended by the operator".
+  const inactive = new Set(suspended.size ? (await accounts().all<{ tree: string }>("SELECT tree FROM family_admin WHERE status_by = 'lifecycle'")).map((r) => r.tree) : []);
   const rows = all.filter((f) => mine.has(f.id)).map((f) => ({
     id: f.id, name: f.name, tagline: f.tagline ?? '', theme: (f.theme === 'modern' ? 'modern' : 'codex') as FamilyTheme, people: f.people, steward: mine.get(f.id) === 'steward',
-    ...(suspended.has(f.id) ? { suspended: true } : {}),
+    ...(suspended.has(f.id) ? { suspended: true, ...(inactive.has(f.id) ? { inactive: true } : {}) } : {}),
     ...(closed.has(f.id) ? { closed: true } : {}),
   })).sort((a, b) => a.name.localeCompare(b.name));
   const limit = may ? await familyLimit(user) : null;

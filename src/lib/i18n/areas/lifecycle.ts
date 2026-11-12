@@ -28,6 +28,7 @@ export const en = {
   "lifecycle.dismiss": "Hide for 30 days",
   "lifecycle.copy_link": "Download a copy",
   "lifecycle.backup": "Backup",
+  "lifecycle.families_readonly": "Read-only because nobody visited for a long time. A steward can turn it back on from inside the family.",
   "lifecycle.readonly_text": {
     one: "This family has been read-only since {date} because nobody visited for {count} month. A steward can turn it back on.",
     other: "This family has been read-only since {date} because nobody visited for {count} months. A steward can turn it back on.",

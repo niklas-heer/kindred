@@ -212,7 +212,7 @@ function FamilyCard({ family: f, total, isDefault }: { family: FamilyAdminRow; t
         <span className="families-id muted">/{f.id}</span>
       </h3>
       <p className="muted">{t('families.people', { count: f.people })}</p>
-      {f.closed ? <p className="families-error">{t('operator.closed_banner')}</p> : f.suspended && <p className="families-error">{t('operator.suspended_banner')}</p>}
+      {f.closed ? <p className="families-error">{t('operator.closed_banner')}</p> : f.suspended && <p className="families-error">{t(f.inactive ? 'lifecycle.families_readonly' : 'operator.suspended_banner')}</p>}
       {f.storage && (
         <p className="muted">
           {f.storage.capBytes === null ? t('families.storage_used', { used: formatBytes(f.storage.usedBytes, t.locale) })

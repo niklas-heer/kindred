@@ -17,6 +17,7 @@ export default {
   "lifecycle.dismiss": "Ukryj na 30 dni",
   "lifecycle.copy_link": "Pobierz kopię",
   "lifecycle.backup": "Kopia zapasowa",
+  "lifecycle.families_readonly": "Tylko do odczytu, bo od dawna nikt jej nie odwiedzał. Opiekun może ją ponownie włączyć z poziomu rodziny.",
   "lifecycle.readonly_text": { one: "Ta rodzina jest tylko do odczytu od {date}, bo nikogo nie było od {count} miesiąca. Opiekun może ją ponownie włączyć.", few: "Ta rodzina jest tylko do odczytu od {date}, bo nikogo nie było od {count} miesięcy. Opiekun może ją ponownie włączyć.", many: "Ta rodzina jest tylko do odczytu od {date}, bo nikogo nie było od {count} miesięcy. Opiekun może ją ponownie włączyć.", other: "Ta rodzina jest tylko do odczytu od {date}, bo nikogo nie było od {count} miesiąca. Opiekun może ją ponownie włączyć." },
   "lifecycle.due_text": "Czeka na usunięcie: administrator serwera może ją usunąć od {date}.",
   "lifecycle.due_auto_text": "Zostanie usunięta {date}.",

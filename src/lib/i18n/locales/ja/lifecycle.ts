@@ -17,6 +17,7 @@ export default {
   "lifecycle.dismiss": "30日間表示しない",
   "lifecycle.copy_link": "コピーをダウンロード",
   "lifecycle.backup": "バックアップ",
+  "lifecycle.families_readonly": "長いあいだ誰も訪れていないため、閲覧のみになっています。世話役が家族の中から再開できます。",
   "lifecycle.readonly_text": "{count}か月、誰も訪れなかったため、この家族は{date}から読み取り専用です。世話役が元に戻せます。",
   "lifecycle.due_text": "削除の対象です。サーバーの運営者は{date}以降に削除できます。",
   "lifecycle.due_auto_text": "{date}に削除されます。",
