@@ -20,7 +20,7 @@ The operator runs the server. It is a role of the server, not of a family, and i
 ## The operator console
 
 **Operator console** in the account menu, at `/operator`. Only operators see the item, and the server checks the role on every
-call. It has six tabs.
+call. It has eight tabs: Families, Statistics, Requests, Data requests, Settings, Updates, Operators and Log.
 
 ### Families
 
@@ -143,7 +143,73 @@ them when they take its steward invitation.
 The operators, with **Make an operator** by email and **Step down**. The **Log** lists everything any operator did, newest first:
 when, who, what, and which family (making, suspending, closing, capping, recounting and deleting families, new invitation links,
 approving and declining requests, moving data requests on, changing settings and operators). It never holds a family's records.
-The log is kept when a family is deleted.
+The log is kept when a family is deleted. Turning the update check on or off is logged too.
+
+### Statistics
+
+How the server is used and how it grows, from the accounts database alone: the tab never opens a family's database (on Cloudflare
+no family's Durable Object wakes for it) and never reads a record. A daily job (`instance-stats`) writes one row a day of totals
+(`instance_daily`, [data-model.md](data-model.md)), kept three years; the tab adds today's live numbers.
+
+- **Headline:** families, families with a member's visit in the last 30 days, accounts, and accounts active in the last 30
+  days, each with its change over 30 days.
+- **Growth:** small charts of families, accounts, monthly active accounts, storage and page views over 30 days (daily), 12 months
+  (weekly) or everything (monthly once it is longer than a year). Each chart describes itself to a screen reader and has a
+  "Show as a table" with the same numbers.
+- **Do families come back?** Of the families made at least 1, 4 or 12 weeks ago, how many had a member's visit in the last 7
+  days, and how many families have three or more members who visited in 30 days. **Do new accounts stay?** Accounts made in each
+  of the last twelve weeks and how many used Kindred in the last 7 days.
+- **Storage and caps:** what all families use, how many have a cap, their use against their caps, and how many are at 80% or more.
+- **Activity:** accounts active in the last day and week, members per family (median, largest), suspended and closed families,
+  open requests, and sign-ins in the last 30 days by method.
+- **AI spending** per month, from the families' AI budgets.
+- **Families by storage:** each family by its id, with its members, storage and cap, when it was last visited and its page views
+  in 30 days.
+
+What it holds to:
+
+- **Counts, never people.** No name or record is read or shown. A breakdown smaller than five (a cohort, a sign-in method) shows
+  "fewer than 5", so it cannot point at one or two people.
+- **A family's own switch holds.** A family whose stewards turned usage statistics off
+  ([roles-and-privacy.md](roles-and-privacy.md#usage-statistics)) counts in every total, but its row shows no activity (no last
+  visit, no page views), and it records no page views to begin with.
+- **What can be reconstructed is.** The first run fills in the days before it from when families and accounts were made and from
+  the page views families counted; families and accounts deleted since are missing from those days. Who was active cannot be
+  reconstructed: those numbers begin on the first night the job ran, and the charts say so.
+- **Active** means an account used Kindred (`user.last_seen`, updated at most every five minutes); a family is active when a
+  member opened it (`family_visit`). A share-link guest is not an account and counts only in page views.
+
+### Updates
+
+The running version and commit, and whether a newer Kindred release exists.
+
+- **Nothing is asked until you agree.** The tab asks once: "Check for new Kindred releases?" Agreeing makes the server ask
+  GitHub's releases API (`api.github.com/repos/<repo>/releases/latest` and the list of releases) at most once a day, from the
+  daily job (`update-check`) or when an operator opens the tab. The request carries a generic User-Agent (`Kindred`) and nothing
+  that tells your server apart: no address, version or identifier. The answer is kept a day (`update_check`), and the next call
+  sends its ETag, so an unchanged list costs nothing.
+- **Off for good:** `KINDRED_UPDATE_CHECK=off` ([self-host.md](self-host.md)). **A fork:** `KINDRED_UPDATE_REPO=owner/name`.
+- **What it shows:** "Kindred 2.5.0 is available" with the releases between yours and the latest, each with its notes; or "Up to
+  date, as of …" after a good check. A failed check never says "up to date": it says when it last checked and keeps what the last
+  good check knew. A release Kindred marks as a **security fix** or as **needing a step by hand** says so.
+- **Untrusted text.** GitHub's answer is treated as a stranger's: a tag that is not a version is ignored, a link that is not
+  GitHub's is replaced, and the notes go through Kindred's one Markdown renderer, which shows raw HTML as text, allows only web and
+  mail links and loads no image.
+- **The dot.** When a newer release is known, the console's link in the account menu and the Updates tab carry a dot. Only
+  operators see it.
+
+Updating itself is up to you: read the release notes, then update as your install does ([self-host.md](self-host.md),
+[deploy-cloudflare.md](deploy-cloudflare.md)).
+
+### New in Kindred
+
+What each release brought, for the people who use it: **New in Kindred** in the account menu, at `/whats-new` (not the family's
+own "What's new", which is about its records). Each release has a few highlights in every language, each for everyone, for
+stewards or for operators; a reader sees those meant for them, newest first, and an operator also the links to the full
+changelog and the migrations. Anyone may open the page: a guest from a share link (linked quietly from the share page) and
+someone signed out see only what is meant for everyone. After an upgrade, a signed-in member sees a small "New in Kindred 2.x"
+card once per minor version, only if their account is older than this server's first run of that version, never during a tour,
+in a demo or in "View as". How to write a release's highlights: [releases/README.md](releases/README.md).
 
 ## Legal pages
 
@@ -202,6 +268,7 @@ use.
 | The operator sees | The operator does not see |
 | --- | --- |
 | Each family's name, address, member count, when it was made, when it was last visited, its status | The people in it, their details, their relationships |
+| Totals of the whole server: families, accounts, activity, storage, page views, AI spending ([Statistics](#statistics)) | Which member did what, or any family's activity when its stewards turned statistics off |
 | Its stewards' names and emails | Its other members' names and emails |
 | How much storage it uses | Its pictures, documents and portraits |
 | Requests for a family and data requests sent to the server | Its stories, posts, comments, recipes, research, history, chats with the assistant |
