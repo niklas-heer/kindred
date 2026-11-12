@@ -3,11 +3,13 @@
 // tables and a way to begin a reign; a reign is played in the browser and its moves are sent at the end, where the
 // server plays them again and keeps the score. A practice reign (any house, a fresh field) is always there and stores
 // nothing. A demo and a steward's preview play the week's field but never send it. A week's reign is kept in the tab while
-// it is played (src/lib/campaign/saved.ts), so a reload or a visit elsewhere comes back to it.
-import { useMutation, useQuery, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
+// it is played (src/lib/campaign/saved.ts), so a reload or a visit elsewhere comes back to it; and its moves are reported
+// to the server after every battle and turn, so the day's counted reign (fixed when it begins) can be gone on with from
+// this page, in another tab or on another device.
+import { useMutation, useQuery, useQueryClient, type QueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Check, CircleHelp, Crown, ExternalLink, Play as PlayIcon, RotateCcw, Sunrise, Swords, TrendingUp, Undo2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Check, CircleHelp, Crown, ExternalLink, Hourglass, Play as PlayIcon, RotateCcw, Sunrise, Swords, TrendingUp, Undo2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Board } from '~/components/campaign/Board';
 import { CampaignMap } from '~/components/campaign/CampaignMap';
 import { ReignChronicle } from '~/components/campaign/Chronicle';
@@ -19,10 +21,11 @@ import '~/components/campaign/campaign.css';
 import { Arms } from '~/components/Heraldry';
 import { ConfirmDialog, EmptyState, ErrorState, PageHeader, Select, Skeleton, useIsClient } from '~/components/ui';
 import { newOpKey } from '~/lib/api';
-import { campaignQuery, campaignSettingsQuery, campaignStatusQuery, finishCampaignRun, setCampaignOn, startCampaignRun } from '~/lib/campaign/campaign.functions';
+import { campaignQuery, campaignSettingsQuery, campaignStatusQuery, finishCampaignRun, keepCampaignRun, setCampaignOn, startCampaignRun } from '~/lib/campaign/campaign.functions';
 import { RULES, setupField, type Move, type Reign, type State } from '~/lib/campaign/engine';
+import { goesOnFrom, settled, turnOf } from '~/lib/campaign/progress';
 import { forgetReigns, loadReign, saveReign, tabStore, type SavedReign } from '~/lib/campaign/saved';
-import type { CampaignView, FinishResult, RunStart } from '~/lib/campaign/types';
+import type { CampaignView, DaySlot, FinishResult, Resume, RunStart } from '~/lib/campaign/types';
 import { errorText } from '~/lib/errortext';
 import { useTreeId } from '~/lib/family';
 import { formatDate, ordinal, translate, useT, type Locale } from '~/lib/i18n';
@@ -38,6 +41,17 @@ export const Route = createFileRoute('/$tree/campaign')({
 });
 
 const INTRO_KEY = 'kindred:campaign:intro:2';
+
+/**
+ * Says at once where today's counted reign stands, before the page has asked the server again: under way with the moves
+ * kept of it, or played. So the week's page never offers to begin a counted reign that has begun.
+ */
+function setToday(qc: QueryClient, tree: string, today: DaySlot, resume?: Resume) {
+  qc.setQueryData<CampaignView>(campaignQuery(tree).queryKey, (old) => (old?.challenge && old.board
+    ? { ...old, challenge: { ...old.challenge, today, counts: today === 'open', grant: today === 'open' ? old.challenge.grant : 0, resume }, board: { ...old.board, me: { ...old.board.me, today } } }
+    : old));
+  void qc.invalidateQueries({ queryKey: campaignStatusQuery(tree).queryKey });
+}
 
 /** A reign being played: this week's (begun on the server, or played only here in a demo or preview) or a practice. */
 type Playing =
@@ -60,13 +74,16 @@ function CampaignPage() {
 
   // A week's reign this tab was playing comes back where it was left.
   const thisWeek = q.data?.challenge?.week;
+  const kept = q.data?.challenge?.resume;
   useEffect(() => {
     if (!thisWeek || week || practice) return;
     const { saved, outdated } = loadReign(tabStore(), tree, account, thisWeek);
-    if (saved) setWeek({ run: saved.run, submit: saved.submit, round: 0, saved });
+    // The same reign played on somewhere else meanwhile goes on from what the server has kept of it.
+    const elsewhere = saved && kept && kept.run.id === saved.run.id && !goesOnFrom(saved.moves, kept.moves);
+    if (saved) setWeek({ run: saved.run, submit: saved.submit, round: 0, saved: elsewhere ? { ...saved, moves: kept.moves } : saved });
     // A reign kept from before the rules changed cannot be played on: it has been let go, and this says so once.
     else if (outdated) toast({ title: t('campaign.reign.outdated_title'), body: t('campaign.reign.outdated') });
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- `t` changes with the language only, and the kept reign is read once per week shown
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- `t` changes with the language only, and the kept reign is read once per week shown; what the server has kept is read when that happens, not followed
   }, [thisWeek, week, practice, tree, account]);
 
   // The first visit opens "how it works" once; after that it is behind its button.
@@ -93,7 +110,7 @@ function CampaignPage() {
           : !view ? <Skeleton height={520} />
           : playing?.kind === 'practice' ? <Practice view={view} tree={tree} help={help} leave={() => setPractice(false)} />
           : playing?.kind === 'week' ? <WeekReign key={`${week!.run.id}:${week!.round}`} tree={tree} account={account} run={playing.run} submit={playing.submit} saved={week!.saved} help={help} leave={() => setWeek(null)} again={(run, submit) => setWeek({ run, submit, round: (week?.round ?? 0) + 1 })} />
-          : view.enabled ? <Week view={view} tree={tree} help={help} begin={(run, submit) => setWeek({ run, submit, round: 0 })} startPractice={() => setPractice(true)} />
+          : view.enabled ? <Week view={view} tree={tree} help={help} begin={(run, submit, moves) => setWeek({ run, submit, round: 0, saved: moves && { run, submit, moves, opKey: newOpKey() } })} startPractice={() => setPractice(true)} />
           : <Off view={view} tree={tree} help={help} startPractice={() => setPractice(true)} />}
       </div>
       <HowItWorks
@@ -144,8 +161,9 @@ function Off({ view, tree, help, startPractice }: { view: CampaignView; tree: st
 
 // ---------- the week ----------
 
-function Week({ view, tree, help, begin, startPractice }: { view: CampaignView; tree: string; help: ReactNode; begin: (run: RunStart, submit: boolean) => void; startPractice: () => void }) {
+function Week({ view, tree, help, begin, startPractice }: { view: CampaignView; tree: string; help: ReactNode; begin: (run: RunStart, submit: boolean, moves?: Move[]) => void; startPractice: () => void }) {
   const t = useT();
+  const qc = useQueryClient();
   const challenge = view.challenge!;
   const board = view.board!;
   const localOnly = useLocalOnly();
@@ -163,9 +181,17 @@ function Week({ view, tree, help, begin, startPractice }: { view: CampaignView; 
       return;
     }
     try {
-      begin(await start.mutateAsync(), true);
+      const run = await start.mutateAsync();
+      // The day's counted reign is fixed from here on: the page says so at once. A reign that turned out extra (the
+      // counted one was begun elsewhere meanwhile) asks the server how things stand.
+      if (run.counts) setToday(qc, tree, 'begun', { run, moves: [], turn: 0 });
+      else void qc.invalidateQueries({ queryKey: campaignQuery(tree).queryKey });
+      begin(run, true);
     } catch { /* the error is shown under the button */ }
   };
+  // Today's counted reign under way: the way on is to go on with it. A demo and a preview have none of their own.
+  const resume = !localOnly && challenge.today === 'begun' ? challenge.resume : undefined;
+  const today = resume ? 'begun' : challenge.today === 'begun' ? 'played' : challenge.today;
   const me = board.me;
   const { map } = challenge.field;
   return (
@@ -192,8 +218,9 @@ function Week({ view, tree, help, begin, startPractice }: { view: CampaignView; 
             </p>
             {me.record !== null && <p className="cg-week-record"><Laurel size={14} /> {t('campaign.week.record', { score: me.record })}</p>}
             {/* One reign a day counts: whether today's is still to play, which is the reason to come back tomorrow. */}
-            <p className={`cg-week-today${challenge.counts ? ' is-open' : ''}`} data-testid="week-today">
-              {challenge.counts ? <Sunrise size={15} aria-hidden /> : <Check size={15} aria-hidden />} {t(challenge.counts ? 'campaign.week.today_open' : 'campaign.week.today_done')}
+            <p className={`cg-week-today${today === 'played' ? '' : ' is-open'}`} data-testid="week-today" data-today={today}>
+              {today === 'open' ? <Sunrise size={15} aria-hidden /> : today === 'begun' ? <Hourglass size={15} aria-hidden /> : <Check size={15} aria-hidden />}{' '}
+              {today === 'open' ? t('campaign.week.today_open') : today === 'begun' ? t('campaign.week.today_begun', { turn: (resume?.turn ?? 0) + 1, turns: RULES.TURNS }) : t('campaign.week.today_done')}
             </p>
           </div>
         </div>
@@ -208,7 +235,9 @@ function Week({ view, tree, help, begin, startPractice }: { view: CampaignView; 
           {challenge.grant > 0 && <> · {t('campaign.week.grant', { count: challenge.grant })}</>}
         </p>
         <div className="cg-banner-actions">
-          <button type="button" className="btn primary lg" disabled={start.isPending || !side} onClick={() => void go()}><PlayIcon size={16} /> {localOnly ? t('campaign.week.play_local') : t('campaign.week.begin')}</button>
+          {resume
+            ? <button type="button" className="btn primary lg" onClick={() => begin(resume.run, true, resume.moves)}><PlayIcon size={16} /> {t('campaign.week.continue')}</button>
+            : <button type="button" className="btn primary lg" disabled={start.isPending || !side} onClick={() => void go()}><PlayIcon size={16} /> {localOnly ? t('campaign.week.play_local') : t('campaign.week.begin')}</button>}
           <button type="button" className="btn" onClick={startPractice}>{t('campaign.practice.button')}</button>
         </div>
         {localOnly && <p className="subtle">{t('campaign.week.local')}</p>}
@@ -272,24 +301,69 @@ function WeekReign({ tree, account, run, submit, saved, help, leave, again }: { 
   const qc = useQueryClient();
   const reign = useMemo<Reign>(() => ({ map: run.field.map, sides: run.field.sides.map((s) => s.id), player: run.side, seed: run.seed, renown: run.renown, grant: run.grant }), [run]);
   const side = run.field.sides.find((s) => s.id === run.side);
+  // The day's counted reign, fixed when it began: it stays the day's whether it is finished, left or lost.
+  const counted = submit && run.counts === true;
   // The same retry key as before a reload, so a finish sent twice is kept once.
   const [key] = useState(() => saved?.opKey ?? newOpKey());
   const [initial] = useState(() => (saved?.run.id === run.id ? saved.moves : []));
   const finish = useMutation({
     mutationFn: (moves: Moves) => finishCampaignRun({ data: { tree, opKey: key, id: run.id, moves } }),
-    onSuccess: (r) => { forgetReigns(tabStore(), tree, account); if (r.personalBest) sound('fanfare'); },
+    onSuccess: (r) => { forgetReigns(tabStore(), tree, account); if (counted) setToday(qc, tree, 'played'); if (r.personalBest) sound('fanfare'); },
     onSettled: () => Promise.all([campaignQuery(tree), campaignStatusQuery(tree)].map((o) => qc.invalidateQueries({ queryKey: o.queryKey }))),
   });
+  const goAway = () => { forgetReigns(tabStore(), tree, account); leave(); };
+
+  // The reign's moves are reported to the server as they are settled (after a battle, at the end of a turn), one report
+  // after another, so the reign can be gone on with elsewhere. `now` is the moves as they stand; `sent` how many of them
+  // have been reported and `kept` how many the server has said it keeps; `done` that the reign is over or left, when a
+  // late answer no longer matters.
+  const live = useRef({ now: initial, sent: 0, kept: 0, done: false, last: Promise.resolve() });
+  const report = useCallback((moves: Move[]) => {
+    const at = live.current;
+    const list = settled(moves);
+    if (!submit || list.length <= at.sent) return;
+    at.sent = list.length;
+    at.last = at.last.then(() => keepCampaignRun({ data: { tree, id: run.id, moves: list } })).then((r) => { at.kept = Math.max(at.kept, r.kept); }, (e: unknown) => {
+      // Not kept this time (the network, say): the next report carries these moves again.
+      at.sent = at.kept;
+      const why = e instanceof Error ? e.message : '';
+      if (at.done || (why !== 'campaign.err.elsewhere' && why !== 'campaign.err.finished')) return;
+      // The reign went on, or ended, in another tab or on another device: this copy is let go, and the page asks again.
+      at.done = true;
+      toast({ title: t('campaign.reign.elsewhere_title'), body: t('campaign.err.elsewhere') });
+      void qc.invalidateQueries({ queryKey: campaignQuery(tree).queryKey }).then(() => { forgetReigns(tabStore(), tree, account); leave(); });
+    });
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- `t` changes with the language only; `leave` is the page's own and does the same each time
+  }, [submit, tree, run.id, account, qc]);
+
   // Kept while it is played; a reign that is over and sent nowhere has nothing left to keep.
   const [played, setPlayed] = useState({ count: 0, over: false });
   const keep = useCallback((moves: Move[], over: boolean) => {
     setPlayed({ count: moves.length, over });
+    live.current.now = moves;
+    if (over) live.current.done = true;
     if (over && !submit) forgetReigns(tabStore(), tree, account);
     else saveReign(tabStore(), tree, account, { run, submit, moves, opKey: key });
-  }, [run, submit, tree, account, key]);
+    // The finish carries every move, so a reign that is over reports nothing more.
+    if (!over) report(moves);
+  }, [run, submit, tree, account, key, report]);
+
   const [asking, setAsking] = useState(false);
-  const goAway = () => { forgetReigns(tabStore(), tree, account); leave(); };
-  const askLeave = () => { if (played.count > 0 && !played.over) setAsking(true); else goAway(); };
+  const [leaving, setLeaving] = useState(false);
+  /** Leaves the counted reign for now: what is settled is with the server, and the week's page offers to go on with it. */
+  const pause = async () => {
+    const at = live.current;
+    setLeaving(true);
+    report(at.now);
+    await at.last;
+    if (at.done) return;
+    at.done = true;
+    const moves = at.now.slice(0, at.kept);
+    setToday(qc, tree, 'begun', { run, moves, turn: Math.min(RULES.TURNS - 1, turnOf(moves)) });
+    goAway();
+  };
+  // A counted reign always says what leaving means; another only once there is something to lose.
+  const askLeave = () => { if (!played.over && (counted || played.count > 0)) setAsking(true); else goAway(); };
   const restart = useMutation({ mutationFn: () => startCampaignRun({ data: { tree, side: run.side } }) });
   const playAgain = async () => {
     if (!submit) { again(run, false); return; }
@@ -297,8 +371,14 @@ function WeekReign({ tree, account, run, submit, saved, help, leave, again }: { 
   };
   return (
     <>
-    <ConfirmDialog open={asking} onClose={() => setAsking(false)} onConfirm={() => { setAsking(false); goAway(); }} title={t('campaign.reign.leave_title')} confirmLabel={t('campaign.reign.leave_go')}>
-      <p>{t('campaign.reign.leave_text')}</p>
+    <ConfirmDialog
+      open={asking}
+      onClose={() => setAsking(false)}
+      onConfirm={() => { setAsking(false); if (counted) void pause(); else goAway(); }}
+      title={t(counted ? 'campaign.reign.pause_title' : 'campaign.reign.leave_title')}
+      confirmLabel={t(counted ? 'campaign.reign.pause_go' : 'campaign.reign.leave_go')}
+    >
+      <p>{t(counted ? 'campaign.reign.pause_text' : 'campaign.reign.leave_text')}</p>
     </ConfirmDialog>
     <Play
       reign={reign}
@@ -312,10 +392,12 @@ function WeekReign({ tree, account, run, submit, saved, help, leave, again }: { 
           title={t('campaign.reign.title', { house: side?.name ?? '' })}
           subtitle={t('campaign.reign.line', { turns: RULES.TURNS })}
           icon={<Crown size={26} />}
-          actions={<>{help}<button type="button" className="btn" onClick={askLeave}><Undo2 size={16} /> {t('campaign.reign.leave')}</button></>}
+          actions={<>{help}<button type="button" className="btn" disabled={leaving} onClick={askLeave}><Undo2 size={16} /> {t('campaign.reign.leave')}</button></>}
         />
       }
-      note={!submit ? <p className="cg-local" role="note">{t('campaign.week.local')}</p> : run.counts === false ? <p className="cg-local" role="note">{t('campaign.reign.extra')}</p> : run.grant > 0 ? <p className="cg-local">{t('campaign.week.grant', { count: run.grant })}</p> : null}
+      note={!submit ? <p className="cg-local" role="note">{t('campaign.week.local')}</p>
+        : !counted ? <p className="cg-local" role="note">{t('campaign.reign.extra')}</p>
+        : <p className="cg-local" role="note" data-testid="reign-counted">{t('campaign.reign.counted')}{run.grant > 0 && <> {t('campaign.week.grant', { count: run.grant })}</>}</p>}
       over={(moves) => ({
         status: !submit ? <p className="subtle">{t('campaign.result.local')}</p> : <Submit finish={finish} moves={moves} />,
         actions: <>

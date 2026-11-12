@@ -90,7 +90,7 @@ export const en = {
   "today.quiz.family": { one: "{count} of the family has answered today, {right} of them right.", other: "{count} of the family have answered today, {right} of them right." },
   "today.quiz.family_first": "You are the first to answer today.",
   "today.quiz.tomorrow": "A new question comes tomorrow.",
-  "today.quiz.bonus": "Your right answer adds 2 troops to the first turn of today’s counted reign in the Campaign, if it is still to play.",
+  "today.quiz.bonus": "Your right answer adds 2 troops to the first turn of today’s counted reign in the Campaign, if you have not begun it yet.",
   "today.quiz.houses": "Houses this month",
   "today.quiz.house_score": { one: "{count} right answer", other: "{count} right answers" },
 
@@ -214,7 +214,7 @@ export const de: Record<keyof typeof en, Message> = {
   "today.quiz.family": { one: "{count} aus der Familie hat heute geantwortet, davon {right} richtig.", other: "{count} aus der Familie haben heute geantwortet, davon {right} richtig." },
   "today.quiz.family_first": "Heute hat vor dir noch niemand geantwortet.",
   "today.quiz.tomorrow": "Morgen kommt eine neue Frage.",
-  "today.quiz.bonus": "Deine richtige Antwort bringt dir 2 Truppen mehr im ersten Zug der gezählten Herrschaft von heute im Feldzug, wenn sie noch aussteht.",
+  "today.quiz.bonus": "Deine richtige Antwort bringt dir 2 Truppen mehr im ersten Zug der gezählten Herrschaft von heute im Feldzug, wenn du sie noch nicht begonnen hast.",
   "today.quiz.houses": "Häuser in diesem Monat",
   "today.quiz.house_score": { one: "{count} richtige Antwort", other: "{count} richtige Antworten" },
 
@@ -338,7 +338,7 @@ export const af: Record<keyof typeof en, Message> = {
   "today.quiz.family": { one: "{count} van die familie het vandag geantwoord, {right} van hulle reg.", other: "{count} van die familie het vandag geantwoord, {right} van hulle reg." },
   "today.quiz.family_first": "Jy is die eerste wat vandag antwoord.",
   "today.quiz.tomorrow": "Môre kom daar ’n nuwe vraag.",
-  "today.quiz.bonus": "Jou regte antwoord gee jou 2 troepe meer in die eerste beurt van vandag se getelde bewind in die Veldtog, as dit nog wag.",
+  "today.quiz.bonus": "Jou regte antwoord gee jou 2 troepe meer in die eerste beurt van vandag se getelde bewind in die Veldtog, as jy dit nog nie begin het nie.",
   "today.quiz.houses": "Huise hierdie maand",
   "today.quiz.house_score": { one: "{count} regte antwoord", other: "{count} regte antwoorde" },
 

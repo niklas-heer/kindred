@@ -24,6 +24,15 @@ export interface SideView extends StoredSide {
 /** What a reign is played on: the map (an invented continent, with its terrain), the four sides in their order, and the opening. */
 export interface FieldView { map: GameMap; sides: StoredSide[]; start: State }
 
+/**
+ * Where a member's counted reign of a day stands: `open` while none has begun (the next one begun is it), `begun` while it
+ * is being played (it can be continued, and nothing else begun that day counts), `played` once it is finished.
+ */
+export type DaySlot = 'open' | 'begun' | 'played';
+
+/** A counted reign under way, as the server keeps it: what it began with, the moves reported so far, and the turn they reach. */
+export interface Resume { run: RunStart; moves: Move[]; turn: number }
+
 /** This week's challenge, as the reader would play it. */
 export interface Challenge {
   /** The ISO week, "2026-W46", and its last day (a Sunday, UTC). */
@@ -40,8 +49,12 @@ export interface Challenge {
   renown: Record<string, number>;
   /** The daily quiz's reward waiting for the reader's counted reign today: extra levy on its first turn. */
   grant: number;
-  /** Whether a reign begun now can still be today's counted one: false once the reader has finished a reign today. */
+  /** Whether a reign begun now is today's counted one: true until the reader has begun a reign today. */
   counts: boolean;
+  /** Where today's counted reign stands. */
+  today: DaySlot;
+  /** Today's counted reign while it is under way, to go on with: here, in another tab or on another device. */
+  resume?: Resume;
 }
 
 /** A reign the server has begun: what the browser plays it with. */
@@ -53,7 +66,7 @@ export interface RunStart {
   side: string;
   renown: number;
   grant: number;
-  /** Whether this reign can be the day's counted one; an extra reign is kept and never ranked. Missing in a reign kept from before. */
+  /** Whether this reign is the day's counted one, fixed when it began; an extra reign is kept and never ranked. Missing in a reign kept from before. */
   counts?: boolean;
 }
 
@@ -85,9 +98,9 @@ export interface Leaderboard {
   houses: HouseTotal[];
   /**
    * The reader this week: their best counted reign, how many counted reigns, their place (`tied` when shared), and
-   * `record`, their best reign ever under today's rules, counted or extra. `today` says the day's counted reign is played.
+   * `record`, their best reign ever under today's rules, counted or extra. `today` says where the day's counted reign stands.
    */
-  me: { best: number | null; runs: number; rank: number | null; of: number; tied: boolean; record: number | null; today: boolean };
+  me: { best: number | null; runs: number; rank: number | null; of: number; tied: boolean; record: number | null; today: DaySlot };
   /** Reigns played under earlier rules, shown apart and never ranked with today's: this week's, and the best ever. */
   earlier?: { week: BoardRow[]; allTime: BoardRow[] };
 }
@@ -125,15 +138,15 @@ export interface CampaignStatus {
   tied?: boolean;
   /** Their best reign ever under today's rules. */
   record?: number | null;
-  /** Whether today's counted reign is played. */
-  today?: boolean;
+  /** Where today's counted reign stands: still to begin, under way, or played. */
+  today?: DaySlot;
 }
 
 /** What finishing a reign answers: its score as the server worked it out, its title, and where it stands. */
 export interface FinishResult {
   score: Score;
   title: Title;
-  /** Whether it is the day's counted reign. An extra reign is kept and can be a personal best, but is never ranked. */
+  /** Whether it was its day's counted reign (fixed when it began). An extra reign is kept and can be a personal best, but is never ranked. */
   counted: boolean;
   /** The member's best counted reign this week and their place among the members who played; null with none counted. */
   best: number | null;

@@ -16,18 +16,24 @@
 //   on the board but its houses: no place, no person.
 // - A reign and a week's field carry the rules' version (RULESET, migration 0035). The tables rank a reign only among
 //   reigns of the same rules; reigns of earlier rules are listed apart, and one begun under them can no longer be sent.
-// - One reign a day counts for the tables: of the reigns a member begins on a day (UTC), the first they finish. The rest
-//   are extra: kept, never ranked, and still a personal best. Nothing stores "counted": it follows from the reigns
-//   themselves (COUNTED), so it cannot drift, and two reigns finished at once cannot both count.
+// - One reign a day counts for the tables, and which one is fixed when it begins: the first reign a member begins on a day
+//   (UTC) is that day's counted one (`campaign_run.counts_for`, migration 0036, one a day by a unique index). Beginning
+//   another, finishing another first or leaving it changes nothing: the rest are extra, kept, never ranked, and still a
+//   personal best. A counted reign left unfinished has no score, and its day is spent.
+// - A reign's moves are kept as it is played (`campaign_run.progress`): the browser reports them after every battle and
+//   every turn, the server plays them again before keeping them, and a later report or the finish has to go on from them.
+//   So the day's counted reign can be continued in another tab or on another device, and a battle cannot be taken back
+//   by going back to an earlier copy of the reign.
 import { db, guard, NOT_A_RECORD, once, q, store, type Db, type Query } from '../db.server.ts';
 import { readOnly } from '../read-only.ts';
 import { dayOf, weekOf, weekStart } from '../today/week.ts';
 import type { House } from '../types.ts';
 import { chronicleOf, isTitle, type Title } from './chronicle.ts';
-import { CampaignError, RULES, RULESET, rulesetOf, setupField, standings, type Move, type State } from './engine.ts';
+import { CampaignError, RULES, RULESET, openReign, play, rulesetOf, setupField, standings, type Move, type Reign, type State } from './engine.ts';
 import { RIVALS, isRival } from './names.ts';
+import { goesOnFrom, settled, turnOf } from './progress.ts';
 import { RIVAL_RENOWN, renownOf, type Renown, type RenownCounts } from './renown.ts';
-import type { BoardRow, CampaignStatus, CampaignView, Challenge, FameEntry, FieldView, FinishResult, HouseTotal, Leaderboard, RunStart, SideView, StoredSide } from './types.ts';
+import type { BoardRow, CampaignStatus, CampaignView, Challenge, DaySlot, FameEntry, FieldView, FinishResult, HouseTotal, Leaderboard, Resume, RunStart, SideView, StoredSide } from './types.ts';
 
 const DAY_MS = 86_400_000;
 
@@ -35,7 +41,7 @@ const DAY_MS = 86_400_000;
 export interface Who { account: string; name: string; person: string | null }
 
 interface CampaignRow { enabled: number; season: number }
-interface RunRow { id: string; account: string; name_then: string; side: string; week: string; seed: string; field: string; orders: string | null; score: number | null; result: string | null; finished_at: string | null; created_at: string; ruleset: number }
+interface RunRow { id: string; account: string; name_then: string; side: string; week: string; seed: string; field: string; orders: string | null; score: number | null; result: string | null; finished_at: string | null; created_at: string; ruleset: number; counts_for: string | null; progress: string | null }
 /** A reign's field as it is kept: the week's field, and what the player's levy had when it began. */
 interface StoredField extends FieldView { renown: number; grant: number }
 
@@ -230,20 +236,45 @@ async function quizGrant(d: Db, account: string, now: Date): Promise<number> {
 
 // ---------- the tables ----------
 
-/**
- * Whether the reign `r` counts for the tables: it is finished, and of the reigns its member began that day (UTC) under
- * the same rules, none was finished before it. One counted reign a day, however many are played.
- */
-const COUNTED = (r: string) => `(${r}.finished_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM campaign_run o WHERE o.account = ${r}.account AND o.ruleset = ${r}.ruleset
-  AND o.finished_at IS NOT NULL AND substr(o.created_at, 1, 10) = substr(${r}.created_at, 1, 10)
-  AND (o.finished_at < ${r}.finished_at OR (o.finished_at = ${r}.finished_at AND o.id < ${r}.id))))`;
+/** Whether the reign `r` counts for the tables: it was its member's counted reign of its day, and it is finished. */
+const COUNTED = (r: string) => `(${r}.counts_for IS NOT NULL AND ${r}.finished_at IS NOT NULL)`;
 
-/** A reign of this member's, begun on this day under today's rules, that is finished: the day's counted reign is played. */
-const playedSql = 'EXISTS (SELECT 1 FROM campaign_run WHERE account = ? AND ruleset = ? AND finished_at IS NOT NULL AND substr(created_at, 1, 10) = ?)';
+/** A member's counted reign of a day under today's rules: at most one, by the unique index of migration 0036. */
+const daySql = 'FROM campaign_run WHERE account = ? AND ruleset = ? AND counts_for = ?';
 
-/** Whether a reign this member begins now can still be the day's counted one. */
-async function countsToday(d: Db, account: string, now: Date): Promise<boolean> {
-  return !(await d.get<{ ok: number }>(`SELECT ${playedSql} AS ok`, account, RULESET, dayOf(now)))?.ok;
+/** Where a member's counted reign of today stands: still to begin, under way, or played. */
+async function daySlot(d: Db, account: string, now: Date): Promise<DaySlot> {
+  const row = await d.get<{ finished_at: string | null }>(`SELECT finished_at ${daySql}`, account, RULESET, dayOf(now));
+  return !row ? 'open' : row.finished_at ? 'played' : 'begun';
+}
+
+// ---------- a reign's moves as it is played ----------
+
+/** The moves the server has kept of a reign under way. */
+function progressOf(row: Pick<RunRow, 'progress'>): Move[] {
+  try {
+    const kept = JSON.parse(row.progress ?? '[]') as unknown;
+    return Array.isArray(kept) ? (kept as Move[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** A stored reign as the browser plays it: what `startRun` answered when it began. */
+function runOf(row: RunRow): RunStart {
+  const { renown, grant, ...field } = JSON.parse(row.field) as StoredField;
+  return { id: row.id, week: row.week, seed: row.seed, field, side: row.side, renown, grant, counts: row.counts_for !== null };
+}
+
+/** Today's counted reign of a member while it is under way, with the moves kept of it, to go on with. */
+async function resumeOf(d: Db, account: string, now: Date): Promise<Resume | undefined> {
+  const row = await d.get<RunRow>(`SELECT * ${daySql} AND finished_at IS NULL`, account, RULESET, dayOf(now));
+  if (!row) return undefined;
+  const run = runOf(row);
+  // A field today's rules cannot play is not offered; the reign stays unfinished.
+  if (rulesetOf(run.field.map) !== RULESET) return undefined;
+  const moves = progressOf(row);
+  return { run, moves, turn: Math.min(RULES.TURNS - 1, turnOf(moves)) };
 }
 
 interface ScoreRow { account: string; name_then: string; side: string; score: number; week: string; result: string | null; renown: number | null; quiz: number | null }
@@ -328,14 +359,14 @@ const tiedIn = (rows: { rank: number }[], at: number) => at >= 0 && rows.some((r
 async function leaderboard(d: Db, week: string, account: string, sides: SideView[] | StoredSide[], now: Date): Promise<Leaderboard> {
   const top = (where: string, ...args: (string | number)[]) => d.all<ScoreRow>(`SELECT ${SCORE_COLUMNS} FROM campaign_run r WHERE r.finished_at IS NOT NULL AND ${where} ORDER BY r.score DESC, r.finished_at, r.id LIMIT 10`, ...args);
   const list = (rows: ScoreRow[]): BoardRow[] => ranked(rows.map((r) => listed(r, account)), (r) => r.score);
-  const [weekRows, allTime, record, oldWeek, oldAll, open] = await Promise.all([
+  const [weekRows, allTime, record, oldWeek, oldAll, today] = await Promise.all([
     weekBests(d, week, account, RULESET),
     top(`r.ruleset = ? AND ${COUNTED('r')}`, RULESET),
     // A personal best is any finished reign's, counted or extra.
     d.get<{ best: number | null }>('SELECT max(score) AS best FROM campaign_run WHERE account = ? AND ruleset = ? AND finished_at IS NOT NULL', account, RULESET),
     top('r.week = ? AND r.ruleset < ?', week, RULESET),
     top('r.ruleset < ?', RULESET),
-    countsToday(d, account, now),
+    daySlot(d, account, now),
   ]);
   const at = weekRows.findIndex((r) => r.mine);
   return {
@@ -344,7 +375,7 @@ async function leaderboard(d: Db, week: string, account: string, sides: SideView
     houses: houseTotals(weekRows, sides),
     me: {
       best: at >= 0 ? weekRows[at].score : null, runs: at >= 0 ? weekRows[at].runs ?? 0 : 0, rank: at >= 0 ? weekRows[at].rank : null, of: weekRows.length,
-      tied: tiedIn(weekRows, at), record: record?.best ?? null, today: !open,
+      tied: tiedIn(weekRows, at), record: record?.best ?? null, today,
     },
     ...(oldAll.length ? { earlier: { week: list(oldWeek), allTime: list(oldAll) } } : {}),
   };
@@ -449,8 +480,10 @@ export async function startRun(tree: string, who: Who, asked: string | null, now
     const { side } = await sideFor(dd, who, field.sides, asked);
     if (!side) throw new Error('campaign.err.no_side');
     const renown = (await renownOfSides(tree, field.sides)).get(side)?.bonus ?? 0;
-    // Whether this reign can be the day's counted one. The quiz's reward waits for a reign that can.
-    const counts = await countsToday(dd, who.account, now);
+    // The first reign begun today is the day's counted one, from now on and whatever becomes of it. The quiz's reward
+    // goes to that reign.
+    const today = dayOf(now);
+    const counts = (await daySlot(dd, who.account, now)) === 'open';
     const grant = counts ? await quizGrant(dd, who.account, now) : 0;
     const stored: StoredField = { ...field, renown, grant };
     const at = now.toISOString();
@@ -467,8 +500,10 @@ export async function startRun(tree: string, who: Who, asked: string | null, now
             q('INSERT INTO campaign_week (week, field, created_at, ruleset) VALUES (?, ?, ?, ?) ON CONFLICT (week) DO UPDATE SET field = excluded.field, created_at = excluded.created_at, ruleset = excluded.ruleset', week, JSON.stringify(field), at, RULESET),
           ]),
         // The quiz's reward is spent once a day: two reigns begun at once cannot both take it.
-        ...(grant > 0 ? [guard(`NOT ${spentSql}`, who.account, dayOf(now))] : []),
-        q('INSERT INTO campaign_run (id, account, name_then, side, week, seed, field, created_at, ruleset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', id, who.account, who.name, side, week, seed, JSON.stringify(stored), at, RULESET),
+        ...(grant > 0 ? [guard(`NOT ${spentSql}`, who.account, today)] : []),
+        // One counted reign a day: of two begun at the same moment one finds the day taken, and is decided again as extra.
+        ...(counts ? [guard(`NOT EXISTS (SELECT 1 ${daySql})`, who.account, RULESET, today)] : []),
+        q('INSERT INTO campaign_run (id, account, name_then, side, week, seed, field, created_at, ruleset, counts_for) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', id, who.account, who.name, side, week, seed, JSON.stringify(stored), at, RULESET, counts ? today : null),
         // A reign begun and never finished is forgotten after two weeks.
         q('DELETE FROM campaign_run WHERE account = ? AND finished_at IS NULL AND created_at < ?', who.account, new Date(now.getTime() - 14 * DAY_MS).toISOString()),
       ],
@@ -477,25 +512,74 @@ export async function startRun(tree: string, who: Who, asked: string | null, now
   });
 }
 
+/** A reign's own field and what its levy had, as the engine plays it. */
+const reignOf = (row: RunRow, field: StoredField): Reign => ({ map: field.map, sides: field.sides.map((s) => s.id), player: row.side, seed: row.seed, renown: field.renown, grant: field.grant });
+
+/** A member's reign that can still be played: theirs, not finished, and laid out for today's rules. */
+async function openRun(d: Db, who: Who, id: string): Promise<{ row: RunRow; field: StoredField }> {
+  const row = await d.get<RunRow>('SELECT * FROM campaign_run WHERE id = ?', id);
+  if (!row || row.account !== who.account) throw new Error('campaign.err.no_run');
+  if (row.finished_at) throw new Error('campaign.err.finished');
+  const field = JSON.parse(row.field) as StoredField;
+  // The moves of a reign begun under earlier rules mean something else today: it cannot be scored any more.
+  if (row.ruleset !== RULESET || rulesetOf(field.map) !== RULESET) throw new Error('campaign.err.old_rules');
+  return { row, field };
+}
+
+/**
+ * Keeps the moves of a reign under way, so it can be continued elsewhere and a battle fought stays fought. The browser
+ * sends its whole list after every battle and every turn; what can still be undone there is left out. The list must go
+ * on from what is kept already (`campaign.err.elsewhere` when the reign was played on somewhere else) and is played
+ * again before it is kept. An older list arriving late changes nothing. Answers how many moves are kept.
+ */
+export async function keepRun(tree: string, who: Who, id: string, moves: Move[]): Promise<{ kept: number }> {
+  return once(tree, undefined, 'campaignKeepRun', async (d) => {
+    if (!(await campaignRow(d))?.enabled) throw new Error('campaign.err.off');
+    const { row, field } = await openRun(d, who, id);
+    const had = progressOf(row);
+    const now = settled(Array.isArray(moves) ? moves : []);
+    const nothing = { history: NOT_A_RECORD, writes: [], result: { kept: had.length } };
+    if (goesOnFrom(had, now)) return nothing;
+    if (!goesOnFrom(now, had)) throw new Error('campaign.err.elsewhere');
+    try {
+      if (now.length > RULES.MAX_MOVES) throw new CampaignError('too_long');
+      let s = openReign(field.start, reignOf(row, field));
+      for (const m of now) s = play(s, reignOf(row, field), m).state;
+    } catch (e) {
+      if (e instanceof CampaignError) throw new Error('campaign.err.forged');
+      throw e;
+    }
+    return {
+      // The game is not the family's records.
+      history: NOT_A_RECORD,
+      writes: [
+        // Still open, and nothing else kept meanwhile: otherwise this is decided again on what is there now.
+        guard('EXISTS (SELECT 1 FROM campaign_run WHERE id = ? AND finished_at IS NULL AND progress IS ?)', id, row.progress),
+        q('UPDATE campaign_run SET progress = ? WHERE id = ?', JSON.stringify(now), id),
+      ],
+      result: { kept: now.length },
+    };
+  });
+}
+
 /**
  * Finishes a reign: the server plays the moves again from the reign's own field, and keeps the score that comes out.
- * A move the rules refuse, a list that stops early, someone else's reign, a reign finished before and one begun under
- * earlier rules are all refused.
+ * A move the rules refuse, a list that stops early, someone else's reign, a reign finished before, one begun under
+ * earlier rules and a list that does not go on from the moves kept while it was played are all refused. Whether it
+ * counts was fixed when it began; when it is finished changes nothing (a reign begun before midnight and finished after
+ * counts for the day and the week it began).
  */
 export async function finishRun(tree: string, who: Who, id: string, moves: Move[], op: { key: string } | undefined, now: Date = new Date()): Promise<FinishResult> {
   const done = await once(tree, op && { key: op.key, user: who.account, payload: { id, moves } }, 'campaignFinishRun', async (d) => {
     const c = await campaignRow(d);
     if (!c?.enabled) throw new Error('campaign.err.off');
-    const row = await d.get<RunRow>('SELECT * FROM campaign_run WHERE id = ?', id);
-    if (!row || row.account !== who.account) throw new Error('campaign.err.no_run');
-    if (row.finished_at) throw new Error('campaign.err.finished');
-    const field = JSON.parse(row.field) as StoredField;
-    // The moves of a reign begun under earlier rules mean something else today: it cannot be scored any more.
-    if (row.ruleset !== RULESET || rulesetOf(field.map) !== RULESET) throw new Error('campaign.err.old_rules');
+    const { row, field } = await openRun(d, who, id);
     let played;
     try {
       if (!Array.isArray(moves) || moves.length > RULES.MAX_MOVES) throw new CampaignError('too_long');
-      played = chronicleOf(field.start, { map: field.map, sides: field.sides.map((s) => s.id), player: row.side, seed: row.seed, renown: field.renown, grant: field.grant }, moves);
+      // The reign as it was played on, here or elsewhere: a battle kept cannot be played another way.
+      if (!goesOnFrom(moves, progressOf(row))) throw new Error('campaign.err.elsewhere');
+      played = chronicleOf(field.start, reignOf(row, field), moves);
       if (played.state.turn < RULES.TURNS) throw new CampaignError('unfinished');
     } catch (e) {
       if (e instanceof CampaignError) throw new Error('campaign.err.forged');
@@ -505,23 +589,22 @@ export async function finishRun(tree: string, who: Who, id: string, moves: Move[
       // The game is not the family's records.
       history: NOT_A_RECORD,
       writes: [
-        guard('EXISTS (SELECT 1 FROM campaign_run WHERE id = ? AND account = ? AND finished_at IS NULL)', id, who.account),
+        guard('EXISTS (SELECT 1 FROM campaign_run WHERE id = ? AND account = ? AND finished_at IS NULL AND progress IS ?)', id, who.account, row.progress),
         q('UPDATE campaign_run SET orders = ?, score = ?, result = ?, finished_at = ? WHERE id = ?', JSON.stringify(moves), played.score.total, JSON.stringify({ ...played.score, title: played.title }), now.toISOString(), id),
       ],
-      result: { score: played.score, title: played.title, week: row.week, side: row.side, sides: field.sides.map((s) => ({ id: s.id, name: s.name, arms: s.arms })) },
+      result: { score: played.score, title: played.title, week: row.week, side: row.side, counted: row.counts_for !== null, sides: field.sides.map((s) => ({ id: s.id, name: s.name, arms: s.arms })) },
     };
   });
   const d = db(tree);
   const total = done.score.total;
-  const [rows, before, counted, earlier] = await Promise.all([
+  const [rows, before, earlier] = await Promise.all([
     weekBests(d, done.week, who.account, RULESET),
     weekBests(d, done.week, who.account, RULESET, id),
-    d.get<{ ok: number }>(`SELECT ${COUNTED('r')} AS ok FROM campaign_run r WHERE r.id = ?`, id),
     d.get<{ n: number; best: number | null }>('SELECT count(*) AS n, max(score) AS best FROM campaign_run WHERE account = ? AND ruleset = ? AND finished_at IS NOT NULL AND id <> ?', who.account, RULESET, id),
   ]);
   const at = rows.findIndex((r) => r.mine);
   const was = before.find((r) => r.mine);
-  const ranks = !!counted?.ok;
+  const ranks = done.counted;
   // Where the member's house stands among the houses this week, and whether this reign lifted it.
   const houses = houseTotals(rows, done.sides);
   const place = houses.find((h) => h.side === done.side);
@@ -568,10 +651,17 @@ export async function campaignView(tree: string, who: Who, now: Date = new Date(
     chooses: mine.chooses,
     renown: Object.fromEntries(shown.map((s) => [s.id, s.renown.bonus])),
     grant: 0,
-    counts: await countsToday(d, who.account, now),
+    counts: false,
+    today: await daySlot(d, who.account, now),
   };
-  // The quiz's reward goes to the day's counted reign, so it waits only while that reign is still to play.
+  challenge.counts = challenge.today === 'open';
+  // The quiz's reward goes to the day's counted reign, so it waits only while that reign is still to begin.
   if (challenge.counts) challenge.grant = await quizGrant(d, who.account, now);
+  if (challenge.today === 'begun') {
+    challenge.resume = await resumeOf(d, who.account, now);
+    // A counted reign today's rules cannot play on is over for the page: the day is spent.
+    if (!challenge.resume) challenge.today = 'played';
+  }
   return { enabled: true, kit, mySide, challenge, board: await leaderboard(d, week, who.account, shown, now), fame };
 }
 

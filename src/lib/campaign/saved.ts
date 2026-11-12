@@ -4,6 +4,11 @@
 // account is kept: beginning another forgets the last. It lasts until the tab closes, and nothing here is sent anywhere.
 // A practice is not kept: its field is dealt fresh each time and stores nothing.
 //
+// The server keeps a reign's settled moves too (./progress.ts, `campaign_run.progress`), which is what lets the day's
+// counted reign go on in another tab or on another device. The tab's copy has more: the troops placed and marches made
+// since the last battle, which can still be undone. When both are there, the page takes the tab's unless the reign was
+// played on elsewhere.
+//
 // A reign kept under earlier rules (another map, other terrain) cannot be played on: it is let go, and the page is told,
 // so it can say so once instead of failing.
 import { RULESET, openReign, play, rulesetOf, type Move, type Reign, type State } from './engine.ts';

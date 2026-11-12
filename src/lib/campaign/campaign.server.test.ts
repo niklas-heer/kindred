@@ -1,6 +1,7 @@
 // node --test src/lib/campaign/campaign.server.test.ts — the Campaign on the server: off until a steward turns it on, a
 // member plays their own house on the week's field (the same for everyone all week, from a seed no browser can work out
 // ahead), the server never takes a score but replays the moves, a reign is counted once and a forged one not at all, the
+// day's counted reign is fixed when it begins and its moves are kept as it is played, the
 // tables add up and never set a score against one made under earlier rules, the field is an invented continent with no
 // place of the family's on it, the old shared season is closed once into the hall of fame, and the family's records are
 // never written.
@@ -22,6 +23,8 @@ const { db } = await import('../db.server.ts');
 const store = await import('../auth/store.server.ts');
 const game = await import('./campaign.server.ts');
 const { RULES, RULESET, openReign, play, regentMoves, replay } = await import('./engine.ts');
+const { settled } = await import('./progress.ts');
+const { readFileSync } = await import('node:fs');
 const { TITLES } = await import('./chronicle.ts');
 const { planTables } = await import('../../../scripts/lib/d1-transfer.ts');
 type Who = import('./campaign.server.ts').Who;
@@ -112,8 +115,8 @@ test('the week’s challenge: four sides, the reader’s own house, a seed from 
   assert.notEqual(await game.weekSeed('week', '2026-W11'), c.seed);
   assert.notEqual(await game.weekSeed('other', '2026-W10'), c.seed);
   assert.equal(view.board!.week.length, 0);
-  assert.deepEqual(await game.campaignStatus('week', steward, T0), { enabled: true, week: '2026-W10', best: null, runs: 0, rank: null, of: 0, tied: false, record: null, today: false });
-  assert.equal(c.counts, true, 'today’s counted reign is still to play');
+  assert.deepEqual(await game.campaignStatus('week', steward, T0), { enabled: true, week: '2026-W10', best: null, runs: 0, rank: null, of: 0, tied: false, record: null, today: 'open' });
+  assert.deepEqual({ counts: c.counts, today: c.today, resume: c.resume }, { counts: true, today: 'open', resume: undefined }, 'today’s counted reign is still to begin');
 });
 
 test('a reign is begun on the server, played in the browser and scored by the server replaying its moves, once', async () => {
@@ -139,7 +142,7 @@ test('a reign is begun on the server, played in the browser and scored by the se
   assert.deepEqual(JSON.parse(row.result), { ...expected, title: done.title });
   assert.equal(JSON.parse(row.orders).length, moves.length);
   const status = await game.campaignStatus('play', steward, T0);
-  assert.deepEqual(status, { enabled: true, week: '2026-W10', best: expected.total, runs: 1, rank: 1, of: 1, tied: false, record: expected.total, today: true });
+  assert.deepEqual(status, { enabled: true, week: '2026-W10', best: expected.total, runs: 1, rank: 1, of: 1, tied: false, record: expected.total, today: 'played' });
 });
 
 test('a forged or unfinished list of moves is refused and the reign stays open; someone else cannot finish it', async () => {
@@ -221,23 +224,29 @@ test('two first reigns begun at once share one field, and the quiz’s reward is
   assert.equal(await count('race', 'campaign_week'), 1);
   for (const run of [a, b]) assert.deepEqual(JSON.parse((await db('race').get<{ field: string }>('SELECT field FROM campaign_week'))!.field), run.field);
 
-  // A right answer in today's quiz adds to the levy of one reign begun today, however many begin at once.
+  // A right answer in today's quiz adds to the levy of the day's counted reign, however many begin at once. Lo has
+  // begun today's already, so the answer comes too late for Lo; Quin answers first.
+  const quin = await account('race', 'Quin', 'cedar1');
   const today = T0.toISOString().slice(0, 10);
   await db('race').run("INSERT INTO quiz_day (day, kind, about, question, answer) VALUES (?, 'k', NULL, '{}', '0')", today);
-  await db('race').run("INSERT INTO quiz_answer (day, account, choice, correct, house, at) VALUES (?, ?, '0', 1, NULL, ?)", today, lo.account, T0.toISOString());
+  for (const who of [lo, quin]) await db('race').run("INSERT INTO quiz_answer (day, account, choice, correct, house, at) VALUES (?, ?, '0', 1, NULL, ?)", today, who.account, T0.toISOString());
+  assert.equal((await game.startRun('race', lo, 'cedar', later(0.01))).grant, 0, 'an extra reign never takes the reward');
+  assert.equal((await game.campaignView('race', quin, later(0.01))).challenge!.grant, RULES.QUIZ_LEVY, 'it waits for the counted reign');
   // The same again: one reign decided with the reward, another taking it before the first is written.
   let other: RunStart | undefined;
   d.batch = (async (qs: Parameters<typeof write>[0]) => {
     if (!other && qs.some((x) => /INSERT INTO campaign_run/.test(x.sql))) {
       d.batch = write;
-      other = await game.startRun('race', lo, 'cedar', later(0.01));
+      other = await game.startRun('race', quin, null, later(0.01));
     }
     return write(qs);
   }) as typeof d.batch;
-  const first = await game.startRun('race', lo, 'cedar', later(0.01));
+  const first = await game.startRun('race', quin, null, later(0.01));
   d.batch = write;
   assert.deepEqual([first.grant, other!.grant].sort(), [0, RULES.QUIZ_LEVY]);
-  assert.equal((await game.startRun('race', lo, 'cedar', later(0.02))).grant, 0, 'spent for the day');
+  assert.deepEqual([first.counts, other!.counts].sort(), [false, true], 'and the one that took it is the counted one');
+  assert.equal(first.grant > 0, first.counts === true);
+  assert.equal((await game.startRun('race', quin, null, later(0.02))).grant, 0, 'spent for the day');
 });
 
 test('without the server’s secret no reign is ranked, and nothing is written; the week is still shown', async () => {
@@ -299,7 +308,7 @@ test('the tables: each member’s best counted reign this week with their count,
   assert.ok(!JSON.stringify(board).includes(steward.account));
 });
 
-test('one reign a day counts for the tables: the first finished; the rest are extra, never ranked, and still a personal best', async () => {
+test('one reign a day counts for the tables: the first begun; the rest are extra, never ranked, and still a personal best', async () => {
   const steward = await on('daily');
   const bo = await account('daily', 'Bo', 'birch0');
   const d = db('daily');
@@ -312,8 +321,8 @@ test('one reign a day counts for the tables: the first finished; the rest are ex
   assert.equal(first.done.counted, true);
   // The same day: a reign can still be played, and it is extra.
   const view = await game.campaignView('daily', steward, later(0.1));
-  assert.equal(view.challenge!.counts, false, 'today’s counted reign is played');
-  assert.equal(view.board!.me.today, true);
+  assert.deepEqual({ counts: view.challenge!.counts, today: view.challenge!.today }, { counts: false, today: 'played' }, 'today’s counted reign is played');
+  assert.equal(view.board!.me.today, 'played');
   const extra = await finish(steward, later(0.2));
   assert.equal(extra.run.counts, false);
   assert.deepEqual({ counted: extra.done.counted, best: extra.done.best, rank: extra.done.rank, house: extra.done.house, personalBest: extra.done.personalBest, first: extra.done.first },
@@ -337,16 +346,9 @@ test('one reign a day counts for the tables: the first finished; the rest are ex
   board = (await game.campaignView('daily', steward, later(1.1))).board!;
   assert.equal(board.week[0].runs, 2);
 
-  // Two reigns begun before either is finished: both could count, and the first one finished does.
-  const [b1, b2] = [await game.startRun('daily', bo, null, later(2)), await game.startRun('daily', bo, null, later(2.01))];
-  assert.deepEqual([b1.counts, b2.counts], [true, true]);
-  const late = await game.finishRun('daily', bo, b2.id, movesFor(b2), { key: key() }, later(2.02));
-  const early = await game.finishRun('daily', bo, b1.id, movesFor(b1), { key: key() }, later(2.03));
-  assert.deepEqual([late.counted, early.counted], [true, false]);
-  assert.equal((await game.campaignView('daily', bo, later(2.1))).board!.week.find((r) => r.mine)!.runs, 1);
-
   // What the levy had beyond the base is shown beside a score: the house's renown, and the quiz's reward.
-  await d.run("UPDATE campaign_run SET field = json_set(field, '$.renown', 2, '$.grant', 2) WHERE id = ?", b2.id);
+  const b1 = await finish(bo, later(2));
+  await d.run("UPDATE campaign_run SET field = json_set(field, '$.renown', 2, '$.grant', 2) WHERE id = ?", b1.run.id);
   board = (await game.campaignView('daily', bo, later(2.1))).board!;
   const mine = board.week.find((r) => r.mine)!;
   assert.deepEqual({ renown: mine.renown, grant: mine.grant }, { renown: 2, grant: 2 });
@@ -362,6 +364,149 @@ test('one reign a day counts for the tables: the first finished; the rest are ex
   assert.deepEqual({ rank: board.me.rank, of: board.me.of, tied: board.me.tied }, { rank: 1, of: 3, tied: true });
   assert.equal((await game.campaignView('daily', lo, later(2.3))).board!.me.tied, false);
   assert.deepEqual(board.houses.map((h) => h.rank), [1, 1, 3], 'houses share a place the same way');
+});
+
+test('the counted reign is fixed when it begins: beginning another, finishing another first or leaving it changes nothing', async () => {
+  const steward = await on('fixed');
+  const bo = await account('fixed', 'Bo', 'birch0');
+  const lo = await account('fixed', 'Lo', 'cedar0');
+  const d = db('fixed');
+  const countsFor = async (id: string) => (await d.get<{ counts_for: string | null }>('SELECT counts_for FROM campaign_run WHERE id = ?', id))!.counts_for;
+
+  // Two begun, the second finished first: the first is the counted one, and the second never is.
+  const a = await game.startRun('fixed', steward, null, T0);
+  const b = await game.startRun('fixed', steward, null, later(0.01));
+  assert.deepEqual([a.counts, b.counts], [true, false]);
+  assert.deepEqual([await countsFor(a.id), await countsFor(b.id)], ['2026-03-04', null]);
+  const second = await game.finishRun('fixed', steward, b.id, movesFor(b), { key: key() }, later(0.02));
+  assert.deepEqual({ counted: second.counted, rank: second.rank, best: second.best }, { counted: false, rank: null, best: null }, 'the luckier second reign is extra');
+  assert.equal((await game.campaignView('fixed', steward, later(0.03))).board!.week.length, 0, 'nothing on the table yet');
+  assert.equal((await game.campaignStatus('fixed', steward, later(0.03))).today, 'begun', 'the counted reign is still under way');
+  const first = await game.finishRun('fixed', steward, a.id, movesFor(a), { key: key() }, later(0.04));
+  assert.deepEqual({ counted: first.counted, rank: first.rank, best: first.best }, { counted: true, rank: 1, best: first.score.total });
+  assert.deepEqual((await game.campaignView('fixed', steward, later(0.05))).board!.week.map((r) => [r.score, r.runs]), [[first.score.total, 1]]);
+
+  // Leave and begin again: the reign left is still the day's, so the new one is extra, however often that is tried.
+  const left = await game.startRun('fixed', bo, null, T0);
+  assert.equal(left.counts, true);
+  let view = await game.campaignView('fixed', bo, later(0.1));
+  assert.deepEqual({ counts: view.challenge!.counts, today: view.challenge!.today, grant: view.challenge!.grant }, { counts: false, today: 'begun', grant: 0 });
+  assert.deepEqual({ id: view.challenge!.resume!.run.id, moves: view.challenge!.resume!.moves, turn: view.challenge!.resume!.turn }, { id: left.id, moves: [], turn: 0 }, 'the page offers to go on with it');
+  assert.deepEqual(view.challenge!.resume!.run, left, 'with everything it began with');
+  for (const when of [later(0.2), later(0.3)]) {
+    const again = await game.startRun('fixed', bo, null, when);
+    assert.equal(again.counts, false, 'no fresh counted reign');
+    const done = await game.finishRun('fixed', bo, again.id, movesFor(again), { key: key() }, when);
+    assert.deepEqual({ counted: done.counted, rank: done.rank }, { counted: false, rank: null });
+  }
+  // Left unfinished, it has no score, and the day is spent: Bo is not on the table. The next day counts again.
+  assert.ok(!(await game.campaignView('fixed', bo, later(0.4))).board!.week.some((r) => r.mine));
+  view = await game.campaignView('fixed', bo, later(1));
+  assert.deepEqual({ counts: view.challenge!.counts, today: view.challenge!.today, resume: view.challenge!.resume }, { counts: true, today: 'open', resume: undefined }, 'yesterday’s reign is no longer offered');
+  const next = await game.startRun('fixed', bo, null, later(1));
+  assert.equal(next.counts, true);
+
+  // A reign begun yesterday and finished today counts for yesterday: today's is still to begin.
+  const late = await game.finishRun('fixed', bo, left.id, movesFor(left), { key: key() }, later(1.01));
+  assert.equal(late.counted, true);
+  assert.equal(await countsFor(left.id), '2026-03-04');
+  assert.equal(await countsFor(next.id), '2026-03-05');
+  assert.equal((await game.campaignView('fixed', bo, later(1.02))).board!.week.find((r) => r.mine)!.runs, 1);
+  // And across the week's end: begun on Sunday, finished on Monday, it stands in Sunday's week.
+  const sunday = new Date('2026-03-08T23:50:00Z');
+  const monday = new Date('2026-03-09T00:05:00Z');
+  const over = await game.startRun('fixed', lo, null, sunday);
+  const done = await game.finishRun('fixed', lo, over.id, movesFor(over), { key: key() }, monday);
+  assert.equal(done.counted, true);
+  assert.deepEqual((await game.campaignView('fixed', lo, monday)).board!.week, [], 'not in the new week’s table');
+  assert.equal((await game.campaignView('fixed', lo, monday)).challenge!.counts, true, 'Monday’s reign is still to begin');
+  assert.ok((await game.campaignView('fixed', lo, sunday)).board!.week.some((r) => r.mine && r.score === done.score.total), 'in the week it began');
+
+  // Two begun at the same moment: one finds the day taken and is extra.
+  const cy = await account('fixed', 'Cy', 'ash1');
+  const write = d.batch.bind(d);
+  let other: RunStart | undefined;
+  d.batch = (async (qs: Parameters<typeof write>[0]) => {
+    if (!other && qs.some((x) => /INSERT INTO campaign_run/.test(x.sql))) {
+      d.batch = write;
+      other = await game.startRun('fixed', cy, null, later(3));
+    }
+    return write(qs);
+  }) as typeof d.batch;
+  const mine = await game.startRun('fixed', cy, null, later(3));
+  d.batch = write;
+  assert.deepEqual([mine.counts, other!.counts].sort(), [false, true]);
+  assert.equal(await count('fixed', 'campaign_run', `account = '${cy.account}' AND counts_for IS NOT NULL`), 1);
+  // The database itself allows one counted reign a day for a member.
+  await assert.rejects(d.run('UPDATE campaign_run SET counts_for = ? WHERE account = ?', '2026-03-07', cy.account), /UNIQUE|constraint/i);
+});
+
+test('a reign’s moves are kept as it is played: it goes on elsewhere from there, and a battle fought stays fought', async () => {
+  const steward = await on('keep');
+  const bo = await account('keep', 'Bo', 'birch0');
+  const run = await game.startRun('keep', steward, null, T0);
+  const moves = movesFor(run);
+  const ends = moves.flatMap((m, i) => (m.t === 'end' ? [i + 1] : []));
+  const progress = async () => JSON.parse((await db('keep').get<{ progress: string | null }>('SELECT progress FROM campaign_run WHERE id = ?', run.id))!.progress ?? 'null') as Move[] | null;
+
+  // Nothing settled yet (troops placed can still be taken back): nothing is kept.
+  const opening = moves.slice(0, moves.findIndex((m) => m.t === 'attack' || m.t === 'end'));
+  assert.deepEqual(settled(opening), []);
+  assert.deepEqual(await game.keepRun('keep', steward, run.id, opening), { kept: 0 });
+  assert.equal(await progress(), null);
+  // After three turns: the moves are kept, without the ones that can still be undone, and the page offers them.
+  const three = moves.slice(0, ends[2]);
+  assert.deepEqual(await game.keepRun('keep', steward, run.id, [...three, { t: 'place', to: run.field.start.seats.ash }]), { kept: three.length });
+  assert.deepEqual(await progress(), three);
+  const resume = (await game.campaignView('keep', steward, later(0.1))).challenge!.resume!;
+  assert.deepEqual({ id: resume.run.id, moves: resume.moves, turn: resume.turn }, { id: run.id, moves: three, turn: 3 });
+  assert.equal((await game.campaignView('keep', bo, later(0.1))).challenge!.resume, undefined, 'nobody else’s');
+  // An older report arriving late, and the same one again, change nothing.
+  assert.deepEqual(await game.keepRun('keep', steward, run.id, moves.slice(0, ends[1])), { kept: three.length });
+  assert.deepEqual(await game.keepRun('keep', steward, run.id, three), { kept: three.length });
+  assert.deepEqual(await progress(), three);
+  // Another copy of the reign that played the third turn differently is told the reign went on elsewhere: at a report,
+  // and at the finish.
+  const other = [...moves.slice(0, ends[1]), { t: 'end' } as Move, { t: 'end' } as Move];
+  assert.notDeepEqual(other.slice(0, three.length), three);
+  await assert.rejects(game.keepRun('keep', steward, run.id, other), /campaign\.err\.elsewhere/);
+  const whole = [...other];
+  while (whole.filter((m) => m.t === 'end').length < RULES.TURNS) whole.push({ t: 'end' });
+  await assert.rejects(game.finishRun('keep', steward, run.id, whole, { key: key() }, later(0.2)), /campaign\.err\.elsewhere/);
+  // Moves the rules refuse are not kept, nor someone else's reign.
+  await assert.rejects(game.keepRun('keep', steward, run.id, [...three, { t: 'place', to: run.field.start.seats.birch }, { t: 'end' }]), /campaign\.err\.forged/);
+  await assert.rejects(game.keepRun('keep', bo, run.id, moves.slice(0, ends[3])), /campaign\.err\.no_run/);
+  assert.deepEqual(await progress(), three);
+  // The reign goes on from what is kept and is finished; after that nothing more is kept.
+  const done = await game.finishRun('keep', steward, run.id, moves, { key: key() }, later(0.3));
+  assert.deepEqual(done.score, replay(run.field.start, reignOf(run), moves).score);
+  await assert.rejects(game.keepRun('keep', steward, run.id, moves), /campaign\.err\.finished/);
+  assert.equal((await game.campaignView('keep', steward, later(0.4))).challenge!.today, 'played');
+  // Keeping moves is the game's own: the family's records are not touched, and a game that is off keeps nothing.
+  const off = await game.startRun('keep', bo, null, T0);
+  await game.setCampaignEnabled('keep', false, steward.account, later(0.5));
+  await assert.rejects(game.keepRun('keep', bo, off.id, movesFor(off).slice(0, 5)), /campaign\.err\.off/);
+});
+
+test('migration 0036 keeps what the finished reigns were: the first finished of a day counted, and an unfinished day is open', async () => {
+  const steward = await on('upgrade');
+  const d = db('upgrade');
+  const row = (id: string, created: string, finished: string | null, ruleset = RULESET) =>
+    d.run('INSERT INTO campaign_run (id, account, name_then, side, week, seed, field, score, finished_at, created_at, ruleset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', id, steward.account, 'Sten', 'ash', '2026-W10', 's', '{}', finished ? 10 : null, finished, created, ruleset);
+  // Monday: two begun, the second finished first (it counted). Tuesday: one finished. Wednesday: only an unfinished one.
+  await row('mon-a', '2026-03-02T09:00:00Z', '2026-03-02T09:30:00Z');
+  await row('mon-b', '2026-03-02T09:05:00Z', '2026-03-02T09:20:00Z');
+  await row('mon-old', '2026-03-02T08:00:00Z', '2026-03-02T08:10:00Z', 1);
+  await row('tue', '2026-03-03T09:00:00Z', '2026-03-04T00:10:00Z');
+  await row('wed', '2026-03-04T08:00:00Z', null);
+  const update = readFileSync(new URL('../../../migrations/tree/0036_campaign_counted.sql', import.meta.url), 'utf8').match(/UPDATE campaign_run[\s\S]*?;/)![0];
+  await d.run(update);
+  assert.deepEqual((await d.all('SELECT id, counts_for FROM campaign_run ORDER BY id')).map((r) => ({ ...r })), [
+    { id: 'mon-a', counts_for: null }, { id: 'mon-b', counts_for: '2026-03-02' }, { id: 'mon-old', counts_for: '2026-03-02' }, { id: 'tue', counts_for: '2026-03-03' }, { id: 'wed', counts_for: null },
+  ]);
+  // Wednesday's counted reign is still to begin, since none was finished: the next one begun is it.
+  assert.equal((await game.campaignView('upgrade', steward, T0)).challenge!.today, 'open');
+  assert.equal((await game.startRun('upgrade', steward, null, T0)).counts, true);
 });
 
 test('what is said of a finished reign: a best has beaten something and has points; a first reign is a first reign', () => {
@@ -408,7 +553,7 @@ test('rulesets: a reign of earlier rules is listed apart and never ranked, its w
   assert.deepEqual(board.allTime.map((r) => r.score), [done.score.total]);
   assert.equal(board.houses.length, 1);
   assert.equal(board.earlier!.allTime.length, 1);
-  assert.deepEqual(await game.campaignStatus('rules', bo, T0), { enabled: true, week: '2026-W10', best: null, runs: 0, rank: null, of: 1, tied: false, record: null, today: false }, 'Bo’s old reign is not their best under today’s rules');
+  assert.deepEqual(await game.campaignStatus('rules', bo, T0), { enabled: true, week: '2026-W10', best: null, runs: 0, rank: null, of: 1, tied: false, record: null, today: 'begun' }, 'Bo’s old reign is not their best under today’s rules, and the one begun today is under way');
   // The open reign of earlier rules cannot be scored any more, whatever is sent.
   await assert.rejects(game.finishRun('rules', steward, 'old-open', [], { key: key() }, T0), /campaign\.err\.old_rules/);
   assert.equal(await count('rules', 'campaign_run', "id = 'old-open' AND finished_at IS NULL"), 1);

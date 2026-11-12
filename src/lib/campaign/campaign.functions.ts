@@ -1,6 +1,7 @@
 // The Campaign's server functions. Members only: every call checks the membership on the server (`requireMember`), which
 // refuses a share-link guest, so a guest never reads or plays the game. Viewers may play. The switch is the stewards'
-// (`manage-access`). The browser plays a reign and sends its moves; the server plays them again and keeps the score.
+// (`manage-access`). The browser plays a reign and sends its moves, as it goes and at the end; the server plays them
+// again and keeps the score.
 import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
@@ -45,6 +46,14 @@ export const campaignStatusQuery = (t: string) => queryOptions({ queryKey: ['cam
 export const startCampaignRun = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, side: z.string().min(1).max(100).nullable() }))
   .handler(async ({ data }): Promise<RunStart> => (await game()).startRun(data.tree, await member(data.tree), data.side));
+
+/**
+ * Keeps the moves of a reign under way (sent after every battle and every turn), so it can be continued in another tab
+ * or on another device. The server plays them again first, and they must go on from what it has kept already.
+ */
+export const keepCampaignRun = createServerFn({ method: 'POST' })
+  .validator(z.object({ tree, id: z.string().uuid(), moves: z.array(move).max(RULES.MAX_MOVES) }))
+  .handler(async ({ data }): Promise<{ kept: number }> => (await game()).keepRun(data.tree, await member(data.tree), data.id, data.moves));
 
 /** Finishes a reign with the moves that were played. The score is the server's. */
 export const finishCampaignRun = createServerFn({ method: 'POST' })

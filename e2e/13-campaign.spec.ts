@@ -1,7 +1,8 @@
 // Journey 13: the Campaign. A steward gathers a house from surnames (the game needs a house to rule), turns the game on
 // under Games, looks at this week's invented continent, plays a whole reign of the week's challenge (placing the levy,
 // choosing a province, a target, the troops, and confirming), finds the turn's strip and the names of an order inside
-// the view on a phone, reads the reign's chronicle, sees the server's score and the reign's title in the family's table
+// the view on a phone, leaves the reign (the day's counted one from the moment it began) and goes on with it from what
+// the server kept, reads the reign's chronicle, sees the server's score and the reign's title in the family's table
 // and on Today, begins a second reign the same day, which is extra, finds a reign kept under earlier rules let go with a
 // word, and tries a practice reign, which counts for nothing, with the board's scenes moving.
 import { checkAxe, expect, openFamily, settled, test } from './fixtures.ts';
@@ -58,7 +59,7 @@ test('campaign: a steward turns it on, plays a reign to the table, and a practic
   await expect(page.getByRole('heading', { name: 'The Campaign', level: 1 })).toBeVisible();
   await expect(page.getByText(/This week’s challenge · until /)).toBeVisible();
   await expect(page.getByTestId('week-me')).toHaveText('You have not played this week yet.');
-  await expect(page.getByTestId('week-today')).toHaveText(/Today’s reign is still to play: the first reign you finish today counts\./);
+  await expect(page.getByTestId('week-today')).toHaveText(/Today’s reign is still to play\. The first reign you begin today is the one that counts, from the moment it begins/);
   await expect(page.getByText('Nobody has finished a reign this week yet.')).toBeVisible();
   // This week's field is an invented continent, shown as a picture before the reign begins: a name, and nothing to press.
   const picture = page.getByRole('img', { name: /^A map of [A-Z][a-z]+, this week’s continent/ });
@@ -74,6 +75,8 @@ test('campaign: a steward turns it on, plays a reign to the table, and a practic
   // A reign begins on the server's field.
   await page.getByRole('button', { name: 'Begin a reign' }).click();
   await expect(page.getByRole('heading', { name: /^The reign of /, level: 1 })).toBeVisible();
+  // The first reign begun today is the day's counted one, and the board says so.
+  await expect(page.getByTestId('reign-counted')).toHaveText(/^Today’s counted reign: it counts from the moment it began\./);
   const orders = page.getByRole('complementary', { name: 'Your orders' });
   await expect(orders.getByRole('heading', { name: 'Turn 1 of 12' })).toBeVisible();
   await expect(orders.getByText('Spring, year 1')).toBeVisible();
@@ -195,13 +198,36 @@ test('campaign: a steward turns it on, plays a reign to the table, and a practic
   await page.setViewportSize({ width: 1280, height: 800 });
   await expect(strip).toBeHidden();
 
-  // Leaving asks first, since it ends the reign.
+  // Leaving says what it means first: this is today's counted reign whatever happens, and it is kept to go on with.
   await page.getByRole('button', { name: 'Leave the reign' }).click();
-  const leaving = page.getByRole('dialog', { name: 'End this reign?' });
+  const leaving = page.getByRole('dialog', { name: 'Leave your reign for now?' });
   await expect(leaving).toBeVisible();
+  await expect(leaving).toContainText('This is today’s counted reign; that was fixed when it began.');
+  await expect(leaving).toContainText('Left unfinished, it counts for nothing, and no other reign you begin today can count in its place.');
   await leaving.getByRole('button', { name: 'Cancel' }).click();
   await expect(leaving).toBeHidden();
   await expect(orders.getByRole('heading', { name: '2 orders left' })).toBeVisible();
+  // Left for now: the week's page offers to go on with it, and no fresh reign that would count. Today says so too.
+  await page.getByRole('button', { name: 'Leave the reign' }).click();
+  await leaving.getByRole('button', { name: 'Leave for now' }).click();
+  await expect(page.getByRole('heading', { name: 'The Campaign', level: 1 })).toBeVisible();
+  await expect(page.getByTestId('week-today')).toHaveText(/Today’s counted reign is under way: turn 1 of 12\./);
+  await expect(page.getByRole('button', { name: 'Begin a reign' })).toHaveCount(0);
+  await checkAxe(page, 'campaign, a reign under way');
+  // The tab has let its copy go: what comes back is what the server kept, up to the battle.
+  expect(await page.evaluate(() => Object.keys(sessionStorage).filter((k) => k.startsWith('kindred:campaign:reign:')).length)).toBe(0);
+  await page.goto(`/${tree}/today`);
+  await settled(page);
+  await expect(page.getByText('Today’s reign is under way. Finish it today for it to count.')).toBeVisible();
+  await page.getByRole('link', { name: 'Continue the reign' }).click();
+  await page.waitForURL(/\/campaign$/);
+  await settled(page);
+  await expect(page.getByTestId('week-today')).toHaveText(/Today’s counted reign is under way: turn 1 of 12\./);
+  await page.getByRole('button', { name: 'Continue your reign' }).click();
+  await expect(page.getByRole('heading', { name: /^The reign of /, level: 1 })).toBeVisible();
+  await expect(orders.getByRole('heading', { name: 'Turn 1 of 12' })).toBeVisible();
+  await expect(orders.getByRole('heading', { name: '2 orders left' })).toBeVisible();
+  await expect(page.getByTestId('reign-counted')).toBeVisible();
 
   // The same provinces as a list, for a screen reader: choosing works the same way there.
   await page.getByRole('radio', { name: 'List' }).click();
@@ -234,7 +260,7 @@ test('campaign: a steward turns it on, plays a reign to the table, and a practic
   await expect(page.locator('.cg-table li.is-mine .cg-table-score')).toHaveText(String(score));
   await expect(page.locator('.cg-table li.is-mine')).toHaveText(/1 counted reign · An? .+ reign/);
   await expect(page.locator('.cg-week-record')).toHaveText(new RegExp(`Your best reign so far: ${score} points\\.$`));
-  await expect(page.getByText('One reign a day counts: the first you finish.')).toBeVisible();
+  await expect(page.getByText('One reign a day counts: the first you begin.')).toBeVisible();
   // A house's total is called what it is.
   await page.getByRole('radio', { name: 'Houses' }).click();
   await expect(page.getByRole('heading', { name: 'Participation totals' })).toBeVisible();
@@ -243,7 +269,7 @@ test('campaign: a steward turns it on, plays a reign to the table, and a practic
   await expect(page.getByTestId('week-today')).toHaveText(/Today’s counted reign is played\./);
   await page.getByRole('button', { name: 'Begin a reign' }).click();
   await expect(page.getByRole('heading', { name: /^The reign of /, level: 1 })).toBeVisible();
-  await expect(page.getByText(/^An extra reign: today’s counted reign is already played, so this one is not ranked\./)).toBeVisible();
+  await expect(page.getByText(/^An extra reign: you have already begun today’s counted reign, so this one is not ranked\./)).toBeVisible();
   await page.getByRole('button', { name: 'Leave the reign' }).click();
   await expect(page.getByRole('heading', { name: 'The Campaign', level: 1 })).toBeVisible();
 

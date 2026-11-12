@@ -66,6 +66,8 @@ export function CampaignCard({ tree }: { tree: string }) {
   }
 
   const played = data.rank != null && data.best != null;
+  // One reign a day counts, fixed when it begins: still to begin, under way (to go on with), or played.
+  const today = data.today ?? 'open';
   return (
     <section className="ui-card cg-card" aria-labelledby="cg-card-h">
       <h2 className="cg-h" id="cg-card-h"><Swords size={18} aria-hidden /> {t('campaign.title')}</h2>
@@ -78,10 +80,10 @@ export function CampaignCard({ tree }: { tree: string }) {
           <b>{t('campaign.card.invite')}</b>
         )}
         {played && <span>{t('campaign.card.best', { score: data.best!, count: data.runs ?? 0 })}</span>}
-        {/* One reign a day counts, so the card says whether today's is still to play. */}
-        {played && <span className="cg-card-today">{t(data.today ? 'campaign.card.today_done' : 'campaign.card.today_open')}</span>}
+        {/* The card says where today's counted reign stands; one under way is said to a member who has no score yet, too. */}
+        {(played || today === 'begun') && <span className="cg-card-today">{t(today === 'played' ? 'campaign.card.today_done' : today === 'begun' ? 'campaign.card.today_begun' : 'campaign.card.today_open')}</span>}
       </div>
-      <Link className={`btn${data.today ? '' : ' primary'}`} to="/$tree/campaign" params={{ tree }}>{!played ? t('campaign.card.play') : data.today ? t('campaign.card.open') : t('campaign.card.play_today')}</Link>
+      <Link className={`btn${today === 'played' ? '' : ' primary'}`} to="/$tree/campaign" params={{ tree }}>{today === 'begun' ? t('campaign.card.continue') : !played ? t('campaign.card.play') : today === 'played' ? t('campaign.card.open') : t('campaign.card.play_today')}</Link>
     </section>
   );
 }

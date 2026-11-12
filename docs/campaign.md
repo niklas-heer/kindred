@@ -180,7 +180,8 @@ of children. A reign keeps the renown it began with, so what you record counts f
 reign never change it.
 
 A right answer in Today's daily quiz adds **2 troops** to the first turn of that day's counted reign, when you answer
-before you begin it (once a day). An extra reign never takes the reward.
+before you begin it (once a day): the counted reign is the first one begun, so an answer given after it has begun comes
+too late for that day. An extra reign never takes the reward.
 
 ### The score
 
@@ -218,13 +219,30 @@ needs no "he" or "she" in any language. The family's table shows it beside each 
   leaves, or two first reigns begin at the same moment. Next week brings a new continent. The dice are each reign's own,
   so playing the week again is a new game on the same field. The week's page shows the continent as a picture, with its
   name, before a reign begins.
-- **One reign a day counts.** Of the reigns you begin on a day (UTC), the first you finish is that day's **counted**
-  reign; the table keeps your best counted reign of the week, so a week has seven tries at most. More reigns on the same
-  day are **extra**: kept, never ranked, and still your personal best when they beat it ("Your best reign so far"). With
-  fresh dice for every reign, a table of everyone's best of any number would reward whoever played most; this way a
-  better week comes from coming back tomorrow. The week's page says whether today's reign is still to play, and so does
-  the card on Today. Nothing stores "counted": it follows from the reigns themselves, so two reigns finished at the same
-  moment cannot both count.
+- **One reign a day counts, and it is fixed when it begins.** The first reign you begin on a day (UTC) is that day's
+  **counted** reign, from the moment it begins; the table keeps your best counted reign of the week, so a week has seven
+  tries at most. More reigns on the same day are **extra**: kept, never ranked, and still your personal best when they
+  beat it ("Your best reign so far"). With fresh dice for every reign, a table of everyone's best of any number would
+  reward whoever played most; this way a better week comes from coming back tomorrow. What follows from "fixed when it
+  begins":
+  - Beginning another reign, or finishing another one first, changes nothing: the first one begun is the counted one,
+    and the others are extra. So is leaving it and beginning again: there is no fresh counted reign that day.
+  - **Left unfinished, it has no score**, and its day is spent. It is not counted with the points it had reached: that
+    would reward stopping while ahead.
+  - **Finished late, it counts for the day it began.** A reign begun before midnight and finished after it stands in
+    the day, and the week, it began in, and the new day's reign is still to begin. The week's page offers to go on with
+    a counted reign for the rest of its day; a tab that still has it open can finish it later, for as long as the server
+    keeps an unfinished reign (two weeks).
+  - The server writes the day into the reign when it begins (`campaign_run.counts_for`), and the database allows one a
+    day for each member, so two reigns begun at the same moment cannot both count.
+  The week's page says where today's reign stands (still to play, under way with its turn, or played), and so does the
+  card on Today.
+- **A reign is kept as it is played.** After every battle and every turn the browser reports the reign's moves, and the
+  server plays them again and keeps them (`campaign_run.progress`). Troops placed and marches made since the last battle
+  can still be undone, so they are not kept. Today's counted reign can therefore be gone on with from the Campaign's page
+  ("Continue your reign"), in another tab or on another device, at the turn it had reached. A later report and the
+  finish must go on from the moves kept: a copy of the reign that played a battle another way is told that the reign
+  went on elsewhere, and goes on from there.
 - **The table** has three views: **This week** (each member's best counted reign, with their count of counted reigns and
   the reign's title), **All time** (the ten best counted reigns ever), and **Houses**. Members with the same score share
   a place, and the next place is skipped (1, 1, 3).
@@ -233,10 +251,14 @@ needs no "he" or "she" in any language. The family's table shows it beside each 
   counted reign.
 - **A house's total is a participation total:** the sum of its members' best counted reigns this week, by the house each
   one ruled. A house with more players has more, so it says who took part, not who ruled best, and the page labels it so.
-- **A reign in progress is kept in the tab.** A reload, or a visit to another page and back, returns to the same turn:
-  the tab keeps the reign and its moves (sessionStorage, by family, account and reign) and the page plays them again.
-  Closing the tab lets it go, and so does "Leave the reign", which asks first once a move is made: leaving ends the
-  reign, and an unfinished reign never counts. The link to Information needed opens in a new tab, so the game stays.
+- **A reign in progress is also kept in the tab.** A reload, or a visit to another page and back, returns to the same
+  turn with every move, the ones that can still be undone too: the tab keeps the reign and its moves (sessionStorage, by
+  family, account and reign) and the page plays them again. The link to Information needed opens in a new tab, so the
+  game stays.
+- **"Leave the reign" says what it means before it does it.** For today's counted reign it asks "Leave your reign for
+  now?": the reign is kept up to the last battle or finished turn and can be gone on with today, and left unfinished it
+  counts for nothing while no other reign that day can take its place. For an extra reign it asks, once a move is
+  made, whether to end it: its moves are let go, and nothing changes on the table.
 - **Today** shows a small card: "You are 2nd of 5 this week", or an invitation to a first reign.
 - **Practice:** any house, on a fresh continent laid out in your browser. It is never counted and nothing is stored, not
   even in the tab: a reload lays out a new one.
@@ -283,10 +305,10 @@ nightly job, the push "a province of your house has fallen", the chronicle and t
   its parchment in every theme, a little dimmer at night.
 - **The server never takes a score.** "Begin a reign" (`startCampaignRun`) stores the reign (account, name, side, week,
   seed, and the field with the renown and the quiz's reward as they were then) and returns what the browser needs, with
-  whether the reign can still be the day's counted one. At the
-  end the browser sends the list of moves (`finishCampaignRun`); the server plays them again from the stored field and
-  keeps the score that comes out. A move the rules refuse, a list that stops early, someone else's reign or a reign
-  finished before is refused.
+  whether the reign is the day's counted one. While it is played the browser reports its moves (`keepCampaignRun`), and
+  at the end it sends the whole list (`finishCampaignRun`); the server plays them again from the stored field and
+  keeps the score that comes out. A move the rules refuse, a list that stops early, someone else's reign, a reign
+  finished before, or a list that does not go on from the moves kept is refused.
 - **The seeds.** The week's field is laid out from an HMAC of the family's id and the week under the server's secret
   (`KINDRED_SECRET`, or the `secret` file on Node), so nobody can work out next week's field. A reign's dice come from an
   HMAC of the reign's own id under the same secret, fixed when the reign begins, so a reign begun again meets other dice.
@@ -295,9 +317,10 @@ nightly job, the push "a province of your house has fallen", the chronicle and t
 - **An honour board, not a referee.** The weekly table is the family's honour board. The server rejects every score it
   cannot replay from legal moves, and the daily quiz's reward is given to one reign a day, but the dice are in the
   browser's hands once a reign begins: a determined player with a modified browser could look at them in advance and
-  choose their moves by them. One reign a day counts, and it is the first one *finished*, so a reign left unfinished
-  (a closed tab, "Leave the reign") costs nothing and the next one can still count: someone could leave reigns that
-  begin badly. That is enough for a family; it is not meant to stop a determined cheat.
+  choose their moves by them, and could keep its reports back. What an ordinary browser allows is closed: the counted
+  reign is the first one begun, so leaving a reign that begins badly wins no second try, and a battle that has been
+  reported cannot be fought again from an earlier copy of the reign. That is enough for a family; it is not meant to
+  stop a determined cheat.
 - **For other features:** `<CampaignCard tree={…} />` in `src/components/campaign/CampaignCard.tsx` is a small card that
   fetches its own data and renders nothing while the game is off. `quizRewardOn(tree)` in
   `src/lib/campaign/campaign.server.ts` says whether a right quiz answer earns the levy (the game reads the answer itself
@@ -314,7 +337,8 @@ points of each other).
 
 Two tables in the family database: the reigns, `campaign_run` (migration `tree/0032_campaign_run.sql`), and each week's
 field, `campaign_week` (migration `tree/0034_campaign_week.sql`, which names nobody), each with its `ruleset` (migration
-`tree/0035_campaign_ruleset.sql`); and the five of
+`tree/0035_campaign_ruleset.sql`), and a reign with the day it counts for and the moves kept while it is played
+(migration `tree/0036_campaign_counted.sql`); and the five of
 the old shared game (migration `tree/0025_campaign.sql`): the switch, the seasons with their result (the hall of fame),
 and the old member rows, chronicle and push claims, kept as they were. See [data-model.md](data-model.md). A reign names
 the member by their account id and keeps the name they had then. When a member leaves, their reigns are deleted, with
