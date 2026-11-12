@@ -333,7 +333,8 @@ is ever updated by itself.
   line, `#` for comments, for example a changed `public/favicon.svg`), and `.kindred-release`, where the workflow writes the
   release your copy now has. Everything else is the release's: a file you changed elsewhere is replaced, a file the release
   removed is removed, and **a file your copy added is removed too** unless `.kindred-keep` lists it (or it is under `.github/`).
-  The workflow **refuses a release older than `.kindred-release`**, so a leaked token that can start it cannot move your install
+  The workflow **refuses a release older than `.kindred-release`** (or, in a fresh copy that has none yet, older than the
+  version in its `package.json`), so a leaked token that can start it cannot move your install
   back to a release with known holes (see "Going back" for going back on purpose). When Kindred's own `wrangler.jsonc` changed between your copy's last release and the new one, the run warns
   and shows the difference in its summary; such a release is marked `manual`, so the button refuses it, and you carry the change
   over by hand. A fork to follow instead of Kindred: the repository variable `KINDRED_UPSTREAM` (`https://github.com/owner/name`).

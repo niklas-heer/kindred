@@ -25,10 +25,11 @@ function stepScript(name: string): string {
   return body.join('\n');
 }
 
-function runStep(tag: string, release: string | null): { status: number | null; out: string } {
+function runStep(tag: string, release: string | null, pkgVersion: string | null = null): { status: number | null; out: string } {
   const dir = mkdtempSync(join(tmpdir(), 'kindred-update-step-'));
   try {
     if (release !== null) writeFileSync(join(dir, '.kindred-release'), `${release}\n`);
+    if (pkgVersion !== null) writeFileSync(join(dir, 'package.json'), `{\n  "name": "kindred",\n  "private": true,\n  "version": "${pkgVersion}",\n  "type": "module"\n}\n`);
     const r = spawnSync('bash', ['-eo', 'pipefail', '-c', stepScript(STEP)], { cwd: dir, env: { PATH: process.env.PATH, TAG: tag }, encoding: 'utf8' });
     return { status: r.status, out: `${r.stdout}${r.stderr}` };
   } finally {
@@ -44,6 +45,15 @@ test('the update workflow refuses a release older than the copy has, and takes t
   assert.equal(runStep('v2.10.0', 'v2.9.3').status, 0, 'compared as numbers, not as text');
   assert.equal(runStep('v2.9.3', 'v2.10.0').status, 1);
   assert.equal(runStep('v3.0.0', 'v2.99.99').status, 0);
-  assert.equal(runStep('v2.4.0', null).status, 0, 'a copy that has no record yet takes any release');
+  assert.equal(runStep('v2.4.0', null).status, 0, 'a copy that has neither a record nor a package.json takes any release');
+});
+
+test('a fresh copy (no .kindred-release yet, as no release ships one) is compared by its package.json version', () => {
+  const back = runStep('v2.3.9', null, '2.4.0');
+  assert.equal(back.status, 1, back.out);
+  assert.match(back.out, /::error::.*older than v2\.4\.0/);
+  assert.equal(runStep('v2.4.0', null, '2.4.0').status, 0);
+  assert.equal(runStep('v2.5.0', null, '2.4.0').status, 0);
+  assert.equal(runStep('v2.3.9', 'v2.3.0', '2.4.0').status, 0, 'the record, when there is one, is what counts');
   assert.equal(runStep('v2.4.0', 'not a tag').status, 0, 'nor does an unreadable record stop it');
 });

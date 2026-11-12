@@ -10,7 +10,8 @@ name: Update Kindred
 #   .github/           the copy's workflows (this file too; a token from Actions may not change workflows anyway)
 #   .kindred-keep      more paths to keep, one per line (for example a changed public/favicon.svg); # starts a comment
 #   .kindred-release   the release this copy has now, written here; a tag older than it is refused, so a leaked token
-#                      cannot move the copy back (going back on purpose: revert the update's commit)
+#                      cannot move the copy back (going back on purpose: revert the update's commit). A fresh copy has
+#                      none yet: its package.json version stands in for it
 # Every other file is the release's: a file the copy added and did not list in .kindred-keep is removed.
 # This file cannot update itself (it is under .github/, which is kept, and a token from Actions may not change workflows): when a
 # release changes it, copy the release's .github/workflows/update.yml over yours by hand and push (docs/hosting-many-families.md).
@@ -63,6 +64,11 @@ jobs:
         run: |
           prev=""
           if [[ -f .kindred-release ]]; then prev=$(tr -d '[:space:]' < .kindred-release); fi
+          # A fresh copy has no record yet (no release ships one): the version its package.json names is the release it has.
+          if [[ -z "$prev" && -f package.json ]]; then
+            version=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)".*/\1/p' package.json | head -n 1)
+            [[ -n "$version" ]] && prev="v$version"
+          fi
           if [[ "$prev" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
             have=("${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}")
             [[ "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]
