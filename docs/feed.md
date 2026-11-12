@@ -110,10 +110,16 @@ source, a portrait and a tagged photo stay as they were said.
   as"](roles-and-privacy.md#view-as) preview reads what the previewed role would, and owns no Personal field. A guest has
   no feed.
 - **That day's value.** The value is the one the change history kept for that day's last change of it (so the feed tells
-  what changed that day); a field added that day keeps none there, so its value now stands in. A value changed again
-  later is a later entry. A value the history kept without content (too large, a picture) or for editors only is not
-  shown to anyone it was not kept for.
-- **Never the old value.** A changed value shows only what it became; a removed one says it was removed.
+  what changed that day). A field added keeps the value it was added with in its row, so a later change does not
+  rewrite that day. An addition from before November 2026 kept none; for it the field's value now stands in, but only
+  while nothing changed the field after that day. A value changed again later is a later entry. A value the history kept
+  without content (too large, a picture) or for editors only is not shown to anyone it was not kept for, and nothing
+  stands in for it.
+- **Health and belief by kind.** A medical note, an allergy and a faith are named by their kind alone ("details changed
+  (Medical)"), never with their text, whoever reads them.
+- **Never the old value.** A changed value shows only what it became; a removed one says it was removed. A field deleted
+  is said as removed ("Phone number removed") by the type its history row kept; an older row that kept no type is not
+  named, and a field added and deleted on one day is not said at all.
 - **Not in a push.** The pushes say who wrote or how many things happened, never a value.
 
 So two members may read the same entry with different values in it: the entry, its reactions and its comments are the

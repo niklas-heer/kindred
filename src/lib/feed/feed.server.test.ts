@@ -17,7 +17,7 @@ delete process.env.KINDRED_DEMO;
 const vite = await createServer({ root: process.cwd(), logLevel: 'error', server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom' });
 const load = <T>(path: string) => vite.ssrLoadModule(path) as Promise<T>;
 const { openSqlite, closeAccounts } = await load<typeof import('../store/node.ts')>('/src/lib/store/node.ts');
-for (const tree of ['family', 'busy', 'quiet', 'edits', 'values']) {
+for (const tree of ['family', 'busy', 'quiet', 'edits', 'values', 'kept']) {
   const f = openSqlite(join(dir, `${tree}.db`), 'tree', { create: true });
   f.exec(`
     INSERT INTO meta (key, value) VALUES ('id', '${tree}'), ('name', 'The Alders'), ('tagline', ''), ('theme', 'codex'), ('focus', 'ada');
@@ -42,7 +42,7 @@ test.after(async () => {
 type Role = 'viewer' | 'contributor' | 'editor' | 'steward';
 async function member(name: string, role: Role, person: string | null = null) {
   const { user, insert } = store.newUser(name, null);
-  await store.accounts().batch([insert, ...['family', 'busy', 'quiet', 'edits', 'values'].map((t) => store.upsertMembership(user.id, t, role))]);
+  await store.accounts().batch([insert, ...['family', 'busy', 'quiet', 'edits', 'values', 'kept'].map((t) => store.upsertMembership(user.id, t, role))]);
   if (person) await store.accounts().run('UPDATE membership SET person = ?, person_confirmed = 1 WHERE user = ?', person, user.id);
   return { id: user.id, name, role, person };
 }
@@ -448,4 +448,64 @@ test('posts and events of a day come interleaved by time', async () => {
   await post(t, '00000000-0000-4000-8000-0000000e0002', at(d, '10:00:00'), 'Later');
   const types = (await F.feedPage(t, viewer)).items.filter((i) => i.at.startsWith(d)).map((i) => i.type);
   assert.deepEqual(types, ['post', 'updates', 'post']);
+});
+
+test('an added field shows the value it was added with; today’s value stands in only for an old, content-free addition left untouched', async () => {
+  const t = 'kept';
+  const fieldOf = (id: string, person: string, type: string, value: object) =>
+    run(t, 'INSERT INTO person_field (id, person, type, label, value, visibility, owner) VALUES (?, ?, ?, ?, ?, ?, ?)', id, person, type, '', JSON.stringify(value), 'family', null);
+  const d1 = '2026-10-01', d2 = '2026-10-02';
+  // Added with its value kept (rows from now on), then changed the next day: the first day still says the first value.
+  await fieldOf('k-new', 'ben', 'phone', { number: '+49 2' });
+  await change(t, at(d1, '09:00:00'), mara, 'field', 'k-new', 'added', 'ben', { f: { value: [null, '+49 1'] }, k: 'phone' });
+  await change(t, at(d2, '09:00:00'), mara, 'field', 'k-new', 'changed', 'ben', { f: { value: ['+49 1', '+49 2'] } });
+  // An old addition without content, untouched since: its value now stands in.
+  await fieldOf('k-old', 'ben', 'email', { address: 'ben@example.org' });
+  await change(t, at(d1, '09:01:00'), mara, 'field', 'k-old', 'added', 'ben');
+  // An old addition changed on a later day: today's value is not that day's, so it is said by its kind.
+  await fieldOf('k-later', 'ben', 'website', { url: 'https://now.example.org' });
+  await change(t, at(d1, '09:02:00'), mara, 'field', 'k-later', 'added', 'ben');
+  await change(t, at(d2, '09:02:00'), eda, 'field', 'k-later', 'changed', 'ben', { f: { label: ['', 'blog'] } });
+  // Added and changed that day, the value kept without content: withheld, not replaced by today's value.
+  await fieldOf('k-opaque', 'cleo', 'phone', { number: '+49 secret' });
+  await change(t, at(d1, '09:03:00'), mara, 'field', 'k-opaque', 'added', 'cleo');
+  await change(t, at(d1, '09:04:00'), mara, 'field', 'k-opaque', 'changed', 'cleo', { f: { value: [null, null] }, o: ['value'] });
+  // Health and belief are named by their kind, never with their text, even to an editor.
+  await fieldOf('k-med', 'cleo', 'medical', { note: 'Asthma' });
+  await change(t, at(d1, '09:05:00'), mara, 'field', 'k-med', 'added', 'cleo', { f: { value: [null, 'Asthma'] }, k: 'medical' });
+  await fieldOf('k-faith', 'cleo', 'religion', { name: 'Quaker' });
+  await change(t, at(d1, '09:06:00'), mara, 'field', 'k-faith', 'changed', 'cleo', { f: { value: ['', 'Quaker'] } });
+
+  const day = async (who: Parameters<typeof F.feedPage>[1], d: string) =>
+    ((await F.feedPage(t, who)).items.filter((i) => i.type === 'updates' && i.at.startsWith(d)) as Extract<FeedItem, { type: 'updates' }>[])
+      .flatMap((i) => i.people);
+  for (const who of [viewer, eda]) {
+    const first = await day(who, d1);
+    const ben = first.find((p) => p.id === 'ben')!, cleo = first.find((p) => p.id === 'cleo')!;
+    assert.deepEqual(ben.values, [{ name: 'field:phone', value: '+49 1' }, { name: 'field:email', value: 'ben@example.org' }]);
+    assert.deepEqual(ben.contact, ['phone', 'email', 'website'], 'the website is said by its kind');
+    assert.equal(cleo.values, undefined, 'a value withheld and the health and belief notes send no text');
+    assert.deepEqual([cleo.contact, cleo.details], [['phone'], ['field:medical', 'field:religion']]);
+    assert.doesNotMatch(JSON.stringify(first), /Asthma|Quaker|secret|now\.example/);
+  }
+});
+
+test('a field deleted is said as removed by the type its row kept, never with a value', async () => {
+  const t = 'kept';
+  const d = '2026-10-10';
+  await change(t, at(d, '09:00:00'), mara, 'field', 'k-gone', 'removed', 'ben', { f: {}, k: 'phone' });
+  // An older removed row kept no type: it is not named.
+  await change(t, at(d, '09:01:00'), mara, 'field', 'k-gone-old', 'removed', 'ben');
+  // Added and deleted on one day: nothing is left to say.
+  await change(t, at(d, '09:02:00'), mara, 'field', 'k-blip', 'added', 'ben', { f: { value: [null, 'blip@example.org'] }, k: 'email' });
+  await change(t, at(d, '09:03:00'), mara, 'field', 'k-blip', 'removed', 'ben', { f: {}, k: 'email' });
+  // A deleted field that only editors read is in an editor's feed alone.
+  await change(t, at(d, '09:04:00'), mara, 'field', 'k-addr', 'removed', 'cleo', { f: {}, k: 'address' }, 'editors');
+  const items = async (who: Parameters<typeof F.feedPage>[1]) =>
+    (await F.feedPage(t, who)).items.filter((i) => i.type === 'updates' && i.at.startsWith(d)) as Extract<FeedItem, { type: 'updates' }>[];
+  const forViewer = (await items(viewer)).flatMap((i) => i.people);
+  assert.deepEqual(forViewer.map((p) => [p.id, p.contact, p.values]), [['ben', ['phone'], [{ name: 'field:phone', value: null }]]]);
+  assert.doesNotMatch(JSON.stringify(forViewer), /blip/);
+  const forEditor = (await items(eda)).find((i) => i.editors)!;
+  assert.deepEqual(forEditor.people.map((p) => [p.id, p.values]), [['cleo', [{ name: 'field:address', value: null }]]]);
 });

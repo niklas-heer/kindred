@@ -15,11 +15,13 @@
 // levels (history.server.ts): what is for editors (an address, which starts there) only an editor reads, and a Personal
 // field is in nobody's feed. A share-link guest reads no feed at all, so contact details never reach one.
 //
-// Values. An update carries the new value of a detail as the history kept it that day (a field added keeps none there, so
-// its value now stands in), and only when this reader may see that field of that person now, by the rule every person read
-// asks (`maySee`, visibility.ts): a field made Personal or editors-only since is said by its kind alone. A value the history
-// kept without content, or for editors only, is not sent to anyone it does not keep it for. A removed value is said as
-// removed; an old value is never sent.
+// Values. An update carries the new value of a detail as the history kept it that day, and only when this reader may see
+// that field of that person now, by the rule every person read asks (`maySee`, visibility.ts): a field made Personal or
+// editors-only since is said by its kind alone. A field added keeps its value in its row (since 2026-11); an older added row
+// kept none, and then the field's value now stands in, but only while nothing changed the field after that day. A value the
+// history kept without content, or for editors only, is not sent to anyone it does not keep it for; nor is the text of a
+// health or belief field (`isSensitiveType`), which is said by its kind alone. A removed value, or a field deleted (its row
+// keeps its type), is said as removed; an old value is never sent.
 //
 // How it stays cheap. A page is one batch of reads in the family's database (`readBatch`: one round trip on D1), each
 // read bounded by a LIMIT, plus one read of the accounts database for the writers' faces. No read per entry. Each source
@@ -28,7 +30,7 @@
 // looked (its floor), and the page ends there, so nothing a later page would bring is skipped. Updates group in SQL, by
 // whole days, so one member's busy day cannot push another's updates of that day out of the window.
 import { db, q, type Query } from '../db.server';
-import { fieldText, isContactType, type FieldType } from '../fields/model';
+import { fieldText, isContactType, isSensitiveType, type FieldType } from '../fields/model';
 import { authorKey, type Diff } from '../history.server';
 import { can } from '../roles';
 import { maySee, type Audience } from '../visibility';
@@ -72,7 +74,10 @@ interface AddedRow { at: string; account: string | null; name: string; person: s
  */
 interface UpdateRow {
   at: string; account: string | null; name: string; level: string; kind: string; record: string; person: string | null; fields: string; count: number;
-  field_type: string | null; field_value: string | null; field_label: string | null; field_vis: string | null; field_owner: string | null; more: number; cut: string | null;
+  field_type: string | null; field_value: string | null; field_label: string | null; field_vis: string | null; field_owner: string | null;
+  /** When the field's history last had a row, on any day: a later one than this day's means its value now may not be this day's. */
+  field_last: string | null;
+  more: number; cut: string | null;
 }
 interface SeasonRow { season: number; ended: string; winner: string | null }
 
@@ -168,15 +173,24 @@ function changesOf(fields: string): { action: string; diff: Diff | null }[] {
 const detailsOf = (changes: { diff: Diff | null }[]) => [...new Set(changes.flatMap((c) => Object.keys(c.diff?.f ?? {})))].filter((k) => PERSON_DETAILS.has(k));
 
 /**
- * What a change set `name` to, as the day's last row kept it: the text, null when it was removed, undefined when the row
- * kept no content (a large value, a picture) or keeps it for editors only and this reader is not one.
+ * What the day's rows kept of `name`: its text, or null when it was removed (`value`); `none` when no row of the day kept
+ * it at all; `withheld` when the last row that has it kept no content (a large value, a picture) or keeps it for editors
+ * only and this reader is not one.
  */
-function newValue(changes: { diff: Diff | null }[], name: string, editor: boolean): string | null | undefined {
+type Kept = { state: 'value'; value: string | null } | { state: 'none' } | { state: 'withheld' };
+function newValue(changes: { diff: Diff | null }[], name: string, editor: boolean): Kept {
   const last = changes.filter((c) => c.diff && name in c.diff.f).at(-1)?.diff;
-  if (!last || last.o?.includes(name) || (last.e?.includes(name) && !editor)) return undefined;
+  if (!last) return { state: 'none' };
+  if (last.o?.includes(name) || (last.e?.includes(name) && !editor)) return { state: 'withheld' };
   const v = last.f[name]![1];
-  return v === null || v === '' ? null : String(v);
+  return { state: 'value', value: v === null || v === '' ? null : String(v) };
 }
+
+/** The type of the field a record's rows are about: the field's now, else what an added or removed row kept (`k`). */
+const fieldTypeOf = (r: UpdateRow, changes: { diff: Diff | null }[]) => r.field_type ?? changes.findLast((c) => c.diff?.k)?.diff?.k ?? null;
+
+/** Whether the day's rows end with the field deleted, and whether the field was also added that day (then nothing is left to say). */
+const deletedOf = (changes: { action: string }[]) => ({ deleted: changes.at(-1)?.action === 'removed', addedToo: changes.some((c) => c.action === 'added') });
 
 /** A field's value now, as one line of text (fields/model.ts), or undefined when it has none worth showing. */
 function fieldNow(type: string, value: string | null): string | undefined {
@@ -197,15 +211,30 @@ function valuesOf(r: UpdateRow, changes: { action: string; diff: Diff | null }[]
   if (r.kind === 'person') {
     return detailsOf(changes).filter((k) => !NO_VALUE.has(k)).flatMap((k): UpdateValue[] => {
       const v = newValue(changes, k, editor);
-      return v === undefined ? [] : [{ name: k, value: v }];
+      return v.state === 'value' ? [{ name: k, value: v.value }] : [];
     });
   }
-  if (r.kind !== 'field' || !r.field_type || !r.field_vis || !maySee(reader, { visibility: r.field_vis, owner: r.field_owner })) return [];
-  // The day's value as the history kept it; a field added that day kept none there, so its value now stands in.
+  if (r.kind !== 'field') return [];
+  const type = fieldTypeOf(r, changes);
+  if (!type) return [];
+  // A field deleted is said as removed (its row was read at a level this reader reads, and says no value); added and
+  // deleted on one day, it is not said at all (updateEntries).
+  if (deletedOf(changes).deleted) return [{ name: `field:${type}`, value: null }];
+  if (!r.field_vis || !maySee(reader, { visibility: r.field_vis, owner: r.field_owner })) return [];
   const kept = newValue(changes, 'value', editor);
-  const v = kept !== undefined ? kept : changes.some((c) => c.action === 'added') ? fieldNow(r.field_type, r.field_value) : undefined;
+  let v: string | null | undefined;
+  if (kept.state === 'value') v = kept.value;
+  else if (kept.state === 'none') {
+    // Only an addition that kept no content at all (a row from before added rows kept their value) lets the value now
+    // stand in, and only while nothing changed the field after this day.
+    const contentFree = changes.some((c) => c.action === 'added' && !c.diff);
+    const untouched = !r.field_last || r.field_last <= r.at;
+    v = contentFree && untouched ? fieldNow(type, r.field_value) : undefined;
+  }
   if (v === undefined) return [];
-  return [{ name: `field:${r.field_type}`, value: v, ...(r.field_label ? { label: r.field_label } : {}) }];
+  // Health and belief are said by their kind alone; that they were removed says no more than that.
+  if (v !== null && isSensitiveType(type)) return [];
+  return [{ name: `field:${type}`, value: v, ...(r.field_label ? { label: r.field_label } : {}) }];
 }
 
 function updateEntries(rows: UpdateRow[], keys: Map<string, string>, reader: Audience): FeedItem[] {
@@ -227,11 +256,17 @@ function updateEntries(rows: UpdateRow[], keys: Map<string, string>, reader: Aud
       // A record changed many times in a day (an autosave every few minutes) counts once.
       const once = (what: string) => !p.seen.has(`${what}:${r.record}`) && !!p.seen.add(`${what}:${r.record}`);
       const changes = changesOf(r.fields);
+      const type = r.kind === 'field' ? fieldTypeOf(r, changes) : null;
+      // A field added and deleted on one day left nothing to say; one deleted without its type kept (an older row) is not named.
+      if (r.kind === 'field') {
+        const { deleted, addedToo } = deletedOf(changes);
+        if (!type || (deleted && addedToo)) continue;
+      }
       p.values!.push(...valuesOf(r, changes, reader));
       if (r.kind === 'person') for (const d of detailsOf(changes)) add(p.details, d);
-      else if (r.kind === 'field' && r.field_type) {
-        if (isContactType(r.field_type)) add(p.contact, r.field_type as ContactKind);
-        else add(p.details, `field:${r.field_type}`);
+      else if (r.kind === 'field' && type) {
+        if (isContactType(type)) add(p.contact, type as ContactKind);
+        else add(p.details, `field:${type}`);
       } else if (r.kind === 'event') p.events += once('event') ? 1 : 0;
       else if (r.kind === 'citation' || r.kind === 'source') p.sources += once(r.kind) ? 1 : 0;
       else if (r.kind === 'portrait') p.portrait = true;
@@ -272,7 +307,8 @@ export async function feedPage(tree: string, who: Who, cursor?: string | null, l
   const postParams = [...afterParams, n + 1];
   // An update is read at the history's levels (history.server.ts), Personal fields left out: they are their owner's notes.
   const updatesLevel = can(who.role, 'edit-person') ? "h.level IN ('family', 'editors')" : "h.level = 'family'";
-  const updatesWhere = `h.at < ? AND h.action <> 'removed' AND ${updatesLevel}
+  // A field deleted is read too (said as removed, by the type its row kept); no other removal is an update.
+  const updatesWhere = `h.at < ? AND (h.action <> 'removed' OR h.kind = 'field') AND ${updatesLevel}
     AND (h.kind IN ('field', 'event', 'citation', 'source', 'portrait', 'tag', 'import') OR (h.kind = 'person' AND h.action = 'changed'))`;
   // Who made a row, as the entries are grouped (byDayAndAuthor): the account, or for a row of none the name it showed.
   const author = (t: string) => `${t}.account, CASE WHEN ${t}.account IS NULL THEN ${t}.name END`;
@@ -292,12 +328,13 @@ export async function feedPage(tree: string, who: Who, cursor?: string | null, l
     q(`WITH cut AS (SELECT substr(h.at, 1, 10) AS d FROM history h WHERE ${updatesWhere} ORDER BY h.at DESC LIMIT 1 OFFSET ?),
        rec AS (
          SELECT max(h.at) AS at, h.account, h.name, h.level, h.kind, h.record, h.person, json_group_array(json_array(h.at, h.action, h.fields)) AS fields,
-           sum(h.count) AS count, pf.type AS field_type, pf.value AS field_value, pf.label AS field_label, pf.visibility AS field_vis, pf.owner AS field_owner
+           sum(h.count) AS count, pf.type AS field_type, pf.value AS field_value, pf.label AS field_label, pf.visibility AS field_vis, pf.owner AS field_owner,
+           CASE WHEN h.kind = 'field' THEN (SELECT max(l.at) FROM history l WHERE l.kind = 'field' AND l.record = h.record) END AS field_last
          FROM history h LEFT JOIN person_field pf ON h.kind = 'field' AND pf.id = h.record
          WHERE ${updatesWhere} AND h.at >= coalesce((SELECT d FROM cut), '')
          GROUP BY substr(h.at, 1, 10), ${author('h')}, h.level, h.kind, h.record, h.person, pf.type, pf.value, pf.label, pf.visibility, pf.owner),
        ranked AS (SELECT rec.*, row_number() OVER (${entry} ORDER BY at DESC, record) AS n, count(*) OVER (${entry}) AS total FROM rec)
-       SELECT at, account, name, level, kind, record, person, fields, count, field_type, field_value, field_label, field_vis, field_owner, total > ? AS more, (SELECT d FROM cut) AS cut
+       SELECT at, account, name, level, kind, record, person, fields, count, field_type, field_value, field_label, field_vis, field_owner, field_last, total > ? AS more, (SELECT d FROM cut) AS cut
        FROM ranked WHERE n <= ? ORDER BY at DESC, record DESC`, upper, UPDATES_WINDOW - 1, upper, UPDATES_PER_ENTRY, UPDATES_PER_ENTRY),
     q(`SELECT season, ended, json_extract(result, '$.winner.name') AS winner FROM campaign_season
        WHERE ended IS NOT NULL${after('ended', "('season:' || season)")} ORDER BY ended DESC LIMIT ?`, ...afterParams, SEASONS),

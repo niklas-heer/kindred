@@ -41,6 +41,9 @@ export const CONTACT_TYPES: readonly FieldType[] = ['phone', 'email', 'address',
 /** These start at the editors' level, in the Edit tab and in the assistant's proposals alike: they are sensitive by nature. */
 export const RESTRICTED_BY_DEFAULT: readonly FieldType[] = ['address', 'medical', 'allergies', 'religion'];
 
+/** Health and belief: the feed names a change to these by its kind alone, never with its text, whoever may read the field. */
+export const SENSITIVE_TYPES: readonly FieldType[] = ['medical', 'allergies', 'religion'];
+export const isSensitiveType = (t: string) => (SENSITIVE_TYPES as readonly string[]).includes(t);
 export const isContactType = (t: string) => (CONTACT_TYPES as readonly string[]).includes(t);
 /** The level a new field of this type starts at. */
 export const defaultVisibility = (t: string): Visibility => ((RESTRICTED_BY_DEFAULT as readonly string[]).includes(t) ? 'editors' : 'family');
