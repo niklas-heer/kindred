@@ -343,6 +343,8 @@ const OPEN = new Set([
   'fetchVerification',
   // An email's one-click unsubscribe (src/lib/email/): its HMAC-signed token names the address and category; no family.
   'unsubscribeMail',
+  // A family's lifecycle bar (src/lib/lifecycle/): null for anyone who is not a member, a guest included.
+  'fetchFamilyLifecycle',
   'fetchPublicHosting', 'signupWaitlist',
 ]);
 /** Everything a handler might read before its guard, so a failure can only be the guard's. */
