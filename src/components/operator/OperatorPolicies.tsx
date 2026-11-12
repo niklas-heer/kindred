@@ -39,19 +39,26 @@ const useUsd = () => {
 export function PoliciesTab({ families }: { families: OperatorFamily[] }) {
   const t = useT();
   const { data, isPending, isError, refetch } = useQuery(policiesQuery);
+  // A saved card is drawn anew from what the server now holds (its key changes with the save), so it is told it was just
+  // saved: otherwise its "Saved." would go with the card it replaces.
+  const [justSaved, setJustSaved] = useState<PolicyKey | null>(null);
   if (isPending) return <div aria-busy="true" aria-label={t('operator.loading')}><Skeleton lines={6} /></div>;
   if (isError) return <ErrorState title={t('operator.err_load')} onRetry={() => { void refetch(); }} />;
   return (
     <div className="operator-panel">
       <p className="families-hint">{t('policy.intro')}</p>
       {!data.contact.trim() && <p className="operator-warning">{t('policy.no_contact')}</p>}
-      {data.entries.map((e) => <PolicyCard key={`${e.key}:${e.updatedAt}`} entry={e} families={families} data={data} />)}
+      {data.entries.map((e) => (
+        <PolicyCard key={`${e.key}:${e.updatedAt}`} entry={e} families={families} data={data} justSaved={justSaved === e.key} onSaved={() => setJustSaved(e.key)} />
+      ))}
       <OperatorKeys keys={data.keys} />
     </div>
   );
 }
 
-function PolicyCard({ entry, families, data }: { entry: PolicyEntry; families: OperatorFamily[]; data: PoliciesData }) {
+function PolicyCard({ entry, families, data, justSaved, onSaved }: {
+  entry: PolicyEntry; families: OperatorFamily[]; data: PoliciesData; justSaved: boolean; onSaved: () => void;
+}) {
   const t = useT();
   const qc = useQueryClient();
   const ids = useId();
@@ -63,7 +70,7 @@ function PolicyCard({ entry, families, data }: { entry: PolicyEntry; families: O
   const [familyUsd, setFamilyUsd] = useState(() => usdText((entry.ai ?? DEFAULT_AI_SOURCE).familyMicros));
   const [ceilingUsd, setCeilingUsd] = useState(() => usdText((entry.ai ?? DEFAULT_AI_SOURCE).ceilingMicros));
   const [impact, setImpact] = useState<{ for: string; value: PolicyImpact } | null>(null);
-  const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(() => (justSaved ? { ok: true, text: t('policy.saved') } : null));
   const aiValue = { ...ai, familyMicros: microsOf(familyUsd), ceilingMicros: microsOf(ceilingUsd) };
   const input = { key: entry.key, scope, ai: entry.key === 'ai.source' ? aiValue : null, families: scope === 'off' ? [] : listed };
   const draft = JSON.stringify(input);
@@ -74,7 +81,7 @@ function PolicyCard({ entry, families, data }: { entry: PolicyEntry; families: O
   const preview = useMutation({ mutationFn: () => previewPolicy({ data: input }), onSuccess: (value) => { setStatus(null); setImpact({ for: draft, value }); }, onError });
   const save = useMutation({
     mutationFn: () => savePolicy({ data: input }),
-    onSuccess: async () => { setStatus({ ok: true, text: t('policy.saved') }); await qc.invalidateQueries({ queryKey: ['operator'] }); },
+    onSuccess: async () => { setStatus({ ok: true, text: t('policy.saved') }); onSaved(); await qc.invalidateQueries({ queryKey: ['operator'] }); },
     onError,
   });
   const change = (f: () => void) => { setStatus(null); f(); };
