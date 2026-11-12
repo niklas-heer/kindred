@@ -166,7 +166,25 @@ test('a field made Personal is, for everyone else, removed without its content',
   const [last] = (await rows("kind = 'field' AND person = 'ben'")).slice(-1);
   assert.equal(last!.action, 'removed');
   assert.equal(last!.level, 'family');
-  assert.equal(last!.fields, null);
+  // Its type, so the feed can say a favourite went; never its content.
+  assert.deepEqual(JSON.parse(last!.fields!), { f: {}, k: 'favourites' });
+});
+
+test('a field added keeps the value it was added with and its type, so a later change does not rewrite that day', async () => {
+  await age();
+  as(AUTHOR);
+  await save('ben', (s) => ({ fields: [...inputs(s), { type: 'phone', label: 'mobile', value: { number: '+49 30 1' }, visibility: 'family' }] }));
+  const [row] = (await rows("kind = 'field' AND person = 'ben' AND action = 'added'")).slice(-1);
+  assert.deepEqual(JSON.parse(row!.fields!), { f: { value: [null, '+49 30 1'] }, k: 'phone' });
+  await age();
+  await save('ben', (s) => ({ fields: inputs(s).map((f) => (f.type === 'phone' ? { ...f, value: { number: '+49 30 2' } } : f)) }));
+  const after = (await rows('id = ?', row!.id))[0]!;
+  assert.equal(after.fields, row!.fields, 'the added row is not folded into the change');
+  await age();
+  await save('ben', (s) => ({ fields: inputs(s).filter((f) => f.type !== 'phone') }));
+  const [gone] = (await rows("kind = 'field' AND person = 'ben'")).slice(-1);
+  assert.equal(gone!.action, 'removed');
+  assert.deepEqual(JSON.parse(gone!.fields!), { f: {}, k: 'phone' }, 'a deleted field keeps its type, never its value');
 });
 
 test('Editors-level content reaches editors and stewards only; contributors and viewers do not learn the field exists', async () => {

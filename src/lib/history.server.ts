@@ -31,8 +31,12 @@ import {
 /** A plan that writes nothing of the family's records says so with this (the Campaign, translations, caches). */
 export const NOT_A_RECORD = 'not-a-record' as const;
 
-/** The changed fields of one row: `f` maps a field to [before, after]; `t` were cut short, `o` keep no content, `e` are for editors. */
-export interface Diff { f: Record<string, [HistoryValue, HistoryValue]>; t?: string[]; o?: string[]; e?: string[] }
+/**
+ * The changed fields of one row: `f` maps a field to [before, after]; `t` were cut short, `o` keep no content, `e` are for
+ * editors. `k` is the type of a person's field an added or removed row is about (rows from 2026-11 on), so a field deleted
+ * since can be named by its kind; it is never a value.
+ */
+export interface Diff { f: Record<string, [HistoryValue, HistoryValue]>; t?: string[]; o?: string[]; e?: string[]; k?: string }
 
 /** One row a change writes. */
 export interface HistoryEntry {

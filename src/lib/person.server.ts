@@ -8,6 +8,7 @@ import { EDITED_KEYS, type GraphPatch, type Look } from './types.ts';
 import { parseFurther, storeFurther } from './further-given.ts';
 import { validDate } from './dates.ts';
 import type { HistoryValue, RestorableField } from './history.ts';
+import type { Diff } from './history.server.ts';
 import { occupationCodeFor } from './occupations.ts';
 import { translate } from './i18n/dictionary.ts';
 import { fieldsVisibleTo, mayBePersonal, maySee, type Audience, type Visibility } from './visibility.ts';
@@ -145,14 +146,19 @@ export function fieldHistory(person: string, before: FieldState | null, after: F
   const label = f.label || f.type;
   const base = { person, label };
   const text = (x: FieldState) => { try { return fieldText(x.type as FieldType, JSON.parse(x.value) as FieldValue); } catch { return ''; } };
-  if (!before && after) return [added('field', after.id, { ...base, level: after.visibility, owner: after.owner })];
-  if (before && !after) return [removed('field', before.id, { ...base, level: before.visibility, owner: before.owner })];
+  // An added row keeps the value it was added with (so a later change cannot rewrite what that day said), and an added or
+  // removed row keeps the field's type (`k`), so a field deleted since can still be named by its kind. A personal row keeps
+  // neither (historyWrites drops its diff).
+  const born = (x: FieldState): Diff => ({ ...(change('field', x.id, { value: null }, { value: text(x) })[0]?.diff ?? { f: {} }), k: x.type });
+  const gone = (x: FieldState): Diff => ({ f: {}, k: x.type });
+  if (!before && after) return [{ ...added('field', after.id, { ...base, level: after.visibility, owner: after.owner }), diff: born(after) }];
+  if (before && !after) return [{ ...removed('field', before.id, { ...base, level: before.visibility, owner: before.owner }), diff: gone(before) }];
   const b = before!, a = after!;
   if (b.visibility === 'personal' && a.visibility === 'personal') {
     return b.label === a.label && b.value === a.value ? [] : [{ kind: 'field', record: a.id, action: 'changed', ...base, level: 'personal', owner: a.owner }];
   }
-  if (a.visibility === 'personal') return [removed('field', b.id, { ...base, level: b.visibility })];
-  if (b.visibility === 'personal') return [added('field', a.id, { ...base, level: a.visibility })];
+  if (a.visibility === 'personal') return [{ ...removed('field', b.id, { ...base, level: b.visibility }), diff: gone(b) }];
+  if (b.visibility === 'personal') return [{ ...added('field', a.id, { ...base, level: a.visibility }), diff: born(a) }];
   return change('field', a.id, { label: b.label, value: text(b), visibility: b.visibility }, { label: a.label, value: text(a), visibility: a.visibility }, { ...base, level: stricter(b.visibility, a.visibility) });
 }
 
