@@ -249,7 +249,9 @@
     }
   },
   "sameAsEnglish": [
-    "feedback.key_mod"
+    "families.export_markdown",
+    "feedback.key_mod",
+    "shell.themeCodex"
   ],
   "ownWords": [
     "a",
