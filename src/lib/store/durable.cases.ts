@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { env } from 'cloudflare:workers';
 import { move, type Importer, type MoveStep } from './move.server.ts';
 import { q, store } from './index.ts';
+import { backupName, deriveBackupKey, open } from '../backup/kbak.ts';
 
 const migrationsOf = async (tree: string) => (await store.tree(tree).all<{ name: string }>('SELECT name FROM d1_migrations ORDER BY id')).map((r) => r.name);
 const registry = async () => (await store.accounts().all<{ tree: string; driver: string }>('SELECT tree, driver FROM family_store ORDER BY tree')).map((r) => `${r.tree}:${r.driver}`);
@@ -200,8 +201,120 @@ export const durableCases: Record<string, (expect: string[]) => Promise<void>> =
     await store.accounts().batch([q("DELETE FROM instance_setting WHERE key IN ('families_per_account', 'terms')")]);
   },
 
+  /**
+   * A family in its Durable Object is backed up by the object itself into the bucket under `_backups/`, out of every family's
+   * media; the drill restores it into a scratch object; a restore into a new id and over the family keep every row and BLOB;
+   * a changed file and a file under another family's id do not open. The accounts object is backed up too.
+   */
+  'a Durable Object family is backed up, drilled and restored': async () => {
+    const b = await import('../backup/backup.server.ts');
+    const op = { id: 'u-bk', name: 'Bryn' };
+    const now = Date.now();
+    await store.accounts().batch([
+      q("INSERT INTO user (id, name, handle, created, operator) VALUES ('u-bk', 'Bryn', 'h-bk', ?, 1), ('u-fir', 'Fenna', 'h-fir', ?, 0)", now, now),
+    ]);
+    const d = await store.ensureTree('fir');
+    const blob = Uint8Array.from({ length: 5000 }, (_, i) => (i * 13 + 1) % 256);
+    await d.batch([
+      q("INSERT INTO meta (key, value) VALUES ('id', 'fir'), ('name', 'The Firs')"),
+      q("INSERT INTO person (id, given) VALUES ('f1', 'Aino'), ('f2', 'Bede')"),
+      q('CREATE TABLE IF NOT EXISTS probe_blob (id INTEGER PRIMARY KEY, b BLOB)'),
+      q('INSERT INTO probe_blob (id, b) VALUES (1, ?)', blob),
+    ]);
+    await store.accounts().run("INSERT INTO membership (user, tree, role, created) VALUES ('u-fir', 'fir', 'steward', ?)", now);
+    await store.media.put('fir', 'photo/one.jpg', Uint8Array.from([1, 2, 3]), 'image/jpeg');
+
+    const m = await b.backUp('fir', new Date(now - 60_000));
+    assert.equal(m.format, 'dump');
+    assert.equal(m.counts.person, 2);
+    const media = env.MEDIA as R2Bucket;
+    const object = await media.get(`_backups/fir/${m.name}.kbak`);
+    assert.ok(object, 'in the bucket under _backups/');
+    const bytes = new Uint8Array(await new Response(object.body).arrayBuffer());
+    assert.ok(!new TextDecoder('latin1').decode(bytes).includes('Aino'), 'encrypted');
+    assert.deepEqual((await store.media.list('fir')).map((f) => f.key), ['photo/one.jpg'], 'not among the family\'s files');
+    const k = await deriveBackupKey(String((env as Record<string, unknown>).KINDRED_SECRET));
+    assert.equal((await open(bytes, k, 'fir', m.name)).manifest.sha256, m.sha256);
+
+    // The drill: a scratch object, checked with quick_check, row counts and schema as the manifest says.
+    const r = await b.drill('fir');
+    assert.deepEqual(r, { name: m.name, ok: true, problem: null });
+
+    // Into a new id: every row and the BLOB, its own id, the original's steward, the pictures copied.
+    await d.run("INSERT INTO person (id, given) VALUES ('f3', 'After')");
+    const into = await b.restoreBackup(op, { scope: 'fir', name: m.name, mode: 'new', into: 'fir-two' });
+    assert.deepEqual(into.media, { copied: 1, left: 0 });
+    const restored = store.tree('fir-two');
+    assert.deepEqual((await restored.all<{ id: string }>('SELECT id FROM person ORDER BY id')).map((p) => p.id), ['f1', 'f2']);
+    const back = (await restored.get<{ b: Uint8Array }>('SELECT b FROM probe_blob WHERE id = 1'))!.b;
+    assert.ok(back instanceof Uint8Array);
+    assert.deepEqual([...back], [...blob]);
+    assert.equal((await restored.get<{ value: string }>("SELECT value FROM meta WHERE key = 'id'"))?.value, 'fir-two');
+    assert.ok((await store.treeIds()).includes('fir-two'), 'listed in family_store');
+    assert.equal((await store.accounts().get<{ role: string }>("SELECT role FROM membership WHERE user = 'u-fir' AND tree = 'fir-two'"))?.role, 'steward');
+    assert.ok(await store.media.get('fir-two', 'photo/one.jpg'));
+
+    // Over the family: a fresh backup first, then the backup in its place.
+    const over = await b.restoreBackup(op, { scope: 'fir', name: m.name, mode: 'over', confirm: 'fir' });
+    assert.ok(over.fresh && over.fresh !== m.name);
+    assert.deepEqual((await store.tree('fir').all<{ id: string }>('SELECT id FROM person ORDER BY id')).map((p) => p.id), ['f1', 'f2']);
+    await b.restoreBackup(op, { scope: 'fir', name: over.fresh!, mode: 'over', confirm: 'fir' });
+    assert.deepEqual((await store.tree('fir').all<{ id: string }>('SELECT id FROM person ORDER BY id')).map((p) => p.id), ['f1', 'f2', 'f3']);
+
+    // A changed file fails the drill; the same file under another family's id cannot be read.
+    const flipped = bytes.slice();
+    flipped[flipped.length - 9]! ^= 4;
+    await store.backups.write('fir', m.name, flipped);
+    const bad = await store.backups.drill('fir', m.name);
+    assert.equal(bad.ok, false);
+    assert.match(bad.problem ?? '', /changed or damaged/);
+    await store.backups.write('fir', m.name, bytes);
+    await store.backups.write('fir-two', m.name, bytes);
+    const moved = await store.backups.drill('fir-two', m.name);
+    assert.equal(moved.ok, false);
+    assert.match(moved.problem ?? '', /another database/);
+    await assert.rejects(store.backups.restore('fir-two', m.name, 'fir-three'), /another database/);
+    await store.backups.remove('fir-two', m.name);
+
+    // The accounts database is backed up and drilled too.
+    const a = await b.backUp('_accounts');
+    assert.ok(a.counts.user >= 2);
+    assert.equal((await b.drill('_accounts'))?.ok, true);
+    // Nothing a drill made is left: no family, no listed object.
+    assert.ok(!(await store.treeIds()).some((t) => t.startsWith('drill')));
+  },
+
+  /** Before a family's object applied new migrations it recorded a recovery point; local workerd cannot restore one. */
+  'a recovery point is recorded before an upgrade': async (files) => {
+    const b = await import('../backup/backup.server.ts');
+    // The first answer after the upgrade reports the point to the accounts database.
+    await store.tree('fir').all('SELECT 1');
+    const points = await store.backups.recovery!.points('fir');
+    const latest = points[0];
+    assert.ok(latest, 'a point');
+    // The first of the two new files, and the newest the family held before them.
+    assert.equal(latest.before, files.at(-2));
+    assert.equal(latest.held, files.at(-3));
+    assert.equal(latest.reason, 'migration');
+    const row = await store.accounts().get<{ id: number; before_migration: string }>("SELECT id, before_migration FROM recovery_point WHERE tree = 'fir' ORDER BY id DESC");
+    assert.equal(row?.before_migration, files.at(-2));
+    const overview = await b.backupOverview();
+    assert.ok(overview.pitr);
+    assert.equal(overview.families.find((f) => f.scope === 'fir')?.recovery[0]?.before, files.at(-2));
+    // The rollback takes a fresh backup, then asks the object; local workerd keeps no history and says so.
+    const op = { id: 'u-bk', name: 'Bryn' };
+    const before = (await store.accounts().all("SELECT name FROM family_backup WHERE family = 'fir'")).length;
+    await assert.rejects(b.rollbackFamily(op, 'fir', row!.id, 'fir'), /backup\.err\.no_pitr/);
+    assert.equal((await store.accounts().all("SELECT name FROM family_backup WHERE family = 'fir'")).length, before + 1, 'a fresh backup first');
+    await assert.rejects(b.rollbackFamily(op, 'fir', row!.id, 'firs'), /backup\.err\.confirm/);
+    assert.equal((await store.tree('fir').get<{ value: string }>("SELECT value FROM meta WHERE key = 'id'"))?.value, 'fir', 'the family is untouched');
+  },
+
   /** A demo refuses every write, making and dropping a family included; reads still work. */
   'a demo refuses to make, change or drop a family': async () => {
+    await assert.rejects(store.backups.take('ash', backupName(new Date())), /demo/i);
+    await assert.rejects(store.backups.restore('fir', backupName(new Date()), 'fir-demo'), /demo/i);
+    await assert.rejects(store.backups.drill('fir', backupName(new Date())), /demo/i);
     await assert.rejects(store.ensureTree('newcomer'), /demo/i);
     await assert.rejects(store.dropTree('ash'), /demo/i);
     await assert.rejects(store.tree('ash').run("INSERT INTO person (id, given) VALUES ('x', 'X')"), /demo/i);

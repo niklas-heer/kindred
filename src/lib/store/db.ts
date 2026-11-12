@@ -122,6 +122,45 @@ export interface ImportTarget {
   register: Query;
 }
 
+/** How a drill ended (src/lib/backup/backup.server.ts): restored into a scratch database that serves nothing, then checked. */
+export interface DrillResult { ok: boolean; problem: string | null; check: 'integrity_check' | 'quick_check' }
+
+/** A point a family's Durable Object can be rolled back to (src/lib/store/durable.ts): taken before it applied migrations. */
+export interface RecoveryPoint { bookmark: string; at: number; reason: 'migration' | 'rollback'; before: string | null; held: string | null }
+
+/**
+ * The automatic backups (src/lib/backup/, docs/hosting-many-families.md "Backups"): where a scope's (a family id, or
+ * `_accounts`) encrypted `.kbak` files are kept, and how they are made, checked and restored. Node: files under
+ * KINDRED_BACKUP_DIR or data/backups/<scope>/. Workers: the MEDIA bucket under `_backups/<scope>/`, made by the family's
+ * Durable Object itself. A family in a bound D1 database is covered by D1 Time Travel instead (`d1`).
+ */
+export interface BackupStore {
+  /** `files` or `r2`. */
+  where: 'files' | 'r2';
+  /** Whether this scope is backed up here (`backup`), left to D1 Time Travel (`d1`), or cannot be (`none`). */
+  covers(scope: string): 'backup' | 'd1' | 'none';
+  /** Makes a backup named `name` and returns its manifest. */
+  take(scope: string, name: string): Promise<import('../backup/kbak.ts').Manifest>;
+  /** The file's bytes, or undefined when it is gone. */
+  read(scope: string, name: string): Promise<Uint8Array | undefined>;
+  /** Writes a file's bytes (tests use it to damage or move one). */
+  write(scope: string, name: string, bytes: Uint8Array): Promise<void>;
+  remove(scope: string, name: string): Promise<void>;
+  /** Restores it into a scratch database that serves nothing, checks its integrity, row counts and schema, and drops it. */
+  drill(scope: string, name: string): Promise<DrillResult>;
+  /**
+   * Replaces the family `into` (another family id, or `scope` itself) with the backup's database. The caller has made sure
+   * `into` is free or has just backed it up. Returns the statement that lists a new family where the driver keeps a registry.
+   */
+  restore(scope: string, name: string, into: string): Promise<Query | null>;
+  /** Workers: the points the family's Durable Object recorded before it migrated, and rolling back to one. */
+  recovery?: {
+    points(tree: string): Promise<RecoveryPoint[]>;
+    /** Records the object's bookmark now (undo point), then restarts it at `bookmark`. */
+    rollback(tree: string, bookmark: string): Promise<string>;
+  };
+}
+
 /** What a driver provides. */
 export interface Driver {
   name: 'node' | 'cloudflare';
@@ -164,6 +203,8 @@ export interface Driver {
   /** The offline place gazetteer (data/gazetteer.db), only on Node and only once built. */
   gazetteer(): Db | null;
   media: MediaStore;
+  /** The automatic backups (above). */
+  backups: BackupStore;
   /**
    * The server secret that seals the family AI keys (src/lib/ai/secret.server.ts). Node: KINDRED_SECRET from the
    * environment, else data/secret, made on first use with mode 600. Workers: the KINDRED_SECRET binding. Throws

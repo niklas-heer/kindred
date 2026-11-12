@@ -7,7 +7,7 @@
 // out asks before every write (`run` and `batch` throw the refusal, and so do `get` and `all` for anything but a read, since a
 // write with RETURNING goes through them; the reads work), and the media store neither stores nor deletes. The question is
 // asked at the moment of the write, not when the database is handed out, because a preview belongs to one request and other
-// requests write as usual. Every server function, server route and job reaches the data through here, so nothing needs to
+// requests write as usual. Backups (`store.backups`) are refused the same way. Every server function, server route and job reaches the data through here, so nothing needs to
 // know about a demo or a preview to be safe in one.
 // The driver object is changed in place rather than wrapped, so code (and tests) holding `store` keep holding the driver.
 import driver from '#store/driver';
@@ -74,6 +74,19 @@ if (!patched.has(driver)) {
   driver.media.delete = (...args) => refused() ?? remove.apply(driver.media, args);
   driver.media.deleteTree = (...args) => refused() ?? deleteTree.apply(driver.media, args);
   driver.dropTree = (...args) => refused() ?? dropTree.apply(driver, args);
+  // Making, changing, restoring or deleting a backup, a drill's scratch database, and a rollback are writes.
+  const b = driver.backups;
+  const { take, write, remove: drop, drill, restore } = b;
+  b.take = (...args) => refused() ?? take.apply(b, args);
+  b.write = (...args) => refused() ?? write.apply(b, args);
+  b.remove = (...args) => refused() ?? drop.apply(b, args);
+  b.drill = (...args) => refused() ?? drill.apply(b, args);
+  b.restore = (...args) => refused() ?? restore.apply(b, args);
+  if (b.recovery) {
+    const r = b.recovery;
+    const rollback = r.rollback;
+    r.rollback = (...args) => refused() ?? rollback.apply(r, args);
+  }
 }
 
 export const store = driver;

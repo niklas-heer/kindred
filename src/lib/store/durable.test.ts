@@ -1,6 +1,7 @@
 // node --test src/lib/store/durable.test.ts — families in Durable Objects (./durable.ts) on the real Cloudflare driver in
 // local workerd: made on demand, migrated once and in order, upgraded by a new migration file, dropped, listed beside a bound
-// D1 family, refused in a demo, and kept in their jurisdiction. Each phase restarts the Worker on the same local state, as a
+// D1 family, backed up, drilled and restored (src/lib/backup/), a recovery point recorded before an upgrade, refused in a demo,
+// and kept in their jurisdiction. Each phase restarts the Worker on the same local state, as a
 // deploy does. Nothing contacts Cloudflare (Miniflare only, in a scratch folder).
 import assert from 'node:assert/strict';
 import { cpSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -76,6 +77,18 @@ test('a dropped family is gone, unlisted, and can be made again empty', { timeou
 test('an import is staged, bound to its account, values only, and published only when complete', { timeout: 60_000 }, () => phase('a family is imported step by step, staged until it is complete', treeFiles));
 
 test('an import that makes a family keeps the account\'s limit and the server\'s terms', { timeout: 60_000 }, () => phase('an import that makes a family keeps the limit and the terms', treeFiles));
+
+const SECRET = { KINDRED_SECRET: 'a test secret for the local backups' };
+
+test('a Durable Object family is backed up, drilled and restored into a new id and over itself', { timeout: 60_000 }, () => phase('a Durable Object family is backed up, drilled and restored', treeFiles, { vars: SECRET }));
+
+test('a family records a recovery point before it applies new migrations', { timeout: 60_000 }, async () => {
+  const tree = join(work, 'tree-recovery');
+  cpSync(join(MIGRATIONS, 'tree'), tree, { recursive: true });
+  writeFileSync(join(tree, '9999_upgrade_probe.sql'), "CREATE TABLE upgrade_probe (id TEXT PRIMARY KEY);\nINSERT INTO upgrade_probe (id) VALUES ('one');\n");
+  writeFileSync(join(tree, '9999_upgrade_recovery.sql'), 'CREATE TABLE upgrade_recovery (id TEXT PRIMARY KEY);\n');
+  await phase('a recovery point is recorded before an upgrade', [...treeFiles, '9999_upgrade_probe.sql', '9999_upgrade_recovery.sql'], { code: await bundle(tree), vars: SECRET });
+});
 
 test('a demo refuses to make, change or drop a Durable Object family', { timeout: 60_000 }, () => phase('a demo refuses to make, change or drop a family', treeFiles, { vars: { KINDRED_DEMO: '1' } }));
 

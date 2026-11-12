@@ -1,4 +1,5 @@
 // The operator console's Health tab (src/lib/operator/health.server.ts): the shape it reads. No server imports.
+import type { BackupHealth } from '../backup/shared.ts';
 
 export interface JobHealth {
   /** The daily job's name, as in the logs ("reminders", "archive"). */
@@ -43,8 +44,10 @@ export interface Health {
     /** Families that never reported (not opened since this record began). */
     unreported: number;
   };
-  /** The nightly archive is this install's automatic backup when configured. */
+  /** The nightly archive to GitHub (docs/exchange.md), when configured: a readable copy beside the backups. */
   backup: { configured: boolean; lastOkAt: number | null; failing: boolean };
+  /** The automatic backups (src/lib/backup/): each family's last good one, the key, the drills, the recovery points. */
+  backups: BackupHealth;
   /**
    * Operator-funded AI calls the provider billed above their reservation this UTC month (booked in full), and each family and
    * model the operator's AI is paused for until the operator acknowledges its overage; null for neither.

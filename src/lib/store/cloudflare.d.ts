@@ -54,10 +54,14 @@ interface DurableObjectStorage {
   delete(key: string): Promise<boolean>;
   deleteAll(): Promise<void>;
   transactionSync<T>(work: () => T): T;
+  /** Point-in-time recovery (SQLite storage only; local workerd answers with a placeholder and cannot restore). */
+  getCurrentBookmark(): Promise<string>;
+  onNextSessionRestoreBookmark(bookmark: string): Promise<string>;
 }
 interface DurableObjectState {
   storage: DurableObjectStorage;
   blockConcurrencyWhile<T>(work: () => Promise<T>): Promise<T>;
+  abort(reason?: string): void;
 }
 interface DurableObjectId { toString(): string }
 interface DurableObjectNamespace<T = unknown> {

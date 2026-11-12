@@ -1,7 +1,8 @@
 // The operator console's Health tab (docs/hosting-many-families.md, "Health"): how the daily jobs last ran (accounts table
 // `job_run`, migration 0047, written by the job runner), which families failed a migration or have not caught up yet
-// (`family_schema`, reported by the storage drivers, src/lib/store/schema-report.ts), how old the last backup is when this
-// install makes one (the nightly archive, src/lib/jobs/archive.ts), the running version and the update check's last answer.
+// (`family_schema`, reported by the storage drivers, src/lib/store/schema-report.ts), the automatic backups (each family's last
+// good one, the key, the restore drills, the recovery points: src/lib/backup/backup.server.ts) and the nightly archive when
+// configured (src/lib/jobs/archive.ts), the running version and the update check's last answer.
 // Reads the accounts database only: no family is opened.
 import type { JobRun } from '../jobs/index.ts';
 import { sanitiseFailure } from '../jobs/failure.ts';
@@ -63,6 +64,7 @@ export async function readHealth(opts: { version?: string | null; commit?: strin
   const behind = rows.filter((s) => !s.error && newest && s.migration && s.migration < newest);
   const reported = new Set(rows.map((s) => s.tree));
   const archive = opts.archive ?? archiveConfigured();
+  const backups = await (await import('../backup/backup.server.ts')).backupHealth(families);
   const archiveRun = jobs.find((j) => j.job === 'archive');
   return {
     version: opts.version !== undefined ? opts.version : appVersion(),
@@ -77,6 +79,7 @@ export async function readHealth(opts: { version?: string | null; commit?: strin
       unreported: families.filter((f) => !reported.has(f)).length,
     },
     backup: archive ? { configured: true, lastOkAt: archiveRun?.last_ok_at ?? null, failing: archiveRun ? archiveRun.ok === 0 : false } : { configured: false, lastOkAt: null, failing: false },
+    backups,
     aiOverage: (overage && overage.calls > 0) || paused.length
       ? { month, calls: overage?.calls ?? 0, micros: Number(overage?.micros ?? 0), paused: paused.map((p) => ({ ...p, calls: Number(p.calls), micros: Number(p.micros), since: Number(p.since) })) }
       : null,

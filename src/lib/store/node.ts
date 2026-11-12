@@ -6,6 +6,8 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { checkMediaKey, checkReads, checkStatement, NOT_TREES, TREE_ID, type Db, type Driver, type MediaStore, type Param, type Query, type Result } from './db.ts';
 import { migrationError, reportSchema } from './schema-report.ts';
+import { ACCOUNTS_SCOPE } from '../backup/kbak.ts';
+import { nodeBackups } from './backups.node.ts';
 
 const DATA_DEFAULT = resolve(process.cwd(), 'data');
 const DATA = process.env.KINDRED_DATA_DIR ? resolve(process.env.KINDRED_DATA_DIR) : DATA_DEFAULT;
@@ -286,14 +288,8 @@ const driver: Driver = {
   async dropTree(id) {
     if (!TREE_ID.test(id) || NOT_TREES.has(id)) throw new Error(`bad tree id ${id}`);
     const path = join(dataDir(), `${id}.db`);
-    trees.delete(id);
     // The open connection first, so its write-ahead log is folded in and nothing writes to the file after it is gone.
-    for (const d of open) {
-      if ((d as unknown as { [k: symbol]: unknown })[DB_ID] === id) {
-        try { d.close(); } catch {}
-        open.delete(d);
-      }
-    }
+    closeTree(id);
     for (const suffix of ['', '-wal', '-shm']) rmSync(path + suffix, { force: true });
   },
 
@@ -343,6 +339,17 @@ const driver: Driver = {
 
   media,
 
+  backups: nodeBackups({
+    dataDir,
+    treePath: (id) => {
+      if (!TREE_ID.test(id) || NOT_TREES.has(id)) throw new Error(`bad tree id ${id}`);
+      return join(dataDir(), `${id}.db`);
+    },
+    db: (scope) => (scope === ACCOUNTS_SCOPE ? driver.accounts() : driver.tree(scope)),
+    closeTree: (id) => closeTree(id),
+    secret: () => driver.secret(),
+  }),
+
   // Kept in the data folder, beside the family files: back it up with them, and never commit it.
   secret() {
     const fromEnv = process.env.KINDRED_SECRET?.trim();
@@ -361,6 +368,17 @@ const driver: Driver = {
     }
   },
 };
+
+/** Closes a family's open connection and forgets it, so the next use opens its file again. */
+function closeTree(id: string) {
+  trees.delete(id);
+  for (const d of open) {
+    if ((d as unknown as { [k: symbol]: unknown })[DB_ID] === id) {
+      try { d.close(); } catch {}
+      open.delete(d);
+    }
+  }
+}
 
 /** Closes the accounts connection (tests). */
 export function closeAccounts() {

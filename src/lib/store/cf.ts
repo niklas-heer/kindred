@@ -10,9 +10,10 @@
 //   GAZETTEER      D1, optional: the GeoNames towns for assisted place entry, read-only (migrations/gazetteer,
 //                  loaded by `mise run cf:gazetteer`). Without it the place picker offers the family's own places.
 import { env, waitUntil } from 'cloudflare:workers';
-import { checkMediaKey, checkReads, checkStatement, emptyDatabase, NOT_TREES, q, TREE_ID, type Db, type Driver, type ImportTarget, type Param, type Query, type Result } from './db.ts';
-import { NOT_MADE, type StoreKind, type StoreState } from './durable.ts';
-import { migrationError, reportSchema } from './schema-report.ts';
+import { checkMediaKey, checkReads, checkStatement, emptyDatabase, NOT_TREES, q, TREE_ID, type BackupStore, type Db, type DrillResult, type Driver, type ImportTarget, type Param, type Query, type RecoveryPoint, type Result } from './db.ts';
+import { NO_PITR, NOT_MADE, type StoreKind, type StoreState } from './durable.ts';
+import { forgetReports, migrationError, reportRecovery, reportSchema } from './schema-report.ts';
+import { ACCOUNTS_SCOPE, backupKey, type Manifest } from '../backup/kbak.ts';
 
 const isD1 = (v: unknown): v is D1Database => !!v && typeof (v as D1Database).prepare === 'function' && typeof (v as D1Database).batch === 'function';
 
@@ -82,6 +83,12 @@ interface StoreStub {
   stagedRows(table: string, columns: string[], rows: unknown[][]): Promise<number>;
   stagedCounts(tables: string[]): Promise<{ counts: Record<string, number>; id: string | null }>;
   publish(): Promise<void>;
+  backup(scope: string, name: string): Promise<Manifest>;
+  drill(scope: string, name: string): Promise<DrillResult>;
+  restoreBackup(scope: string, name: string): Promise<string[]>;
+  recoveryPoints(): Promise<RecoveryPoint[]>;
+  currentBookmark(): Promise<string>;
+  rollback(bookmark: string): Promise<void>;
 }
 
 /** The driver a family made here is recorded under in `family_store` (accounts migration 0033). */
@@ -165,8 +172,11 @@ function durableDb(tree: string | null): Db {
       // The first answer in this isolate: tell the Health tab which schema the family holds now (./schema-report.ts).
       if (tree !== null && !reportedHere.has(tree)) {
         reportedHere.add(tree);
-        const held = await s.state().then((st) => st.migrations.at(-1) ?? null, () => null);
+        const st = await s.state().catch(() => null);
+        const held = st?.migrations.at(-1) ?? null;
         if (held) await reportSchema(() => driver.accounts(), tree, held, null);
+        // The recovery points it took before migrating, for the console (src/lib/backup/backup.server.ts).
+        if (st?.recovery?.length) await reportRecovery(() => driver.accounts(), tree, st.recovery);
       }
       return result;
     } catch (e) {
@@ -214,6 +224,74 @@ const bucket = () => {
   const b = env.MEDIA as R2Bucket | undefined;
   if (!b) throw new Error('No MEDIA bucket is bound; see wrangler.jsonc');
   return b;
+};
+
+// ---------- backups ----------
+
+/**
+ * The automatic backups (src/lib/backup/): made by each Durable Object itself into MEDIA under `_backups/<scope>/`, a prefix no
+ * family id or media key can start with (ids are lower-case letters, digits and dashes). A family in a bound D1 database, and
+ * accounts in ACCOUNTS, are left to D1 Time Travel (`wrangler d1 time-travel`).
+ */
+const backups: BackupStore = {
+  where: 'r2',
+  covers(scope) {
+    if (scope === ACCOUNTS_SCOPE) return isD1(env.ACCOUNTS) ? 'd1' : namespace() ? 'backup' : 'none';
+    if (!TREE_ID.test(scope) || NOT_TREES.has(scope)) return 'none';
+    return isD1(env[treeBinding(scope)]) ? 'd1' : namespace() ? 'backup' : 'none';
+  },
+  async take(scope, name) {
+    if (backups.covers(scope) !== 'backup') throw new Error(`${scope} is not kept in a Durable Object here`);
+    await checkPlace();
+    return stub(objectName(scope === ACCOUNTS_SCOPE ? null : scope)).backup(scope, name);
+  },
+  async read(scope, name) {
+    const o = await bucket().get(backupKey(scope, name));
+    return o ? new Uint8Array(await new Response(o.body).arrayBuffer()) : undefined;
+  },
+  async write(scope, name, bytes) {
+    await bucket().put(backupKey(scope, name), bytes);
+  },
+  async remove(scope, name) {
+    await bucket().delete(backupKey(scope, name));
+  },
+  // A scratch object, named so that no family and not the accounts can ever be it; it deletes what it stored when done.
+  async drill(scope, name) {
+    backupKey(scope, name);
+    return stub(`drill:${crypto.randomUUID()}`).drill(scope, name);
+  },
+  async restore(scope, name, into) {
+    checkId(into);
+    if (isD1(env[treeBinding(into)])) throw new Error(`${into} is served by a bound D1 database: restore it with D1 Time Travel`);
+    await checkPlace(true);
+    await stub(objectName(into)).restoreBackup(scope, name);
+    reportedHere.delete(into);
+    forgetReports(into);
+    return q('INSERT INTO family_store (tree, driver, created_at) VALUES (?, ?, ?) ON CONFLICT(tree) DO NOTHING', into, DURABLE, new Date().toISOString());
+  },
+  recovery: {
+    async points(tree) {
+      checkId(tree);
+      if (backups.covers(tree) !== 'backup') return [];
+      await checkPlace();
+      return stub(objectName(tree)).recoveryPoints();
+    },
+    async rollback(tree, bookmark) {
+      checkId(tree);
+      if (backups.covers(tree) !== 'backup') throw new Error(`${tree} is not kept in a Durable Object here`);
+      await checkPlace();
+      const undo = await stub(objectName(tree)).currentBookmark();
+      try {
+        await stub(objectName(tree)).rollback(bookmark);
+      } catch (e) {
+        // The object resets itself once the bookmark is set: that ends the call with an error, which is the rollback working.
+        if (e instanceof Error && e.message.includes(NO_PITR)) throw e;
+      }
+      reportedHere.delete(tree);
+      forgetReports(tree);
+      return undo;
+    },
+  },
 };
 
 const driver: Driver = {
@@ -324,6 +402,8 @@ const driver: Driver = {
   keepAlive(work) {
     waitUntil(work);
   },
+
+  backups,
 
   secret() {
     const s = (env as Record<string, unknown>).KINDRED_SECRET;

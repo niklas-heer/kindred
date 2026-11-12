@@ -347,5 +347,7 @@ export async function deleteFamily(tree: string, confirm: string): Promise<void>
     await store.dropTree(tree);
   }
   await store.media.deleteTree(tree);
-  await accounts().batch(await forgetInAccounts(tree));
+  // Its automatic backups stay for the operator's grace period, then the daily backup job deletes them (src/lib/backup/).
+  const { markGone } = await import('./backup/backup.server.ts');
+  await accounts().batch([...(await forgetInAccounts(tree)), markGone(tree)]);
 }

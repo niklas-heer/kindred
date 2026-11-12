@@ -6,7 +6,7 @@
 //
 // Best effort: a report that cannot be written (a demo, a "View as" preview, an accounts database without the table yet) is
 // dropped and tried again the next time; it never fails the family's own request.
-import type { Db } from './db.ts';
+import type { Db, RecoveryPoint } from './db.ts';
 
 /** What this process or isolate last reported per family, so an unchanged answer is not written again. */
 const reported = new Map<string, string>();
@@ -36,3 +36,18 @@ export async function reportSchema(accounts: () => Db, tree: string, migration: 
 /** Forgets what was reported, so a test (or a family made again) reports afresh. */
 export const forgetReports = (tree?: string) => (tree ? reported.delete(tree) : reported.clear());
 
+
+/**
+ * Records the recovery points a family's Durable Object took before it migrated (accounts `recovery_point`, migration 0051), for
+ * the console's Backups tab. Never throws, like `reportSchema`.
+ */
+export async function reportRecovery(accounts: () => Db, tree: string, points: readonly RecoveryPoint[]): Promise<void> {
+  try {
+    await accounts().batch(points.map((p) => ({
+      sql: 'INSERT INTO recovery_point (tree, bookmark, at, reason, before_migration, held_migration) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(tree, bookmark) DO NOTHING',
+      params: [tree, p.bookmark, p.at, p.reason, p.before, p.held],
+    })));
+  } catch {
+    // Dropped: reported again the next time this family is first used in an isolate.
+  }
+}

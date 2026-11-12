@@ -2,6 +2,7 @@
 // scheduled), on Node from a timer (server/node.ts). Jobs run in turn; a failure is logged, and the next job still runs.
 import { aiTasksJob } from './ai-tasks.ts';
 import { archiveJob } from './archive.ts';
+import { backupDrillJob, backupJob } from './backup.ts';
 import { joinJob } from './join.ts';
 import { lifecycleJob } from './lifecycle.ts';
 import { feedJob } from './feed.ts';
@@ -32,6 +33,8 @@ export const DAILY_JOBS: readonly DailyJob[] = [
   instanceStatsJob,
   updateCheckJob,
   retentionJob,
+  backupJob,
+  backupDrillJob,
   lifecycleJob,
 ];
 
