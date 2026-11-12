@@ -176,7 +176,7 @@ test('effective: the operator’s scope, the grant, and the family’s status', 
   await save('feature.campaign', 'families', [B]);
   assert.equal((await policy.effective(A, 'feature.campaign')).allowed, true);
   assert.equal((await policy.effective(B, 'feature.campaign')).decidedBy, 'grant', 'withheld');
-  await ops.setFamilyStatus(op, A, 'suspended');
+  await ops.setFamilyStatus(op, A, 'suspended', { reason: 'An unpaid account.', ground: 'terms' });
   assert.equal((await policy.effective(A, 'feature.campaign')).decidedBy, 'status');
   await ops.setFamilyStatus(op, A, 'active');
   await save('feature.campaign', 'families');
