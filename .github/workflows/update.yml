@@ -64,6 +64,8 @@ jobs:
         run: |
           prev=""
           if [[ -f .kindred-release ]]; then prev=$(tr -d '[:space:]' < .kindred-release); fi
+          # A record that is not a release (hand-edited, empty) counts as none: package.json decides then.
+          [[ "$prev" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || prev=""
           # A fresh copy has no record yet (no release ships one): the version its package.json names is the release it has.
           if [[ -z "$prev" && -f package.json ]]; then
             version=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)".*/\1/p' package.json | head -n 1)

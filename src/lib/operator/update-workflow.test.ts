@@ -45,7 +45,9 @@ test('the update workflow refuses a release older than the copy has, and takes t
   assert.equal(runStep('v2.10.0', 'v2.9.3').status, 0, 'compared as numbers, not as text');
   assert.equal(runStep('v2.9.3', 'v2.10.0').status, 1);
   assert.equal(runStep('v3.0.0', 'v2.99.99').status, 0);
-  assert.equal(runStep('v2.4.0', null).status, 0, 'a copy that has neither a record nor a package.json takes any release');
+  const blind = runStep('v2.4.0', null);
+  assert.equal(blind.status, 1, 'a copy whose release cannot be read (no record, no package.json) is not updated blindly');
+  assert.match(blind.out, /::error::Cannot tell which release/);
 });
 
 test('a fresh copy (no .kindred-release yet, as no release ships one) is compared by its package.json version', () => {
@@ -55,5 +57,7 @@ test('a fresh copy (no .kindred-release yet, as no release ships one) is compare
   assert.equal(runStep('v2.4.0', null, '2.4.0').status, 0);
   assert.equal(runStep('v2.5.0', null, '2.4.0').status, 0);
   assert.equal(runStep('v2.3.9', 'v2.3.0', '2.4.0').status, 0, 'the record, when there is one, is what counts');
-  assert.equal(runStep('v2.4.0', 'not a tag').status, 0, 'nor does an unreadable record stop it');
+  assert.equal(runStep('v2.4.0', 'not a tag').status, 1, 'an unreadable record and no package.json: refused, never blind');
+  assert.equal(runStep('v2.3.9', 'not a tag', '2.4.0').status, 1, 'an unreadable record falls back to package.json, which refuses going back');
+  assert.equal(runStep('v2.4.0', 'not a tag', '2.4.0').status, 0);
 });
