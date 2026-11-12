@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { KNOWN_NAMES } from './known-names.ts';
-import { DENIED, DENIED_ROOTS, NAME_KINDS, allowed, dealName, everyMade, everyName, type MadeName } from './names.ts';
+import { DENIED, DENIED_ROOTS, NAME_KINDS, RETIRED_HEADS, allowed, dealName, everyMade, everyName, isRoot, type MadeName } from './names.ts';
 import { rng } from './rng.ts';
 
 const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
@@ -69,10 +69,12 @@ test('the names the council found in the first continent can no longer be made',
   }
 });
 
-test('what is denied is still made, and still refused', () => {
-  const roots = new Set(every.map((m) => m.root));
+test('what is denied is a root or a name the generator makes or made, and is refused; a retired head is dealt no more', () => {
   const names = new Set(every.map((m) => m.name));
-  for (const root of DENIED_ROOTS) assert.ok(roots.has(root), `${root} is a root the generator makes`);
+  // A misspelt entry would deny nothing: each is a head and a tail, of today's heads or of the retired ones.
+  for (const root of DENIED_ROOTS) assert.ok(isRoot(root), `${root} is a root`);
+  for (const head of RETIRED_HEADS) assert.ok(!every.some((m) => m.root.startsWith(head)), `no root begins with ${head}`);
+  for (const gone of ['Tarnost', 'Branost', 'Dunost', 'Eldost', 'Nymost', 'Quenost']) assert.ok(!dealt.some((m) => m.root === gone), `${gone} is not dealt`);
   for (const name of DENIED) assert.ok(names.has(name) && !allowed(name), `${name} is made, and refused`);
   for (const m of every) if (DENIED_ROOTS.has(m.root)) assert.ok(!m.allowed, m.name);
 });

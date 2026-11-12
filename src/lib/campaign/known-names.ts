@@ -35,6 +35,8 @@ gamling ceorl eorl helm frealaf brego aldor folcwine thengel beregond bergil hir
 anborn ioreth barliman butterbur bombadil goldberry gollum smeagol deagol grishnakh ugluk shagrat gorbag azog bolg
 beorn bard girion brand elendur valandil earnur earnil ondoher castamir eldacar romendacil hyarmendacil tarannon
 telemnar minardil atanatar ciryandil meneldil cemendur anardil ostoher turambar mormegil niniel glaurung nellas
+tarnost belegost quenya quendi sindar sindarin dunedain dunadan brandir gorlim haldad haldan haldar thalath dirnen
+thalion argonath
 `;
 
 /** Other well-known invented worlds: Narnia, Westeros, Hyrule, the Witcher, Tamriel, Final Fantasy, and more. */
@@ -132,6 +134,7 @@ zeus hera athena apollo artemis ares hermes hades poseidon demeter hestia aphrod
 achilles hector paris helen priam odysseus ulysses penelope telemachus circe calypso aeneas dido remus romulus
 elantris sel roshar alethkar jah keved kharbranth azir shinovar scadrial luthadel elendel nalthis kaladin dalinar
 shallan adolin renarin navani jasnah szeth vin kelsier elend sazed marsh spook vasher vivenna siri
+gorlois thalmor selkath manaan nymeria nymeros jorvik skaro beskar bolvar
 `;
 
 /** Given names heard in English, German, Dutch and Afrikaans, and the more widely known ones from elsewhere. */
@@ -228,6 +231,7 @@ wilfred wilhelm wilhelmina will willa willem william willie willis willow willy 
 winston wolf wolfgang wolfram wouter wyatt wynn
 xander xavier yael yan yann yara yasmin yolanda yusuf yuri yves yvette yvonne zach zachary zack zander zane zara zelda
 zeno zoe zora
+arvald jarlath halvard halvor
 `;
 
 /** The countries of Europe and its better-known regions, historic lands and islands, in their English or local spelling. */

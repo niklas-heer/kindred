@@ -12,11 +12,18 @@
 // What those found is in DENIED and DENIED_ROOTS, and is never dealt. See docs/campaign.md.
 import type { House } from '../types.ts';
 
-/** How a root begins. No two heads begin with the same two letters and end alike, so no two provinces read alike. */
+/** How a root begins. No two heads begin with the same three letters, so no two provinces read alike. */
 const HEADS: readonly string[] = [
-  'Arv', 'Bran', 'Cael', 'Drev', 'Dun', 'Eld', 'Fenn', 'Fyr', 'Gorl', 'Hald', 'Hurn', 'Isk', 'Jorv', 'Kell', 'Lund', 'Maer',
-  'Mern', 'Nev', 'Nym', 'Orm', 'Pryd', 'Quen', 'Rusk', 'Selk', 'Skar', 'Tarn', 'Thal', 'Ulv', 'Vosk', 'Wend', 'Yarl', 'Zeth',
+  'Arv', 'Cael', 'Dalv', 'Drev', 'Fenn', 'Fyr', 'Gorl', 'Grisk', 'Hald', 'Holv', 'Hurn', 'Isk', 'Jorv', 'Kell', 'Lund', 'Maer',
+  'Mern', 'Nev', 'Orm', 'Pryd', 'Rusk', 'Selk', 'Skar', 'Tarn', 'Thal', 'Ulv', 'Vosk', 'Vyrn', 'Wend', 'Wulm', 'Yarl', 'Zeth',
 ];
+/**
+ * Heads that were dealt once and are not any more, because each is the beginning of names everybody knows: "Bran" is a
+ * Stark of Westeros, "Dun" begins Dunland, Dunharrow and the Dúnedain, "Eld" the Eldar, Eldamar and Hyrule's Eldin,
+ * "Nym" Nymeria, and "Quen" is Quenya, the Quendi and a sign in the Witcher's world. Kept so that nobody puts them
+ * back, and so that the roots denied while they were dealt still read as roots. Add to it; never take from it.
+ */
+export const RETIRED_HEADS: readonly string[] = ['Bran', 'Dun', 'Eld', 'Nym', 'Quen'];
 /** How a root ends. None is an ending given names have ("-an", "-en", "-in", "-ar", "-er"). */
 const TAILS: readonly string[] = ['eth', 'ost', 'ath', 'und', 'or', 'ir', 'esk', 'orn', 'oss', 'urn', 'uth', 'ard', 'ald'];
 
@@ -49,6 +56,13 @@ export const DENIED_ROOTS: ReadonlySet<string> = new Set<string>([
   'Haldeth', 'Haldor', 'Haldir', 'Jorveth', 'Lundir', 'Mernard', 'Ormund', 'Selkor', 'Tarneth', 'Tarnor', 'Thaleth', 'Wendor',
   // A real place's, or the beginning of one ("Selkirk").
   'Nevir', 'Selkir',
+  // Found by reading the whole list again: Tarnost is a range of hills in Gondor and Thalath Dirnen a plain in Beleriand,
+  // the Selkath are a people of Star Wars, and the rest are one letter from Gorlois, Jorvik, the Thalmor and Jarlath.
+  'Tarnost', 'Thalath', 'Selkath', 'Gorloss', 'Jorvir', 'Thalor', 'Yarlath', 'Arvald',
+  // And one letter from those, or from Gorlim, Haldar and the Daleks' Skaro, which three roots began with.
+  'Tarnoss', 'Thaluth', 'Selketh', 'Selkuth', 'Gorlir', 'Haldard', 'Skarost', 'Skarorn', 'Skaross',
+  // One letter from the given names Halvard and Halvor.
+  'Dalvard', 'Dalvor', 'Holvard', 'Holvor',
 ]);
 
 /**
@@ -74,6 +88,9 @@ const jars = (head: string, tail: string) => {
   const h = rime(head), t = rime(tail);
   return h.coda === t.coda || (h.vowel === t.vowel && h.coda[0] === t.coda[0]);
 };
+
+/** Whether a word is a root, of today's heads or of the retired ones: a head and a tail. What the test of DENIED_ROOTS reads. */
+export const isRoot = (word: string) => [...HEADS, ...RETIRED_HEADS].some((head) => word.startsWith(head) && TAILS.includes(word.slice(head.length)));
 
 /** Every root: each head with each tail it does not jar with. So the list of all names is finite. */
 const ROOTS: readonly string[] = HEADS.flatMap((head) => TAILS.filter((tail) => !jars(head, tail)).map((tail) => head + tail));

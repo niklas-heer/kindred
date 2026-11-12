@@ -115,7 +115,7 @@ provinces, each a cluster of tiles around its own centre, so every border wander
   water (on the coast or a river) are marsh, the two wettest of the rest are forest, and what remains is plains.
 - **Names** for the continent, every province and the open sea come from `src/lib/campaign/names.ts`. A name is a root
   and an ending. The root is two syllables from two banks that share nothing: a head with a cluster of its own ("Drev",
-  "Isk", "Maer", "Quen") and a heavy tail ("-ost", "-und", "-eth", "-orn"), never an ending given names have ("-an",
+  "Isk", "Maer", "Vyrn") and a heavy tail ("-ost", "-und", "-eth", "-orn"), never an ending given names have ("-an",
   "-en", "-in", "-ar"). A head and a tail that jar ("Lund-und", "Orm-orn") make no root. A province carries what it is
   after a hyphen ("Drevost-fell": "-wold" and "-holt" for forest, "-fell" and "-crag" for highland, "-fen" and "-mire" for
   marsh, "-mark" and "-vale" for plains, "-hold" and "-keep" for a seat, "-haven" for a town on the coast); the continent
@@ -136,7 +136,10 @@ The names are invented, and three things are checked to keep them so. Every name
 - with a list of **rude letter runs** in English, German and Afrikaans.
 
 What these find goes in `DENIED_ROOTS` (a root is never dealt, whatever its ending) or `DENIED` (one name), and stays
-there. The known names are a hand-made list and will never be complete: this makes a name that reads like a known one
+there. A head that is itself the beginning of names everybody knows is taken out of the bank and listed in
+`RETIRED_HEADS`, so nobody puts it back: "Bran" (a Stark of Westeros), "Dun" (Dunland, Dunharrow, the Dúnedain), "Eld"
+(the Eldar, Eldamar, Hyrule's Eldin), "Nym" (Nymeria) and "Quen" (Quenya, the Quendi, a sign in the Witcher's world) went
+that way when the whole list was read again, after "Tarnost" turned out to be a range of hills in Gondor. The known names are a hand-made list and will never be complete: this makes a name that reads like a known one
 unlikely, not impossible. Add to the list when one turns up, and run the test after changing a syllable or an ending.
 
 The same seed gives the same continent on the server and in the browser, and a continent holds nothing of the family: the
