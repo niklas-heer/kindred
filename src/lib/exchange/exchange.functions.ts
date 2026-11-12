@@ -3,6 +3,7 @@
 // needs an editor (it carries private fields), import needs a steward (it changes the whole family).
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
+import { LOCALES } from '../i18n/languages';
 
 const tree = z.string().regex(/^[a-z0-9-]+$/).max(64);
 /** A GEDCOM file larger than this is refused before it is parsed (a family's file is a few hundred kilobytes). */
@@ -10,8 +11,8 @@ export const MAX_GEDCOM_BYTES = 5_000_000;
 
 const guard = () => import('../auth/guard.server');
 /** The reader's language: the title a source without one gets ("Untitled source"). */
-const locale = z.enum(['en', 'de', 'af']).default('en');
-const untitledIn = async (l: 'en' | 'de' | 'af') => (await import('../i18n/dictionary.ts')).translate(l, 'exchange.untitled_source');
+const locale = z.enum(LOCALES).default('en');
+const untitledIn = async (l: (typeof LOCALES)[number]) => (await import('../i18n/dictionary.ts')).translate(l, 'exchange.untitled_source');
 
 /** The reader's role in a family, and what they may do with the exchange. */
 export const exchangeContext = createServerFn({ method: 'GET' })

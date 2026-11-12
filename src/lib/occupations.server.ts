@@ -9,10 +9,10 @@ import { db } from './db.server.ts';
 import { AiError, type AiAdapter } from './ai/adapters.ts';
 import { tr } from './ai/labels.ts';
 import { adapterForFeature } from './ai/settings.server.ts';
-import type { Locale } from './i18n/types.ts';
+import { LANGUAGES, LOCALES, type Locale } from './i18n/languages.ts';
 import { translation } from './occupations.translate.ts';
 
-const LANGUAGE: Record<Locale, string> = { en: 'English', de: 'German', af: 'Afrikaans' };
+const LANGUAGE = Object.fromEntries(LOCALES.map((l) => [l, LANGUAGES[l].english])) as Record<Locale, string>;
 const REPLY_JSON = {
   type: 'object',
   properties: { label: { type: 'string', maxLength: 80, description: 'The job, a few words, at most 80 characters.' } },

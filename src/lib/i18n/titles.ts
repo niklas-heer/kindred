@@ -1,7 +1,10 @@
 import type { Locale } from "./types.ts";
 
-/** The English section words of a page title, and their German and Afrikaans forms. */
-const TITLE_WORDS: Record<string, { de: string; af: string }> = {
+/**
+ * The English section words of a page title, and each language's form. A translation lane adds its language to every
+ * word (`node scripts/i18n-check.ts` lists the gaps); a word without one stays English.
+ */
+export const TITLE_WORDS: Record<string, Partial<Record<Exclude<Locale, "en">, string>>> = {
   "Sign in": { de: "Anmelden", af: "Meld aan" },
   "Set up": { de: "Einrichten", af: "Stel op" },
   Invitation: { de: "Einladung", af: "Uitnodiging" },
@@ -21,7 +24,7 @@ const TITLE_WORDS: Record<string, { de: string; af: string }> = {
 /** The English word a title part stands for, whichever language it is written in. */
 function englishWord(part: string): string {
   return (
-    Object.keys(TITLE_WORDS).find((en) => TITLE_WORDS[en].de === part || TITLE_WORDS[en].af === part) ?? part
+    Object.keys(TITLE_WORDS).find((en) => Object.values(TITLE_WORDS[en]).includes(part)) ?? part
   );
 }
 

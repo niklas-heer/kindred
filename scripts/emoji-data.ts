@@ -5,13 +5,14 @@
 //   node scripts/emoji-data.ts <dir>
 //
 // Sources: emojibase-data (MIT; its names are Unicode CLDR's) for the emoji, their order and group, and the English and
-// German names and keywords; Unicode CLDR's annotations (Unicode licence) for Afrikaans, which emojibase does not carry.
+// German names and keywords; Unicode CLDR's annotations (Unicode licence) for every other language (CLDR_LANGUAGE below),
+// read the same way for each, so a new language is one line there.
 // Neither is a dependency of the app: only the files written here are.
 //
 // What is kept: every fully-qualified emoji of Emoji 15.0 or older (widely drawn by phones and computers), without skin
 // tones (one form each), without the components (a hair colour alone) and without the regional letters. Written:
 //   emoji.json         [[emoji, group], ...] in Unicode's order; group 0-8 as GROUPS in src/lib/emoji/index.ts
-//   names.<lang>.json  one string per emoji, in the same order: its name, then "|" and its keywords, all lower case
+//   names.<locale>.json  one string per emoji, in the same order: its name, then "|" and its keywords, all lower case
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -36,13 +37,15 @@ const en = read<Entry[]>('emojibase-data', 'package', 'en', 'data.json')
   .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
 const de = new Map(read<Compact[]>('emojibase-data', 'package', 'de', 'compact.json').map((e) => [e.hexcode, e]));
-const af: Cldr = {
-  ...read<{ annotations: { annotations: Cldr } }>('cldr-annotations-full', 'package', 'annotations', 'af', 'annotations.json').annotations.annotations,
-  ...read<{ annotationsDerived: { annotations: Cldr } }>('cldr-annotations-derived-full', 'package', 'annotationsDerived', 'af', 'annotations.json').annotationsDerived.annotations,
-};
+
+/** Kindred's locale and the CLDR locale its names come from (CLDR's `pt` is Brazilian, its `zh` Simplified). */
+const CLDR_LANGUAGE: Record<string, string> = { af: 'af', es: 'es', fr: 'fr', it: 'it', nl: 'nl', pl: 'pl', 'pt-BR': 'pt', ja: 'ja', 'zh-Hans': 'zh' };
+const cldr = (lang: string): Cldr => ({
+  ...read<{ annotations: { annotations: Cldr } }>('cldr-annotations-full', 'package', 'annotations', lang, 'annotations.json').annotations.annotations,
+  ...read<{ annotationsDerived: { annotations: Cldr } }>('cldr-annotations-derived-full', 'package', 'annotationsDerived', lang, 'annotations.json').annotationsDerived.annotations,
+});
 /** CLDR writes most emoji without the presentation selector. */
 const bare = (s: string) => s.replace(/️/g, '');
-const afOf = (emoji: string) => af[emoji] ?? af[bare(emoji)];
 
 const line = (label: string | undefined, tags: string[] | undefined) => {
   if (!label) return '';
@@ -54,7 +57,10 @@ const emoji = en.map((e) => [e.emoji, GROUPS.indexOf(e.group!)]);
 const names = {
   en: en.map((e) => line(e.label, e.tags)),
   de: en.map((e) => { const d = de.get(e.hexcode); return line(d?.label, d?.tags); }),
-  af: en.map((e) => { const a = afOf(e.emoji); return line(a?.tts?.[0], a?.default); }),
+  ...Object.fromEntries(Object.entries(CLDR_LANGUAGE).map(([locale, lang]) => {
+    const table = cldr(lang);
+    return [locale, en.map((e) => { const a = table[e.emoji] ?? table[bare(e.emoji)]; return line(a?.tts?.[0], a?.default); })];
+  })),
 };
 
 writeFileSync(join(out, 'emoji.json'), `${JSON.stringify(emoji)}\n`);

@@ -26,7 +26,7 @@ export function allChargeDefs(): ChargeDef[] {
 
 /** A charge's name in a language: its own name for a library charge, its translated label for a catalogue charge. */
 export function chargeLabel(def: ChargeDef, locale: Locale): string {
-  return def.name ? def.name[locale] : translate(locale, def.label!);
+  return def.name ? (def.name[locale] ?? def.name.en) : translate(locale, def.label!);
 }
 
 /** The name of a charge by id, or the id itself while the charge is unknown. */

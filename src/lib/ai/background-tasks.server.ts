@@ -18,6 +18,7 @@ import { occupationForText } from '../occupations';
 import { LIVING_IDS } from '../protect-living';
 import { askForOccupation } from '../occupations.server';
 import { translation } from '../occupations.translate';
+import { ASSISTANT_LANGUAGE } from '../i18n/languages';
 import type { Locale } from '../i18n/types';
 import { checkArms, withFitFixture } from './arms-fit.server';
 import { researchName } from './arms.server';
@@ -127,7 +128,7 @@ async function candidates(tree: string, task: Task, languages: readonly Locale[]
   return out;
 }
 
-const LANGUAGE: Record<Locale, string> = { en: 'English', de: 'German, in the informal "du" form', af: 'Afrikaans, in the informal "jy" form' };
+const LANGUAGE = ASSISTANT_LANGUAGE;
 
 export const storyReply = z.object({
   same: z.boolean(),

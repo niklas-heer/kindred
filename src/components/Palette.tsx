@@ -1,4 +1,4 @@
-import { yourKinship, LANGUAGE_NAME, LOCALES, useT, type Translator } from '~/lib/i18n';
+import { yourKinship, LANGUAGE_NAME, useT, type Translator } from '~/lib/i18n';
 import { rankByName, searchPeople } from '~/lib/search';
 // ⌘K: jump to anyone by name, nickname, epithet, title or house; to a house, a place on the Atlas or a page; or run a
 // command. Suggestions follow each key typed. Accents do not matter ("Muller" finds "Müller", so does "Mueller"), and a
@@ -96,7 +96,7 @@ export function Palette() {
   const [q, setQ] = useState('');
   const dq = useDeferredValue(q);
   const [sel, setSel] = useState(0);
-  // 'find' lists people and commands; 'language' lists the three languages, opened by "Change language".
+  // 'find' lists people and commands; 'language' lists the instance's languages, opened by "Change language".
   const [mode, setMode] = useState<'find' | 'language'>('find');
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -117,7 +117,7 @@ export function Palette() {
   const near = useMemo(() => (who ? stepsFrom(f, who) : undefined), [f, who]);
   const items: Item[] = useMemo(() => {
     if (mode === 'language') {
-      return LOCALES.map((l) => ({
+      return t.offered.map((l) => ({
         key: `lang-${l}`, icon: <Flag code={LANGUAGE_FLAG[l]} size={18} />, label: LANGUAGE_NAME[l], hint: l === t.locale ? t('shell.palette.current') : undefined,
         run: () => { t.setLocale(l); close(); },
       }));
@@ -157,7 +157,7 @@ export function Palette() {
       { key: 'campaign', icon: <Swords size={16} />, label: t('campaign.card.open'), hint: t('campaign.nav_hint'), run: () => { navigate({ to: '/$tree/campaign', params: { tree } }); close(); } },
       ...(assistantOn ? [{ key: 'assistant', icon: <Sparkles size={16} />, label: t('ai.askCommand'), run: () => { close(); openAssistant(); } }] : []),
       ...(setupNeeded ? [{ key: 'ai-setup', icon: <Sparkles size={16} />, label: t('ai.setupCommand'), run: () => { close(); openAiSetup(); } }] : []),
-      { key: 'language', icon: <Languages size={16} />, label: t('common.changeLanguage'), hint: LANGUAGE_NAME[t.locale], run: () => { setMode('language'); setQ(''); setSel(0); } },
+      ...(t.offered.length > 1 ? [{ key: 'language', icon: <Languages size={16} />, label: t('common.changeLanguage'), hint: LANGUAGE_NAME[t.locale], run: () => { setMode('language'); setQ(''); setSel(0); } }] : []),
       { key: 't-codex', icon: <Shield size={16} />, label: t('shell.cmd.themeCodex'), run: () => { setPref('theme', 'codex'); close(); } },
       { key: 't-paper', icon: <Sun size={16} />, label: t('shell.cmd.themePaper'), run: () => { setPref('theme', 'modern'); close(); } },
       { key: 't-night', icon: <Moon size={16} />, label: t('shell.cmd.themeNight'), run: () => { setPref('theme', 'night'); close(); } },

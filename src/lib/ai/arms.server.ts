@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { AiError, isolatedSearch, type AiAdapter, type AiReply, type JsonSchema } from './adapters';
 import { adapterForFeature } from './settings.server';
 import { tr, type Tr } from './labels';
+import { ASSISTANT_LANGUAGE, type Locale } from '../i18n/languages';
 import { ATTESTATIONS, IDEA_KINDS, nameMeaningSchema, type AiLocale, type ArmsFeedback, type ArmsRevision, type DesignMeaning, type NameDesign, type NameMeaning, type NameResearch } from './types';
 import { cantingFromIdeas, cantingResponseSchema, symbolismItemSchema, type CantingRequest } from '../heraldry/canting';
 import { cutText, firstOf } from './trim';
@@ -27,7 +28,7 @@ import './arms-library.server';
 import { armsV2Schema } from '../heraldry/schema';
 import type { ArmsV2, ChargeLayer, OrdinaryLayer } from '../seed-format';
 
-const LANG = { en: 'English', de: 'German (du)', af: 'Afrikaans (jy)' } as const;
+const LANG: Record<Locale, string> = { ...ASSISTANT_LANGUAGE, en: 'English', de: 'German (du)', af: 'Afrikaans (jy)' };
 const WEB_SEARCHES = 3;
 const MAX_MEANINGS = 8;
 const MAX_IDEAS = 4;

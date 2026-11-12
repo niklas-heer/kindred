@@ -66,7 +66,7 @@ const recipeData = z.object({
   coverSize: size.optional(),
   stepSizes: z.record(z.string().regex(/^\d{1,2}$/), size).default({}),
   /** The language the writer's page is in: the headings of the written-out recipe are in it. */
-  locale: z.string().max(5).optional(),
+  locale: z.string().max(16).optional(),
 });
 
 const field = (d: FormData, name: string) => {

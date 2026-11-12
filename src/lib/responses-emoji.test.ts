@@ -9,6 +9,7 @@ import { test } from 'node:test';
 // The store refuses to run without a data folder of its own (the test command gives it one).
 import { migrate, migrationFiles } from './store/node.ts';
 import { emojiFrom, GROUPS, searchEmoji, type EmojiRows } from './emoji/index.ts';
+import { LOCALES, type Locale } from './i18n/languages.ts';
 import { EVENT_TARGET, LEGACY_REACTIONS, MAX_REACTIONS, QUICK_REACTIONS, reactionOf, reactionOrder } from './responses.ts';
 
 test('a reaction is exactly one RGI emoji, stored one way', () => {
@@ -65,7 +66,7 @@ test('migration 0030 turns the named reactions into emoji, keeps every row, and 
 
 const json = <T>(name: string) => JSON.parse(readFileSync(join(process.cwd(), 'src', 'lib', 'emoji', name), 'utf8')) as T;
 const rows = json<EmojiRows>('emoji.json');
-const names = { en: json<string[]>('names.en.json'), de: json<string[]>('names.de.json'), af: json<string[]>('names.af.json') };
+const names = Object.fromEntries(LOCALES.map((l) => [l, json<string[]>(`names.${l}.json`)])) as Record<Locale, string[]>;
 
 test('the palette has its own data: every emoji named in each language, in a known group, and one the server takes', () => {
   assert.ok(rows.length > 1500, `${rows.length} emoji`);
@@ -93,6 +94,12 @@ test('the search finds an emoji by its name or a keyword, in the reader’s lang
   assert.ok(first(af, 'kers').includes('🕯️'), 'Afrikaans');
   assert.ok(first(af, 'hart').length > 0);
   assert.ok(first(de, 'gluck').length > 0 || first(de, 'glück').length > 0, 'accents are optional');
+  // Every language finds its own word, and Japanese and Chinese find a word inside a longer name, which has no spaces.
+  const own = (locale: Locale, q: string) => first(emojiFrom(rows, names[locale], names.en), q);
+  for (const [locale, word] of [['es', 'vela'], ['fr', 'bougie'], ['it', 'candela'], ['nl', 'kaars'], ['pl', 'świeczka'], ['pt-BR', 'vela'], ['ja', 'ろうそく'], ['zh-Hans', '蜡烛']] as const) {
+    assert.ok(own(locale, word).includes('🕯️'), `${locale}: ${word}`);
+  }
+  assert.ok(own('ja', '猫').length > 0 && own('zh-Hans', '猫').length > 0);
   assert.deepEqual(searchEmoji(en, '   '), []);
   assert.deepEqual(searchEmoji(en, 'zzzqqq'), []);
   assert.ok(searchEmoji(en, 'face', 10).length === 10, 'at most the limit');

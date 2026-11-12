@@ -10,6 +10,7 @@ import { asV2 } from '../heraldry/convert';
 import { chargeMeaning, ordinaryMeaning, tinctureMeaning } from '../heraldry/meanings';
 import { translate, type Key, type Vars } from '../i18n/dictionary';
 import type { Translator } from '../i18n';
+import { ASSISTANT_LANGUAGE, type Locale } from '../i18n/languages';
 import { db, NOT_A_RECORD, once, q, type OpKey } from '../db.server';
 import { chargeGroups, chargesOverlap } from '../heraldry/clear-layout';
 import { tinctureClashesV2 } from '../heraldry/rules';
@@ -22,7 +23,7 @@ import { cutText } from './trim';
 import { adapterForFeature, fakeOn } from './settings.server';
 import { TASK_ROUTE, type AiLocale } from './types';
 
-const LANG = { en: 'English', de: 'German (du)', af: 'Afrikaans (jy)' } as const;
+const LANG: Record<Locale, string> = { ...ASSISTANT_LANGUAGE, en: 'English', de: 'German (du)', af: 'Afrikaans (jy)' };
 const english = Object.assign((k: Key, vars?: Vars) => translate('en', k, vars), { locale: 'en' as const }) as Translator;
 
 /** What the model returns. Checked again here; a reply that does not match is asked once more. */

@@ -1,7 +1,8 @@
 // The emoji palette's data and its search (docs/responses.md). The data is the app's own (scripts/emoji-data.ts made it
 // from emojibase-data and Unicode CLDR), so opening the palette asks nobody else for anything. It loads only when the
 // palette opens: `loadEmoji` imports the emoji and the names in the reader's language, and English beside them, so a
-// German or Afrikaans reader finds "heart" as well as "Herz" or "hart".
+// German or Afrikaans reader finds "heart" as well as "Herz" or "hart". Each language is its own chunk, fetched only by
+// a reader of it.
 import type { Locale } from '../i18n/types.ts';
 
 /** The palette's tabs, in emojibase's order without the components. `emoji.json` numbers them by this list. */
@@ -27,6 +28,14 @@ const NAMES: Record<Locale, () => Promise<{ default: string[] }>> = {
   en: () => import('./names.en.json'),
   de: () => import('./names.de.json'),
   af: () => import('./names.af.json'),
+  es: () => import('./names.es.json'),
+  fr: () => import('./names.fr.json'),
+  it: () => import('./names.it.json'),
+  nl: () => import('./names.nl.json'),
+  pl: () => import('./names.pl.json'),
+  'pt-BR': () => import('./names.pt-BR.json'),
+  ja: () => import('./names.ja.json'),
+  'zh-Hans': () => import('./names.zh-Hans.json'),
 };
 
 const loaded = new Map<Locale, Promise<Emoji[]>>();
@@ -42,6 +51,9 @@ export function loadEmoji(locale: Locale): Promise<Emoji[]> {
   }
   return p;
 }
+
+/** Scripts that write words without spaces: Han, Hiragana, Katakana. */
+const UNSPACED = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
 
 /** Letters without their accents, in lower case: "Gesicht" and "gesicht", "café" and "cafe" are found alike. */
 const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
@@ -67,6 +79,8 @@ export function searchEmoji(all: readonly Emoji[], query: string, limit = 120): 
       else if (nameWords.includes(w)) score += 4;
       else if (nameWords.some((x) => x.startsWith(w))) score += 2;
       else if (other.some((x) => x.startsWith(w))) score += 1;
+      // Japanese and Chinese write words without spaces between them: "顔" is found inside "猫の顔".
+      else if (UNSPACED.test(w) && (name.includes(w) || other.some((x) => x.includes(w)))) score += 1;
       else return;
     }
     scored.push([score, name.length, i, e]);

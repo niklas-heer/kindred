@@ -6,6 +6,7 @@ import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { DATA_REQUEST_KINDS, DATA_REQUEST_STATUSES, FAMILIES_PER_ACCOUNT_MAX, FAMILY_CREATION, FAMILY_STATUSES, SETTING_MAX, type AuditEntry, type DataRequest, type FamilyRequest, type InstanceSettings, type LegalTexts, type OperatorAccount, type OperatorFamily, type PublicInstance } from './shared';
+import { LOCALES } from '../i18n/languages';
 
 const tree = z.string().regex(/^[a-z0-9-]{1,64}$/);
 const familyId = z.string().max(80);
@@ -49,7 +50,7 @@ const formGuards = { website: z.string().max(200).optional(), turnstile: z.strin
 
 /** Someone asks for a family on this server (only while it takes requests). */
 export const sendFamilyRequest = createServerFn({ method: 'POST' })
-  .validator(z.object({ name: z.string().max(400), email: z.string().max(400), familyName: z.string().max(400), message: z.string().max(4000), locale: z.enum(['en', 'de', 'af']).optional(), ...formGuards }))
+  .validator(z.object({ name: z.string().max(400), email: z.string().max(400), familyName: z.string().max(400), message: z.string().max(4000), locale: z.enum(LOCALES).optional(), ...formGuards }))
   .handler(async ({ data }) => {
     const [{ clientIP }, { refuseReadOnly }, r] = await Promise.all([import('../auth/throttle.server'), import('../read-only'), reqs()]);
     try {
@@ -136,7 +137,7 @@ export const setOperatorPush = createServerFn({ method: 'POST' })
   .validator(z.object({
     on: z.boolean(), endpoint,
     keys: z.object({ p256dh: z.string().max(200), auth: z.string().max(100) }).optional(),
-    locale: z.enum(['en', 'de', 'af']).optional(),
+    locale: z.enum(LOCALES).optional(),
   }))
   .handler(async ({ data }): Promise<{ remaining: number }> => {
     const op = await operatorForChange();
@@ -240,6 +241,7 @@ export const operatorSaveSettings = createServerFn({ method: 'POST' })
     privacy: text(SETTING_MAX.privacy), terms: text(SETTING_MAX.terms), reportContact: text(SETTING_MAX.reportContact),
     defaultCapBytes: capBytes, familyCreation: z.enum(FAMILY_CREATION),
     familiesPerAccount: z.number().int().min(0).max(FAMILIES_PER_ACCOUNT_MAX).nullable(),
+    languages: z.array(z.enum(LOCALES)).max(LOCALES.length).nullable(),
   }))
   .handler(async ({ data }) => {
     const op = await operatorForChange();

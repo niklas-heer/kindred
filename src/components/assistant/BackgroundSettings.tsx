@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { aiActivityQuery, aiRunTask, aiSaveBackground } from '~/lib/ai/background.functions';
 import { TASK_FEATURE, TASKS, type Activity, type BackgroundSettings as Settings, type SaveInput, type Schedule, type Task } from '~/lib/ai/background';
 import { errorText } from '~/lib/errortext';
-import { locales, useT, type Key, type Locale } from '~/lib/i18n';
+import { LANGUAGE_NAME, locales, useT, type Key, type Locale } from '~/lib/i18n';
 import { toAiLocale } from '~/lib/ai/types';
 import { ErrorState, Range, Select, Skeleton, Switch } from '~/components/ui';
 import './ai-tasks.css';
@@ -18,7 +18,6 @@ import './ai-tasks.css';
 const TASK_NAME: Record<Task, Key> = { arms: 'aitasks.arms.name', occupations: 'aitasks.occupations.name', chronicle: 'aitasks.chronicle.name', names: 'aitasks.names.name' };
 const TASK_WHAT: Record<Task, Key> = { arms: 'aitasks.arms.what', occupations: 'aitasks.occupations.what', chronicle: 'aitasks.chronicle.what', names: 'aitasks.names.what' };
 const FEATURE_KEY: Record<'arms' | 'assistant', Key> = { arms: 'ai.featureArms', assistant: 'ai.featureAssistant' };
-const LANGUAGE_NAME: Record<Locale, string> = { en: 'English', de: 'Deutsch', af: 'Afrikaans' };
 const CAP_TICKS = [5, 20, 50, 100];
 
 /** How long ago a time was, in the reader's language ("2 hours ago"). */
@@ -130,7 +129,8 @@ function BackgroundForm({ tree, data }: { tree: string; data: Activity }) {
 
       <div className="aitasks-langs" role="group" aria-label={t('aitasks.langs')}>
         <span className="aitasks-label">{t('aitasks.langs')}</span>
-        {(['en', 'de', 'af'] as Locale[]).map((l) => (
+        {/* The instance's languages, and any it no longer offers that are still switched on, so they can be switched off. */}
+        {t.offered.concat(draft.languages.filter((l) => !t.offered.includes(l))).map((l) => (
           <Switch
             key={l}
             checked={draft.languages.includes(l)}

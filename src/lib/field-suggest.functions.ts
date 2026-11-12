@@ -4,6 +4,7 @@ import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import type { Used } from './field-suggest';
 import { audienceOf, fieldsVisibleTo, withoutPersonal } from './visibility';
+import { LOCALES } from './i18n/languages';
 
 const tree = z.string().regex(/^[a-z0-9-]+$/).max(64);
 const guard = () => import('./auth/guard.server');
@@ -64,7 +65,7 @@ export const addressLookupQuery = (t: string) =>
  * which a guest, a viewer and a demo's visitor do not have.
  */
 export const suggestAddressesOnline = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, text: z.string().trim().min(3).max(200), locale: z.enum(['en', 'de', 'af']) }))
+  .validator(z.object({ tree, text: z.string().trim().min(3).max(200), locale: z.enum(LOCALES) }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireCan(data.tree, 'edit-contact');
     return (await import('./address-lookup.server')).suggestAddresses(data.tree, data.text, data.locale, m.user.id);

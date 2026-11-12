@@ -1,0 +1,35 @@
+// German (du): the words of src/lib/i18n/areas/ai-life.ts. English there is the source; keys are the same.
+import type { Strings } from "../../types.ts";
+import type { en } from "../../areas/ai-life.ts";
+
+export default {
+  "ailife.kind.event": "Lebensereignis",
+  "ailife.kind.source": "Quelle",
+  "ailife.kind.citation": "Beleg",
+  "ailife.kind.remove": "Ereignis oder Quelle entfernen",
+  "ailife.sum.event_new": "Lebensereignis für {name} hinzufügen",
+  "ailife.sum.event_edit": "Lebensereignis von {name} ändern",
+  "ailife.sum.source_new": "Neue Quelle: {title}",
+  "ailife.sum.source_edit": "Quelle {title} ändern",
+  "ailife.sum.citation_new": "{title} als Beleg angeben",
+  "ailife.sum.citation_edit": "Beleg aus {title} ändern",
+  "ailife.sum.remove_event": "Lebensereignis von {name} entfernen",
+  "ailife.sum.remove_source": "Quelle {title} löschen",
+  "ailife.sum.remove_citation": "Beleg aus {title} entfernen",
+  "ailife.field.event": "Ereignis",
+  "ailife.field.details": "Einzelheiten",
+  "ailife.field.until": "Bis",
+  "ailife.field.quality": "Qualität",
+  "ailife.field.cited_for": "Beleg für",
+  "ailife.field.fact": "Angabe",
+  "ailife.field.goes_with": "Wird mit entfernt",
+  "ailife.new_source": "{title} (neu, von ihrer eigenen Karte)",
+  "ailife.citations": { one: "{count} Beleg", other: "{count} Belege" },
+  "ailife.fact.birth": "Geburt von {name}",
+  "ailife.fact.death": "Tod von {name}",
+  "ailife.fact.name": "Name von {name}",
+  "ailife.fact.event": "{event} von {name}",
+  "ailife.fact.partnership": "Partnerschaft von {couple}",
+  "ailife.fact.parent": "{child}, Kind von {parent}",
+  "ailife.err.source_first": "Bestätige zuerst die Karte, die die Quelle hinzufügt, dann diese.",
+} satisfies Strings<typeof en, "de">;

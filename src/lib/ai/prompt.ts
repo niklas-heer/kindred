@@ -1,5 +1,6 @@
 // The assistant's instructions to the model. Server-only: only the server sends these to a provider, and
 // they are English on purpose. The reply language is named in them, so the model answers in the reader's language.
+import { ASSISTANT_LANGUAGE } from '../i18n/languages';
 import type { AiLocale } from './types';
 import { can, type Role } from '../roles';
 
@@ -32,6 +33,7 @@ const SOURCES = [
 ].join(' ');
 
 const LANGUAGE_NAME: Record<AiLocale, string> = {
+  ...ASSISTANT_LANGUAGE,
   en: 'English',
   de: 'German (use “du”, never “Sie”)',
   af: 'Afrikaans (use “jy”, never “u”)',

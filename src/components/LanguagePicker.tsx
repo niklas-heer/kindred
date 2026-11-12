@@ -1,16 +1,17 @@
-// The language picker: the current language's flag on a small button, and a list of the three languages, each
-// with its flag and its own name, and a check on the current one. Keys follow the Select: ↓/↑ move, Home/End,
+// The language picker: the current language's flag on a small button, and a list of the languages this instance offers
+// (`t.offered`: the operator's choice, complete ones only), each with its flag and its own name, and a check on the current
+// one. With English alone there is nothing to choose, and neither picker is shown. Keys follow the Select: ↓/↑ move, Home/End,
 // Enter or Space choose, Escape or Tab close and return focus to the button. The top bar, the sign-in card and
-// the home page use LanguagePicker; the phone's More sheet uses LanguageChoices, the same three in a row.
+// the home page use LanguagePicker; the phone's More sheet uses LanguageChoices, the same languages in a row.
 import { Check } from 'lucide-react';
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Flag } from '~/components/heraldry/Flag';
-import { LANGUAGE_NAME, LOCALES, useT, type Locale } from '~/lib/i18n';
+import { LANGUAGE_NAME, LANGUAGES, LOCALES, useT, type Locale } from '~/lib/i18n';
 import { isTopOverlay, useOverlayLayer } from './ui/overlay';
 import './language.css';
 
-/** Each language's flag: English is the United Kingdom's, Afrikaans is South Africa's. */
-export const LANGUAGE_FLAG: Record<Locale, string> = { en: 'gb', de: 'de', af: 'za' };
+/** Each language's flag (languages.ts): English is the United Kingdom's, Afrikaans is South Africa's. */
+export const LANGUAGE_FLAG = Object.fromEntries(LOCALES.map((l) => [l, LANGUAGES[l].flag])) as Record<Locale, string>;
 
 export function LanguagePicker({ className = '' }: { className?: string }) {
   const t = useT();
@@ -22,9 +23,10 @@ export function LanguagePicker({ className = '' }: { className?: string }) {
   const layer = useOverlayLayer(open);
   const base = useId();
   const name = `${t('common.language')}: ${LANGUAGE_NAME[t.locale]}`;
+  const choices = t.offered;
 
   const show = () => {
-    setActive(LOCALES.indexOf(t.locale));
+    setActive(Math.max(0, choices.indexOf(t.locale)));
     setOpen(true);
   };
   const hide = (refocus = true) => {
@@ -32,7 +34,7 @@ export function LanguagePicker({ className = '' }: { className?: string }) {
     if (refocus) button.current?.focus({ preventScroll: true });
   };
   const choose = (i: number) => {
-    const next = LOCALES[i];
+    const next = choices[i];
     if (next !== t.locale) t.setLocale(next);
     hide();
   };
@@ -76,13 +78,14 @@ export function LanguagePicker({ className = '' }: { className?: string }) {
     e.stopPropagation();
     if (k === 'Escape') { e.preventDefault(); if (isTopOverlay(layer)) hide(); }
     else if (k === 'Tab') hide(false);
-    else if (k === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(a + 1, LOCALES.length - 1)); }
+    else if (k === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(a + 1, choices.length - 1)); }
     else if (k === 'ArrowUp') { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
     else if (k === 'Home') { e.preventDefault(); setActive(0); }
-    else if (k === 'End') { e.preventDefault(); setActive(LOCALES.length - 1); }
+    else if (k === 'End') { e.preventDefault(); setActive(choices.length - 1); }
     else if (k === 'Enter' || k === ' ') { e.preventDefault(); choose(active); }
   };
 
+  if (choices.length < 2) return null;
   return (
     <>
       <button
@@ -115,7 +118,7 @@ export function LanguagePicker({ className = '' }: { className?: string }) {
           // Keep focus on the button; a press on a language must not blur it first.
           onMouseDown={(e) => e.preventDefault()}
         >
-          {LOCALES.map((l, i) => (
+          {choices.map((l, i) => (
             <div
               key={l}
               id={`${base}-${i}`}
@@ -138,12 +141,13 @@ export function LanguagePicker({ className = '' }: { className?: string }) {
   );
 }
 
-/** The phone's More sheet: the three languages side by side across the full width, each with its flag and its name. */
+/** The phone's More sheet: the offered languages side by side across the full width, each with its flag and its name. */
 export function LanguageChoices() {
   const t = useT();
+  if (t.offered.length < 2) return null;
   return (
     <div className="seg lang-choices" role="group" aria-label={t('common.language')}>
-      {LOCALES.map((l) => (
+      {t.offered.map((l) => (
         <button key={l} type="button" className="btn" lang={l} aria-pressed={t.locale === l} onClick={() => t.setLocale(l)}>
           <span className="lang-flag" aria-hidden><Flag code={LANGUAGE_FLAG[l]} size={16} /></span>
           <span>{LANGUAGE_NAME[l]}</span>

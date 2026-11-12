@@ -3,7 +3,9 @@
 // against their types at compile time (meanings.ts), so these tests walk the same keys.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { af, de, en } from '../i18n/areas/heraldry.ts';
+import { en } from '../i18n/areas/heraldry.ts';
+import af from '../i18n/locales/af/heraldry.ts';
+import de from '../i18n/locales/de/heraldry.ts';
 import type { Key } from '../i18n/dictionary.ts';
 import { CATEGORIES } from './catalogue.ts';
 import { LIBRARY_CHARGES } from '../../components/heraldry/library/charges.gen.ts';
@@ -128,7 +130,7 @@ test('every meaning is one short line', () => {
   ];
   for (const key of keys) {
     for (const [lang, area] of LANGUAGES) {
-      const text = (area as Record<string, string>)[key];
+      const text = (area as Record<string, unknown>)[key] as string | undefined;
       if (text === undefined) continue; // reported by the tests above
       assert.ok(!text.includes('\n'), `${lang} ${key} spans lines`);
       assert.ok(text.length <= 160, `${lang} ${key} is ${text.length} characters`);

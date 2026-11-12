@@ -11,12 +11,13 @@ import {
   checkMeanings, checkReview, meaningsSource, reviewSource,
   type HouseTranslations, type MeaningTranslation, type MeaningsSource, type ReviewSource, type ReviewTranslation,
 } from '../house-translation.ts';
+import { ASSISTANT_LANGUAGE } from '../i18n/languages';
 import type { Locale } from '../i18n/types';
 import { AiError, type AiAdapter, type AiReply, type AiRequest, type JsonSchema } from './adapters';
 import { tr } from './labels';
 import { fakeOn } from './settings.server';
 
-const LANGUAGE: Record<Locale, string> = { en: 'English', de: 'German, in the informal "du" form', af: 'Afrikaans, in the informal "jy" form' };
+const LANGUAGE = ASSISTANT_LANGUAGE;
 
 export type HouseItem =
   | { task: 'occupations'; kind: 'meanings'; house: string; locale: Locale; hash: string; source: MeaningsSource }

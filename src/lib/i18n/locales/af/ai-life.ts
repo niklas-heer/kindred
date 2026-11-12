@@ -1,0 +1,35 @@
+// Afrikaans (jy): the words of src/lib/i18n/areas/ai-life.ts. English there is the source; keys are the same.
+import type { Strings } from "../../types.ts";
+import type { en } from "../../areas/ai-life.ts";
+
+export default {
+  "ailife.kind.event": "Lewensgebeurtenis",
+  "ailife.kind.source": "Bron",
+  "ailife.kind.citation": "Verwysing",
+  "ailife.kind.remove": "Verwyder ’n gebeurtenis of bron",
+  "ailife.sum.event_new": "Voeg ’n lewensgebeurtenis vir {name} by",
+  "ailife.sum.event_edit": "Verander ’n lewensgebeurtenis van {name}",
+  "ailife.sum.source_new": "Nuwe bron: {title}",
+  "ailife.sum.source_edit": "Verander die bron {title}",
+  "ailife.sum.citation_new": "Verwys na {title}",
+  "ailife.sum.citation_edit": "Verander ’n verwysing na {title}",
+  "ailife.sum.remove_event": "Verwyder ’n lewensgebeurtenis van {name}",
+  "ailife.sum.remove_source": "Vee die bron {title} uit",
+  "ailife.sum.remove_citation": "Verwyder ’n verwysing na {title}",
+  "ailife.field.event": "Gebeurtenis",
+  "ailife.field.details": "Besonderhede",
+  "ailife.field.until": "Tot",
+  "ailife.field.quality": "Gehalte",
+  "ailife.field.cited_for": "Bron vir",
+  "ailife.field.fact": "Feit",
+  "ailife.field.goes_with": "Gaan saam weg",
+  "ailife.new_source": "{title} (nuut, van sy eie kaart)",
+  "ailife.citations": { one: "{count} verwysing", other: "{count} verwysings" },
+  "ailife.fact.birth": "Geboorte van {name}",
+  "ailife.fact.death": "Dood van {name}",
+  "ailife.fact.name": "Naam van {name}",
+  "ailife.fact.event": "{event} van {name}",
+  "ailife.fact.partnership": "Verhouding van {couple}",
+  "ailife.fact.parent": "{child}, kind van {parent}",
+  "ailife.err.source_first": "Keur eers die kaart goed wat die bron byvoeg, dan hierdie een.",
+} satisfies Strings<typeof en, "af">;

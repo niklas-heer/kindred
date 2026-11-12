@@ -74,7 +74,7 @@ type Seg = 'day' | 'month' | 'year';
 const ALL: readonly Precision[] = ['day', 'month', 'year'];
 const pad2 = (n: number) => String(n).padStart(2, '0');
 /** The separator written between the numeric segments; English writes the month as a name, so none. */
-const SEPARATOR: Record<Locale, string> = { en: '', de: '.', af: '/' };
+const SEPARATOR: Record<Locale, string> = { en: '', de: '.', af: '/', es: '/', fr: '/', it: '/', nl: '-', pl: '.', 'pt-BR': '/', ja: '/', 'zh-Hans': '/' };
 /** Phone width: the calendar becomes a bottom sheet. Matches the stylesheet. */
 const PHONE = '(max-width: 600px)';
 

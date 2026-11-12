@@ -1,6 +1,6 @@
 /**
- * Builds the browser's per-language tables (catalog.client.ts) from the area files, for vite.config.ts. It runs in Node
- * at build time, never in the app.
+ * Builds the browser's per-language tables (catalog.client.ts) for vite.config.ts: English from the area files, another
+ * language from its own files under `locales/<locale>/`. It runs in Node at build time, never in the app.
  */
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -9,12 +9,16 @@ import { isLocale, type Locale, type Message } from "./types.ts";
 
 export const VIRTUAL_LOCALE = "virtual:kindred-locale/";
 
-/** The area files, which a dev server watches so an edited string reaches the browser. */
-export function areaFiles(dir: string): string[] {
-  return readdirSync(dir)
-    .filter((f) => f.endsWith(".ts"))
+/**
+ * The files one language's words are in (`dir` is src/lib/i18n/): the area files for English, `locales/<locale>/` for
+ * another, without its generated index. A dev server watches them so an edited string reaches the browser.
+ */
+export function areaFiles(dir: string, locale: Locale = "en"): string[] {
+  const own = locale === "en" ? join(dir, "areas") : join(dir, "locales", locale);
+  return readdirSync(own)
+    .filter((f) => f.endsWith(".ts") && f !== "index.ts")
     .sort()
-    .map((f) => join(dir, f));
+    .map((f) => join(own, f));
 }
 
 /**
@@ -23,9 +27,9 @@ export function areaFiles(dir: string): string[] {
  */
 export async function browserTable(dir: string, locale: Locale): Promise<Record<string, Message>> {
   const table: Record<string, Message> = {};
-  for (const file of areaFiles(dir)) {
-    const area = (await import(`${pathToFileURL(file).href}?v=${statSync(file).mtimeMs}`)) as Partial<Record<Locale, Record<string, Message>>>;
-    Object.assign(table, area[locale]);
+  for (const file of areaFiles(dir, locale)) {
+    const module = (await import(`${pathToFileURL(file).href}?v=${statSync(file).mtimeMs}`)) as { en?: Record<string, Message>; default?: Record<string, Message> };
+    Object.assign(table, locale === "en" ? module.en : module.default);
   }
   return table;
 }

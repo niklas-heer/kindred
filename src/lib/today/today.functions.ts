@@ -6,6 +6,7 @@ import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import type { QuizView, WeekAnswer, WeekView } from './types.ts';
+import { LOCALES } from '../i18n/languages';
 
 const tree = z.string().regex(/^[a-z0-9-]{1,64}$/);
 const opKey = z.string().regex(/^[A-Za-z0-9_-]{8,80}$/);
@@ -43,7 +44,7 @@ export const weekAnswersQuery = (t: string, w: string) => queryOptions({ queryKe
 
 /** An answer, saved as a memory of the person it is about and signed with the writer's own account name. */
 export const answerWeekQuestion = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, week, person: z.string().min(1).max(200), body: z.string().trim().min(1).max(20_000), locale: z.enum(['en', 'de', 'af']), opKey }))
+  .validator(z.object({ tree, week, person: z.string().min(1).max(200), body: z.string().trim().min(1).max(20_000), locale: z.enum(LOCALES), opKey }))
   .handler(async ({ data }) => {
     const m = await (await guard()).requireCan(data.tree, 'add-story');
     const { opKey: key, ...payload } = data;

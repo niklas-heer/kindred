@@ -7,14 +7,17 @@
 // charges, and the library of charges added since (library/charges.gen.ts, from scripts/charge-library.tsv), load
 // on demand: see registry.ts for the charges of both, and art.ts for their drawings.
 
-import type { Key } from '~/lib/i18n/dictionary';
+import type { Key, Locale } from '~/lib/i18n/dictionary';
 
 export type ChargeCategory =
   | 'classic' | 'crosses' | 'beasts' | 'birds' | 'sea' | 'monsters' | 'plants' | 'celestial' | 'weapons' | 'tools'
   | 'buildings' | 'crowns' | 'objects' | 'faith' | 'body' | 'music';
 
-/** A charge's name in each language. The library's charges carry theirs here, not in the i18n dictionary. */
-export interface ChargeNames {
+/**
+ * A charge's name in each language. The library's charges carry theirs here, not in the i18n dictionary: English, German
+ * and Afrikaans always, another language once a translation lane adds it (English until then).
+ */
+export interface ChargeNames extends Partial<Record<Locale, string>> {
   en: string;
   de: string;
   af: string;

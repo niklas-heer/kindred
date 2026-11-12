@@ -1,11 +1,13 @@
 /**
- * The dictionary: every area's en, de and af tables merged, the typed key, translate() and the pure formatters.
- * No JSX and no React here, so the node test runner can load it. index.tsx re-exports all of it.
+ * The dictionary: every area's English merged with each language's table, the typed key, translate() and the pure
+ * formatters. No JSX and no React here, so the node test runner can load it. index.tsx re-exports all of it.
  */
 import { AREAS, PRELOADED, loadTable } from "./catalog.ts";
-import { LOCALES, type Locale, type Message, type Vars } from "./types.ts";
+import { LANGUAGES, LOCALES, type Locale, type PluralCategory } from "./languages.ts";
+import type { Message, Vars } from "./types.ts";
 
-export { LOCALES, isLocale, type Locale, type Message, type Vars } from "./types.ts";
+export { LOCALES, isLocale, type Locale, type Message, type Plural, type Vars } from "./types.ts";
+export { COMPLETE_LOCALES, LANGUAGES, negotiateLocale, offeredLocales, vocabularyLocale, type VocabularyLocale } from "./languages.ts";
 export { kinshipLabel, yourKinship, yourKinshipParts, type KinshipView } from "./kinship.ts";
 export { localizeTitle } from "./titles.ts";
 
@@ -15,24 +17,22 @@ type KeysOf<T> = T extends { en: infer E } ? keyof E : never;
 export type Key = KeysOf<AreaModule>;
 
 type Table = Partial<Record<string, Message>>;
-const tables: Record<Locale, Table> = { en: {}, de: {}, af: {} };
+const tables = Object.fromEntries(LOCALES.map((l) => [l, {}])) as Record<Locale, Table>;
 const duplicates: string[] = [];
 const seen = new Set<string>();
 for (const area of AREAS) {
-  for (const locale of LOCALES) {
-    for (const [key, message] of Object.entries(area[locale] as Table)) {
-      if (locale === "en") {
-        if (seen.has(key)) duplicates.push(key);
-        seen.add(key);
-      }
-      tables[locale][key] = message;
-    }
+  for (const [key, message] of Object.entries(area.en as Table)) {
+    if (seen.has(key)) duplicates.push(key);
+    seen.add(key);
+    tables.en[key] = message;
   }
 }
 
-// The browser starts with English only (catalog.client.ts) and loads its own language before it hydrates.
+// The server has every language here (catalog.ts); the browser starts with English only (catalog.client.ts) and loads
+// its own language before it hydrates.
 for (const [locale, table] of Object.entries(PRELOADED) as [Locale, Table][]) tables[locale] = table;
-const ready = new Set<Locale>(LOCALES.filter((locale) => Object.keys(tables[locale]).length > 0));
+// On the server every language is ready, even one with no words yet (it falls back to English); in the browser, the ones it has.
+const ready = new Set<Locale>(seen.size ? LOCALES : LOCALES.filter((locale) => Object.keys(tables[locale]).length > 0));
 const loading = new Map<Locale, Promise<void>>();
 
 /** Whether a language's words are here, so translate() gives them rather than English. Always true on the server. */
@@ -69,29 +69,27 @@ export const KEYS = (seen.size ? [...seen] : Object.keys(tables.en)) as Key[];
 /** Keys that appear in more than one area. Must be empty; the test checks it. */
 export const DUPLICATE_KEYS: readonly string[] = duplicates;
 
-/** Keys with no entry in a locale. English is complete by definition; de should be, af may lag and falls back. */
+/** Keys with no entry in a locale. English is complete by definition; a complete language must have none (the test). */
 export function missingKeys(locale: Locale): Key[] {
   return KEYS.filter((key) => tables[locale][key] === undefined);
 }
 
-export const locales: Record<Locale, string> = { en: "en-GB", de: "de-DE", af: "af-ZA" };
-/** Each language's own name, for the picker. */
-export const LANGUAGE_NAME: Record<Locale, string> = { en: "English", de: "Deutsch", af: "Afrikaans" };
+/** One language's own table, as the catalog holds it: for the checks (check.ts), which compare it with English. */
+export function tableOf(locale: Locale): Readonly<Table> {
+  return tables[locale];
+}
 
-export function negotiateLocale(header = ""): Locale {
-  const languages = header
-    .split(",")
-    .map((part, i) => {
-      const [tag, q] = part.trim().split(";q=");
-      return {
-        tag: tag.toLowerCase().split("-")[0],
-        q: q === undefined ? 1 : Number(q),
-        i,
-      };
-    })
-    .filter((x) => x.q > 0)
-    .sort((a, b) => b.q - a.q || a.i - b.i);
-  return (languages.find((x) => (LOCALES as readonly string[]).includes(x.tag))?.tag as Locale) ?? "en";
+/** The locale Intl formats with, for each language. */
+export const locales = Object.fromEntries(LOCALES.map((l) => [l, LANGUAGES[l].intl])) as Record<Locale, string>;
+/** Each language's own name, for the picker. */
+export const LANGUAGE_NAME = Object.fromEntries(LOCALES.map((l) => [l, LANGUAGES[l].native])) as Record<Locale, string>;
+
+const pluralRules = new Map<Locale, Intl.PluralRules>();
+/** The CLDR plural category of a count in a language: "one", "few", "many", "other"… */
+export function pluralCategory(locale: Locale, count: number): PluralCategory {
+  let rules = pluralRules.get(locale);
+  if (!rules) pluralRules.set(locale, (rules = new Intl.PluralRules(locales[locale])));
+  return rules.select(count) as PluralCategory;
 }
 
 const warned = new Set<string>();
@@ -110,10 +108,8 @@ function messageFor(locale: Locale, key: Key): Message {
 
 export function translate(locale: Locale, key: Key, vars: Vars = {}): string {
   const entry = messageFor(locale, key);
-  const text =
-    typeof entry === "string"
-      ? entry
-      : entry[new Intl.PluralRules(locales[locale]).select(Number(vars.count ?? 0)) === "one" ? "one" : "other"];
+  // A plural gives the forms its language needs; a category it leaves out takes `other`.
+  const text = typeof entry === "string" ? entry : (entry[pluralCategory(locale, Number(vars.count ?? 0))] ?? entry.other);
   return text.replace(/\{(\w+)\}/g, (all, k) =>
     // A year is a name for a time, not a quantity: "1985", never "1,985" or "1.985".
     vars[k] === undefined ? all : typeof vars[k] === "number" && !/year|decade/i.test(k) ? formatNumber(vars[k] as number, locale) : String(vars[k]),
@@ -153,9 +149,9 @@ function matchMessage(message: string): { key: Key; vars?: Vars } | null {
   for (const k of KEYS) {
     const english = tables.en[k];
     if (english === undefined) continue;
-    // A plural entry is matched by either form, so "1 house …" and "3 houses …" both find their key.
-    for (const form of typeof english === "string" ? [english] : [english.one, english.other]) {
-      if (!form.includes("{")) continue;
+    // A plural entry is matched by any of its forms, so "1 house …" and "3 houses …" both find their key.
+    for (const form of typeof english === "string" ? [english] : Object.values(english)) {
+      if (!form?.includes("{")) continue;
       const matched = fillTemplate(form, message);
       if (matched) return { key: k, vars: matched };
     }
@@ -203,11 +199,7 @@ export function formatNumber(value: number, locale: Locale = "en", options?: Int
 // Engines disagree on abbreviated months: for British English Node and Workers say "Sept" and Safari says "Sep". A page drawn
 // on the server must read the same in the browser, or React throws that page's text away and draws it again (error #418), so
 // the abbreviated months are Kindred's own. Everything else about a date (order, punctuation) is left to Intl.
-const SHORT_MONTHS: Record<Locale, readonly string[]> = {
-  en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-  de: ["Jan.", "Feb.", "März", "Apr.", "Mai", "Juni", "Juli", "Aug.", "Sept.", "Okt.", "Nov.", "Dez."],
-  af: ["Jan.", "Feb.", "Mrt.", "Apr.", "Mei", "Jun.", "Jul.", "Aug.", "Sep.", "Okt.", "Nov.", "Des."],
-};
+// The lists are in languages.ts (`shortMonths`).
 
 /**
  * A date or time as Intl writes it for the reader's language, with an abbreviated month from Kindred's own list. Use it
@@ -218,7 +210,7 @@ export function dateText(value: Date | number, locale: Locale, options: Intl.Dat
   if (options.month !== "short" && options.dateStyle !== "medium") return format.format(value);
   const month = Number(new Intl.DateTimeFormat("en-US", { month: "numeric", timeZone: format.resolvedOptions().timeZone }).format(value)) - 1;
   // A medium date is all numbers in German: only a month written in letters is replaced.
-  return format.formatToParts(value).map((part) => (part.type === "month" && !/^\d+$/.test(part.value) ? SHORT_MONTHS[locale][month] : part.value)).join("");
+  return format.formatToParts(value).map((part) => (part.type === "month" && !/^\d+$/.test(part.value) ? LANGUAGES[locale].shortMonths[month] : part.value)).join("");
 }
 
 export function formatDate(
@@ -240,8 +232,7 @@ export function formatDate(
           ...options,
           timeZone: "UTC",
         });
-    const approx = locale === "de" ? "ca." : locale === "af" ? "ong." : "c.";
-    return value.startsWith("~") ? `${approx} ${text}` : text;
+    return value.startsWith("~") ? translate(locale, "date.circa", { date: text }) : text;
   }
   const date = new Date(value);
   return Number.isNaN(date.getTime())
@@ -255,7 +246,7 @@ export function formatDate(
 }
 
 export function relativeTime(value: number | Date | null, locale: Locale = "en", now = Date.now()): string {
-  if (value == null) return locale === "de" ? "nie" : locale === "af" ? "nooit" : "never";
+  if (value == null) return translate(locale, "time.never");
   const seconds = (Number(value) - now) / 1000;
   const [unit, size]: [Intl.RelativeTimeFormatUnit, number] =
     Math.abs(seconds) < 60
@@ -276,7 +267,27 @@ const EN_ORDINALS = ["zeroth", "first", "second", "third", "fourth", "fifth", "s
 const DE_ORDINAL_WORDS = ["nullte", "erste", "zweite", "dritte", "vierte", "fünfte", "sechste", "siebte", "achte", "neunte", "zehnte"];
 const AF_ORDINAL_WORDS = ["nulde", "eerste", "tweede", "derde", "vierde", "vyfde", "sesde", "sewende", "agste", "negende", "tiende"];
 
+/**
+ * Ordinals of the languages without a rule of their own here: a form for each of `Intl.PluralRules`' ordinal categories,
+ * `{n}` the number. A translation lane confirms its language's line (docs/translating.md, "Numbers and dates").
+ */
+const ORDINAL_FORMS: Partial<Record<Locale, { other: string } & Partial<Record<PluralCategory, string>>>> = {
+  es: { other: "{n}.º" },
+  fr: { one: "{n}er", other: "{n}e" },
+  it: { other: "{n}º" },
+  nl: { other: "{n}e" },
+  pl: { other: "{n}." },
+  "pt-BR": { other: "{n}º" },
+  ja: { other: "第{n}" },
+  "zh-Hans": { other: "第{n}" },
+};
+
 export function ordinal(n: number, locale: Locale = "en"): string {
+  const forms = ORDINAL_FORMS[locale];
+  if (forms) {
+    const category = new Intl.PluralRules(locales[locale], { type: "ordinal" }).select(n) as PluralCategory;
+    return (forms[category] ?? forms.other).replace("{n}", String(n));
+  }
   if (locale === "de") return `${n}.`;
   if (locale === "af") {
     // Afrikaans: eerste, agste and everything from twintigste up take -ste; past a hundred the last two digits

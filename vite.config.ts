@@ -35,7 +35,8 @@ const precompressClient = (): Plugin => ({
 /**
  * The browser gets one language at a time (finding 3 of the performance review): in the client build the dictionary's
  * catalog of every area in every language becomes catalog.client.ts, which ships English and imports the reader's other
- * language as a generated table. The server and the test runner keep the full catalog.ts.
+ * language as a generated table, one chunk per language (src/lib/i18n/locales/<locale>/). The server and the test runner
+ * keep the full catalog.ts.
  */
 const i18nTables = (): Plugin => {
   const dir = fileURLToPath(new URL('./src/lib/i18n/', import.meta.url));
@@ -51,8 +52,8 @@ const i18nTables = (): Plugin => {
     async load(id) {
       const locale = localeOfId(id);
       if (!locale || !id.startsWith('\0')) return;
-      for (const file of areaFiles(`${dir}areas`)) this.addWatchFile(file);
-      return tableModule(await browserTable(`${dir}areas`, locale));
+      for (const file of areaFiles(dir, locale)) this.addWatchFile(file);
+      return tableModule(await browserTable(dir, locale));
     },
   };
 };

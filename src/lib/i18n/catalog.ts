@@ -1,6 +1,7 @@
 /**
- * Every area module, for the server and the test runner: all three languages, loaded synchronously. The browser build
- * replaces this module with catalog.client.ts (vite.config.ts), which ships English and loads one other language on demand.
+ * Every area module (English, the source of the key type) and every other language's merged table, for the server and the
+ * test runner, loaded synchronously. The browser build replaces this module with catalog.client.ts (vite.config.ts), which
+ * ships English and loads one other language on demand.
  */
 import * as accessArea from "./areas/access.ts";
 import * as aiArea from "./areas/ai.ts";
@@ -52,9 +53,22 @@ import * as tourArea from "./areas/tour.ts";
 import * as treeArea from "./areas/tree.ts";
 import * as viewasArea from "./areas/viewas.ts";
 import * as whoisArea from "./areas/whois.ts";
+import af from "./locales/af/index.ts";
+import de from "./locales/de/index.ts";
+import es from "./locales/es/index.ts";
+import fr from "./locales/fr/index.ts";
+import it from "./locales/it/index.ts";
+import ja from "./locales/ja/index.ts";
+import nl from "./locales/nl/index.ts";
+import pl from "./locales/pl/index.ts";
+import ptBR from "./locales/pt-BR/index.ts";
+import zhHans from "./locales/zh-Hans/index.ts";
 import type { Locale, Message } from "./types.ts";
 
-/** Every area module. Adding an area means adding it here once; keys go in the area files. */
+/**
+ * Every area module, each exporting `en`. Adding an area means adding it here once (and running
+ * `node scripts/i18n-scaffold.ts`, which gives every other language its file); keys go in the area files.
+ */
 export const AREAS = [
   commonArea,
   shellArea,
@@ -108,10 +122,14 @@ export const AREAS = [
   whoisArea,
 ] as const;
 
-/** Tables that exist before any area is merged. The server has every language in AREAS, so none. */
-export const PRELOADED: Partial<Record<Locale, Partial<Record<string, Message>>>> = {};
+type Table = Partial<Record<string, Message>>;
 
-/** On the server nothing loads later: every language is already in AREAS. */
+/** Every language but English, each one table of all its areas (`locales/<locale>/index.ts`). */
+export const PRELOADED: Partial<Record<Locale, Table>> = {
+  de, af, es, fr, it, nl, pl, "pt-BR": ptBR, ja, "zh-Hans": zhHans,
+} satisfies Record<Exclude<Locale, "en">, Table>;
+
+/** On the server nothing loads later: every language is already here. */
 export async function loadTable(locale: Locale): Promise<Partial<Record<string, Message>>> {
   // A code rather than a sentence: no reader can reach this.
   throw new Error(`i18n.unexpected_load:${locale}`);

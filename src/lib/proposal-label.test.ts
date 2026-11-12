@@ -6,7 +6,7 @@ import { withPresetLabel } from './fields/presets.ts';
 import { translate, type Key } from './i18n/dictionary.ts';
 
 /** A translator as the components get from `useT()`, for one language. */
-const as = (locale: 'de' | 'en') => Object.assign((key: Key) => translate(locale, key), { locale, setLocale: () => {} });
+const as = (locale: 'de' | 'en') => Object.assign((key: Key) => translate(locale, key), { locale, setLocale: () => {}, offered: ['en', 'de'] as const });
 const de = as('de');
 const en = as('en');
 

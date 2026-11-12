@@ -16,7 +16,7 @@ import { faithSuggestions } from '~/lib/faiths';
 import { COLOURS, favouriteWords, isColourLabel, parseColours, toggleColour } from '~/lib/favourites';
 import type { Family } from '~/lib/graph';
 import { displayName } from '~/lib/graph';
-import { compareText, locales, useT, type Key } from '~/lib/i18n';
+import { compareText, locales, useT, vocabularyLocale, type Key } from '~/lib/i18n';
 import { DatePicker, Select, Switch } from '../ui';
 import { PlaceInput, type PlaceValue } from '../PlaceInput';
 import { AddressFinder } from './AddressFinder';
@@ -127,9 +127,9 @@ function WordInput({ tree, kind, value, onChange, labelledBy, fieldLabel }: { tr
     const tag = locales[c.locale];
     if (kind === 'language') return languageSuggestions(value, tag, used);
     if (kind === 'country' || kind === 'nationality') return countrySuggestions(value, tag, used);
-    if (kind === 'religion') return faithSuggestions(value, c.locale, used);
-    if (kind === 'gift') return wordSuggestions(value, favouriteWords('gift', c.locale));
-    if (kind === 'favourite') return wordSuggestions(value, favouriteWords(fieldLabel, c.locale));
+    if (kind === 'religion') return faithSuggestions(value, vocabularyLocale(c.locale), used);
+    if (kind === 'gift') return wordSuggestions(value, favouriteWords('gift', vocabularyLocale(c.locale)));
+    if (kind === 'favourite') return wordSuggestions(value, favouriteWords(fieldLabel, vocabularyLocale(c.locale)));
     return wordSuggestions(value, LEVELS.map((k) => c(k)), used);
   }, [kind, value, used, c, fieldLabel]);
   return <SuggestInput value={value} onChange={onChange} options={options} labelledBy={labelledBy} />;
@@ -138,13 +138,14 @@ function WordInput({ tree, kind, value, onChange, labelledBy, fieldLabel }: { tr
 /** The colour favourite: a text box for any words, and a swatch for each named colour. Several can be chosen. */
 function ColourInput({ value, onChange, labelledBy }: { value: string; onChange: (text: string) => void; labelledBy: string }) {
   const c = useT();
+  const vocab = vocabularyLocale(c.locale);
   const chosen = new Set(parseColours(value).map((t) => t.colour?.id));
   return (
     <>
       <input className="input" aria-labelledby={labelledBy} value={value} onChange={(e) => onChange(e.target.value)} />
       <div className="fe-swatches" role="group" aria-labelledby={labelledBy}>
         {COLOURS.map((col) => (
-          <button type="button" key={col.id} className="fe-swatch" aria-pressed={chosen.has(col.id)} aria-label={col[c.locale]} title={col[c.locale]} onClick={() => onChange(toggleColour(value, col, c.locale))}>
+          <button type="button" key={col.id} className="fe-swatch" aria-pressed={chosen.has(col.id)} aria-label={col[vocab]} title={col[vocab]} onClick={() => onChange(toggleColour(value, col, vocab))}>
             <i style={{ background: col.hex }} />
           </button>
         ))}
