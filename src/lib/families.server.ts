@@ -273,7 +273,14 @@ export async function createFamily(
   } catch (e) {
     if (!limited.length || !isGuardError(e)) throw e;
     // Refused over the limit: a database this request made is not left behind as a family waiting to be finished.
-    if (!bound) await store.dropTree(id).catch(() => {});
+    // Only while nobody else has made it theirs meanwhile (a parallel request for the same id): no member, no administration
+    // row, no open invitation. Otherwise it is theirs and stays.
+    if (!bound) {
+      const taken = await accounts().get(
+        'SELECT 1 FROM membership WHERE tree = ? UNION ALL SELECT 1 FROM family_admin WHERE tree = ? UNION ALL SELECT 1 FROM invite WHERE tree = ? AND used_at IS NULL AND revoked_at IS NULL',
+        id, id, id);
+      if (!taken) await store.dropTree(id).catch(() => {});
+    }
     throw overLimit(familiesPerAccount ?? 0);
   }
   return id;
