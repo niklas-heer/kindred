@@ -5,7 +5,6 @@
 // regents play only by the rules, a reign's moves replay to the same score and a forged list is refused, a reign has a
 // chronicle and a title, and a reign between regents stays open to the end.
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { TITLES, chronicleOf, highlights, seasonOf } from './chronicle.ts';
 import {
@@ -14,7 +13,7 @@ import {
   regentTurn, replay, scoreOf, setupField, standings, terrainOf, troopsOf, winChance,
   type GameMap, type Ground, type Move, type Reign, type State, type Terrain,
 } from './engine.ts';
-import { DENIED, NAME_KINDS, allowed, everyName } from './names.ts';
+import { allowed } from './names.ts';
 import { RENOWN_STEPS, renownOf } from './renown.ts';
 
 const SIDES = ['ash', 'birch', 'cedar', 'dale'];
@@ -131,43 +130,25 @@ test('rivers run along borders one can cross, ridges close a border, and a sea l
   assert.ok(rivers >= SEEDS.length && ridges >= SEEDS.length && lanes >= SEEDS.length * 0.8, `rivers ${rivers}, ridges ${ridges}, lanes ${lanes}`);
 });
 
-test('every name is invented: unique on its map, never a real place’s, never rude', () => {
-  // A few real places, and the towns of the invented test families: none may ever be dealt.
-  const real = ['Berlin', 'Paris', 'London', 'Cape Town', 'Stellenbosch', 'Hamburg', 'München', 'Wien', 'Pretoria', 'Valoria', 'Orania'];
+test('every name on a map is invented: unique, of the generator’s making, and no two provinces begin alike', () => {
+  // The names themselves are compared with known names, real places and rude words in ./names.test.ts.
   const dealt = new Set<string>();
   for (const seed of SEEDS) {
     const { map } = setupField(SIDES, seed);
     const names = [map.name!, ...map.provinces.map((p) => p.name), ...(map.seas ?? []).map((s) => s.name)];
     assert.equal(new Set(names).size, names.length, `${seed}: every name once`);
     for (const name of names) {
-      assert.ok(name.length >= 5 && name.length <= 18, name);
+      assert.ok(name.length >= 7 && name.length <= 16, name);
       assert.ok(allowed(name), `${name} may be dealt`);
-      assert.ok(!real.includes(name));
       dealt.add(name);
     }
-    // No two provinces of a map begin alike.
+    assert.match(map.name!, /^[A-Z][a-z]+$/);
+    // A province carries what it is after a hyphen, and no two of a map begin alike.
+    for (const p of map.provinces) assert.match(p.name, /^[A-Z][a-z]+-[a-z]+$/);
     const heads = map.provinces.map((p) => p.name.slice(0, 5));
     assert.equal(new Set(heads).size, heads.length, `${seed}: ${heads.join(' ')}`);
   }
   assert.ok(dealt.size > SEEDS.length * 10, 'the maps differ in their names');
-  // Every name the generator can make is known, so the whole list can be compared with a gazetteer.
-  const every = NAME_KINDS.flatMap((kind) => everyName(kind));
-  for (const name of dealt) assert.ok(every.includes(name), `${name} is on the list`);
-  for (const name of DENIED) assert.ok(every.includes(name) && !allowed(name), `${name} is still made, and still refused`);
-  for (const name of every) assert.match(name, /^(Mare )?[A-Z][a-z]+$/);
-  // With GeoNames' cities500.txt at hand (KINDRED_GEONAMES=<file>), no name that may be dealt is a place's in it.
-  const file = process.env.KINDRED_GEONAMES;
-  if (file && existsSync(file)) {
-    const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-    const places = new Set<string>();
-    for (const line of readFileSync(file, 'utf8').split('\n')) {
-      const f = line.split('\t');
-      if (f.length < 4) continue;
-      for (const name of [f[1], f[2], ...f[3].split(',')]) if (name) places.add(fold(name));
-    }
-    const hits = every.filter((name) => allowed(name) && (places.has(fold(name)) || places.has(fold(name.replace(/^Mare /, '')))));
-    assert.deepEqual(hits, [], 'add these to DENIED in names.ts');
-  }
 });
 
 test('renown is a share of the house’s own people, so a small house recorded with care outshines a large one that is not', () => {
