@@ -126,7 +126,7 @@ export const LANGUAGES = {
     jobForms: "panadero/panadera",
     accepts: ["es"],
     shortMonths: ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"],
-    complete: true,
+    complete: false, // TOP-UP: 20 keys added after the translation; set back to true then
   },
   fr: {
     native: "Français",
@@ -209,7 +209,7 @@ export const LANGUAGES = {
     // The only Portuguese Kindred has, so a reader in Portugal gets it too rather than English.
     accepts: ["pt"],
     shortMonths: ["jan.", "fev.", "mar.", "abr.", "mai.", "jun.", "jul.", "ago.", "set.", "out.", "nov.", "dez."],
-    complete: true,
+    complete: false, // TOP-UP: 20 keys added after the translation; set back to true then
   },
   ja: {
     native: "日本語",
