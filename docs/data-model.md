@@ -188,6 +188,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0047_updates_health.sql` | The console's Update button and Health tab ([hosting-many-families.md](hosting-many-families.md), "Updates" and "Health"): `update_github` (the install's repository and sealed GitHub token, and the last update's run), `job_run` (each daily job's last run) and `family_schema` (the schema each family last reported). |
 | `0048_signin_fixes.sql` | Fixes to the ways in: `password_reset.seen_at` (the holder dismissed the notice of a used reset link), `signin_daily` (sign-ins per day and way in, for the statistics) and `oidc_flow` made again with the purpose `signup`. |
 | `0049_lasting_counts.sql` | Counts that outlive what they count, and bookkeeping for complete erasure ([gdpr.md](gdpr.md), [ai.md](ai.md#operator-funded-ai)): `ai_operator_family_month` (replaces `ai_operator_spend`, kept by the family's id when a family is deleted; rows copied), `ai_operator_overage`, `signup_tally` (rows copied from `signup`), `family_left`, `subject_action.pending` and `job_run.code`. |
+| `0050_round_seven_fixes.sql` | `user.retiring`: the pseudonym an unused account's writing gets, claimed by the retention job before it changes anything ([gdpr.md](gdpr.md#retention)). |
 
 ### Tables
 
@@ -253,6 +254,10 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 - **`user.operator`** (0034): 1 for an operator of the server, an instance role apart from every family's
   ([roles-and-privacy.md](roles-and-privacy.md#the-operator)). The migration makes the earliest account one; afterwards a new
   account is one only when it is the server's first (`newUser`). The last operator cannot step down.
+- **`user.retiring`** (0050): set while the retention job retires an unused account: the `former-…` pseudonym its writing gets,
+  claimed in one batch guarded by the retention rule (which also ends the account's sessions) before anything of the account
+  changes. While set, no session of the account is a way in, none is made, and a visit does not update `last_seen`. A run that
+  stopped part-way is finished by the next under the same pseudonym. NULL otherwise.
 - **`user.username`** (0040): the name a password sign-in types, normalised to lower case and unique (`COLLATE NOCASE`); NULL for
   an account without a password. Chosen with the first password; cleared when the password is removed.
 - **`password`** (0040): one row per account with a password: `hash` (`pbkdf2-sha256-6x100k-v1$salt$key`: PBKDF2-HMAC-SHA-256,

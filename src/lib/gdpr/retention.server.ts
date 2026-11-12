@@ -15,7 +15,7 @@
 import { guard, isGuardError, q, store } from '../store/index.ts';
 import { addMonths } from '../operator/shared.ts';
 import { audit } from '../operator/settings.server.ts';
-import { removeAccount } from './account.server.ts';
+import { newPseudonym, removeAccount } from './account.server.ts';
 
 const accounts = () => store.accounts();
 const DAY = 86_400_000;
@@ -56,30 +56,43 @@ function cutoffs(now: number) {
   };
 }
 
-const STALE_ACCOUNTS = `SELECT id, name, operator FROM user u WHERE operator = 0 AND coalesce(last_seen, created) < ?
+const STALE_ACCOUNTS = `SELECT id, name, operator, retiring FROM user u WHERE retiring IS NOT NULL OR (operator = 0 AND coalesce(last_seen, created) < ?
   AND NOT EXISTS (SELECT 1 FROM membership m WHERE m.user = u.id)
-  AND NOT EXISTS (SELECT 1 FROM join_request j WHERE j.user = u.id AND j.status = 'open')`;
-/** The same rule for one account (its id, then the cut-off), as a guard: the deletion's batch holds it again. */
+  AND NOT EXISTS (SELECT 1 FROM join_request j WHERE j.user = u.id AND j.status = 'open'))`;
+/** The same rule for one account (its id, then the cut-off), as a guard: the claim's batch holds it again. */
 const STILL_STALE = `EXISTS (SELECT 1 FROM user u WHERE u.id = ? AND operator = 0 AND coalesce(last_seen, created) < ?
   AND NOT EXISTS (SELECT 1 FROM membership m WHERE m.user = u.id)
   AND NOT EXISTS (SELECT 1 FROM join_request j WHERE j.user = u.id AND j.status = 'open'))`;
 
 /**
- * Deletes one account the rules selected, if it still qualifies: checked again just before (it may have signed in or joined a
- * family since it was selected) and held as a guard in the deletion's batch.
+ * Retires one account the rules selected. First the claim: one batch, guarded by the rule still holding (it may have signed in
+ * or joined a family since it was selected), that marks the account `retiring` with the pseudonym its writing will get and ends
+ * its sessions. Only then is anything of it changed. While it is marked, no session of it is a way in and a visit is not counted
+ * (store.server.ts), so nothing it does can race the cleanup. A cleanup that stops part-way leaves the mark: the next run
+ * selects the account again and finishes it under the same pseudonym. An account whose claim's guard fails is kept untouched.
  */
-export async function retireAccount(u: { id: string; name: string; operator: number }, now: number): Promise<'deleted' | 'kept' | 'failed'> {
+export async function retireAccount(u: { id: string; name: string; operator: number; retiring?: string | null }, now: number): Promise<'deleted' | 'kept' | 'failed'> {
   const cutoff = cutoffs(now).account;
-  if (!(await accounts().get(`SELECT 1 WHERE ${STILL_STALE}`, u.id, cutoff))) return 'kept';
-  try {
-    await removeAccount(u, { guards: [guard(STILL_STALE, u.id, cutoff)] });
-    return 'deleted';
-  } catch (e) {
-    // The guard: it came back between the check and the batch. (A stale account is no steward and no operator, so no other
-    // guard of the deletion's can refuse it.)
-    if (isGuardError(e)) return 'kept';
-    throw e;
+  let pseudonym = u.retiring ?? (await accounts().get<{ retiring: string | null }>('SELECT retiring FROM user WHERE id = ?', u.id))?.retiring ?? null;
+  if (!pseudonym) {
+    if (!(await accounts().get(`SELECT 1 WHERE ${STILL_STALE}`, u.id, cutoff))) return 'kept';
+    pseudonym = newPseudonym();
+    try {
+      await accounts().batch([
+        guard(STILL_STALE, u.id, cutoff),
+        q('UPDATE user SET retiring = ? WHERE id = ? AND retiring IS NULL', pseudonym, u.id),
+        q('DELETE FROM session WHERE user = ?', u.id),
+      ]);
+    } catch (e) {
+      // It came back between the check and the claim: nothing of it was changed.
+      if (isGuardError(e)) return 'kept';
+      throw e;
+    }
   }
+  // The claim is the decision: the deletion's batch only holds that it is still this claim. (A stale account is no steward and
+  // no operator, so no other guard of the deletion's can refuse it.)
+  await removeAccount(u, { pseudonym, guards: [guard('EXISTS (SELECT 1 FROM user WHERE id = ? AND retiring = ?)', u.id, pseudonym)] });
+  return 'deleted';
 }
 const STALE_INVITES = 'FROM invite WHERE used_at IS NULL AND ((revoked_at IS NOT NULL AND revoked_at < ?) OR (revoked_at IS NULL AND expires < ?))';
 const OLD_DECLINED = "FROM family_request WHERE status = 'declined' AND decided_at < ?";
@@ -112,7 +125,7 @@ export async function runRetention(now = Date.now(), { dryRun = false, log }: { 
   if (deleting) {
     const c = cutoffs(now);
     // Accounts one at a time, as each touches its families; one failing leaves the rest to go.
-    const stale = await accounts().all<{ id: string; name: string; operator: number }>(STALE_ACCOUNTS, c.account);
+    const stale = await accounts().all<{ id: string; name: string; operator: number; retiring: string | null }>(STALE_ACCOUNTS, c.account);
     for (const u of stale) {
       try {
         outcome[await retireAccount(u, now)] += 1;

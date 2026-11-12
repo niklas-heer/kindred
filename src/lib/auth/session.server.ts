@@ -237,6 +237,8 @@ async function accessSession(request: Request, verifiedEmail: (r: Request) => Pr
   // there first, the batch writes nothing and the decision is made again on fresh reads.
   const user = await commit(async () => {
     let u = await userByEmail(email);
+    // An account the retention job is retiring is going: no way in, and no new account for its address until it is gone.
+    if (u?.retiring) return { writes: [], result: undefined };
     const pending = await pendingInvitesFor(email);
     const writes: Query[] = [];
     if (!u && (await userCount()) === 0 && !setupCodeRequired()) {

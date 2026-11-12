@@ -51,6 +51,8 @@ export interface UserRow {
   operator?: number;
   /** The name a password sign-in types (accounts migration 0040), lower case; null without a password. */
   username?: string | null;
+  /** Set while the retention job retires the account (accounts migration 0050): no way in then. */
+  retiring?: string | null;
 }
 
 export const userCount = async () => (await accounts().get<{ n: number }>('SELECT count(*) AS n FROM user'))!.n;
@@ -80,7 +82,8 @@ export const setUserLocale = (id: string, locale: Locale | null) => accounts().r
 /** At most every five minutes, so reading the tree doesn't write on every request. */
 export async function touchUser(id: string, lastSeen: number | null) {
   if (lastSeen && now() - lastSeen < 5 * 60_000) return;
-  await accounts().run('UPDATE user SET last_seen = ? WHERE id = ?', now(), id);
+  // Not while it is being retired: the retention job's claim already decided (src/lib/gdpr/retention.server.ts).
+  await accounts().run('UPDATE user SET last_seen = ? WHERE id = ? AND retiring IS NULL', now(), id);
 }
 
 // ---------- passkeys ----------
@@ -122,8 +125,9 @@ export async function createSession(user: string, credential: string | null = nu
   const expires = t + SESSION_DAYS * DAY;
   await accounts().batch([
     q('DELETE FROM session WHERE expires < ?', t),
-    q('INSERT INTO session (hash, user, created, expires, refreshed, credential, proved, method, proved_via, provider) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      await hashToken('session', token), user, t, expires, t, credential, proved ? t : null, method, proved ? method : null, provider),
+    // No session for an account the retention job is retiring: it is going (src/lib/gdpr/retention.server.ts).
+    q('INSERT INTO session (hash, user, created, expires, refreshed, credential, proved, method, proved_via, provider) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM user WHERE id = ? AND retiring IS NOT NULL)',
+      await hashToken('session', token), user, t, expires, t, credential, proved ? t : null, method, proved ? method : null, provider, user),
     // The operator's statistics count sign-ins by way in (accounts migration 0048): aggregates only, kept as they happen.
     q('INSERT INTO signin_daily (day, method, count) VALUES (?, ?, 1) ON CONFLICT (day, method) DO UPDATE SET count = count + 1', new Date(t).toISOString().slice(0, 10), method),
   ]);
@@ -145,7 +149,8 @@ export async function sessionWithUser(token: string): Promise<{ session: Session
   const live = 'SELECT user FROM session WHERE hash = ? AND expires > ?';
   const [s, u, m, setting] = (await accounts().readBatch([
     q('SELECT * FROM session WHERE hash = ? AND expires > ?', hash, t),
-    q(`SELECT * FROM user WHERE id = (${live})`, hash, t),
+    // An account the retention job is retiring has no way in (src/lib/gdpr/retention.server.ts).
+    q(`SELECT * FROM user WHERE id = (${live}) AND retiring IS NULL`, hash, t),
     q(`SELECT ${MEMBERSHIP} WHERE m.user = (${live}) ORDER BY m.created`, hash, t),
     // The enabled ways in (methods.server.ts), so a session of a method turned off is refused in the same trip.
     q("SELECT value FROM instance_setting WHERE key = 'auth_methods'"),

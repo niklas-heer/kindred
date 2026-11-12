@@ -168,14 +168,17 @@ export async function deleteAccount(user: { id: string; name: string; email: str
   return removeAccount(user);
 }
 
+/** The id an account's writing is given when it goes: one per deletion, so nothing links it to the account again. */
+export const newPseudonym = () => `former-${crypto.randomUUID()}`;
+
 /**
  * The deletion itself, without the typed confirmation: the families first, then the accounts database. The retention job
- * (retention.server.ts) uses it for accounts nobody has used for two years, with a guard that they still qualify.
+ * (retention.server.ts) uses it for accounts nobody has used for two years, once it has claimed the retirement (with the
+ * pseudonym the claim holds, so a run that resumes gives the same one).
  */
-export async function removeAccount(user: { id: string; name: string; operator?: number }, { guards = [] }: { guards?: Query[] } = {}): Promise<DeletionReport> {
+export async function removeAccount(user: { id: string; name: string; operator?: number }, { guards = [], pseudonym = newPseudonym() }: { guards?: Query[]; pseudonym?: string } = {}): Promise<DeletionReport> {
   const accountTables = await tablesOf(accounts());
   const trees = await familiesOf(user.id, accountTables);
-  const pseudonym = `former-${crypto.randomUUID()}`;
   for (const tree of trees) {
     const others = await accounts().get<{ n: number }>(
       'SELECT count(*) AS n FROM membership m JOIN user u ON u.id = m.user WHERE m.tree = ? AND m.user <> ? AND lower(trim(u.name)) = lower(trim(?))', tree, user.id, user.name);

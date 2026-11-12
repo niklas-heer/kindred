@@ -63,6 +63,7 @@ const settings = await load<typeof import('../operator/settings.server.ts')>('/s
 const fam = await load<typeof import('../families.server.ts')>('/src/lib/families.server.ts');
 const dbs = await load<typeof import('../db.server.ts')>('/src/lib/db.server.ts');
 const acc = await load<typeof import('../auth/store.server.ts')>('/src/lib/auth/store.server.ts');
+const tokens = await load<typeof import('../auth/tokens.server.ts')>('/src/lib/auth/tokens.server.ts');
 const { closeDatabases } = await load<typeof import('../store/node.ts')>('/src/lib/store/node.ts');
 
 after(async () => {
@@ -475,6 +476,102 @@ test('retention: reports first, deletes only once switched on, and only what the
   await retention.setRetentionMode(OP, 'report');
 });
 
+/** Every row of every table of a family's database, to compare before and after. */
+async function snapshot(d: import('../store/index.ts').Db): Promise<string> {
+  const out: Record<string, unknown[]> = {};
+  for (const t of await schema.tablesOf(d)) out[t.name] = await d.all(`SELECT * FROM ${schema.ident(t.name)} ORDER BY rowid`).catch(() => d.all(`SELECT * FROM ${schema.ident(t.name)}`));
+  return JSON.stringify(out);
+}
+type Batch = { sql: string; params: unknown[] }[];
+const claiming = (qs: Batch, id: string) => qs.some((x) => /^UPDATE user SET retiring = /.test(x.sql) && x.params.includes(id));
+
+/** A stale account with no family left, but traces in one it left: a private note, a reaction, a story it wrote. */
+async function staleWithTraces(n: number, name: string, tree: string) {
+  const u = user(n, name, 0, T - 800 * DAY);
+  await addUser(u);
+  await run('INSERT INTO family_left (user, tree, left_at) VALUES (?, ?, ?)', u.id, tree, T - 900 * DAY);
+  const d = dbs.db(tree);
+  await d.batch([
+    dbs.q(`INSERT OR IGNORE INTO person (id, given, surname, living) VALUES ('gran-${n}', 'Greta', 'Brackwell', 0)`),
+    dbs.q(`INSERT INTO story (id, person, kind, title, body, author, author_account, at) VALUES ('st-${n}', 'gran-${n}', 'memory', 'Her orchard', 'Apples.', ?, ?, '2024-01-01')`, u.name, u.id),
+    dbs.q(`INSERT INTO post (id, account, author_name, body, created_at) VALUES ('post-${n}', ?, ?, 'Old news', '2024-01-01')`, u.id, u.name),
+    dbs.q(`INSERT INTO reaction (target_kind, target, account, kind, created_at) VALUES ('post', 'post-${n}', ?, 'heart', '2024-01-02')`, u.id),
+    dbs.q(`INSERT INTO person_field (id, person, type, label, value, visibility, owner, created_by) VALUES ('pf-${n}', 'gran-${n}', 'notes', '', '{"text":"mine"}', 'personal', ?, ?)`, u.id, u.id),
+  ]);
+  return u;
+}
+
+test('retention: an account that signs in before its retirement is claimed is kept, and nothing of it changed', async () => {
+  const back = await staleWithTraces(36, 'Bea Returner', 'brackwell');
+  const d = dbs.db('brackwell');
+  const before = await snapshot(d);
+  await retention.setRetentionMode(OP, 'delete');
+  const accountsDb = a();
+  const batch = accountsDb.batch.bind(accountsDb);
+  accountsDb.batch = (async (qs: Batch) => {
+    // She signs in after the job selected her, just before her retirement is claimed.
+    if (claiming(qs, back.id)) await run('UPDATE user SET last_seen = ? WHERE id = ?', T, back.id);
+    return batch(qs as never);
+  }) as typeof accountsDb.batch;
+  let r: Awaited<ReturnType<typeof retention.runRetention>>;
+  try {
+    r = await retention.runRetention(T);
+  } finally {
+    accountsDb.batch = batch;
+    await retention.setRetentionMode(OP, 'report');
+  }
+  assert.deepEqual(r.outcome, { deleted: 0, kept: 1, failed: 0 });
+  assert.ok(await one('SELECT 1 FROM user WHERE id = ? AND retiring IS NULL', back.id), 'kept, and not marked');
+  assert.equal(await snapshot(d), before, 'her note, her reaction and her story are as they were');
+  assert.ok(await one('SELECT 1 FROM family_left WHERE user = ?', back.id));
+});
+
+test('retention: a claimed retirement shuts the account out, and a cleanup that stopped part-way finishes on the next run', async () => {
+  const gone = await staleWithTraces(37, 'Gil Faraway', 'brackwell');
+  await run("INSERT INTO session (hash, user, created, expires, refreshed) VALUES ('sess-37', ?, ?, ?, ?)", gone.id, T - 800 * DAY, T + DAY, T - 800 * DAY);
+  await retention.setRetentionMode(OP, 'delete');
+  const d = dbs.db('brackwell');
+  const familyBatch = d.batch.bind(d);
+  let signedIn: unknown = 'not tried';
+  d.batch = (async (qs: Batch) => {
+    // The family's cleanup fails; meanwhile he tries to come back with a session made before (or after) the claim.
+    if (qs.some((x) => x.params.includes(gone.id))) {
+      await acc.touchUser(gone.id, T - 800 * DAY);
+      signedIn = await acc.sessionWithUser((await acc.createSession(gone.id)).token);
+      throw new Error('the family database is away');
+    }
+    return familyBatch(qs as never);
+  }) as typeof d.batch;
+  let first: Awaited<ReturnType<typeof retention.runRetention>>;
+  try {
+    first = await retention.runRetention(T);
+  } finally {
+    d.batch = familyBatch;
+  }
+  assert.deepEqual(first.outcome, { deleted: 0, kept: 0, failed: 1 });
+  const row = await one<{ retiring: string | null; last_seen: number }>('SELECT retiring, last_seen FROM user WHERE id = ?', gone.id);
+  assert.match(row!.retiring ?? '', /^former-/, 'the claim holds its pseudonym');
+  assert.equal(row!.last_seen, T - 800 * DAY, 'a visit while retiring does not count as use');
+  assert.equal(signedIn, undefined);
+  assert.equal(await one("SELECT 1 FROM session WHERE hash = 'sess-37'"), undefined, 'the claim ended his sessions');
+  // A session row made before the claim is no way in either while the retirement is under way.
+  const token = 'tok-37';
+  await run('INSERT INTO session (hash, user, created, expires, refreshed) VALUES (?, ?, ?, ?, ?)', await tokens.hashToken('session', token), gone.id, T, T + DAY, T);
+  assert.equal(await acc.sessionWithUser(token), undefined);
+  // The next run finishes it, under the same pseudonym, even though nothing else about him changed.
+  try {
+    const second = await retention.runRetention(T);
+    assert.deepEqual(second.outcome, { deleted: 1, kept: 0, failed: 0 });
+  } finally {
+    await retention.setRetentionMode(OP, 'report');
+  }
+  assert.equal(await one('SELECT 1 FROM user WHERE id = ?', gone.id), undefined);
+  assert.deepEqual(await containing(d, gone.id), []);
+  assert.equal((await d.get<{ author_account: string }>("SELECT author_account FROM story WHERE id = 'st-37'"))!.author_account, row!.retiring);
+  assert.equal(await d.get("SELECT 1 FROM person_field WHERE id = 'pf-37'"), undefined);
+  assert.equal(await d.get("SELECT 1 FROM reaction WHERE target = 'post-37'"), undefined);
+});
+
 test('retention: an account that came back meanwhile is kept, and a deletion that fails is recorded as failed', async () => {
   const back = user(33, 'Back Again', 0, T - 800 * DAY);
   const stuck = user(34, 'Stuck Account', 0, T - 800 * DAY);
@@ -482,10 +579,10 @@ test('retention: an account that came back meanwhile is kept, and a deletion tha
   await retention.setRetentionMode(OP, 'delete');
   const accountsDb = a();
   const batch = accountsDb.batch.bind(accountsDb);
-  const deleting = (qs: { sql: string; params: unknown[] }[], id: string) => qs.some((x) => x.sql === 'DELETE FROM user WHERE id = ?' && x.params[0] === id);
-  accountsDb.batch = (async (qs: { sql: string; params: unknown[] }[]) => {
-    // "Back Again" signs in just before its deletion's batch runs; "Stuck Account"'s batch fails.
-    if (deleting(qs, back.id)) await run('UPDATE user SET last_seen = ? WHERE id = ?', T, back.id);
+  const deleting = (qs: Batch, id: string) => qs.some((x) => x.sql === 'DELETE FROM user WHERE id = ?' && x.params[0] === id);
+  accountsDb.batch = (async (qs: Batch) => {
+    // "Back Again" signs in just before its retirement is claimed; "Stuck Account"'s deletion batch fails.
+    if (claiming(qs, back.id)) await run('UPDATE user SET last_seen = ? WHERE id = ?', T, back.id);
     if (deleting(qs, stuck.id)) throw new Error('the disk is full');
     return batch(qs as never);
   }) as typeof accountsDb.batch;
