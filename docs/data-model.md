@@ -288,7 +288,8 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 - **`password_reset`** (0041): an operator's reset link: the hash of its token, the account, `created_by` (the operator, no foreign
   key), `expires` (an hour), `used_at` (once: guarded in the batch that sets the password) and `clear_totp` (1: the link also
   turns two-step codes off). A new link for the account replaces an unused one. `seen_at` (0048): when the holder dismissed the
-  notice that the link was used; a used link's row stays until then. Goes with the account.
+  notice that the link was used (only a session of another way in can; a password session shows it for 30 days); a used link's
+  row stays until then. Goes with the account.
 - **`signin_daily`** (0048): `day` (UTC, `YYYY-MM-DD`), `method` (`passkey`, `password`, `oidc`) and `count`: one added by every
   new session (`createSession`), in the same batch. Aggregates only, for the operator's statistics; names nobody.
 - **`auth_provider`** (0046): a single sign-on provider the operator added: `id` (the slug in the redirect URI

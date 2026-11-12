@@ -428,10 +428,18 @@ test('a used reset link leaves a lasting notice for the holder’s next sign-in 
   await store.accounts().batch(writes);
   await pw.redeemResetLink(req(), { token, password: 'a reset evening light' }, at);
   assert.equal(await store.sessionByToken(passkeySession), undefined, 'the other sessions end');
-  assert.equal(await pw.resetNoticeOf(ada.id, 'password'), null, 'whoever used the link (a password session) sees no notice to dismiss');
+  // A holder who has only a password sees it too, but a password session cannot dismiss it (whoever used the link could), so
+  // there it runs out by itself after 30 days.
+  const pwNotice = await pw.resetNoticeOf(ada.id, 'password');
+  assert.ok(pwNotice && pwNotice.at > 0, 'a password session sees the notice');
+  assert.equal(pwNotice.dismissible, false);
   await assert.rejects(pw.dismissResetNotice(ada.id, 'password'), /pw\.err\.reset_notice_method/);
+  assert.ok(await pw.resetNoticeOf(ada.id, 'password', pwNotice.at + 29 * 86_400_000), 'still shown after 29 days');
+  assert.equal(await pw.resetNoticeOf(ada.id, 'password', pwNotice.at + 31 * 86_400_000), null, 'gone from password sessions after 30 days');
   const notice = await pw.resetNoticeOf(ada.id, 'passkey');
   assert.ok(notice && notice.at > 0, 'the holder signing in with a passkey sees when the operator reset the password');
+  assert.equal(notice.dismissible, true);
+  assert.ok(await pw.resetNoticeOf(ada.id, 'passkey', notice.at + 60 * 86_400_000), 'and keeps seeing it until dismissed');
   // Another link later does not wipe the notice while it is unseen.
   await store.accounts().batch((await pw.makeResetLink(ada.id, 'operator-id', false)).writes);
   await store.accounts().run('UPDATE password_reset SET expires = 1 WHERE used_at IS NOT NULL');

@@ -1,6 +1,7 @@
 // The lasting notice after an operator's reset link was used on the reader's account (src/lib/auth/password.server.ts,
-// resetNoticeOf): shown at the foot of every page to a session another way in started (a passkey, a provider), until the
-// reader dismisses it, so whoever used the link with the new password cannot hide it from the account's holder.
+// resetNoticeOf): shown at the foot of every page until a session another way in started (a passkey, a provider) dismisses
+// it, so whoever used the link with the new password cannot hide it from the account's holder. A password session sees it
+// without the dismiss button, for 30 days.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ShieldAlert, X } from 'lucide-react';
 import { dismissResetNotice, resetNoticeQuery } from '~/lib/auth/signin.functions';
@@ -21,7 +22,9 @@ export function ResetNotice() {
       <div className="announcement" role="alert">
         <ShieldAlert size={16} aria-hidden />
         <div><p>{t('pw.reset_notice', { date: formatDate(data.at, t.locale) })}</p></div>
-        <button type="button" className="btn icon ghost" onClick={() => dismiss.mutate()} disabled={dismiss.isPending} aria-label={t('ui.dismiss')}><X size={14} /></button>
+        {data.dismissible && (
+          <button type="button" className="btn icon ghost" onClick={() => dismiss.mutate()} disabled={dismiss.isPending} aria-label={t('ui.dismiss')}><X size={14} /></button>
+        )}
       </div>
     </div>
   );

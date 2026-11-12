@@ -182,7 +182,8 @@ is read-only, and while `KINDRED_AUTH_METHODS` is set it only shows what that se
 - **A reset link** (in the same tab): type someone's username or email, optionally tick "also turn off their two-step codes"
   (a lost phone), and hand them the link yourself. It works once, for an hour, only for an account that already has a password
   (it never gives an account its first one), sets a new password and signs out every session of the account. The holder sees a
-  lasting notice of it at their next sign-in by another way in. It needs your fresh proof, goes into the log, and adds nobody to
+  lasting notice of it, which only a sign-in by another way in (a passkey, single sign-on) can dismiss; a password sign-in shows
+  it for 30 days without a way to dismiss it, so a holder with only a password learns of it too. It needs your fresh proof, goes into the log, and adds nobody to
   any family or role. Only operators can make one; stewards cannot reset anyone. Make sure it is really them before you hand it
   over.
 

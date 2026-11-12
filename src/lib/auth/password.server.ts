@@ -345,14 +345,20 @@ export async function redeemResetLink(request: Request, input: { token?: unknown
   return { user: user.id };
 }
 
+/** How long a password session shows the notice it cannot dismiss. */
+export const RESET_NOTICE_PASSWORD_DAYS = 30;
+
 /**
- * The notice that an operator's reset link was used on this account: when, until it is dismissed. Shown only to a session
- * another way in started (a passkey, a provider), so whoever used the link with the new password cannot hide it from the holder.
+ * The notice that an operator's reset link was used on this account: when, and whether this session may dismiss it. A session
+ * another way in started (a passkey, a provider) sees it until it is dismissed. A password session sees it too, so a holder
+ * with only a password learns of it, but cannot dismiss it (whoever used the link with the new password could hide it from the
+ * holder): there it runs out by itself after 30 days.
  */
-export async function resetNoticeOf(user: string, method: string | null | undefined): Promise<{ at: number } | null> {
-  if (method === 'password') return null;
+export async function resetNoticeOf(user: string, method: string | null | undefined, at = now()): Promise<{ at: number; dismissible: boolean } | null> {
   const row = await accounts().get<{ at: number | null }>('SELECT max(used_at) AS at FROM password_reset WHERE user = ? AND used_at IS NOT NULL AND seen_at IS NULL', user);
-  return row?.at ? { at: row.at } : null;
+  if (!row?.at) return null;
+  if (method !== 'password') return { at: row.at, dismissible: true };
+  return at - row.at < RESET_NOTICE_PASSWORD_DAYS * 86_400_000 ? { at: row.at, dismissible: false } : null;
 }
 
 /** Dismisses the notice, from a session another way in started. */

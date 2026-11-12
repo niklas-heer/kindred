@@ -191,8 +191,8 @@ export const fetchResetLink = createServerFn({ method: 'POST' })
 
 // ---------- the notice after an operator's reset link ----------
 
-/** When an operator's reset link was used on the reader's account, for a session another way in started; null otherwise. */
-export const fetchResetNotice = createServerFn({ method: 'GET' }).handler(async (): Promise<{ at: number } | null> => {
+/** When an operator's reset link was used on the reader's account, and whether this session may dismiss it; null otherwise. */
+export const fetchResetNotice = createServerFn({ method: 'GET' }).handler(async (): Promise<{ at: number; dismissible: boolean } | null> => {
   const [{ currentSession, requireUser }, { resetNoticeOf }, { isDemo }] = await Promise.all([guard(), import('./password.server'), import('../demo')]);
   const user = await requireUser();
   const s = await currentSession();
