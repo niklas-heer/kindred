@@ -432,12 +432,20 @@ export async function restoreBackup(
     ? (await accounts().get<{ cap_bytes: number | null }>('SELECT cap_bytes FROM family_admin WHERE tree = ?', scope))?.cap_bytes ?? null
     : (await instanceSettings()).defaultCapBytes ?? null;
   const { upsertMembership } = await import('../auth/store.server.ts');
-  await accounts().batch([
-    ...(register ? [register] : []),
-    q('INSERT INTO family_admin (tree, cap_bytes, created_at, created_by) VALUES (?, ?, ?, ?) ON CONFLICT(tree) DO NOTHING', into, cap, now, op.id),
-    ...stewards.map((id) => upsertMembership(id, into, 'steward')),
-    q("UPDATE family_claim SET state = 'restored', media = ? WHERE tree = ? AND what = 'restore'", withMedia ? 1 : 0, into),
-  ]);
+  // Published only while the claim is still this restore's own: a restore that outlived its claim (an hour) and lost the
+  // address to another one publishes nothing, so it can never hand someone else's family to these stewards.
+  try {
+    await accounts().batch([
+      guard("EXISTS (SELECT 1 FROM family_claim WHERE tree = ? AND what = 'restore' AND state = 'restoring' AND at = ? AND by = ?)", into, now, op.id),
+      ...(register ? [register] : []),
+      q('INSERT INTO family_admin (tree, cap_bytes, created_at, created_by) VALUES (?, ?, ?, ?) ON CONFLICT(tree) DO NOTHING', into, cap, now, op.id),
+      ...stewards.map((id) => upsertMembership(id, into, 'steward')),
+      q("UPDATE family_claim SET state = 'restored', media = ? WHERE tree = ? AND what = 'restore' AND at = ? AND by = ?", withMedia ? 1 : 0, into, now, op.id),
+    ]);
+  } catch (e) {
+    if (isGuardError(e)) throw invalid('backup.err.taken');
+    throw e;
+  }
   let media: RestoreResult['media'] = null;
   if (withMedia) {
     media = await copyMedia(scope, into, mediaStep);
