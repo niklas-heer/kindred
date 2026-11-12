@@ -11,6 +11,7 @@ import { useIsClient } from '~/components/ui';
 import { graphQuery } from '~/lib/api';
 import { acceptWithPasskey, forgetLocalIdentity, passkeysSupported, signOutRequest } from '~/lib/auth/client';
 import { acceptInvite, fetchInvite, joinWithAccess, sessionQuery, setMyPerson } from '~/lib/auth/functions';
+import { TermsCheck } from '~/components/operator/TermsCheck';
 import { BROWSING } from '~/lib/family';
 import { buildFamily } from '~/lib/graph';
 import { setPref } from '~/lib/prefs';
@@ -43,6 +44,8 @@ function Invite() {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A steward's invitation, on a server whose operator wrote terms: "I accept the terms" first (the server refuses without).
+  const [accepted, setAccepted] = useState(false);
   const client = useIsClient();
   const supported = !client || passkeysSupported();
   const fam = info.family;
@@ -100,8 +103,9 @@ function Invite() {
     setBusy(true);
     setError(null);
     try {
-      if (access) await joinWithAccess({ data: { token, name } });
-      else await acceptWithPasskey(token, name);
+      const acceptTerms = info.terms ? accepted : undefined;
+      if (access) await joinWithAccess({ data: { token, name, acceptTerms } });
+      else await acceptWithPasskey(token, name, acceptTerms);
       forgetLocalIdentity();
       setStep('who');
     } catch (err) {
@@ -114,7 +118,7 @@ function Invite() {
     setBusy(true);
     setError(null);
     try {
-      await acceptInvite({ data: { token } });
+      await acceptInvite({ data: { token, acceptTerms: info.terms ? accepted : undefined } });
       setStep('who');
     } catch (err) {
       setError(err instanceof Error ? err.message : t("invitetoken.that_didn_t_work_please_try_again"));
@@ -139,8 +143,9 @@ function Invite() {
       </div>
       {info.signedInAs ? (
         <div className="auth-form">
+          {info.terms && <TermsCheck checked={accepted} onChange={setAccepted} />}
           <AuthError>{error}</AuthError>
-          <button className="btn primary auth-go" onClick={join} disabled={busy} data-autofocus>
+          <button className="btn primary auth-go" onClick={join} disabled={busy || (!!info.terms && !accepted)} data-autofocus>
             {busy ? t("invitetoken.joining") : <>{t("invitetoken.join_as")} {info.signedInAs}</>}
           </button>
           <div className="auth-alt">
@@ -157,9 +162,10 @@ function Invite() {
               <span>{t("invitetoken.what_should_the_family_call_you")}</span>
               <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required maxLength={60} placeholder={t("invitetoken.your_name")} />
             </label>
+            {info.terms && <TermsCheck checked={accepted} onChange={setAccepted} />}
             <AuthError>{error}</AuthError>
             {!access && !supported && <AuthError>{t("invitetoken.this_browser_can_t_use_passkeys_open_the_link_in_the_newest_safari_chrome_edge_or_firefox_or_on_your_phone")}</AuthError>}
-            <button className="btn primary auth-go" disabled={busy || (!access && !supported) || !name.trim()}>
+            <button className="btn primary auth-go" disabled={busy || (!access && !supported) || !name.trim() || (!!info.terms && !accepted)}>
               {access ? t('auth.join_as', { email: session?.uninvitedEmail ?? '' }) : <><KeyRound size={19} /> {busy ? t("invitetoken.waiting_for_your_device") : t("invitetoken.create_your_passkey")}</>}
             </button>
           </form>

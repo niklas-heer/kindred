@@ -13,6 +13,7 @@ import { sessionQuery } from '~/lib/auth/functions';
 import { withFreshProof } from '~/lib/auth/client';
 import { errorText } from '~/lib/errortext';
 import { createFamily, deleteFamily, editFamily, familiesQuery } from '~/lib/families.functions';
+import { TermsCheck } from '~/components/operator/TermsCheck';
 import type { FamiliesOverview, FamilyAdminRow } from '~/lib/families.server';
 import { formatBytes } from '~/lib/operator/shared';
 import { translate, useT } from '~/lib/i18n';
@@ -72,21 +73,28 @@ function Overview({ data }: { data: FamiliesOverview }) {
           <p><Link to="/request">{t('request.ask_link')}</Link></p>
         </section>
       )}
-      {data.mayCreate && (
+      {data.mayCreate && data.limit && data.limit.made >= data.limit.max && (
         <section aria-labelledby="families-new">
           <h2 id="families-new" className="rule">{t('families.new')}</h2>
+          <p className="families-hint">{t('families.limit_reached', { max: data.limit.max })}</p>
+        </section>
+      )}
+      {data.mayCreate && !(data.limit && data.limit.made >= data.limit.max) && (
+        <section aria-labelledby="families-new">
+          <h2 id="families-new" className="rule">{t('families.new')}</h2>
+          {data.limit && <p className="families-hint">{t('families.limit', { made: data.limit.made, max: data.limit.max })}</p>}
           {data.empty.length > 0 && (
             <div className="families-list">
               {data.empty.map((e) => (
                 <div key={e.id} className="ui-card families-card">
                   <h3><Shield size={18} aria-hidden /> {t('families.empty_heading', { id: e.id })}</h3>
                   <p className="muted">{t(data.workers ? 'families.empty_text_workers' : 'families.empty_text', { binding: e.binding })}</p>
-                  <NewFamilyForm fixedId={e.id} />
+                  <NewFamilyForm fixedId={e.id} terms={!!data.terms} />
                 </div>
               ))}
             </div>
           )}
-          {data.workers ? <BindingSteps /> : <div className="ui-card families-card"><NewFamilyForm /></div>}
+          {data.workers ? <BindingSteps /> : <div className="ui-card families-card"><NewFamilyForm terms={!!data.terms} /></div>}
         </section>
       )}
     </>
@@ -116,7 +124,8 @@ function BindingSteps() {
   );
 }
 
-function NewFamilyForm({ fixedId }: { fixedId?: string }) {
+/** `terms`: the server has terms the maker must accept (the form asks; the server refuses without). */
+function NewFamilyForm({ fixedId, terms }: { fixedId?: string; terms: boolean }) {
   const t = useT();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -127,9 +136,11 @@ function NewFamilyForm({ fixedId }: { fixedId?: string }) {
   const [id, setId] = useState(fixedId ?? '');
   const [idTouched, setIdTouched] = useState(!!fixedId);
   const [error, setError] = useState<string | null>(null);
+  const [accepted, setAccepted] = useState(false);
   const chosenId = fixedId ?? (idTouched ? id : suggest(name));
+  const ready = !!name.trim() && !!chosenId && (!terms || accepted);
   const make = useMutation({
-    mutationFn: () => createFamily({ data: { id: chosenId, name, tagline, theme } }),
+    mutationFn: () => createFamily({ data: { id: chosenId, name, tagline, theme, ...(terms ? { acceptTerms: accepted } : {}) } }),
     onSuccess: async ({ id: made }) => {
       setError(null);
       await qc.invalidateQueries({ queryKey: ['session'] });
@@ -141,7 +152,7 @@ function NewFamilyForm({ fixedId }: { fixedId?: string }) {
   });
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (name.trim() && chosenId && !make.isPending) make.mutate();
+    if (ready && !make.isPending) make.mutate();
   };
   return (
     <form className="families-form" onSubmit={submit} aria-describedby={error ? `${ids}-error` : undefined}>
@@ -162,8 +173,9 @@ function NewFamilyForm({ fixedId }: { fixedId?: string }) {
         <input className="input" value={tagline} maxLength={140} autoComplete="off" onChange={(e) => setTagline(e.target.value)} />
       </label>
       <ThemeChoice value={theme} onChange={setTheme} />
+      {terms && <TermsCheck checked={accepted} onChange={setAccepted} />}
       <div className="families-row">
-        <button type="submit" className="btn primary" disabled={!name.trim() || !chosenId || make.isPending}>
+        <button type="submit" className="btn primary" disabled={!ready || make.isPending}>
           <Plus size={16} aria-hidden /> {make.isPending ? t('families.creating') : fixedId ? t('families.set_up') : t('families.create')}
         </button>
       </div>
@@ -194,7 +206,7 @@ function FamilyCard({ family: f, total, isDefault }: { family: FamilyAdminRow; t
         <span className="families-id muted">/{f.id}</span>
       </h3>
       <p className="muted">{t('families.people', { count: f.people })}</p>
-      {f.suspended && <p className="families-error">{t('operator.suspended_banner')}</p>}
+      {f.closed ? <p className="families-error">{t('operator.closed_banner')}</p> : f.suspended && <p className="families-error">{t('operator.suspended_banner')}</p>}
       {f.storage && (
         <p className="muted">
           {f.storage.capBytes === null ? t('families.storage_used', { used: formatBytes(f.storage.usedBytes, t.locale) })

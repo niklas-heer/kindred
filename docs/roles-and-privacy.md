@@ -43,8 +43,8 @@ both what the browser shows and what the server allows.
 | Turn the Campaign on or off | Steward |
 | Change the family's name, tagline and theme | Steward |
 | Delete the family (with its address typed and a passkey confirmation) | Steward |
-| Make another family on the server | By the server's `family_creation`: a steward of any family there or an operator (the default), operators only, or an operator approving someone's request ([the operator](#the-operator)) |
-| See data requests that name the family, and mark one answered | Steward |
+| Make another family on the server | By the server's `family_creation`: a steward of any family there or an operator (the default), operators only, or an operator approving someone's request ([the operator](#the-operator)). In the default, an account that is not an operator may have made at most the server's families per account (5 on a new install), and accepts the terms of use when the server has them |
+| See the data requests the operator handed to the family's stewards, and mark one answered | Steward |
 | Open Today, read the week's answers, take the daily quiz | Viewer |
 | Answer the question of the week (an answer is a memory) | Contributor |
 | Change or skip this week's question; switch the daily quiz off | Steward |
@@ -54,8 +54,16 @@ both what the browser shows and what the server allows.
 Hiding a button is never the only protection. Every server function and server route calls `requireMember` or
 `requireCan` before it reads or writes, and answers 401 when signed out and 403 when the role is too low.
 
-A family the server's operator **suspended** is read-only for every member, whatever their role: they read everything under a
-banner, and every change is refused (403) until the operator lets it be used again. Its stewards cannot delete it meanwhile.
+A family the server's operator **suspended** (read-only) is read-only for every member, whatever their role, and for its guests:
+they read everything, members under a bar that says how to reach the operator, and every change is refused (403) until the
+operator lets it be used again. Its stewards cannot delete it meanwhile; the bar tells them to ask the operator.
+
+A family the operator **closed** opens for nobody: every member, whatever their role, gets a page that says the operator closed it
+and how to reach them, and every read and change is refused (403). Its share link opens nothing, and a guest's visit in progress
+ends at once. Nothing is deleted; the operator can let it be used again.
+
+Whoever takes an invitation to be a family's **steward** accepts the server's terms of use first, when the operator has written
+any (the account, the terms' version and the time are kept). Other roles' invitations do not ask.
 
 ### How people get a role
 
@@ -80,20 +88,23 @@ role of the server, stored on the account, and has nothing to do with any family
   operator can make another account an operator (by its email) and step down, but the last operator cannot.
 - **What it gives.** The **Operator console** (`/operator`, in the account menu): every family's name, address, when it was made,
   how many members it has, its stewards' names and emails (for support), the storage it uses against its cap, when a member last
-  opened it, and whether it is suspended; the waiting list of people asking for a family; data requests; the server's settings
+  opened it, and whether it is read-only or closed; the waiting list of people asking for a family; data requests; the server's settings
   and legal texts; the operators; and the log of what operators did.
 - **What it does not give.** No family's records: not its people, stories, photos, research or history. Being an operator passes
   no family check (`requireMember`, `requireReader`, `requireCan`): a family's pages and server functions answer an operator who is
   not a member exactly as anyone else who is not (403). A family the operator makes for someone has no members until the person
   invited as its steward joins; the operator is not added to it. To see a family's tree, an operator must be invited like anyone.
 - **What it can do to a family.** Make one with a one-time invitation for its first steward, make a new link while nobody has
-  joined, suspend it (read-only for its members) and let it be used again, set its storage cap, recount its storage, and delete it
+  joined, make it read-only (suspend it) or close it and let it be used again, set its storage cap, recount its storage, and delete it
   (its address typed and a passkey confirmation, as for its stewards; the operator cannot export it first, so they ask its stewards
   to). Every one of these, and every change to the settings and the operators, is written to the log: who, what, when, which
   family. A demo has no operator, and the console writes nothing during a steward's "View as" preview.
 - **Requests.** Anyone may send a data request (`/privacy-request`): access to, correction or deletion of data about them. It reaches
-  the operator, and the stewards of the family it names, on their Access page. Kindred sends no email: the operator and the stewards
-  answer by their own mail and mark it answered.
+  the operator, and the stewards of the family it names, on their Access page, only once the operator hands it to them (**With the
+  stewards**). Kindred sends no email: the operator and the stewards answer by their own mail and mark it answered. An operator
+  may have their devices told that a request waits (Web Push, nothing of its content), and the account menu counts what waits.
+- **Terms and limits.** The operator writes the terms of use and sets how many families an account may make; neither applies to
+  operators.
 
 ## Guests (a family share link)
 

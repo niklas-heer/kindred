@@ -25,12 +25,12 @@ export async function operatorFamilies(now = Date.now()): Promise<OperatorFamily
     q('SELECT tree, count(*) AS n, min(created) AS first FROM membership GROUP BY tree'),
     q("SELECT m.tree, u.name, u.email FROM membership m JOIN user u ON u.id = m.user WHERE m.role = 'steward' ORDER BY m.created"),
     q('SELECT tree, sum(bytes) AS n FROM media_usage GROUP BY tree'),
-    q('SELECT tree, status, cap_bytes, created_at FROM family_admin'),
+    q('SELECT tree, status, closed, cap_bytes, created_at FROM family_admin'),
     q('SELECT tree, max(last_seen) AS at FROM family_visit GROUP BY tree'),
     q("SELECT tree, email, expires FROM invite WHERE role = 'steward' AND used_at IS NULL AND revoked_at IS NULL AND expires > ? ORDER BY created DESC", now),
   ])) as unknown as [
     { tree: string; n: number; first: number }[], { tree: string; name: string; email: string | null }[], { tree: string; n: number }[],
-    { tree: string; status: FamilyStatus; cap_bytes: number | null; created_at: number | null }[], { tree: string; at: number | null }[],
+    { tree: string; status: 'active' | 'suspended'; closed: number; cap_bytes: number | null; created_at: number | null }[], { tree: string; at: number | null }[],
     { tree: string; email: string | null; expires: number }[],
   ];
   const by = <T extends { tree: string }>(rows: T[]) => new Map(rows.map((r) => [r.tree, r]));
@@ -46,11 +46,15 @@ export async function operatorFamilies(now = Date.now()): Promise<OperatorFamily
       usedBytes: Number(u.get(f.id)?.n ?? 0),
       capBytes: a.get(f.id)?.cap_bytes ?? null,
       lastActivity: act.get(f.id)?.at ?? null,
-      status: a.get(f.id)?.status ?? 'active',
+      status: statusOf(a.get(f.id)),
       pendingSteward: invite ? { email: invite.email, expires: invite.expires } : null,
     };
   }).sort((x, y) => x.name.localeCompare(y.name));
 }
+
+/** A family's level as the console shows it: closed is stored as suspended with `closed` set (accounts migration 0037). */
+const statusOf = (row: { status: 'active' | 'suspended'; closed: number } | undefined): FamilyStatus =>
+  row?.status === 'suspended' ? (row.closed === 1 ? 'closed' : 'suspended') : 'active';
 
 export interface MadeFamily { id: string; token: string; expires: number }
 
@@ -86,12 +90,21 @@ const known = async (tree: string) => {
   if (!(await families()).some((f) => f.id === tree)) throw invalid('operator.err_no_family');
 };
 
-/** Suspends a family (read-only for its members, with a banner) or lets it be used again. */
+const STATUS_ACTION: Record<FamilyStatus, string> = { active: 'family.resume', suspended: 'family.suspend', closed: 'family.close' };
+
+/**
+ * Sets how a family may be used: `suspended` (read-only for its members, with a bar; its guests keep reading), `closed`
+ * (nobody opens it: its members see a page, its share links and guests are refused) or `active` again. Logged.
+ */
 export async function setFamilyStatus(op: UserRow, tree: string, status: FamilyStatus): Promise<void> {
   await known(tree);
+  const stored = status === 'active' ? 'active' : 'suspended';
+  const closed = status === 'closed' ? 1 : 0;
   await accounts().batch([
-    q('INSERT INTO family_admin (tree, status) VALUES (?, ?) ON CONFLICT(tree) DO UPDATE SET status = excluded.status', tree, status),
-    audit(actor(op), status === 'suspended' ? 'family.suspend' : 'family.resume', tree),
+    q('INSERT INTO family_admin (tree, status, closed) VALUES (?, ?, ?) ON CONFLICT(tree) DO UPDATE SET status = excluded.status, closed = excluded.closed', tree, stored, closed),
+    // A closed family's guests leave now, not when their visit would have ended.
+    ...(closed ? [q('DELETE FROM share_session WHERE link IN (SELECT id FROM share_link WHERE tree = ?)', tree)] : []),
+    audit(actor(op), STATUS_ACTION[status], tree),
   ]);
 }
 

@@ -54,3 +54,14 @@
 .suspended-bar p { margin: 0; }
 .shell.shell-suspended { grid-template-rows: auto auto minmax(0, 1fr) auto; }
 .shell.shell-suspended.shell-viewas { grid-template-rows: auto auto auto minmax(0, 1fr) auto; }
+
+/* "I accept the terms" (TermsCheck.tsx): the box and its sentence, the link to read them beside. */
+.terms-check { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.terms-check label { display: inline-flex; align-items: baseline; gap: 8px; cursor: pointer; }
+.terms-check input { flex: none; }
+
+/* A warning the operator should read (requests open without Turnstile): the accent's colour, never a refusal. */
+.operator-warning { margin: 0; padding: 8px 12px; border-left: 3px solid var(--accent); }
+.operator-narrow { max-width: 12ch; }
+.operator-push { display: grid; gap: 4px; }
+.operator-more { justify-self: start; }

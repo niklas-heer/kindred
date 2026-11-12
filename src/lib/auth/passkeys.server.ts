@@ -13,6 +13,7 @@ import { requireFreshProof } from './proof.server.ts';
 import { guestChoice, siteOrigin } from './session.server.ts';
 import { checkSetupCode } from './setup.server.ts';
 import { checkCanMakeFamily, cleanFamilyName, makeFirstFamily } from './trees.server.ts';
+import { inviteAcceptance, inviteNeedsTerms, termsRefused } from '../operator/terms.server.ts';
 import {
   accounts, commit, credentialById, credentialsOf, credentialUsed, insertCredential, removeCredential, inviteById, inviteUsed, newUser, noUsersYet, openInvite, saveChallenge, takeChallenge,
   upsertMembership, usable, useInvite, userByEmail, userById, userCount, type UserRow,
@@ -77,11 +78,12 @@ export async function setupOptions(request: Request, code: string, rawName: unkn
   return { options, challengeId: await saveChallenge({ challenge: options.challenge, purpose: 'setup', subject: handle, name }) };
 }
 
-/** Options for a passkey from an invitation link. */
-export async function inviteOptions(request: Request, token: string, rawName: unknown) {
+/** Options for a passkey from an invitation link. A steward's invitation asks for the server's terms first, when it has any. */
+export async function inviteOptions(request: Request, token: string, rawName: unknown, acceptTerms?: unknown) {
   needPasskeys();
   const invite = await openInvite(token);
   if (!invite) throw invalid('This invitation has expired, was already used, or was withdrawn. Ask for a new one.');
+  if (acceptTerms !== true && (await inviteNeedsTerms(invite))) throw termsRefused();
   const name = cleanName(rawName);
   const handle = newHandle();
   const options = await creationOptions(request, { name, handle, existing: [] });
@@ -152,7 +154,7 @@ export async function finishSetup(
 }
 
 /** Finishes an invitation: a new account with the invited role. Returns its id and the new passkey's. */
-export async function finishInvite(request: Request, token: string, challengeId: unknown, response: RegistrationResponseJSON): Promise<{ user: string; credential: string }> {
+export async function finishInvite(request: Request, token: string, challengeId: unknown, response: RegistrationResponseJSON, acceptTerms?: unknown): Promise<{ user: string; credential: string }> {
   const c = await take(challengeId, 'invite');
   const [inviteId, handle] = (c.subject ?? '').split(' ');
   const invite = await openInvite(token);
@@ -167,8 +169,9 @@ export async function finishInvite(request: Request, token: string, challengeId:
     // The invited email becomes the account's, unless taken: it is what a later move to Cloudflare Access would recognise.
     const email = fresh.email && !(await userByEmail(fresh.email)) ? fresh.email : null;
     const { user, insert } = newUser(c.name!, email, handle, guestChoice(request));
+    const terms = await inviteAcceptance(fresh, user, acceptTerms === true);
     return {
-      writes: [insert, insertCredential({ ...cred, user: user.id, device: deviceName(request) }), ...useInvite(fresh, user.id)],
+      writes: [insert, insertCredential({ ...cred, user: user.id, device: deviceName(request) }), ...useInvite(fresh, user.id), ...terms],
       result: { user: user.id, credential: cred.id },
       refused: inviteUsed,
     };

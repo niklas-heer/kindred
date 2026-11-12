@@ -8,7 +8,8 @@ import { ConfirmDialog, EmptyState, ErrorState, Skeleton } from '~/components/ui
 import { errorText } from '~/lib/errortext';
 import { formatDate, useT, type Key } from '~/lib/i18n';
 import { auditQuery, operatorAdd, operatorRemove, operatorSaveSettings } from '~/lib/operator/operator.functions';
-import { bytesToMb, FAMILY_CREATION, mbToBytes, SETTING_MAX, type InstanceSettings, type OperatorAccount, type OperatorFamily } from '~/lib/operator/shared';
+import { bytesToMb, FAMILIES_PER_ACCOUNT_MAX, FAMILY_CREATION, mbToBytes, OPEN_REQUESTS_MAX, SETTING_MAX, type InstanceSettings, type OperatorAccount, type OperatorFamily } from '~/lib/operator/shared';
+import { OperatorPushSwitch } from './OperatorPush';
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: (id: string, hintId?: string) => ReactNode }) {
   const id = useId();
@@ -21,14 +22,20 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   );
 }
 
-export function SettingsTab({ settings }: { settings: InstanceSettings }) {
+/**
+ * `turnstile`: Cloudflare Turnstile guards the public forms; without it, opening the request form shows a warning (not a
+ * refusal: a small private server may not want Turnstile). `pushKey`: the server's Web Push key, for "tell this device".
+ */
+export function SettingsTab({ settings, turnstile, pushKey }: { settings: InstanceSettings; turnstile: boolean; pushKey: string | null }) {
   const t = useT();
   const qc = useQueryClient();
   const ids = useId();
   const [draft, setDraft] = useState(settings);
   const [cap, setCap] = useState(settings.defaultCapBytes === null ? '' : String(bytesToMb(settings.defaultCapBytes)));
+  const [perAccount, setPerAccount] = useState(settings.familiesPerAccount === null ? '' : String(settings.familiesPerAccount));
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
-  const next = { ...draft, defaultCapBytes: mbToBytes(cap.trim() === '' ? null : Number(cap)) };
+  const perAccountValue = perAccount.trim() === '' ? null : Math.max(0, Math.min(FAMILIES_PER_ACCOUNT_MAX, Math.round(Number(perAccount)) || 0));
+  const next = { ...draft, defaultCapBytes: mbToBytes(cap.trim() === '' ? null : Number(cap)), familiesPerAccount: perAccountValue };
   const dirty = JSON.stringify(next) !== JSON.stringify(settings);
   const save = useMutation({
     mutationFn: () => operatorSaveSettings({ data: next }),
@@ -53,6 +60,10 @@ export function SettingsTab({ settings }: { settings: InstanceSettings }) {
           </label>
         ))}
       </fieldset>
+      {draft.familyCreation === 'requests' && !turnstile && <p className="operator-warning" role="note">{t('operator.turnstile_warning', { max: OPEN_REQUESTS_MAX })}</p>}
+      <Field label={t('operator.families_per_account')} hint={t('operator.families_per_account_hint')}>
+        {(id, hint) => <input id={id} aria-describedby={hint} className="input operator-narrow" type="number" min={0} max={FAMILIES_PER_ACCOUNT_MAX} step={1} inputMode="numeric" value={perAccount} placeholder={t('operator.no_limit')} onChange={(e) => { setStatus(null); setPerAccount(e.target.value); }} />}
+      </Field>
       <h2 className="rule">{t('operator.instance_title')}</h2>
       <div className="operator-grid">
         <Field label={t('operator.instance_name')}>{(id) => <input id={id} className="input" {...text('instanceName')} />}</Field>
@@ -71,6 +82,8 @@ export function SettingsTab({ settings }: { settings: InstanceSettings }) {
         <button type="submit" className="btn primary" disabled={!dirty || save.isPending}>{save.isPending ? t('families.saving') : t('families.save')}</button>
         {status && <span role={status.ok ? 'status' : 'alert'} className={status.ok ? 'muted' : 'families-error'}>{status.text}</span>}
       </div>
+      <h2 className="rule">{t('operator.device_title')}</h2>
+      <OperatorPushSwitch pushKey={pushKey} />
     </form>
   );
 }
@@ -128,6 +141,7 @@ const ACTIONS: Record<string, Key> = {
   'family.create': 'operator.audit_family_create',
   'family.invite_renewed': 'operator.audit_invite_renewed',
   'family.suspend': 'operator.audit_suspend',
+  'family.close': 'operator.audit_close',
   'family.resume': 'operator.audit_resume',
   'family.cap': 'operator.audit_cap',
   'family.recount': 'operator.audit_recount',

@@ -31,6 +31,8 @@ export interface ShareLinkRow {
 export const shareLinkOf = (tree: string) => accounts().get<ShareLinkRow>('SELECT * FROM share_link WHERE tree = ?', tree);
 export const shareLinkByToken = async (token: string) => accounts().get<ShareLinkRow>('SELECT * FROM share_link WHERE token_hash = ?', await hashToken('share', token));
 export const linkOpen = (l: Pick<ShareLinkRow, 'expires'>) => l.expires === null || l.expires > now();
+/** Whether the operator closed this family (accounts migration 0037): its share link then opens nothing. */
+export const familyClosed = async (tree: string) => !!(await accounts().get<{ ok: number }>('SELECT 1 AS ok FROM family_admin WHERE tree = ? AND closed = 1', tree));
 
 // ---------- the password ----------
 
@@ -172,7 +174,9 @@ export async function startGuestVisit(link: ShareLinkRow): Promise<{ token: stri
   try {
     await accounts().batch([
       q('DELETE FROM share_session WHERE expires <= ?', t),
-      guard('EXISTS (SELECT 1 FROM share_link WHERE id = ? AND generation = ? AND (expires IS NULL OR expires > ?))', link.id, link.generation, t),
+      // Never into a family the operator closed (accounts migration 0037).
+      guard(`EXISTS (SELECT 1 FROM share_link l WHERE l.id = ? AND l.generation = ? AND (l.expires IS NULL OR l.expires > ?)
+        AND NOT EXISTS (SELECT 1 FROM family_admin f WHERE f.tree = l.tree AND f.closed = 1))`, link.id, link.generation, t),
       q('INSERT INTO share_session (hash, link, generation, created, expires) VALUES (?, ?, ?, ?, ?)', await hashToken('guest', token), link.id, link.generation, t, expires),
     ]);
   } catch (e) {
@@ -187,7 +191,8 @@ export async function guestVisitByToken(token: string): Promise<GuestSession | u
   const t = now();
   const row = await accounts().get<Omit<GuestSession, 'protectLiving'> & { protect_living: number }>(
     `SELECT s.link AS link, l.tree AS tree, s.expires AS expires, l.protect_living AS protect_living FROM share_session s JOIN share_link l ON l.id = s.link
-      WHERE s.hash = ? AND s.expires > ? AND s.generation = l.generation AND (l.expires IS NULL OR l.expires > ?)`,
+      WHERE s.hash = ? AND s.expires > ? AND s.generation = l.generation AND (l.expires IS NULL OR l.expires > ?)
+        AND NOT EXISTS (SELECT 1 FROM family_admin f WHERE f.tree = l.tree AND f.closed = 1)`,
     await hashToken('guest', token), t, t,
   );
   return row && { link: row.link, tree: row.tree, expires: row.expires, protectLiving: row.protect_living === 1 };

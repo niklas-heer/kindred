@@ -1,24 +1,51 @@
 // The operator console's waiting list (requests for a family) and data requests (access, correction, deletion). Kindred sends no
 // email: an approval shows the invitation link and the address to send it to.
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, Mail, X } from 'lucide-react';
 import { useId, useState } from 'react';
 import { ConfirmDialog, Dialog, EmptyState, Segmented } from '~/components/ui';
 import { errorText } from '~/lib/errortext';
 import { formatDate, useT } from '~/lib/i18n';
-import { operatorApproveRequest, operatorDataRequestStatus, operatorDeclineRequest, type OperatorConsole } from '~/lib/operator/operator.functions';
-import { daysLeft, type DataRequest, type DataRequestStatus, type FamilyRequest } from '~/lib/operator/shared';
+import { fetchOlderRequests, operatorApproveRequest, operatorDataRequestStatus, operatorDeclineRequest, type OperatorConsole, type RequestPage } from '~/lib/operator/operator.functions';
+import { daysLeft, OPEN_REQUESTS_MAX, REQUEST_PAGE, type DataRequest, type DataRequestStatus, type FamilyRequest } from '~/lib/operator/shared';
+
+/**
+ * The decided (or answered) requests: the console's first page, then older ones a page at a time on "Show older". Pages are
+ * read by offset, so one decided meanwhile can show twice at a page's edge; a reload puts it right.
+ */
+function useOlder<T extends FamilyRequest | DataRequest>(kind: 'family' | 'data', first: RequestPage<T>) {
+  const older = useInfiniteQuery({
+    queryKey: ['operator', 'older', kind],
+    enabled: false,
+    initialPageParam: REQUEST_PAGE,
+    queryFn: ({ pageParam }) => fetchOlderRequests({ data: { kind, offset: pageParam } }) as Promise<RequestPage<T>>,
+    getNextPageParam: (last, pages) => (last.more ? REQUEST_PAGE * (pages.length + 1) : undefined),
+  });
+  const pages = older.data?.pages ?? [];
+  const items = [...first.items, ...pages.flatMap((p) => p.items)];
+  const more = pages.length ? pages[pages.length - 1].more : first.more;
+  const load = () => void (pages.length ? older.fetchNextPage() : older.refetch());
+  return { items, more, load, loading: older.isFetching };
+}
+
+function ShowOlder({ more, load, loading }: { more: boolean; load: () => void; loading: boolean }) {
+  const t = useT();
+  if (!more) return null;
+  return <button type="button" className="btn ghost operator-more" onClick={load} disabled={loading}>{t('operator.show_older')}</button>;
+}
 import { inviteUrl, LinkBox, suggestId, ThemePick } from './OperatorConsole';
 
 export function FamilyRequestsTab({ data }: { data: OperatorConsole }) {
   const t = useT();
-  const open = data.familyRequests.filter((r) => r.status === 'open');
-  const decided = data.familyRequests.filter((r) => r.status !== 'open');
+  const open = data.familyRequests.open;
+  const { items: decided, ...older } = useOlder('family', data.familyRequests.decided);
   // Kept here, not in the card: once approved, the request leaves the open list while the dialog still shows its link.
   const [approving, setApproving] = useState<FamilyRequest | null>(null);
   return (
     <div className="operator-panel">
       {data.settings.familyCreation !== 'requests' && <p className="families-hint">{t('operator.requests_closed_hint')}</p>}
+      {data.settings.familyCreation === 'requests' && !data.turnstile && <p className="operator-warning" role="note">{t('operator.turnstile_warning', { max: OPEN_REQUESTS_MAX })}</p>}
+      {open.length >= OPEN_REQUESTS_MAX && <p className="operator-warning" role="note">{t('operator.list_full', { max: OPEN_REQUESTS_MAX })}</p>}
       <section aria-labelledby="operator-waiting">
         <h2 id="operator-waiting" className="rule">{t('operator.waiting', { count: open.length })}</h2>
         {open.length === 0 ? <EmptyState title={t('operator.no_requests')} /> : (
@@ -36,6 +63,7 @@ export function FamilyRequestsTab({ data }: { data: OperatorConsole }) {
               </li>
             ))}
           </ul>
+          <ShowOlder {...older} />
         </section>
       )}
       {approving && <ApproveDialog request={approving} onClose={() => setApproving(null)} />}
@@ -126,11 +154,12 @@ function ApproveDialog({ request: r, onClose }: { request: FamilyRequest; onClos
 export function DataRequestsTab({ data }: { data: OperatorConsole }) {
   const t = useT();
   const names = new Map(data.families.map((f) => [f.id, f.name]));
-  const open = data.dataRequests.filter((r) => r.status !== 'done');
-  const done = data.dataRequests.filter((r) => r.status === 'done');
+  const open = data.dataRequests.open;
+  const { items: done, ...older } = useOlder('data', data.dataRequests.done);
   return (
     <div className="operator-panel">
       <p className="families-hint">{t('operator.data_hint')}</p>
+      {open.filter((r) => r.status === 'open').length >= OPEN_REQUESTS_MAX && <p className="operator-warning" role="note">{t('operator.data_full', { max: OPEN_REQUESTS_MAX })}</p>}
       <section aria-labelledby="operator-data-open">
         <h2 id="operator-data-open" className="rule">{t('operator.data_open', { count: open.length })}</h2>
         {open.length === 0 ? <EmptyState title={t('operator.no_data_requests')} /> : (
@@ -141,6 +170,7 @@ export function DataRequestsTab({ data }: { data: OperatorConsole }) {
         <section aria-labelledby="operator-data-done">
           <h2 id="operator-data-done" className="rule">{t('operator.data_done')}</h2>
           <ul className="families-list">{done.map((r) => <DataRequestCard key={r.id} request={r} familyName={r.family ? names.get(r.family) : undefined} now={data.now} operator />)}</ul>
+          <ShowOlder {...older} />
         </section>
       )}
     </div>

@@ -3,15 +3,21 @@
 // any steward may make a family, and no legal page is shown.
 import { q, store, type Query } from '../store/index.ts';
 import {
-  DEFAULT_FAMILY_CREATION, FAMILY_CREATION, TEXT_SETTINGS, type AuditEntry, type FamilyCreation, type InstanceSettings, type LegalTexts, type PublicInstance,
+  DEFAULT_FAMILY_CREATION, FAMILY_CREATION, OPEN_REQUESTS_MAX, TEXT_SETTINGS, type AuditEntry, type FamilyCreation, type InstanceSettings, type LegalTexts, type PublicInstance,
 } from './shared.ts';
 
 const accounts = () => store.accounts();
 
-type Key = (typeof TEXT_SETTINGS)[number] | 'defaultCapBytes' | 'familyCreation';
+type Key = (typeof TEXT_SETTINGS)[number] | 'defaultCapBytes' | 'familyCreation' | 'familiesPerAccount';
 const COLUMN: Record<Key, string> = {
   instanceName: 'instance_name', contactEmail: 'contact_email', impressum: 'impressum', privacy: 'privacy', terms: 'terms',
-  reportContact: 'report_contact', defaultCapBytes: 'default_cap_bytes', familyCreation: 'family_creation',
+  reportContact: 'report_contact', defaultCapBytes: 'default_cap_bytes', familyCreation: 'family_creation', familiesPerAccount: 'families_per_account',
+};
+
+/** A stored whole number of at least 0, or null when the row is missing or holds anything else. */
+const count = (v: string | undefined) => {
+  const n = Number(v);
+  return v && Number.isInteger(n) && n >= 0 ? n : null;
 };
 
 /** Every setting, with the defaults for those never set. */
@@ -19,13 +25,13 @@ export async function instanceSettings(): Promise<InstanceSettings> {
   const rows = await accounts().all<{ key: string; value: string }>('SELECT key, value FROM instance_setting');
   const v = new Map(rows.map((r) => [r.key, r.value]));
   const text = (k: (typeof TEXT_SETTINGS)[number]) => v.get(COLUMN[k]) ?? '';
-  const cap = Number(v.get(COLUMN.defaultCapBytes));
   const creation = v.get(COLUMN.familyCreation);
   return {
     instanceName: text('instanceName'), contactEmail: text('contactEmail'), impressum: text('impressum'), privacy: text('privacy'),
     terms: text('terms'), reportContact: text('reportContact'),
-    defaultCapBytes: v.get(COLUMN.defaultCapBytes) && Number.isFinite(cap) && cap >= 0 ? cap : null,
+    defaultCapBytes: count(v.get(COLUMN.defaultCapBytes)),
     familyCreation: (FAMILY_CREATION as readonly string[]).includes(creation ?? '') ? (creation as FamilyCreation) : DEFAULT_FAMILY_CREATION,
+    familiesPerAccount: count(v.get(COLUMN.familiesPerAccount)),
   };
 }
 
@@ -35,6 +41,7 @@ export const familyCreation = async (): Promise<FamilyCreation> => (await instan
 export function saveSettings(next: InstanceSettings, by: string, at = Date.now()): Query[] {
   const value = (k: Key): string | null => {
     if (k === 'defaultCapBytes') return next.defaultCapBytes === null ? null : String(next.defaultCapBytes);
+    if (k === 'familiesPerAccount') return next.familiesPerAccount === null ? null : String(next.familiesPerAccount);
     if (k === 'familyCreation') return next.familyCreation === DEFAULT_FAMILY_CREATION ? null : next.familyCreation;
     return next[k].trim() || null;
   };
@@ -53,14 +60,24 @@ export function turnstileKeys(env: Record<string, string | undefined> = process.
   return site && secret ? { site, secret } : undefined;
 }
 
+/** Whether each form's list is full: OPEN_REQUESTS_MAX requests wait (requests.server.ts refuses the next one in its batch). */
+export async function formsFull(): Promise<PublicInstance['full']> {
+  const row = await accounts().get<{ family: number; data: number }>(
+    "SELECT (SELECT count(*) FROM family_request WHERE status = 'open') AS family, (SELECT count(*) FROM data_request WHERE status = 'open') AS data");
+  return { family: (row?.family ?? 0) >= OPEN_REQUESTS_MAX, data: (row?.data ?? 0) >= OPEN_REQUESTS_MAX };
+}
+
 export async function publicInstance(): Promise<PublicInstance> {
-  const s = await instanceSettings();
+  const [s, full] = await Promise.all([instanceSettings(), formsFull()]);
   const site = turnstileKeys()?.site;
+  const contact = s.contactEmail.trim();
   return {
     instanceName: s.instanceName,
     familyCreation: s.familyCreation,
     legal: { impressum: !!s.impressum.trim(), privacy: !!s.privacy.trim(), terms: !!s.terms.trim(), report: !!s.reportContact.trim() },
     ...(site ? { turnstileSiteKey: site } : {}),
+    ...(contact ? { contactEmail: contact } : {}),
+    full,
   };
 }
 

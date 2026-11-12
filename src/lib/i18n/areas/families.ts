@@ -66,6 +66,9 @@ export const en = {
   "families.err_confirm": "Type the family's address, {id}, to delete it.",
   "families.err_last": "The server's only family cannot be deleted.",
   "families.err_default": "The family “{id}” is the server's default (KINDRED_DEFAULT_TREE). Change that setting first.",
+  "families.err_limit": "You have made {max} families, as many as this server lets one account make. Ask its operator if you need more.",
+  "families.limit": "You have made {made} of the {max} families this server lets one account make.",
+  "families.limit_reached": "You have made {max} families, as many as this server lets one account make. Ask its operator if you need more.",
 } as const;
 
 export const de = {
@@ -135,6 +138,9 @@ export const de = {
   "families.err_confirm": "Gib die Adresse der Familie ein, {id}, um sie zu löschen.",
   "families.err_last": "Die einzige Familie auf dem Server kann nicht gelöscht werden.",
   "families.err_default": "Die Familie „{id}“ ist die Standardfamilie des Servers (KINDRED_DEFAULT_TREE). Ändere zuerst diese Einstellung.",
+  "families.err_limit": "Du hast {max} Familien angelegt, so viele, wie dieser Server einem Konto erlaubt. Frage den Serverbetrieb, wenn du mehr brauchst.",
+  "families.limit": "Du hast {made} von {max} Familien angelegt, die dieser Server einem Konto erlaubt.",
+  "families.limit_reached": "Du hast {max} Familien angelegt, so viele, wie dieser Server einem Konto erlaubt. Frage den Serverbetrieb, wenn du mehr brauchst.",
 } as const;
 
 export const af = {
@@ -204,4 +210,7 @@ export const af = {
   "families.err_confirm": "Tik die familie se adres, {id}, om dit te skrap.",
   "families.err_last": "Die bediener se enigste familie kan nie geskrap word nie.",
   "families.err_default": "Die familie “{id}” is die bediener se verstek (KINDRED_DEFAULT_TREE). Verander eers daardie instelling.",
+  "families.err_limit": "Jy het {max} families gemaak, soveel as wat hierdie bediener een rekening toelaat. Vra sy operateur as jy meer nodig het.",
+  "families.limit": "Jy het {made} van die {max} families gemaak wat hierdie bediener een rekening toelaat.",
+  "families.limit_reached": "Jy het {max} families gemaak, soveel as wat hierdie bediener een rekening toelaat. Vra sy operateur as jy meer nodig het.",
 } as const;

@@ -16,7 +16,7 @@ import { Tours } from '~/components/tour/Tours';
 import { openTours } from '~/components/tour/store';
 import { GuestChip } from '~/components/GuestChip';
 import { ViewAsBar, ViewAsHost } from '~/components/viewas/ViewAs';
-import { SuspendedBar } from '~/components/operator/SuspendedBar';
+import { ClosedFamilyPage, SuspendedBar } from '~/components/operator/SuspendedBar';
 import { JoinInvite } from '~/components/join/JoinInvite';
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import { FeedbackHost, openFeedback } from '~/components/feedback/FeedbackHost';
@@ -50,6 +50,8 @@ export const Route = createFileRoute('/$tree')({
       throw redirect({ to: '/signin', search: { next: location.href } });
     }
     if (!session.memberships.some((m) => m.tree === params.tree)) throw notFound({ data: { access: false } });
+    // The operator closed it: a page that says so, never the family (the server refuses its reads anyway).
+    if (session.memberships.some((m) => m.tree === params.tree && m.closed)) throw notFound({ data: { closed: true } });
     // A guest looks around; Access, the settings, Contacts, the Campaign, Today (with the family's feed) and "Who is this?" are not for them (the server refuses or empties their data anyway).
     if (session.guest?.tree === params.tree && /^\/[^/]+\/(?:access|settings|contacts|campaign|today|who-is-this)(?:\/|$)/i.test(location.pathname)) throw redirect({ to: '/$tree', params: { tree: params.tree } });
   },
@@ -71,8 +73,9 @@ export const Route = createFileRoute('/$tree')({
   head: (ctx) => ({ meta: [{ title: treeTitle(ctx) }] }),
   // Also catches an unknown address inside a family that exists: that is a missing page, not a missing family.
   notFoundComponent: ({ data }) => {
-    const missing = data as { access?: boolean; family?: boolean } | undefined;
+    const missing = data as { access?: boolean; family?: boolean; closed?: boolean } | undefined;
     if (missing?.access === false) return <NoAccessPage />;
+    if (missing?.closed) return <ClosedFamilyPage />;
     // This function is rendered as a component by the router, so calling the route's hook here is allowed.
     // oxlint-disable-next-line react-hooks/rules-of-hooks
     return missing?.family === false ? <NotFoundPage kind="family" id={Route.useParams().tree} /> : <NotFoundPage />;

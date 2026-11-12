@@ -25,7 +25,7 @@ export function supportOf(): Support {
 }
 
 /** This browser's push subscription for the app, if it has one. */
-async function currentSubscription(): Promise<PushSubscription | null> {
+export async function currentSubscription(): Promise<PushSubscription | null> {
   const registration = await navigator.serviceWorker.getRegistration('/');
   return (await registration?.pushManager.getSubscription()) ?? null;
 }
@@ -45,13 +45,13 @@ export async function dropThisDevice(): Promise<void> {
 }
 
 /** The app's service worker, registered and active. */
-async function activeRegistration(): Promise<ServiceWorkerRegistration> {
+export async function activeRegistration(): Promise<ServiceWorkerRegistration> {
   if (!(await navigator.serviceWorker.getRegistration('/'))) await navigator.serviceWorker.register('/sw.js', { scope: '/' });
   return navigator.serviceWorker.ready;
 }
 
 /** A base64url string as the bytes the browser needs for its application server key. */
-function keyBytes(text: string): Uint8Array<ArrayBuffer> {
+export function keyBytes(text: string): Uint8Array<ArrayBuffer> {
   const padded = text.replaceAll('-', '+').replaceAll('_', '/') + '='.repeat((4 - (text.length % 4)) % 4);
   return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
 }

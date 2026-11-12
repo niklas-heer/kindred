@@ -1,7 +1,8 @@
 // Journey 27: hosting many families (docs/hosting-many-families.md). The server's first account is its operator: it opens the
 // operator console, makes a family for someone else and hands them the steward link (the operator is not a member), opens the
 // waiting list, a stranger asks for a family and sends a data request, the operator approves and moves the data request on,
-// the family's steward sees it on Access, a suspended family shows its banner, and the invited steward joins with a passkey.
+// the family's steward sees it on Access once it is forwarded, a read-only family shows its bar and a closed one a page of its own,
+// and the invited steward joins with a passkey.
 // The journey puts every setting back, so the journeys after it see the server as before.
 import { addPasskeyDevice, checkAxe, expect, openFamily, settled, test } from './fixtures.ts';
 
@@ -33,6 +34,8 @@ test('the operator console: a family for someone else, the waiting list, data re
   // Settings: anyone may ask, and an Impressum.
   await page.getByRole('tab', { name: 'Settings' }).click();
   await page.getByLabel(/Anyone may ask/).check();
+  // Without Turnstile the console warns (and still lets the operator open the form).
+  await expect(page.getByText(/nothing checks for bots/)).toBeVisible();
   await page.getByLabel('Legal notice (Impressum)').fill('Orla Example\nSample Street 1\n12345 Sample Town');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText('Saved')).toBeVisible();
@@ -86,8 +89,12 @@ test('the operator console: a family for someone else, the waiting list, data re
   await expect(approve.getByRole('link', { name: 'Write to rhea@example.org' })).toBeVisible();
   await approve.getByRole('button', { name: 'Done' }).click();
 
-  // The data request: the days left, and the operator hands it to the family's stewards.
-  await page.getByRole('tab', { name: /Data requests/ }).click();
+  // The data request: the stewards see nothing until the operator hands it to them.
+  await page.goto(`/${tree}/access`);
+  await settled(page);
+  await expect(page.getByText('Please remove my birthday from the tree.')).toBeHidden();
+  await page.goto('/operator?tab=data');
+  await settled(page);
   const data = page.getByRole('listitem').filter({ has: page.getByRole('heading', { name: 'Deletion · Dana Dell' }) });
   await expect(data.getByText(/days left to answer/)).toBeVisible();
   await data.getByRole('radio', { name: 'With the stewards' }).click();
@@ -102,19 +109,32 @@ test('the operator console: a family for someone else, the waiting list, data re
   await onAccess.getByRole('button', { name: 'Mark as answered' }).click();
   await expect(onAccess).toBeHidden();
 
-  // Suspending the family: its members read it under a banner and can change nothing. Then it is let go again.
+  // Read-only: its members read it under a bar that says how to reach the operator, and can change nothing.
   await page.goto('/operator');
   await settled(page);
   const own = page.getByRole('listitem').filter({ has: page.getByRole('heading', { name: new RegExp(`/${tree}`) }) });
-  await own.getByRole('button', { name: 'Suspend' }).click();
+  await own.getByRole('radio', { name: 'Read-only' }).click();
   await expect(own.getByText('Suspended', { exact: true })).toBeVisible();
   await page.goto(`/${tree}`);
   await settled(page);
   await expect(page.getByText(/This family is suspended by the server’s operator/)).toBeVisible();
+  await expect(page.getByText(/to have the family deleted/)).toBeVisible();
   await checkAxe(page, 'suspended family');
+  // Closed: a page of its own instead of the family. Then it is let go again.
   await page.goto('/operator');
   await settled(page);
-  await own.getByRole('button', { name: 'Let it be used again' }).click();
+  await own.getByRole('radio', { name: 'Closed' }).click();
+  await expect(own.locator('.operator-chip', { hasText: 'Closed' })).toBeVisible();
+  // Like a family one is not a member of, the closed family's page answers 404.
+  issues.allow(new RegExp(`status of 404 .*/${tree}\\)`));
+  await page.goto(`/${tree}`);
+  await settled(page);
+  await expect(page.getByRole('heading', { name: 'This family is closed' })).toBeVisible();
+  await checkAxe(page, 'closed family');
+  await page.goto('/operator');
+  await settled(page);
+  await own.getByRole('radio', { name: 'In use' }).click();
+  await expect(own.getByRole('radio', { name: 'In use' })).toHaveAttribute('aria-checked', 'true');
   await expect(own.getByText('Suspended', { exact: true })).toBeHidden();
 
   // Settings back as they were: stewards make families, no legal texts.
@@ -126,6 +146,7 @@ test('the operator console: a family for someone else, the waiting list, data re
   await page.getByRole('tab', { name: 'Log' }).click();
   await expect(page.getByRole('cell', { name: 'Made a family' }).first()).toBeVisible();
   await expect(page.getByRole('cell', { name: 'Suspended a family' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Closed a family' })).toBeVisible();
 
   // The invited steward joins the operator's family with a passkey of their own.
   const invited = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });

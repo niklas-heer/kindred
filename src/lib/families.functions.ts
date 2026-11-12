@@ -27,14 +27,15 @@ export const familiesQuery = queryOptions({ queryKey: ['families', 'admin'], que
 
 /** Makes a family (or finishes one a failed attempt left half-made); the reader becomes its steward. */
 export const createFamily = createServerFn({ method: 'POST' })
-  .validator(z.object({ id: z.string().max(80), ...details }))
+  .validator(z.object({ id: z.string().max(80), ...details, acceptTerms: z.boolean().optional() }))
   .handler(async ({ data }): Promise<{ id: string }> => {
     const [{ requireUser, myRealMemberships }, s, { refuseReadOnly }] = await Promise.all([guard(), server(), import('./read-only')]);
     const user = await requireUser();
+    const { acceptTerms, ...input } = data;
     try {
       refuseReadOnly();
       if (!(await s.mayCreate(user, await myRealMemberships()))) throw s.notAllowed();
-      return { id: await s.createFamily(user, data) };
+      return { id: await s.createFamily(user, input, { acceptedTerms: acceptTerms }) };
     } catch (e) {
       throw await failed(e);
     }

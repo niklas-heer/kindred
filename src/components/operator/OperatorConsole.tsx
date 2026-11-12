@@ -2,7 +2,7 @@
 // and ./OperatorInstance.tsx. Everything shown is how a family is run, never what it holds.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Copy, Gauge, Pause, Play, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Copy, Gauge, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { AccountMenu } from '~/components/AccountMenu';
 import { LanguagePicker } from '~/components/LanguagePicker';
@@ -13,7 +13,7 @@ import { formatDate, relativeTime, useT } from '~/lib/i18n';
 import {
   operatorCreateFamily, operatorDeleteFamily, operatorQuery, operatorRecount, operatorRenewLink, operatorSetCap, operatorSetStatus, type OperatorConsole as Data,
 } from '~/lib/operator/operator.functions';
-import { bytesToMb, formatBytes, mbToBytes, type OperatorFamily } from '~/lib/operator/shared';
+import { bytesToMb, formatBytes, mbToBytes, type FamilyStatus, type OperatorFamily } from '~/lib/operator/shared';
 import { AuditTab, OperatorsTab, SettingsTab } from './OperatorInstance';
 import { DataRequestsTab, FamilyRequestsTab } from './OperatorRequests';
 import '~/components/families/families.css';
@@ -31,8 +31,8 @@ export const inviteUrl = (token: string) => `${window.location.origin}/invite/${
 export function OperatorConsole({ tab, onTab }: { tab: OperatorTab; onTab: (tab: OperatorTab) => void }) {
   const t = useT();
   const { data, isPending, isError, refetch } = useQuery(operatorQuery);
-  const waiting = data?.familyRequests.filter((r) => r.status === 'open').length ?? 0;
-  const open = data?.dataRequests.filter((r) => r.status !== 'done').length ?? 0;
+  const waiting = data?.familyRequests.open.length ?? 0;
+  const open = data?.dataRequests.open.length ?? 0;
   return (
     <main className="families operator" aria-labelledby="operator-title">
       <div className="families-top">
@@ -55,7 +55,7 @@ export function OperatorConsole({ tab, onTab }: { tab: OperatorTab; onTab: (tab:
             <TabPanel value="families"><FamiliesTab data={data} /></TabPanel>
             <TabPanel value="requests"><FamilyRequestsTab data={data} /></TabPanel>
             <TabPanel value="data"><DataRequestsTab data={data} /></TabPanel>
-            <TabPanel value="settings"><SettingsTab settings={data.settings} /></TabPanel>
+            <TabPanel value="settings"><SettingsTab settings={data.settings} turnstile={data.turnstile} pushKey={data.pushKey} /></TabPanel>
             <TabPanel value="operators"><OperatorsTab operators={data.operators} /></TabPanel>
             <TabPanel value="audit"><AuditTab families={data.families} /></TabPanel>
           </Tabs>
@@ -195,7 +195,7 @@ function FamilyRow({ family: f, now, total }: { family: OperatorFamily; now: num
   const [cap, setCap] = useState<string>(f.capBytes === null ? '' : String(bytesToMb(f.capBytes)));
   const refresh = () => qc.invalidateQueries({ queryKey: ['operator'] });
   const onError = (e: unknown) => setError(errorText(e, t.locale));
-  const status = useMutation({ mutationFn: () => operatorSetStatus({ data: { tree: f.id, status: f.status === 'suspended' ? 'active' : 'suspended' } }), onSuccess: refresh, onError });
+  const status = useMutation({ mutationFn: (next: FamilyStatus) => operatorSetStatus({ data: { tree: f.id, status: next } }), onSuccess: refresh, onError });
   const saveCap = useMutation({ mutationFn: () => operatorSetCap({ data: { tree: f.id, capBytes: mbToBytes(cap.trim() === '' ? null : Number(cap)) } }), onSuccess: refresh, onError });
   const recount = useMutation({ mutationFn: () => operatorRecount({ data: { tree: f.id } }), onSuccess: refresh, onError });
   const renew = useMutation({ mutationFn: () => operatorRenewLink({ data: { tree: f.id } }), onSuccess: (r) => setLink({ url: inviteUrl(r.token), expires: r.expires }), onError });
@@ -205,7 +205,7 @@ function FamilyRow({ family: f, now, total }: { family: OperatorFamily; now: num
     <li className="ui-card families-card operator-family" aria-labelledby={`${ids}-name`}>
       <h3 id={`${ids}-name`}>
         {f.name} <span className="families-id muted">/{f.id}</span>
-        {f.status === 'suspended' && <span className="chip operator-chip">{t('operator.suspended')}</span>}
+        {f.status !== 'active' && <span className="chip operator-chip">{t(f.status === 'closed' ? 'operator.closed' : 'operator.suspended')}</span>}
       </h3>
       <dl className="operator-facts">
         <Fact label={t('operator.created')}>{f.created ? formatDate(f.created, t.locale) : '–'}</Fact>
@@ -239,13 +239,13 @@ function FamilyRow({ family: f, now, total }: { family: OperatorFamily; now: num
         <button type="button" className="btn ghost" onClick={() => recount.mutate()} disabled={recount.isPending}><RefreshCw size={15} aria-hidden /> {recount.isPending ? t('operator.recounting') : t('operator.recount')}</button>
       </form>
       <div className="families-danger families-row">
-        <button type="button" className="btn" onClick={() => status.mutate()} disabled={status.isPending}>
-          {f.status === 'suspended' ? <><Play size={15} aria-hidden /> {t('operator.resume')}</> : <><Pause size={15} aria-hidden /> {t('operator.suspend')}</>}
-        </button>
+        <span id={`${ids}-level`} className="muted">{t('operator.level')}</span>
+        <Segmented aria-labelledby={`${ids}-level`} value={f.status} onChange={(next) => { if (next !== f.status && !status.isPending) status.mutate(next); }}
+          options={[{ value: 'active', label: t('operator.level_active') }, { value: 'suspended', label: t('operator.level_suspended') }, { value: 'closed', label: t('operator.level_closed') }]} />
         {total < 2 ? <span className="muted">{t('families.delete_last')}</span>
           : <button type="button" className="btn danger" onClick={() => setDeleting(true)}><Trash2 size={15} aria-hidden /> {t('families.delete')}</button>}
       </div>
-      {f.status === 'suspended' && <p className="families-hint">{t('operator.suspended_hint')}</p>}
+      {f.status !== 'active' && <p className="families-hint">{t(f.status === 'closed' ? 'operator.closed_hint' : 'operator.suspended_hint')}</p>}
       {error && <p role="alert" className="families-error">{error}</p>}
       {deleting && <DeleteAsOperator family={f} onClose={() => setDeleting(false)} />}
     </li>

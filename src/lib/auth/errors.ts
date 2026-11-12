@@ -24,6 +24,8 @@ export const notMember = () => new AuthError('not-member', 'You don’t have acc
 export const notOperator = () => new AuthError('forbidden', 'Only an operator of this server can do that.');
 /** The family is suspended by the server's operator: its members can read it but change nothing. */
 export const suspended = () => new AuthError('forbidden', 'This family is suspended by the server’s operator: you can read it, but nothing can be changed.');
+/** The family is closed by the server's operator: nobody can open it until the operator lets it be used again. */
+export const closedFamily = () => new AuthError('forbidden', 'This family is closed by the server’s operator.');
 export const forbidden = (_action: Action, _needed: Role) => new AuthError('forbidden', 'You don’t have permission for that. Ask a steward for access.');
 
 /** The kind of an error that came back from a server function, if it was an auth error. */

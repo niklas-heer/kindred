@@ -199,8 +199,8 @@ test('a family made for someone: no member, not the operator, and a one-time ste
 });
 
 test('the waiting list: closed unless the server takes requests; the hidden field; a limit per network; approve and decline', async () => {
-  const ask = (over: Partial<Parameters<typeof reqs.submitFamilyRequest>[0]> = {}, ip = '198.51.100.7', honeypot?: string) =>
-    reqs.submitFamilyRequest({ name: 'Rhea Rowan', email: 'Rhea@Example.org', familyName: 'The Rowans', message: 'Hello', ...over }, { ip, honeypot });
+  const ask = (over: Partial<Parameters<typeof reqs.submitFamilyRequest>[0]> = {}, ip = '198.51.100.7', honeypot?: string, at = Date.now()) =>
+    reqs.submitFamilyRequest({ name: 'Rhea Rowan', email: 'Rhea@Example.org', familyName: 'The Rowans', message: 'Hello', ...over }, { ip, honeypot }, at);
   await assert.rejects(ask(), (e) => status(e) === 403);
   await setMode('requests');
   assert.deepEqual(await ask(), { email: 'rhea@example.org' });
@@ -208,21 +208,22 @@ test('the waiting list: closed unless the server takes requests; the hidden fiel
   assert.deepEqual(await ask({ name: 'Bot' }, '198.51.100.99', 'https://spam.example'), { email: 'rhea@example.org' });
   assert.equal((await one<{ n: number }>("SELECT count(*) AS n FROM family_request WHERE name = 'Bot'"))!.n, 0);
   await assert.rejects(ask({ email: 'not-an-email' }), /email address/);
-  // Three an hour from one network, then a brake.
+  // Three an hour from one network, then a brake: counted in the database, so another isolate or a restart changes nothing.
   await ask();
   await ask();
   await assert.rejects(ask(), (e) => status(e) === 429);
-  // Five a day from one network, even with a fresh process brake (another isolate, a restart).
-  resetThrottle();
-  await ask();
-  await ask();
   resetThrottle();
   await assert.rejects(ask(), (e) => status(e) === 429);
+  // Five a day from one network: two more two hours later, then none.
+  const later = Date.now() + 2 * 3_600_000;
+  await ask({}, undefined, undefined, later);
+  await ask({}, undefined, undefined, later + 1);
+  await assert.rejects(ask({}, undefined, undefined, later + 2), (e) => status(e) === 429);
   // Another network is not braked by this one.
   await ask({ name: 'Elsewhere' }, '192.0.2.200');
   await sql("DELETE FROM family_request WHERE name = 'Elsewhere'");
 
-  const open = (await reqs.familyRequests()).filter((r) => r.status === 'open');
+  const open = (await reqs.familyRequests()).open;
   assert.equal(open.length, 5);
   asUser(OP);
   const made = await fns.operatorApproveRequest({ data: { id: open[0].id, familyId: 'rowan', familyName: 'The Rowans', theme: 'modern' } });
@@ -232,7 +233,8 @@ test('the waiting list: closed unless the server takes requests; the hidden fiel
   await assert.rejects(fns.operatorApproveRequest({ data: { id: open[0].id, familyId: 'rowan-2', familyName: 'Again', theme: 'codex' } }), /already been answered/);
   asUser(OP);
   await fns.operatorDeclineRequest({ data: { id: open[1].id } });
-  const after = await reqs.familyRequests();
+  const listed = await reqs.familyRequests();
+  const after = [...listed.open, ...listed.decided.items];
   assert.equal(after.find((r) => r.id === open[0].id)?.status, 'approved');
   assert.equal(after.find((r) => r.id === open[0].id)?.family, 'rowan');
   assert.equal(after.find((r) => r.id === open[1].id)?.status, 'declined');
@@ -264,24 +266,29 @@ test('Turnstile: off without both keys; with them, only a token the (fake) verif
   }
 });
 
-test('a data request names a family by its address, reaches its stewards, and is moved on by the operator', async () => {
+test('a data request names a family by its address, reaches its stewards once forwarded, and is moved on by the operator', async () => {
   await reqs.submitDataRequest({ name: 'Dana Dell', email: 'dana@example.org', family: 'https://kin.example.org/alderby/people', kind: 'deletion', message: 'Please remove my birthday.' }, { ip: '192.0.2.60' });
   await reqs.submitDataRequest({ name: 'Dov', email: 'dov@example.org', family: 'Somebody Else', kind: 'other', message: 'Hm' }, { ip: '192.0.2.61' });
   asUser(STEWARD);
-  const theirs = await fns.fetchFamilyDataRequests({ data: { tree: 'alderby' } });
+  assert.deepEqual(await fns.fetchFamilyDataRequests({ data: { tree: 'alderby' } }), [], 'not before the operator forwards it');
+  const theirs = (await reqs.dataRequests()).open.filter((r) => r.family === 'alderby');
   assert.deepEqual(theirs.map((r) => [r.name, r.kind, r.family]), [['Dana Dell', 'deletion', 'alderby']]);
   asUser(VIEWER);
   await assert.rejects(fns.fetchFamilyDataRequests({ data: { tree: 'alderby' } }), (e) => status(e) === 403);
   asUser(OP);
   await assert.rejects(fns.fetchFamilyDataRequests({ data: { tree: 'alderby' } }), (e) => status(e) === 403, 'the operator is not the family’s steward');
   asUser(OP);
-  const all = (await fns.fetchOperatorConsole()).dataRequests;
+  const all = (await fns.fetchOperatorConsole()).dataRequests.open;
   assert.ok(all.some((r) => r.name === 'Dov' && r.family === null && r.familyText === 'Somebody Else'));
   asUser(OP);
   await fns.operatorDataRequestStatus({ data: { id: theirs[0].id, status: 'forwarded' } });
   asUser(STEWARD);
+  assert.deepEqual((await fns.fetchFamilyDataRequests({ data: { tree: 'alderby' } })).map((r) => r.name), ['Dana Dell']);
+  asUser(STEWARD);
   await fns.stewardDataRequestDone({ data: { tree: 'alderby', id: theirs[0].id } });
-  assert.equal((await reqs.dataRequests('alderby'))[0].status, 'done');
+  assert.equal((await one<{ status: string }>('SELECT status FROM data_request WHERE id = ?', theirs[0].id))!.status, 'done');
+  asUser(STEWARD);
+  assert.deepEqual(await fns.fetchFamilyDataRequests({ data: { tree: 'alderby' } }), [], 'an answered one leaves the Access page');
 });
 
 test('storage caps: every upload counts, one over the cap is refused with what is used, deleting makes room, a recount rebuilds', async () => {

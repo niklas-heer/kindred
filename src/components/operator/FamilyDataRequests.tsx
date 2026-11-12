@@ -1,6 +1,7 @@
-// On a family's Access page: the data requests that name this family (access to, correction or deletion of data about
-// someone), sent through the server's operator (/privacy-request). Only those not done show, with the days left to answer;
-// a steward who has answered marks one done. Nothing shows when there are none, as on a server run for one family.
+// On a family's Access page: the data requests about this family (access to, correction or deletion of data about someone),
+// sent through the server's operator (/privacy-request), once the operator has handed them to the stewards ("With the
+// stewards"). They show with the days left to answer; a steward who has answered marks one done. Nothing shows when there are
+// none, as on a server run for one family.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Notice } from '~/components/ui';

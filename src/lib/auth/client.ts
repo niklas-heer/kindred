@@ -49,7 +49,9 @@ export const setUpFirstSteward = (code: string, name: string, familyName: string
   create<{ ok: boolean; tree: string | null }>('setup-options', 'setup', { code, name, familyName }, { code, familyName });
 
 /** Creates a passkey from an invitation and joins the family. */
-export const acceptWithPasskey = (token: string, name: string) => create('invite-options', 'invite', { token, name }, { token });
+/** `acceptTerms`: the invitee ticked "I accept the terms" (a steward's invitation on a server that has terms asks for it). */
+export const acceptWithPasskey = (token: string, name: string, acceptTerms?: boolean) =>
+  create('invite-options', 'invite', { token, name, acceptTerms }, { token, acceptTerms });
 
 /** Confirms with one of the reader's passkeys, on this session, that it is them (see proof.server.ts). */
 async function proveItsYou() {

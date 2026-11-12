@@ -21,8 +21,13 @@ export interface SessionInfo {
   auth: 'kindred' | 'cloudflare-access';
   /** `operator`: an operator of this server (src/lib/operator/), which opens the operator console and nothing of any family. */
   user: { id: string; name: string; email: string | null; via: 'passkey' | 'access' | 'demo'; locale: (typeof LOCALES)[number] | null; operator?: true } | null;
-  /** `suspended`: the operator suspended that family, so it is read-only for its members (a banner says so). */
-  memberships: { tree: string; role: Role; person: string | null; personConfirmed: boolean; suspended?: true }[];
+  /**
+   * `suspended`: the operator suspended that family, so it is read-only for its members (a banner says so). `closed`: the
+   * operator closed it, so its page says so instead (and it is suspended too).
+   */
+  memberships: { tree: string; role: Role; person: string | null; personConfirmed: boolean; suspended?: true; closed?: true }[];
+  /** For an operator: how many requests wait for the operators (the account menu's badge on the console). */
+  operatorWaiting?: number;
   /** Nobody has an account yet: /setup creates the first steward. */
   needsSetup: boolean;
   /** Setup will make the server's first family, so it asks for that family's name. */
@@ -85,7 +90,11 @@ export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): 
   // First-time setup is no business of the guest host, which is open to the internet.
   const needs = guestHost ? false : await setup.needsSetup(getRequest());
   const needsFamily = needs && !(await (await import('./trees.server')).families()).length;
-  const memberships = user ? (await myMemberships()).map((m) => ({ tree: m.tree, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed, ...(m.suspended ? { suspended: true as const } : {}) })) : [];
+  const memberships = user ? (await myMemberships()).map((m) => ({
+    tree: m.tree, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed,
+    ...(m.suspended ? { suspended: true as const } : {}), ...(m.closed ? { closed: true as const } : {}),
+  })) : [];
+  const operatorWaiting = user?.operator === 1 ? await (await import('../operator/requests.server')).waitingCount() : undefined;
   // A member of that family is simply a member: only someone who isn't gets the guest's view of it.
   const guestHere = guest && !memberships.some((m) => m.tree === guest.tree) ? guest : undefined;
   if (guestHere) memberships.push({ tree: guestHere.tree, role: 'viewer', person: null, personConfirmed: false });
@@ -93,6 +102,7 @@ export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): 
     auth,
     user: user && via ? { id: user.id, name: user.name, email: user.email, via, locale: user.locale, ...(user.operator === 1 ? { operator: true as const } : {}) } : null,
     memberships,
+    ...(operatorWaiting ? { operatorWaiting } : {}),
     needsSetup: needs,
     needsFamily,
     setupCodeRequired: setup.setupCodeRequired(),
@@ -141,6 +151,8 @@ export interface InviteInfo {
   /** The signed-in reader, if any (they can accept with their existing account). */
   signedInAs?: string;
   alreadyMember?: boolean;
+  /** Taking it needs "I accept the terms" ticked: a steward's invitation, on a server whose operator wrote terms (/legal). */
+  terms?: true;
 }
 
 /** What an invitation link offers. POST, so the token never lands in a URL's query string or a log. */
@@ -167,21 +179,23 @@ export const fetchInvite = createServerFn({ method: 'POST' })
       expires: row.expires,
       signedInAs: user?.name,
       alreadyMember: user ? !!(await s.membership(user.id, row.tree)) : undefined,
+      ...(status === 'open' && (await (await import('../operator/terms.server')).inviteNeedsTerms(row, user?.operator === 1)) ? { terms: true as const } : {}),
     };
   });
 
 /** A signed-in reader accepts an invitation into another family with their existing account. */
 export const acceptInvite = createServerFn({ method: 'POST' })
-  .validator(z.object({ token }))
+  .validator(z.object({ token, acceptTerms: z.boolean().optional() }))
   .handler(async ({ data }) => {
-    const [{ requireUser, fail }, s, { AuthError }] = await Promise.all([guard(), store(), import('./errors')]);
+    const [{ requireUser, fail }, s, { AuthError }, { inviteAcceptance }] = await Promise.all([guard(), store(), import('./errors'), import('../operator/terms.server')]);
     const user = await requireUser();
     const invite = await s.openInvite(data.token);
     if (!invite) throw fail(new AuthError('invalid', 'This invitation has expired, was already used, or was withdrawn. Ask for a new one.'));
+    const terms = await inviteAcceptance(invite, user, data.acceptTerms).catch((e) => { throw e instanceof AuthError ? fail(e) : e; });
     await s.commit(async () => {
       const fresh = await s.inviteById(invite.id);
       if (!fresh || !s.usable(fresh)) throw s.inviteUsed();
-      return { writes: s.useInvite(fresh, user.id), result: undefined, refused: s.inviteUsed };
+      return { writes: [...s.useInvite(fresh, user.id), ...terms], result: undefined, refused: s.inviteUsed };
     });
     return { tree: invite.tree };
   });
@@ -195,11 +209,11 @@ const verifiedNewcomer = async () => {
 
 /** Cloudflare Access only: a verified identity with no account takes an invitation link. */
 export const joinWithAccess = createServerFn({ method: 'POST' })
-  .validator(z.object({ token, name: z.string().max(200) }))
+  .validator(z.object({ token, name: z.string().max(200), acceptTerms: z.boolean().optional() }))
   .handler(async ({ data }) => {
     const [{ email, locale, fail }, { joinWithInvite }, { AuthError }, { allow, clientIP }] = await Promise.all([verifiedNewcomer(), import('./access-join.server'), import('./errors'), import('./throttle.server')]);
     if (!allow(`invite:${clientIP()}`, 20, 10 * 60_000)) throw fail(new AuthError('invalid', 'Too many attempts. Please wait a minute and try again.'));
-    await joinWithInvite(email, data.token, data.name, locale).catch((e) => { throw e instanceof AuthError ? fail(e) : e; });
+    await joinWithInvite(email, data.token, data.name, locale, data.acceptTerms).catch((e) => { throw e instanceof AuthError ? fail(e) : e; });
   });
 
 /** Cloudflare Access only: a verified identity enters the setup code and becomes the first steward. */

@@ -183,10 +183,13 @@ export interface MembershipRow {
   user: string; tree: string; role: Role; person: string | null; person_confirmed: number; created: number;
   /** 1 while the operator has suspended the family (migration 0034, `family_admin`): it is read-only for its members. */
   suspended?: number;
+  /** 1 while the operator has closed the family (migration 0037): its members cannot open it at all. Closed is also suspended. */
+  closed?: number;
 }
 
-/** A membership's columns, with whether its family is suspended, read in the same statement (the guard needs it on every request). */
-const MEMBERSHIP = "m.*, EXISTS (SELECT 1 FROM family_admin f WHERE f.tree = m.tree AND f.status = 'suspended') AS suspended FROM membership m";
+/** A membership's columns, with whether its family is suspended or closed, read in the same statement (the guard needs it on every request). */
+const MEMBERSHIP = `m.*, EXISTS (SELECT 1 FROM family_admin f WHERE f.tree = m.tree AND f.status = 'suspended') AS suspended,
+  EXISTS (SELECT 1 FROM family_admin f WHERE f.tree = m.tree AND f.status = 'suspended' AND f.closed = 1) AS closed FROM membership m`;
 export const membershipsOf = (user: string) => accounts().all<MembershipRow>(`SELECT ${MEMBERSHIP} WHERE m.user = ? ORDER BY m.created`, user);
 export const membership = (user: string, tree: string) => accounts().get<MembershipRow>(`SELECT ${MEMBERSHIP} WHERE m.user = ? AND m.tree = ?`, user, tree);
 

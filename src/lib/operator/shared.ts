@@ -24,7 +24,23 @@ export interface InstanceSettings {
   /** The storage cap a family made from now on gets, in bytes; null for none. */
   defaultCapBytes: number | null;
   familyCreation: FamilyCreation;
+  /**
+   * How many families one account may make while stewards make families (operators are not limited); null for no limit. A new
+   * install starts at 5 (accounts migration 0037); one that had accounts before keeps no limit until its operator sets one.
+   */
+  familiesPerAccount: number | null;
 }
+
+/** The most families per account the console accepts as a limit. */
+export const FAMILIES_PER_ACCOUNT_MAX = 1000;
+
+/**
+ * Open requests the server keeps of each kind (the waiting list, data requests not yet looked at). Once that many wait, the
+ * form says it is closed for now, so a flood from many networks fills a list of this size and no more.
+ */
+export const OPEN_REQUESTS_MAX = 200;
+/** Decided requests (and answered data requests) the console shows at a time; "Show older" pages through the rest. */
+export const REQUEST_PAGE = 50;
 
 export const TEXT_SETTINGS = ['instanceName', 'contactEmail', 'impressum', 'privacy', 'terms', 'reportContact'] as const;
 export const SETTING_MAX: Record<(typeof TEXT_SETTINGS)[number], number> = {
@@ -39,6 +55,10 @@ export interface PublicInstance {
   legal: { impressum: boolean; privacy: boolean; terms: boolean; report: boolean };
   /** Cloudflare Turnstile's site key, when the server has one and its secret (KINDRED_TURNSTILE_*). */
   turnstileSiteKey?: string;
+  /** The operator's contact address, when set: the closed family's page, the suspended family's bar and a full form name it. */
+  contactEmail?: string;
+  /** A form whose list is full (OPEN_REQUESTS_MAX open requests): it says it is closed for now. */
+  full: { family: boolean; data: boolean };
 }
 
 /** The legal page's text: each section is text or a link elsewhere. */
@@ -61,7 +81,13 @@ export const anyLegal = (l: PublicInstance['legal']) => l.impressum || l.privacy
 
 // ---------- the console ----------
 
-export type FamilyStatus = 'active' | 'suspended';
+/**
+ * How the operator lets a family be used. `suspended` is read-only: its members read everything and change nothing, and its
+ * guests keep reading. `closed`: its members see a page that says the operator closed it and how to reach them; its share
+ * links and guests are refused.
+ */
+export const FAMILY_STATUSES = ['active', 'suspended', 'closed'] as const;
+export type FamilyStatus = (typeof FAMILY_STATUSES)[number];
 
 /** One family as the operator sees it: its administration, never its records. */
 export interface OperatorFamily {

@@ -18,7 +18,7 @@ import { CHANGE_OF_ACTION } from '../stats/shared';
 import { onChangeCommitted } from '../db.server';
 import { onActor, type Actor } from '../history.server';
 import { can, needs, type Action, type Role } from '../roles';
-import { forbidden, notMember, notOperator, signedOut, suspended, type AuthError } from './errors';
+import { closedFamily, forbidden, notMember, notOperator, signedOut, suspended, type AuthError } from './errors';
 import { getSession, type Session } from './session.server';
 import { membershipsOf, type MembershipRow, type UserRow } from './store.server';
 import { demoRefused, isDemo } from '../demo';
@@ -82,8 +82,13 @@ onRequestReadOnly(() => {
   return suspendedRequests.has(request) ? suspended() : undefined;
 });
 
-/** A member's check of a family the operator suspended makes the rest of the request read-only. */
+/**
+ * A member's check of a family the operator suspended makes the rest of the request read-only; of one the operator closed,
+ * it is refused (the family's page says so and how to reach the operator). A guest of a closed family has no visit at all:
+ * share.server.ts ends it.
+ */
 function noteSuspended(m: MembershipRow | undefined): void {
+  if (m?.closed) throw fail(closedFamily());
   if (m?.suspended) suspendedRequests.add(getRequest());
 }
 

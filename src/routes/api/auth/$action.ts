@@ -53,9 +53,9 @@ export const Route = createFileRoute('/api/auth/$action')({
               return json({ ok: true, tree }, 200, await s.startSession(request, user, credential));
             }
             case 'invite-options':
-              return json(await p.inviteOptions(request, str(body.token), body.name));
+              return json(await p.inviteOptions(request, str(body.token), body.name, body.acceptTerms));
             case 'invite': {
-              const { user, credential } = await p.finishInvite(request, str(body.token), body.challengeId, body.response);
+              const { user, credential } = await p.finishInvite(request, str(body.token), body.challengeId, body.response, body.acceptTerms);
               return json({ ok: true }, 200, await s.startSession(request, user, credential));
             }
             case 'signin-options':

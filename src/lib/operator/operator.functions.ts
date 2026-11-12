@@ -5,7 +5,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
-import { DATA_REQUEST_KINDS, DATA_REQUEST_STATUSES, FAMILY_CREATION, SETTING_MAX, type AuditEntry, type DataRequest, type FamilyRequest, type InstanceSettings, type LegalTexts, type OperatorAccount, type OperatorFamily, type PublicInstance } from './shared';
+import { DATA_REQUEST_KINDS, DATA_REQUEST_STATUSES, FAMILIES_PER_ACCOUNT_MAX, FAMILY_CREATION, FAMILY_STATUSES, SETTING_MAX, type AuditEntry, type DataRequest, type FamilyRequest, type InstanceSettings, type LegalTexts, type OperatorAccount, type OperatorFamily, type PublicInstance } from './shared';
 
 const tree = z.string().regex(/^[a-z0-9-]{1,64}$/);
 const familyId = z.string().max(80);
@@ -75,27 +75,81 @@ export const sendDataRequest = createServerFn({ method: 'POST' })
 
 // ---------- the console ----------
 
+/** One page of decided requests (or answered data requests), and whether older ones follow. */
+export interface RequestPage<T> { items: T[]; more: boolean }
+
 export interface OperatorConsole {
   families: OperatorFamily[];
   settings: InstanceSettings;
   operators: OperatorAccount[];
-  familyRequests: FamilyRequest[];
-  dataRequests: DataRequest[];
+  /** The waiting list (oldest first) and the first page of decided requests. */
+  familyRequests: { open: FamilyRequest[]; decided: RequestPage<FamilyRequest> };
+  /** Data requests not done (oldest first) and the first page of answered ones. */
+  dataRequests: { open: DataRequest[]; done: RequestPage<DataRequest> };
   /** Whether the server can make a family here without a redeploy (Node), as the families page says. */
   workers: boolean;
+  /** Whether Cloudflare Turnstile guards the public forms (both KINDRED_TURNSTILE_* set). */
+  turnstile: boolean;
+  /** Whether this server can send Web Push at all (KINDRED_VAPID_*), and its public key for a device that asks. */
+  pushKey: string | null;
   now: number;
 }
 
 export const fetchOperatorConsole = createServerFn({ method: 'GET' }).handler(async (): Promise<OperatorConsole> => {
   const { requireOperator } = await guard();
   const op = await requireOperator();
-  const [o, r, { instanceSettings }, { onWorkers }] = await Promise.all([ops(), reqs(), import('./settings.server'), import('../store/index')]);
+  const [o, r, { instanceSettings, turnstileKeys }, { onWorkers }, { vapidFrom, envSetting }] = await Promise.all([
+    ops(), reqs(), import('./settings.server'), import('../store/index'), import('../reminders.server'),
+  ]);
   const [families, settings, operators, familyRequests, dataRequests] = await Promise.all([
     o.operatorFamilies(), instanceSettings(), o.operators(op.id), r.familyRequests(), r.dataRequests(),
   ]);
-  return { families, settings, operators, familyRequests, dataRequests, workers: onWorkers, now: Date.now() };
+  return {
+    families, settings, operators, familyRequests, dataRequests, workers: onWorkers, turnstile: !!turnstileKeys(),
+    pushKey: vapidFrom(envSetting)?.publicKey ?? null, now: Date.now(),
+  };
 });
 export const operatorQuery = queryOptions({ queryKey: ['operator'], queryFn: () => fetchOperatorConsole() });
+
+/** Older decided requests (`family`) or answered data requests (`data`), from `offset` on. */
+export const fetchOlderRequests = createServerFn({ method: 'GET' })
+  .validator(z.object({ kind: z.enum(['family', 'data']), offset: z.number().int().min(0).max(1_000_000) }))
+  .handler(async ({ data }): Promise<RequestPage<FamilyRequest | DataRequest>> => {
+    const { requireOperator } = await guard();
+    await requireOperator();
+    return (await reqs()).olderRequests(data.kind, data.offset);
+  });
+
+const endpoint = z.string().min(1).max(1024);
+
+/** Whether this device (its push endpoint) tells the operator about new requests. */
+export const fetchOperatorPush = createServerFn({ method: 'POST' })
+  .validator(z.object({ endpoint }))
+  .handler(async ({ data }): Promise<{ on: boolean }> => {
+    const { requireOperator } = await guard();
+    const op = await requireOperator();
+    return { on: await (await import('./operator-push.server')).operatorPushOn(op.id, data.endpoint) };
+  });
+
+/** Turns telling this device about new requests on (with its subscription) or off. Off returns what family reminders still use it. */
+export const setOperatorPush = createServerFn({ method: 'POST' })
+  .validator(z.object({
+    on: z.boolean(), endpoint,
+    keys: z.object({ p256dh: z.string().max(200), auth: z.string().max(100) }).optional(),
+    locale: z.enum(['en', 'de', 'af']).optional(),
+  }))
+  .handler(async ({ data }): Promise<{ remaining: number }> => {
+    const op = await operatorForChange();
+    const p = await import('./operator-push.server');
+    try {
+      if (!data.on) return { remaining: await p.removeOperatorPush(op.id, data.endpoint) };
+      if (!data.keys) throw new (await import('../auth/errors')).AuthError('invalid', 'reminders.err.endpoint');
+      await p.saveOperatorPush(op.id, { endpoint: data.endpoint, keys: data.keys }, data.locale ?? 'en');
+      return { remaining: 1 };
+    } catch (e) {
+      throw await failed(e);
+    }
+  });
 
 export const fetchAudit = createServerFn({ method: 'GET' })
   .validator(z.object({ before: z.number().int().positive().optional() }))
@@ -130,7 +184,7 @@ export const operatorRenewLink = createServerFn({ method: 'POST' })
   });
 
 export const operatorSetStatus = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, status: z.enum(['active', 'suspended']) }))
+  .validator(z.object({ tree, status: z.enum(FAMILY_STATUSES) }))
   .handler(async ({ data }) => {
     const op = await operatorForChange();
     try {
@@ -185,6 +239,7 @@ export const operatorSaveSettings = createServerFn({ method: 'POST' })
     instanceName: text(SETTING_MAX.instanceName), contactEmail: text(SETTING_MAX.contactEmail), impressum: text(SETTING_MAX.impressum),
     privacy: text(SETTING_MAX.privacy), terms: text(SETTING_MAX.terms), reportContact: text(SETTING_MAX.reportContact),
     defaultCapBytes: capBytes, familyCreation: z.enum(FAMILY_CREATION),
+    familiesPerAccount: z.number().int().min(0).max(FAMILIES_PER_ACCOUNT_MAX).nullable(),
   }))
   .handler(async ({ data }) => {
     const op = await operatorForChange();
@@ -258,13 +313,13 @@ export const operatorDataRequestStatus = createServerFn({ method: 'POST' })
 
 // ---------- the family's stewards ----------
 
-/** The data requests that name this family, for its stewards (the Access page). */
+/** The data requests the operator handed to this family's stewards, not answered yet (the Access page). */
 export const fetchFamilyDataRequests = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }): Promise<DataRequest[]> => {
     const { requireCan } = await guard();
     await requireCan(data.tree, 'manage-access');
-    return (await reqs()).dataRequests(data.tree);
+    return (await reqs()).familyDataRequests(data.tree);
   });
 export const familyDataRequestsQuery = (t: string) => queryOptions({ queryKey: ['data-requests', t], queryFn: () => fetchFamilyDataRequests({ data: { tree: t } }) });
 

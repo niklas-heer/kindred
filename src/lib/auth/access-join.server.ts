@@ -2,6 +2,7 @@
 // does happens on its own in the session (session.server.ts). `email` is always the identity the server just verified.
 import { AuthError } from './errors.ts';
 import { cleanName } from './passkeys.server.ts';
+import { inviteAcceptance } from '../operator/terms.server.ts';
 import { checkSetupCode } from './setup.server.ts';
 import { checkCanMakeFamily, cleanFamilyName, families, makeFirstFamily } from './trees.server.ts';
 import {
@@ -30,7 +31,7 @@ export async function claimFirstSteward(email: string, code: string, rawName: un
 }
 
 /** An invitation link, opened by a verified Access identity with no account yet: makes the account, in the invited role. */
-export async function joinWithInvite(email: string, token: string, rawName: unknown, locale: Locale | null): Promise<string> {
+export async function joinWithInvite(email: string, token: string, rawName: unknown, locale: Locale | null, acceptTerms?: boolean): Promise<string> {
   const gone = () => new AuthError('invalid', 'This invitation has expired, was already used, or was withdrawn. Ask for a new one.');
   const invite = await openInvite(token);
   if (!invite) throw gone();
@@ -39,8 +40,8 @@ export async function joinWithInvite(email: string, token: string, rawName: unkn
     const fresh = await inviteById(invite.id);
     if (!fresh || !usable(fresh)) throw gone();
     const existing = await userByEmail(email);
-    if (existing) return { writes: useInvite(fresh, existing.id), result: existing.id, refused: inviteUsed };
+    if (existing) return { writes: [...useInvite(fresh, existing.id), ...(await inviteAcceptance(fresh, existing, acceptTerms))], result: existing.id, refused: inviteUsed };
     const { user, insert } = newUser(name, email, undefined, locale);
-    return { writes: [insert, ...useInvite(fresh, user.id)], result: user.id, refused: inviteUsed };
+    return { writes: [insert, ...useInvite(fresh, user.id), ...(await inviteAcceptance(fresh, user, acceptTerms))], result: user.id, refused: inviteUsed };
   });
 }

@@ -58,6 +58,8 @@ export function FamilyRequestForm() {
   if (instance.data.familyCreation !== 'requests') {
     return <AuthCard crest={<HeartHandshake size={44} />} title={t('request.title')} lede={t('request.closed')}></AuthCard>;
   }
+  // The waiting list is full (OPEN_REQUESTS_MAX): closed for now, until the operator answers some.
+  if (instance.data.full.family) return <AuthCard crest={<HeartHandshake size={44} />} title={t('request.title')} lede={t('request.full')}></AuthCard>;
   const needsCheck = !!instance.data.turnstileSiteKey && !turnstile;
   const ready = form.name.trim() && form.email.trim() && form.familyName.trim() && !needsCheck;
   const submit = (e: FormEvent) => { e.preventDefault(); if (ready && !send.isPending) { setError(null); send.mutate(); } };
@@ -92,6 +94,15 @@ export function DataRequestForm() {
     onError: (e) => setError(errorText(e, t.locale)),
   });
   if (send.isSuccess) return <Sent email={send.data.email} title={t('privacyreq.sent_title')} />;
+  // Too many wait unanswered (OPEN_REQUESTS_MAX): closed for now; the operator's address still reaches them.
+  if (instance.data?.full.data) {
+    const email = instance.data.contactEmail;
+    return (
+      <AuthCard crest={<ShieldCheck size={44} />} title={t('privacyreq.title')} lede={t('privacyreq.full')}>
+        {email && <p>{t('privacyreq.full_write')} <a href={`mailto:${email}`}>{email}</a></p>}
+      </AuthCard>
+    );
+  }
   const siteKey = instance.data?.turnstileSiteKey;
   const ready = form.name.trim() && form.email.trim() && form.message.trim() && !(siteKey && !turnstile);
   const submit = (e: FormEvent) => { e.preventDefault(); if (ready && !send.isPending) { setError(null); send.mutate(); } };

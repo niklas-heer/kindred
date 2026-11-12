@@ -171,6 +171,7 @@ file is the record. `scripts/import-to-do.ts` moves a family from a Node file or
 | `0033_family_store.sql` | `family_store`: the families made as Durable Objects on Cloudflare ([Where a family lives](#where-a-family-lives)). |
 | `0034_operator.sql` | The operator ([hosting-many-families.md](hosting-many-families.md)): `user.operator` (the earliest account becomes one), `instance_setting`, `operator_audit`, `family_admin` and `media_usage`. |
 | `0035_requests.sql` | `family_request` (the waiting list) and `data_request` (access, correction, deletion). |
+| `0037_operator_forms.sql` | `family_admin.closed` (a closed family), `data_request.forwarded_at` (stewards see a request only once forwarded), `terms_acceptance`, `operator_push`, and the `families_per_account` setting (5 on a new install only). |
 
 ### Tables
 
@@ -229,14 +230,17 @@ file is the record. `scripts/import-to-do.ts` moves a family from a Node file or
   ([roles-and-privacy.md](roles-and-privacy.md#the-operator)). The migration makes the earliest account one; afterwards a new
   account is one only when it is the server's first (`newUser`). The last operator cannot step down.
 - **`instance_setting`** (0034): the server's own settings, one row per `key` (`family_creation`, `instance_name`,
-  `contact_email`, `impressum`, `privacy`, `terms`, `report_contact`, `default_cap_bytes`) with its text `value`, and when and by
-  whom it last changed. A missing row is the default (`family_creation` is then `stewards`).
+  `contact_email`, `impressum`, `privacy`, `terms`, `report_contact`, `default_cap_bytes`, `families_per_account` from 0037) with
+  its text `value`, and when and by whom it last changed. A missing row is the default (`family_creation` is then `stewards`; no
+  storage cap; no limit of families per account). Migration 0037 writes `families_per_account` = 5 only on an install with no
+  accounts yet.
 - **`operator_audit`** (0034): one row per thing an operator did: `at`, `account` and `name` (no foreign key, so the row outlives
-  the account), `action` (`family.create`, `family.suspend`, `family.cap`, `family.delete`, `request.approve`, `settings`,
+  the account), `action` (`family.create`, `family.suspend`, `family.close`, `family.resume`, `family.cap`, `family.delete`, `request.approve`, `settings`,
   `operator.add`, …), `family` (an id; deliberately not a `tree` column, so deleting the family keeps the row) and `detail` (JSON,
   never record content).
 - **`family_admin`** (0034): one row per family with administration: `status` (`active` or `suspended`, read with every
-  membership so the guard knows without another round trip), `cap_bytes` (NULL for none), `created_at` and `created_by`,
+  membership so the guard knows without another round trip) and `closed` (0037: 1 for a suspended family the operator closed
+  outright; its members are refused and its guests' visits end; the share link checks it too), `cap_bytes` (NULL for none), `created_at` and `created_by`,
   `invited_name` (whom the operator invited as its first steward) and `counted_at` (its storage's last recount). Deleted with the
   family (`tree` column).
 - **`media_usage`** (0034): one row per file in a family's media storage, `tree`, `key`, `bytes`, `at`. Every upload reserves its
@@ -249,7 +253,17 @@ file is the record. `scripts/import-to-do.ts` moves a family from a Node file or
   network it came from, for the limit of five a day; it names no address.
 - **`data_request`** (0035): an access, correction or deletion request (`kind`; or `other`): `name`, `email`, `family_text` (the
   family as written) and `family` (its id, when that names one here; not a `tree` column, for the same reason), `message`,
-  `created`; `status` (`open`, `forwarded`, `done`) with `updated_at` and `updated_by`; `network` as above.
+  `created`; `status` (`open`, `forwarded`, `done`) with `updated_at` and `updated_by`; `network` as above; `forwarded_at` (0037),
+  when the operator handed it to the family's stewards, cleared when it is moved back to `open`: the stewards' Access page lists
+  only `forwarded` ones. Both forms store a request in one batch whose guards hold the per-network limits (three an hour, five a
+  day) and the server-wide ceiling of 200 open requests of that kind.
+- **`terms_acceptance`** (0037): one row per time someone accepted the server's terms of use: `user` (no foreign key, so the
+  record stays), `version` (16 hex characters of the SHA-256 of the terms' text), `at`, `action` (`family.create` or
+  `invite.steward`) and `family` (an id, not a `tree` column: it outlives the family). Written in the same batch as the step.
+- **`operator_push`** (0037): an operator's device that asked to be told about new requests: `user` (foreign key, so it goes
+  with the account), `endpoint` (unique), `p256dh`, `auth`, `locale`, `created` and `sent_at`, the claim that keeps it to one push
+  in ten minutes. Sent only while the account is an operator; deleted when the device turns it off or signs out, or the push
+  service reports it gone.
 - **`membership`**: a user's role in a family (`viewer`, `contributor`, `editor`, `steward`), and who they are in that
   family (a person id, or `-` for "just browsing"). `person_confirmed` (0014) is 1 once a steward has confirmed the link.
 - **`challenge`**: a passkey ceremony in progress (for setup, an invitation, adding a passkey, signing in, or confirming

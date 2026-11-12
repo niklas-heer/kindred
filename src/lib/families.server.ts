@@ -3,7 +3,9 @@
 //
 // - Who may make a family: an operator of this server always; a steward of any family on it while the instance's
 //   `family_creation` is `stewards` (the default; docs/hosting-many-families.md). Who may change or delete one: a steward of
-//   that family (and an operator, from the operator console). Deleting also needs the family's id typed, a fresh passkey proof (Kindred's own sign-in), and
+//   that family (and an operator, from the operator console). While stewards make families, an account that is not an
+//   operator may have made at most `families_per_account` of those still here (an instance setting; none set, no limit). While
+//   the operator has written terms, the maker accepts them (src/lib/operator/terms.server.ts). Deleting also needs the family's id typed, a fresh passkey proof (Kindred's own sign-in), and
 //   another family left on the server.
 // - An id is a URL segment and a database name: lower-case letters, digits and single dashes, starting with a letter, never one
 //   of the app's own first path segments (RESERVED_IDS).
@@ -25,6 +27,7 @@ import { change, once, type OpKey } from './db.server.ts';
 import { translate } from './i18n/dictionary.ts';
 import { familyCreation, instanceSettings } from './operator/settings.server.ts';
 import { storageOf } from './operator/storage.server.ts';
+import { acceptance, termsNeeded } from './operator/terms.server.ts';
 import type { FamilyCreation } from './operator/shared.ts';
 
 /** A new family's id: 2 to 40 characters, a letter first, single dashes between letters and digits. */
@@ -81,6 +84,8 @@ export interface FamilyAdminRow {
   /** For its stewards: the media storage it uses, and its cap when the operator set one. */
   storage?: { usedBytes: number; capBytes: number | null };
   suspended?: boolean;
+  /** The operator closed it: its members see a page that says so instead. */
+  closed?: boolean;
 }
 export interface FamiliesOverview {
   /** The families the reader is a member of, with whether they steward each (they may change and delete those). */
@@ -96,6 +101,10 @@ export interface FamiliesOverview {
   total: number;
   /** KINDRED_DEFAULT_TREE, when set: that family cannot be deleted while the setting names it. */
   defaultTree?: string;
+  /** The server has terms the reader must accept to make a family (they are not an operator). */
+  terms?: boolean;
+  /** The reader's limit of families (not an operator, and the instance sets one): how many they may make, and have made. */
+  limit?: { max: number; made: number };
 }
 
 /** What the Families page shows a signed-in reader. Nothing of a family they are not a member of, beyond the empty databases. */
@@ -106,10 +115,13 @@ export async function overview(user: UserRow, memberships: MembershipRow[]): Pro
   const may = await mayCreate(user, memberships, mode);
   const made = new Set(all.map((f) => f.id));
   const suspended = new Set(memberships.filter((m) => m.suspended).map((m) => m.tree));
+  const closed = new Set(memberships.filter((m) => m.closed).map((m) => m.tree));
   const rows = all.filter((f) => mine.has(f.id)).map((f) => ({
     id: f.id, name: f.name, tagline: f.tagline ?? '', theme: (f.theme === 'modern' ? 'modern' : 'codex') as FamilyTheme, people: f.people, steward: mine.get(f.id) === 'steward',
     ...(suspended.has(f.id) ? { suspended: true } : {}),
+    ...(closed.has(f.id) ? { closed: true } : {}),
   })).sort((a, b) => a.name.localeCompare(b.name));
+  const limit = may ? await familyLimit(user) : null;
   // What each family stores is for its stewards: they are the ones who make room when it is full.
   const stored = await Promise.all(rows.map((f) => (f.steward ? storageOf(f.id) : undefined)));
   return {
@@ -121,7 +133,21 @@ export async function overview(user: UserRow, memberships: MembershipRow[]): Pro
     familyCreation: mode,
     total: all.length,
     defaultTree: process.env.KINDRED_DEFAULT_TREE?.trim() || undefined,
+    ...(may && (await termsNeeded(user.operator === 1)) ? { terms: true } : {}),
+    ...(limit ? { limit } : {}),
   };
+}
+
+/**
+ * An account's limit of families (`families_per_account`), and how many of the families still on the server it made. Null
+ * for an operator, and when the instance sets no limit.
+ */
+export async function familyLimit(user: Pick<UserRow, 'id' | 'operator'>): Promise<{ max: number; made: number } | null> {
+  if (user.operator === 1) return null;
+  const max = (await instanceSettings()).familiesPerAccount;
+  if (max === null) return null;
+  const made = await accounts().get<{ n: number }>('SELECT count(*) AS n FROM family_admin WHERE created_by = ?', user.id);
+  return { max, made: made?.n ?? 0 };
 }
 
 export interface NewFamily { id: string; name: string; tagline: string; theme: FamilyTheme }
@@ -159,11 +185,21 @@ async function forgetInAccounts(tree: string): Promise<Query[]> {
  * with no members, for the person its steward invitation is for. While that invitation is open nobody can "finish" the
  * family as their own.
  */
-export async function createFamily(user: UserRow, input: NewFamily, { member = true, invitedName = null }: { member?: boolean; invitedName?: string | null } = {}): Promise<string> {
+export async function createFamily(
+  user: UserRow, input: NewFamily,
+  { member = true, invitedName = null, acceptedTerms }: { member?: boolean; invitedName?: string | null; acceptedTerms?: boolean } = {},
+): Promise<string> {
   const id = input.id.trim();
   const problem = idProblem(id);
   if (problem) throw problem;
   const details = cleanFamily(input);
+  // Someone making a family of their own: within their limit, and with the terms accepted (both before anything is written).
+  let accepted: Query[] = [];
+  if (member) {
+    const limit = await familyLimit(user);
+    if (limit && limit.made >= limit.max) throw new AuthError('forbidden', translate('en', 'families.err_limit', { max: limit.max }));
+    accepted = await acceptance(user, acceptedTerms, 'family.create', id);
+  }
 
   const bound = (await store.treeIds()).includes(id);
   // Workers without Durable Objects: the database must have been bound when the Worker was deployed (docs/deploy-cloudflare.md, "Another family").
@@ -214,6 +250,7 @@ export async function createFamily(user: UserRow, input: NewFamily, { member = t
     ...(member ? [upsertMembership(user.id, id, 'steward')] : []),
     q(`INSERT INTO family_admin (tree, cap_bytes, created_at, created_by, invited_name) VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(tree) DO UPDATE SET created_by = excluded.created_by, invited_name = excluded.invited_name`, id, cap, Date.now(), user.id, invitedName),
+    ...accepted,
   ]);
   return id;
 }

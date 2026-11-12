@@ -144,12 +144,18 @@ export async function saveRegistration({ user, tree, subscription, choices, loca
 export async function removeRegistration(user: string, tree: string, endpoint: string): Promise<number> {
   const a = accounts();
   await a.batch([q('DELETE FROM push_subscription WHERE user = ? AND tree = ? AND endpoint = ?', user, tree, endpoint)]);
-  return (await a.get<{ n: number }>('SELECT count(*) AS n FROM push_subscription WHERE user = ? AND endpoint = ?', user, endpoint))?.n ?? 0;
+  // An operator's device may also be told about new requests (operator_push, src/lib/operator/operator-push.server.ts).
+  return (await a.get<{ n: number }>(
+    'SELECT (SELECT count(*) FROM push_subscription WHERE user = ? AND endpoint = ?) + (SELECT count(*) FROM operator_push WHERE user = ? AND endpoint = ?) AS n',
+    user, endpoint, user, endpoint))?.n ?? 0;
 }
 
-/** Signing out on this device: the account's reminders on this browser go, in every family it is in. */
+/** Signing out on this device: the account's reminders on this browser go, in every family it is in, and an operator's requests too. */
 export async function forgetDevice(user: string, endpoint: string): Promise<void> {
-  await accounts().batch([q('DELETE FROM push_subscription WHERE user = ? AND endpoint = ?', user, endpoint)]);
+  await accounts().batch([
+    q('DELETE FROM push_subscription WHERE user = ? AND endpoint = ?', user, endpoint),
+    q('DELETE FROM operator_push WHERE user = ? AND endpoint = ?', user, endpoint),
+  ]);
 }
 
 /** Opening the app: the device has been seen now, so it is not paused or removed. */

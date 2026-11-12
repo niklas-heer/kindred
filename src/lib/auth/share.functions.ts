@@ -94,7 +94,7 @@ export const fetchShareEntry = createServerFn({ method: 'POST' })
     // A malformed token is refused before it is counted, so junk cannot use up the limit a relative's real link needs.
     if (!WELL_FORMED.test(data.token) || !allow(`share-entry:${clientIP()}`, 60, 10 * 60_000)) return { status: 'closed' };
     const link = await s.shareLinkByToken(data.token);
-    if (!link || !s.linkOpen(link)) return { status: 'closed' };
+    if (!link || !s.linkOpen(link) || (await s.familyClosed(link.tree))) return { status: 'closed' };
     const { guest } = await currentSession();
     if (guest?.link === link.id) return { status: 'inside', tree: link.tree };
     const { joinPossible } = await import('./join.server');

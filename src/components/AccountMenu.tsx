@@ -130,7 +130,9 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
   const demo = !!session?.demo;
   const user = demo ? { ...signedIn, name: t('demo.visitor') } : signedIn;
   const role = m ? roleOf(m.role) : undefined;
-  const waiting = (attention.data?.access ?? 0) + (attention.data?.ai ?? 0);
+  // What waits for the operators (open requests): on the console's link, and in the trigger's count.
+  const operatorWaiting = !demo && signedIn.operator ? session?.operatorWaiting ?? 0 : 0;
+  const waiting = (attention.data?.access ?? 0) + (attention.data?.ai ?? 0) + operatorWaiting;
   const steward = !!tree && !!m && can(m.role, 'manage-access');
   const editor = !!tree && !!m && can(m.role, 'edit-person');
   // "View as" is the real steward's, whatever role they are previewing: the server checks their own membership.
@@ -256,7 +258,8 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
               {/* The operator console: an instance role, never a family's (docs/hosting-many-families.md). */}
               {!demo && signedIn.operator && (
                 <Link role="menuitem" className="acct-item" to="/operator" onClick={() => setOpen(false)}>
-                  <ServerCog size={17} /> {t('operator.menu')} </Link>
+                  <ServerCog size={17} /> {t('operator.menu')}{' '}
+                  {operatorWaiting ? <span className="aitasks-count"><span aria-hidden>{operatorWaiting}</span><span className="sr-only">{t('operator.menu_waiting', { count: operatorWaiting })}</span></span> : null} </Link>
               )}
               {!demo && (
               <button role="menuitem" className="acct-item" onClick={() => void signOut(session?.accessLogout, !!preview)}>

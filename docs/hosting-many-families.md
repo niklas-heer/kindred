@@ -34,7 +34,7 @@ Every family on the server, with what you need to run it and to help its steward
 | Stewards | Their names and emails, for support |
 | Storage | What its pictures and documents take, against its cap, with a bar |
 | Last visit | When a member last opened it |
-| Status | Active or suspended |
+| Status | In use, read-only or closed |
 
 Actions:
 
@@ -43,9 +43,15 @@ Actions:
   weeks, and makes whoever opens it the family's steward. **Kindred sends no email**: copy the link and send it yourself. While
   nobody has joined, **New invitation link** makes another (the old one stops working), and nobody else can claim the empty
   family as theirs.
-- **Suspend** and **Let it be used again.** A suspended family is read-only: its members read everything under a banner that
-  says the server's operator suspended it, and every change is refused, including deleting it. Use it for an unpaid account, a
-  complaint you are looking into, or a family that asked for a pause.
+- **How it may be used**: **In use**, **Read-only** or **Closed** (each change is in the log).
+  - *Read-only* (suspended): its members and its share-link guests read everything; members see a bar that says the server's
+    operator suspended it and how to reach you (the contact email in Settings) to ask why or to have it deleted. Every change is
+    refused, deleting included: its stewards cannot remove it while you look into something, so they ask you. Use it for an unpaid
+    account, a complaint you are looking into, or a family that asked for a pause.
+  - *Closed*: nobody opens it. Its members see a page that says you closed it and how to reach you instead of the family; every
+    read and change is refused; its share link opens nothing and guests inside are sent out at once. Use it when even reading must
+    stop (content you were told is illegal, a family that has to be taken down). Nothing is deleted.
+  - *In use* lets it be used again.
 - **Storage cap** in MB (empty for none), and **Recount** (see [Storage caps](#storage-caps)).
 - **Delete**, with the family's address typed and your passkey, as its stewards delete it. You cannot export a family you are not
   a member of, so ask its stewards to download the Markdown archive or GEDCOM first (Import & export). It cannot be undone.
@@ -62,9 +68,21 @@ email, the family's name and a message. They are told "We'll be in touch at <the
   person who asked, and offers **Write to <email>**, which opens your mail program with the link in it.
 - **Decline** closes it. Kindred tells them nothing: write to them if you want them to know.
 
-The form is braked three ways: a field people never see (a bot that fills it is thanked and nothing is kept), at most three sends
-an hour and five a day from one network (counted by a 4-character hash, never the address), and, when you set it up,
-[Cloudflare Turnstile](#cloudflare-turnstile).
+Both public forms are braked the same way:
+
+- a field people never see (a bot that fills it is thanked and nothing is kept);
+- [Cloudflare Turnstile](#cloudflare-turnstile), when you set it up;
+- at most three sends an hour and five a day from one network, counted by a 4-character hash (never the address);
+- a ceiling for the whole server: once **200** requests of a kind wait unanswered (family requests not yet approved or declined,
+  data requests still *Open*), that form says it is closed for now, and opens again as you answer them. The data request form then
+  shows your contact email, if you set one.
+
+The limits are checked in the same database batch that stores the request, so they hold across every process and Worker isolate,
+and two requests at once cannot both take the last place. The ceiling is what bounds a flood from many networks; Turnstile is what
+keeps one out. While **Anyone may ask** is on and Turnstile is not set up, the console warns you on Settings and the Waiting list
+(it does not stop you: a small private server may not want Turnstile).
+
+Decided requests are listed newest first, 50 at a time, with **Show older**.
 
 ### Data requests
 
@@ -74,25 +92,51 @@ every legal footer and from the legal page.
 
 - Each request shows who asked, what, about which family (when what they wrote names one here: its address, its id or its exact
   name) and **the days left** of the month GDPR gives to answer, then how many days past it.
-- Move it on: **Open**, **With the stewards** or **Answered**. When the request names a family, that family's stewards see it at
-  the top of their Access page from the start, and can mark it answered themselves once they have dealt with it.
+- Move it on: **Open**, **With the stewards** or **Answered**. A request reaches a family's stewards only when you choose **With
+  the stewards**: from then it shows at the top of their Access page, and they can mark it answered themselves once they have
+  dealt with it. Until then only operators see it (you may want to check who is asking first), and moving it back to **Open**
+  takes it from them again. One you mark **Answered** yourself never reaches them.
 - Kindred sends no email here either. Answer from your own mail, or let the family's stewards answer.
+- Answered requests are listed newest first, 50 at a time, with **Show older**.
+
+### Being told about new requests
+
+**Tell this device about new requests** (Settings, under *This device*) turns on Web Push for the browser you are using; it
+needs the server's push keys (`KINDRED_VAPID_*`, as for reminders, [self-host.md](self-host.md)). A new family request or data
+request then sends "A new request" to each operator device that asked, with nothing of what was asked or by whom, and at most
+once in ten minutes per device, however many arrive. Signing out on the device, turning it off, or no longer being an operator
+stops it. The account menu shows how many requests wait (open family requests and data requests still *Open*) beside **Operator
+console**, and in the dot on your name.
 
 ### Settings
 
 - **Who may make a family** (`family_creation`):
   - *Stewards and operators* (the default): any steward of a family here can make another, as on a server for one family.
+    **Families each account may make** limits how many of the families still on the server one account (not an operator) has
+    made; the Families page shows "You have made 2 of the 5 …" and refuses the next. A new install starts at 5; a server that
+    already had accounts when it was upgraded (migration 0037) has no limit until you set one. Leave it empty for none.
   - *Only operators*: nobody else, and no request form.
   - *Anyone may ask*: the request form is open; only operators make families, by approving requests or directly.
 - **This server**: its name (shown above the public forms), a contact email (on the legal page) and the **storage cap for new
   families** in MB. The default cap applies to families made after you set it; set existing families' caps on the Families tab.
 - **Legal texts**: the Impressum, the privacy policy, the terms of use and where to report content. The privacy policy and the
   terms may each be the text itself or the web address of a page that has it; "report content" may be an email or a web address.
+- **This device**: whether this browser is told about new requests (see above).
+
+### Terms of use, accepted
+
+While the **terms of use** are set, whoever makes a family on the Families page and whoever takes an invitation to be a family's
+**steward** (with a passkey, with Cloudflare Access, or signed in already) ticks **I accept this server's terms of use**, with a
+link to read them; the server refuses the step without it. Kindred records who accepted, which version (the first 16 hex
+characters of the SHA-256 of the terms' text, so changing the text makes a new version), when, and for which family
+(`terms_acceptance`, kept when the family is deleted). Operators are not asked, and neither are members invited as viewers,
+contributors or editors: the stewards are the ones who answer for a family. A family you make for someone in the console asks
+them when they take its steward invitation.
 
 ### Operators and Log
 
 The operators, with **Make an operator** by email and **Step down**. The **Log** lists everything any operator did, newest first:
-when, who, what, and which family (making, suspending, capping, recounting and deleting families, new invitation links,
+when, who, what, and which family (making, suspending, closing, capping, recounting and deleting families, new invitation links,
 approving and declining requests, moving data requests on, changing settings and operators). It never holds a family's records.
 The log is kept when a family is deleted.
 
