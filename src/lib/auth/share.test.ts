@@ -341,6 +341,8 @@ const OPEN = new Set([
   'fetchMailOn',
   // What a verification link is for (src/lib/email/verify.server.ts): the link's token is the secret; nothing about a family.
   'fetchVerification',
+  // An email's one-click unsubscribe (src/lib/email/): its HMAC-signed token names the address and category; no family.
+  'unsubscribeMail',
   'fetchPublicHosting', 'signupWaitlist',
 ]);
 /** Everything a handler might read before its guard, so a failure can only be the guard's. */
