@@ -590,7 +590,7 @@ export async function finishRun(tree: string, who: Who, id: string, moves: Move[
       history: NOT_A_RECORD,
       writes: [
         guard('EXISTS (SELECT 1 FROM campaign_run WHERE id = ? AND account = ? AND finished_at IS NULL AND progress IS ?)', id, who.account, row.progress),
-        q('UPDATE campaign_run SET orders = ?, score = ?, result = ?, finished_at = ? WHERE id = ?', JSON.stringify(moves), played.score.total, JSON.stringify({ ...played.score, title: played.title }), now.toISOString(), id),
+        q('UPDATE campaign_run SET orders = ?, score = ?, result = ?, finished_at = ?, progress = NULL WHERE id = ?', JSON.stringify(moves), played.score.total, JSON.stringify({ ...played.score, title: played.title }), now.toISOString(), id),
       ],
       result: { score: played.score, title: played.title, week: row.week, side: row.side, counted: row.counts_for !== null, sides: field.sides.map((s) => ({ id: s.id, name: s.name, arms: s.arms })) },
     };

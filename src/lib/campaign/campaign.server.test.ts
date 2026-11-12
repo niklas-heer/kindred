@@ -647,3 +647,29 @@ test('the D1 transfer leaves the game’s tables out and still finds every table
     assert.ok(!plan.copy.includes(table));
   }
 });
+
+test('keeping a reign’s moves writes nothing in a "View as" preview or in a demo', async () => {
+  const steward = await on('keep-ro');
+  const run = await game.startRun('keep-ro', steward, null, T0);
+  const moves = movesFor(run);
+  const three = moves.slice(0, moves.flatMap((m, i) => (m.t === 'end' ? [i + 1] : []))[2]);
+  const progress = async () => (await db('keep-ro').get<{ progress: string | null }>('SELECT progress FROM campaign_run WHERE id = ?', run.id))!.progress;
+  const readOnly = await import('../read-only.ts');
+  const { AuthError } = await import('../auth/errors.ts');
+  readOnly.onRequestReadOnly(() => new AuthError('forbidden', 'You are viewing as a viewer. Stop the preview to change something.'));
+  try {
+    await assert.rejects(game.keepRun('keep-ro', steward, run.id, three), /viewing as/);
+  } finally {
+    readOnly.onRequestReadOnly(() => undefined);
+  }
+  assert.equal(await progress(), null);
+  process.env.KINDRED_DEMO = '1';
+  try {
+    await assert.rejects(game.keepRun('keep-ro', steward, run.id, three), /demo/i);
+  } finally {
+    delete process.env.KINDRED_DEMO;
+  }
+  assert.equal(await progress(), null);
+  // Outside both, the same report is kept.
+  assert.deepEqual(await game.keepRun('keep-ro', steward, run.id, three), { kept: three.length });
+});

@@ -309,6 +309,15 @@ function WeekReign({ tree, account, run, submit, saved, help, leave, again }: { 
   const finish = useMutation({
     mutationFn: (moves: Moves) => finishCampaignRun({ data: { tree, opKey: key, id: run.id, moves } }),
     onSuccess: (r) => { forgetReigns(tabStore(), tree, account); if (counted) setToday(qc, tree, 'played'); if (r.personalBest) sound('fanfare'); },
+    // The reign went on, or ended, in another tab or on another device: trying again here can never succeed, so this copy
+    // is let go and the page asks again, as when a report meets the same answer.
+    onError: (e) => {
+      const why = e instanceof Error ? e.message : '';
+      if (why !== 'campaign.err.elsewhere' && why !== 'campaign.err.finished') return;
+      live.current.done = true;
+      toast({ title: t('campaign.reign.elsewhere_title'), body: t('campaign.err.elsewhere') });
+      void qc.invalidateQueries({ queryKey: campaignQuery(tree).queryKey }).then(() => { forgetReigns(tabStore(), tree, account); leave(); });
+    },
     onSettled: () => Promise.all([campaignQuery(tree), campaignStatusQuery(tree)].map((o) => qc.invalidateQueries({ queryKey: o.queryKey }))),
   });
   const goAway = () => { forgetReigns(tabStore(), tree, account); leave(); };
