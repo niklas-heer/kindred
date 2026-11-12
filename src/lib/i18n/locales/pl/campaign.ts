@@ -224,7 +224,7 @@ export default {
   "campaign.orders.none": "W tej turze nie zostały już żadne rozkazy. Zakończ turę, gdy wszystko będzie gotowe.",
   "campaign.orders.title": "Twoje rozkazy",
 
-  "campaign.practice.again": "Zagraj jeszcze raz",
+  "campaign.practice.again": "Zagraj znów",
   "campaign.practice.back": "Wróć do tygodnia",
   "campaign.practice.button": "Trening",
   "campaign.practice.leave": "Opuść trening",
@@ -289,7 +289,7 @@ export default {
   "campaign.report.took": "Ród {house} odebrał {province} rodowi {defender}.",
   "campaign.report.took_yours": "Ród {house} odebrał Ci {province}.",
 
-  "campaign.result.again": "Zagraj jeszcze raz",
+  "campaign.result.again": "Zagraj znów",
   "campaign.result.alone": "W tabeli tego tygodnia na razie jest tylko Twój wynik: {best} pkt.",
   "campaign.result.best": "Twój najlepszy wynik w tym tygodniu!",
   "campaign.result.extra": "Dodatkowe panowanie: dzisiejsze liczone panowanie już rozpoczęto, więc to nie trafia do rankingu.",
@@ -300,7 +300,7 @@ export default {
   "campaign.result.rank": "W tym tygodniu zajmujesz miejsce {rank} z {of}, z najlepszym wynikiem {best}.",
   "campaign.result.rank_shared": "W tym tygodniu dzielisz miejsce {rank} z {of}, z najlepszym wynikiem {best}.",
   "campaign.result.record": "Twoje najlepsze panowanie jak dotąd!",
-  "campaign.result.retry": "Spróbuj jeszcze raz",
+  "campaign.result.retry": "Ponów",
   "campaign.result.sending": "Liczenie Twojego panowania…",
   "campaign.result.table": "Wróć do tabeli",
   "campaign.result.title": "{score} pkt",

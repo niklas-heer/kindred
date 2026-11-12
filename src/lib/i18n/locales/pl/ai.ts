@@ -272,7 +272,7 @@ export default {
   "ai.exAvatar": "Narysuj portret kogoś na podstawie jednego ze zdjęć tej osoby",
   "ai.exRelated": "Kto jest ze mną spokrewniony i jak?",
   "ai.exHouse": "Które rody nie mają zapisanego następcy?",
-  "ai.famRetry": "Spróbuj ponownie",
+  "ai.famRetry": "Ponów",
   "ai.famDied": "śmierć: {date}",
   "ai.famConnections": "Powiązania",
   "ai.famEmpty": "W tym szkicu nic jeszcze nie ma.",

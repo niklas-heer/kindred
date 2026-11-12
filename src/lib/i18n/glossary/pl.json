@@ -3,7 +3,9 @@
     "family": {
       "use": "rodzina",
       "accept": [
-        "rodzin"
+        "rodzin",
+        "nazwisk",
+        "rodzinn"
       ]
     },
     "tree": {
@@ -18,7 +20,13 @@
         "osob",
         "osób",
         "ludzi",
-        "ludzie"
+        "ludzie",
+        "żyjąc",
+        "człowiek",
+        "ktoś",
+        "kto",
+        "bot",
+        "użytkownik"
       ]
     },
     "relative": {
@@ -29,13 +37,17 @@
         "bliski",
         "bliskich",
         "bliskim",
-        "rodzin"
+        "rodzin",
+        "pokrewie"
       ]
     },
     "member": {
       "use": "członek, członkowie",
       "accept": [
-        "członk"
+        "członk",
+        "członek",
+        "członków",
+        "członkini"
       ]
     },
     "guest": {
@@ -90,7 +102,9 @@
         "rodu",
         "rody",
         "rodów",
-        "rodem"
+        "rodem",
+        "dom",
+        "domu"
       ]
     },
     "head of the house": {
@@ -114,7 +128,9 @@
     "tincture": {
       "use": "tynktura",
       "accept": [
-        "tynktur"
+        "tynktur",
+        "barw",
+        "kolor"
       ]
     },
     "charge": {
@@ -135,7 +151,10 @@
     "memory": {
       "use": "wspomnienie, wspomnienia",
       "accept": [
-        "wspomnien"
+        "wspomnien",
+        "wspomnień",
+        "pamięć",
+        "pamięci"
       ]
     },
     "story": {
@@ -179,7 +198,8 @@
     "Chronicle": {
       "use": "Kronika",
       "accept": [
-        "kronik"
+        "kronik",
+        "kronic"
       ]
     },
     "Almanac": {
@@ -197,7 +217,10 @@
     "Register": {
       "use": "Spis",
       "accept": [
-        "spis"
+        "spis",
+        "zarejestr",
+        "skorowidz",
+        "rejestr"
       ]
     },
     "Gallery": {
@@ -219,7 +242,8 @@
       "accept": [
         "kto to",
         "kim jest",
-        "kto jest"
+        "kto jest",
+        "kogo"
       ]
     },
     "assistant": {
@@ -270,6 +294,12 @@
       ]
     }
   },
-  "sameAsEnglish": [],
+  "sameAsEnglish": [
+    "look.beard.vandyke",
+    "look.hair.box_braids",
+    "oidc.kind_entra",
+    "feedback.key_mod",
+    "signup.ready_turnstile"
+  ],
   "ownWords": []
 }

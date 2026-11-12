@@ -39,7 +39,7 @@ export default {
   "responses.remove_failed": "Nie udało się usunąć komentarza. Spróbuj ponownie.",
   "responses.failed": "Nie udało się. Spróbuj ponownie.",
   "responses.load_failed": "Nie udało się wczytać komentarzy.",
-  "responses.retry": "Spróbuj ponownie",
+  "responses.retry": "Ponów",
   "responses.contributors_only": "Komentarze piszą współtwórcy. Jeśli chcesz dołączyć, zapytaj opiekuna.",
   "responses.err.gone": "Tego wspomnienia, zdjęcia, wiadomości ani wydarzenia już nie ma.",
   "responses.err.comment_gone": "Tego komentarza już nie ma.",

@@ -43,7 +43,7 @@ export default {
   "paint.paintedFrom": "Namalowano ze zdjęcia z roku {year}.",
   "paint.paintedFromUnknown": "Namalowano ze zdjęcia bez daty; przyjęto osobę dorosłą.",
   "paint.useThis": "Użyj tego portretu",
-  "paint.tryAgain": "Spróbuj ponownie",
+  "paint.tryAgain": "Ponów",
   "paint.discard": "Odrzuć",
   "paint.reviewNote": "Nic się nie zmieni, dopóki nie wybierzesz „Użyj tego portretu”. Wersje robocze, których nie zachowasz, zostaną wyrzucone po zamknięciu tego okna.",
   "paint.kept": "Malowany portret zachowano. Pokazuje się w wieku, do którego pasuje.",

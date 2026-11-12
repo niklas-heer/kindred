@@ -226,7 +226,7 @@ export default {
   "houses.review.stale": "Herb albo znaczenia zmieniły się od tego sprawdzenia.",
   "houses.review.open": "Otwórz projektanta herbów",
   "houses.review.check": "Sprawdź herb",
-  "houses.review.again": "Sprawdź jeszcze raz",
+  "houses.review.again": "Sprawdź znów",
   "houses.review.keep": "Odrzuć: zostaw ten herb",
   "houses.review.revise": "Zaproponuj na tej podstawie nowy herb",
   "houses.review.kept": "Ten herb pozostał. Wróci to, jeśli herb albo znaczenia się zmienią.",

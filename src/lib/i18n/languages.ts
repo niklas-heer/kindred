@@ -193,7 +193,7 @@ export const LANGUAGES = {
     jobForms: "piekarz/piekarka",
     accepts: ["pl"],
     shortMonths: ["sty", "lut", "mar", "kwi", "maj", "cze", "lip", "sie", "wrz", "paź", "lis", "gru"],
-    complete: false,
+    complete: true,
   },
   "pt-BR": {
     native: "Português (Brasil)",

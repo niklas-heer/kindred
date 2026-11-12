@@ -67,7 +67,7 @@ export default {
   },
   "print.book.empty": "W tej księdze nie ma jeszcze nikogo. Wybierz osobę albo ród.",
   "print.book.failed": "Nie udało się złożyć księgi.",
-  "print.book.again": "Spróbuj ponownie",
+  "print.book.again": "Ponów",
   "print.book.stop": "Zatrzymaj",
   "print.anc.title": "Przodkowie: {name}",
   "print.desc.title": "Potomkowie: {name}",

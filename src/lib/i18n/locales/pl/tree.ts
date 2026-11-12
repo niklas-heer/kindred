@@ -306,7 +306,7 @@ export default {
   "firstrun.who_yes": "Tak, to ja",
   "firstrun.who_back": "Nie, wróć",
   "firstrun.who_child_of": "Dziecko: {names}",
-  "firstrun.your_name": "Twoje imię i nazwisko",
+  "firstrun.your_name": "Imię i nazwisko",
   "firstrun.search_for_yourself_by_name": "Wyszukaj siebie po imieniu i nazwisku",
   "firstrun.matches": "Dopasowania",
   "firstrun.near_the_centre": "Osoby w środku drzewa",

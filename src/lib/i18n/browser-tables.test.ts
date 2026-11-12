@@ -17,7 +17,8 @@ test('each browser table holds exactly the words the server translates with', as
     for (const key of KEYS) {
       const entry = table[key];
       if (entry === undefined) continue;
-      const text = typeof entry === 'string' ? entry : entry.other;
+      // The form a count of 2 takes in this language (Polish has "few" there, where English has "other").
+      const text = typeof entry === 'string' ? entry : ((entry as Record<string, string>)[new Intl.PluralRules(LANGUAGES[locale].intl).select(2)] ?? entry.other);
       assert.equal(translate(locale, key, { count: 2 }).length > 0, true);
       if (!/\{/.test(text)) assert.equal(translate(locale, key, { count: 2 }), text, `${locale}: ${key}`);
     }

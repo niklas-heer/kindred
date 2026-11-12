@@ -69,7 +69,7 @@ export default {
   "ui.keep_editing": "Edytuj dalej",
   "ui.discard": "Odrzuć",
   "ui.loading": "Wczytywanie…",
-  "ui.retry": "Spróbuj ponownie",
+  "ui.retry": "Ponów",
   "ui.dismiss": "Zamknij",
   "ui.something_went_wrong": "Coś poszło nie tak",
   "ui.could_not_show": "Tej części Kindred nie udało się wyświetlić.",

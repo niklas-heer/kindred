@@ -13,7 +13,7 @@ export default {
   "today.hello_evening": "Dobry wieczór, {name}",
   "today.subtitle": "Usiądź wygodnie. Oto, co Twoja rodzina opowiada, wspomina i świętuje.",
   "today.open_here": "Otwórz rodzinę na tej stronie",
-  "today.retry": "Spróbuj ponownie",
+  "today.retry": "Ponów",
 
   "today.week.title": "Pytanie tygodnia",
   "today.week.of": "Tydzień od {date}",

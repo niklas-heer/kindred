@@ -111,7 +111,7 @@ export default {
   "operator.remove_text": "Konto i rodziny tej osoby zostają bez zmian. Inny administrator może znów ją nim uczynić.",
   "operator.last_operator": "Jedyny administrator serwera nie może zrezygnować: najpierw wyznacz kogoś innego.",
   "operator.add_by_email": "E-mail konta",
-  "operator.add_operator": "Wyznacz administratora serwera",
+  "operator.add_operator": "Dodaj administratora",
   "operator.add_hint": "Konto musi już istnieć, z tym adresem e-mail.",
 
   "operator.audit_hint": "Wszystko, co zrobił administrator serwera, od najnowszego.",
