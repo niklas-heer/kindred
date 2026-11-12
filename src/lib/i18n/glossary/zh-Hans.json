@@ -1,0 +1,253 @@
+{
+  "terms": {
+    "family": {
+      "use": "家族",
+      "accept": [
+        "家族"
+      ]
+    },
+    "tree": {
+      "use": "家谱（页面和文中的“树”都用；手机标签也是家谱）",
+      "accept": [
+        "家谱",
+        "家族树"
+      ]
+    },
+    "person": {
+      "use": "人物",
+      "accept": [
+        "人物",
+        "人"
+      ]
+    },
+    "relative": {
+      "use": "亲戚",
+      "accept": [
+        "亲戚",
+        "亲人",
+        "亲属"
+      ]
+    },
+    "member": {
+      "use": "成员",
+      "accept": [
+        "成员"
+      ]
+    },
+    "guest": {
+      "use": "访客",
+      "accept": [
+        "访客"
+      ]
+    },
+    "viewer": {
+      "use": "查看者",
+      "accept": [
+        "查看"
+      ]
+    },
+    "contributor": {
+      "use": "贡献者",
+      "accept": [
+        "贡献",
+        "供稿"
+      ]
+    },
+    "editor": {
+      "use": "编辑者",
+      "accept": [
+        "编辑"
+      ]
+    },
+    "steward": {
+      "use": "负责人",
+      "accept": [
+        "负责人",
+        "管理"
+      ]
+    },
+    "operator": {
+      "use": "运营者",
+      "accept": [
+        "运营"
+      ]
+    },
+    "house": {
+      "use": "支系（按姓氏分出的一支，如“霍夫曼家”；不是房屋）",
+      "accept": [
+        "支系",
+        "家"
+      ]
+    },
+    "head of the house": {
+      "use": "家主",
+      "accept": [
+        "家主"
+      ]
+    },
+    "arms": {
+      "use": "纹章",
+      "accept": [
+        "纹章"
+      ]
+    },
+    "blazon": {
+      "use": "纹章描述",
+      "accept": [
+        "纹章描述",
+        "纹章文"
+      ]
+    },
+    "tincture": {
+      "use": "色彩",
+      "accept": [
+        "色彩"
+      ]
+    },
+    "charge": {
+      "use": "图案",
+      "accept": [
+        "图案",
+        "纹饰"
+      ]
+    },
+    "source": {
+      "use": "来源",
+      "accept": [
+        "来源",
+        "出处"
+      ]
+    },
+    "memory": {
+      "use": "回忆",
+      "accept": [
+        "回忆"
+      ]
+    },
+    "story": {
+      "use": "故事",
+      "accept": [
+        "故事",
+        "回忆"
+      ]
+    },
+    "Today": {
+      "use": "今天",
+      "accept": [
+        "今天"
+      ]
+    },
+    "question of the week": {
+      "use": "每周一问",
+      "accept": [
+        "每周一问",
+        "每周问题",
+        "本周问题"
+      ]
+    },
+    "quiz": {
+      "use": "问答",
+      "accept": [
+        "问答",
+        "测验"
+      ]
+    },
+    "the Campaign": {
+      "use": "战役",
+      "accept": [
+        "战役"
+      ]
+    },
+    "Chronicle": {
+      "use": "编年史",
+      "accept": [
+        "编年史"
+      ]
+    },
+    "Almanac": {
+      "use": "年历",
+      "accept": [
+        "年历",
+        "日历"
+      ]
+    },
+    "Atlas": {
+      "use": "地图",
+      "accept": [
+        "地图"
+      ]
+    },
+    "Register": {
+      "use": "名册",
+      "accept": [
+        "名册"
+      ]
+    },
+    "Gallery": {
+      "use": "相册",
+      "accept": [
+        "相册",
+        "照片"
+      ]
+    },
+    "Information needed": {
+      "use": "待补充信息",
+      "accept": [
+        "待补",
+        "补充"
+      ]
+    },
+    "Who is this?": {
+      "use": "这是谁？",
+      "accept": [
+        "谁"
+      ]
+    },
+    "assistant": {
+      "use": "助手",
+      "accept": [
+        "助手"
+      ]
+    },
+    "proposal": {
+      "use": "建议",
+      "accept": [
+        "建议"
+      ]
+    },
+    "share link": {
+      "use": "分享链接",
+      "accept": [
+        "分享链接",
+        "分享"
+      ]
+    },
+    "passkey": {
+      "use": "通行密钥",
+      "accept": [
+        "通行密钥"
+      ]
+    },
+    "invitation": {
+      "use": "邀请",
+      "accept": [
+        "邀请"
+      ]
+    },
+    "history": {
+      "use": "历史记录",
+      "accept": [
+        "历史记录",
+        "历史"
+      ]
+    },
+    "Cookbook": {
+      "use": "食谱",
+      "accept": [
+        "食谱"
+      ]
+    }
+  },
+  "sameAsEnglish": [],
+  "ownWords": []
+}

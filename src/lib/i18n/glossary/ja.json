@@ -1,0 +1,254 @@
+{
+  "terms": {
+    "family": {
+      "use": "家族",
+      "accept": [
+        "家族"
+      ]
+    },
+    "tree": {
+      "use": "家系図（ページも文中の木も。携帯のタブも同じ）",
+      "accept": [
+        "家系図",
+        "ツリー"
+      ]
+    },
+    "person": {
+      "use": "人物（人数は「{n}人」）",
+      "accept": [
+        "人物",
+        "人"
+      ]
+    },
+    "relative": {
+      "use": "親戚",
+      "accept": [
+        "親戚",
+        "親族",
+        "身内"
+      ]
+    },
+    "member": {
+      "use": "メンバー",
+      "accept": [
+        "メンバー",
+        "会員"
+      ]
+    },
+    "guest": {
+      "use": "ゲスト",
+      "accept": [
+        "ゲスト"
+      ]
+    },
+    "viewer": {
+      "use": "閲覧者",
+      "accept": [
+        "閲覧"
+      ]
+    },
+    "contributor": {
+      "use": "投稿者",
+      "accept": [
+        "投稿"
+      ]
+    },
+    "editor": {
+      "use": "編集者",
+      "accept": [
+        "編集"
+      ]
+    },
+    "steward": {
+      "use": "世話役",
+      "accept": [
+        "世話役",
+        "管理"
+      ]
+    },
+    "operator": {
+      "use": "運営者",
+      "accept": [
+        "運営"
+      ]
+    },
+    "house": {
+      "use": "家系（「ホフマン家」のような名字ごとの系統。建物ではない）",
+      "accept": [
+        "家系",
+        "家"
+      ]
+    },
+    "head of the house": {
+      "use": "当主",
+      "accept": [
+        "当主"
+      ]
+    },
+    "arms": {
+      "use": "紋章",
+      "accept": [
+        "紋章"
+      ]
+    },
+    "blazon": {
+      "use": "紋章記述",
+      "accept": [
+        "紋章記述",
+        "ブレイゾン"
+      ]
+    },
+    "tincture": {
+      "use": "色（紋章の色）",
+      "accept": [
+        "色"
+      ]
+    },
+    "charge": {
+      "use": "図柄",
+      "accept": [
+        "図柄",
+        "図形"
+      ]
+    },
+    "source": {
+      "use": "出典",
+      "accept": [
+        "出典",
+        "資料"
+      ]
+    },
+    "memory": {
+      "use": "思い出",
+      "accept": [
+        "思い出"
+      ]
+    },
+    "story": {
+      "use": "エピソード",
+      "accept": [
+        "エピソード",
+        "話",
+        "物語",
+        "ストーリー",
+        "思い出"
+      ]
+    },
+    "Today": {
+      "use": "今日",
+      "accept": [
+        "今日"
+      ]
+    },
+    "question of the week": {
+      "use": "今週の質問",
+      "accept": [
+        "今週の質問",
+        "週の質問"
+      ]
+    },
+    "quiz": {
+      "use": "クイズ",
+      "accept": [
+        "クイズ"
+      ]
+    },
+    "the Campaign": {
+      "use": "キャンペーン",
+      "accept": [
+        "キャンペーン"
+      ]
+    },
+    "Chronicle": {
+      "use": "年代記",
+      "accept": [
+        "年代記"
+      ]
+    },
+    "Almanac": {
+      "use": "暦",
+      "accept": [
+        "暦",
+        "カレンダー"
+      ]
+    },
+    "Atlas": {
+      "use": "地図",
+      "accept": [
+        "地図"
+      ]
+    },
+    "Register": {
+      "use": "名簿",
+      "accept": [
+        "名簿"
+      ]
+    },
+    "Gallery": {
+      "use": "ギャラリー",
+      "accept": [
+        "ギャラリー",
+        "写真"
+      ]
+    },
+    "Information needed": {
+      "use": "足りない情報",
+      "accept": [
+        "足りない",
+        "不足"
+      ]
+    },
+    "Who is this?": {
+      "use": "これは誰？",
+      "accept": [
+        "誰"
+      ]
+    },
+    "assistant": {
+      "use": "アシスタント",
+      "accept": [
+        "アシスタント"
+      ]
+    },
+    "proposal": {
+      "use": "提案",
+      "accept": [
+        "提案"
+      ]
+    },
+    "share link": {
+      "use": "共有リンク",
+      "accept": [
+        "共有リンク",
+        "共有"
+      ]
+    },
+    "passkey": {
+      "use": "パスキー",
+      "accept": [
+        "パスキー"
+      ]
+    },
+    "invitation": {
+      "use": "招待",
+      "accept": [
+        "招待"
+      ]
+    },
+    "history": {
+      "use": "履歴",
+      "accept": [
+        "履歴",
+        "変更記録"
+      ]
+    },
+    "Cookbook": {
+      "use": "レシピ集",
+      "accept": [
+        "レシピ"
+      ]
+    }
+  },
+  "sameAsEnglish": [],
+  "ownWords": []
+}
