@@ -1,0 +1,275 @@
+{
+  "terms": {
+    "family": {
+      "use": "rodzina",
+      "accept": [
+        "rodzin"
+      ]
+    },
+    "tree": {
+      "use": "drzewo (drzewo genealogiczne, strona i drzewo w zdaniu); zakładka na telefonie: Drzewo",
+      "accept": [
+        "drzew"
+      ]
+    },
+    "person": {
+      "use": "osoba, osoby",
+      "accept": [
+        "osob",
+        "osób",
+        "ludzi",
+        "ludzie"
+      ]
+    },
+    "relative": {
+      "use": "krewny, krewni (bliscy)",
+      "accept": [
+        "krewn",
+        "krewni",
+        "bliski",
+        "bliskich",
+        "bliskim",
+        "rodzin"
+      ]
+    },
+    "member": {
+      "use": "członek, członkowie",
+      "accept": [
+        "członk"
+      ]
+    },
+    "guest": {
+      "use": "gość, goście",
+      "accept": [
+        "gość",
+        "gości",
+        "goście",
+        "gośc",
+        "gościem"
+      ]
+    },
+    "viewer": {
+      "use": "Czytelnik (rola)",
+      "accept": [
+        "czytel",
+        "czyta"
+      ]
+    },
+    "contributor": {
+      "use": "Współtwórca (rola)",
+      "accept": [
+        "współtw"
+      ]
+    },
+    "editor": {
+      "use": "Redaktor (rola), każdy, kto może edytować",
+      "accept": [
+        "redakt",
+        "edyt"
+      ]
+    },
+    "steward": {
+      "use": "Opiekun (rola), opiekun rodziny",
+      "accept": [
+        "opiekun",
+        "opiek"
+      ]
+    },
+    "operator": {
+      "use": "administrator serwera",
+      "accept": [
+        "administrator",
+        "operator"
+      ]
+    },
+    "house": {
+      "use": "ród, rody (linia rodziny, nigdy budynek)",
+      "accept": [
+        "ród",
+        "rod",
+        "rodu",
+        "rody",
+        "rodów",
+        "rodem"
+      ]
+    },
+    "head of the house": {
+      "use": "głowa rodu",
+      "accept": [
+        "głow"
+      ]
+    },
+    "arms": {
+      "use": "herb",
+      "accept": [
+        "herb"
+      ]
+    },
+    "blazon": {
+      "use": "blazon",
+      "accept": [
+        "blazon"
+      ]
+    },
+    "tincture": {
+      "use": "tynktura",
+      "accept": [
+        "tynktur"
+      ]
+    },
+    "charge": {
+      "use": "figura herbowa, figura",
+      "accept": [
+        "figur"
+      ]
+    },
+    "source": {
+      "use": "źródło, źródła",
+      "accept": [
+        "źródł",
+        "źródeł",
+        "źródła",
+        "źródło"
+      ]
+    },
+    "memory": {
+      "use": "wspomnienie, wspomnienia",
+      "accept": [
+        "wspomnien"
+      ]
+    },
+    "story": {
+      "use": "opowieść, opowieści",
+      "accept": [
+        "opowie",
+        "wspomnien",
+        "histori"
+      ]
+    },
+    "Today": {
+      "use": "Dziś",
+      "accept": [
+        "dziś",
+        "dzis"
+      ]
+    },
+    "question of the week": {
+      "use": "pytanie tygodnia",
+      "accept": [
+        "pytanie tygodnia",
+        "pytania tygodnia",
+        "pytaniu tygodnia",
+        "pytaniem tygodnia",
+        "pytań tygodnia",
+        "pytaniom tygodnia"
+      ]
+    },
+    "quiz": {
+      "use": "quiz",
+      "accept": [
+        "quiz"
+      ]
+    },
+    "the Campaign": {
+      "use": "Kampania",
+      "accept": [
+        "kampani"
+      ]
+    },
+    "Chronicle": {
+      "use": "Kronika",
+      "accept": [
+        "kronik"
+      ]
+    },
+    "Almanac": {
+      "use": "Kalendarz",
+      "accept": [
+        "kalendarz"
+      ]
+    },
+    "Atlas": {
+      "use": "Atlas",
+      "accept": [
+        "atlas"
+      ]
+    },
+    "Register": {
+      "use": "Spis",
+      "accept": [
+        "spis"
+      ]
+    },
+    "Gallery": {
+      "use": "Galeria",
+      "accept": [
+        "galeri"
+      ]
+    },
+    "Information needed": {
+      "use": "Brakujące informacje",
+      "accept": [
+        "brakując",
+        "brakuj",
+        "braki"
+      ]
+    },
+    "Who is this?": {
+      "use": "Kto to?",
+      "accept": [
+        "kto to",
+        "kim jest",
+        "kto jest"
+      ]
+    },
+    "assistant": {
+      "use": "asystent",
+      "accept": [
+        "asystent"
+      ]
+    },
+    "proposal": {
+      "use": "propozycja, propozycje",
+      "accept": [
+        "propozyc"
+      ]
+    },
+    "share link": {
+      "use": "link do udostępnienia",
+      "accept": [
+        "link"
+      ]
+    },
+    "passkey": {
+      "use": "klucz dostępu",
+      "accept": [
+        "klucz",
+        "passkey"
+      ]
+    },
+    "invitation": {
+      "use": "zaproszenie",
+      "accept": [
+        "zaproszen",
+        "zaproszeni",
+        "zaproś",
+        "zapros"
+      ]
+    },
+    "history": {
+      "use": "historia zmian",
+      "accept": [
+        "histori"
+      ]
+    },
+    "Cookbook": {
+      "use": "Książka kucharska",
+      "accept": [
+        "książk",
+        "kucharsk"
+      ]
+    }
+  },
+  "sameAsEnglish": [],
+  "ownWords": []
+}

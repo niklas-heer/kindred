@@ -189,6 +189,7 @@ export const LANGUAGES = {
     speech: "pl-PL",
     dateOrder: "dmy",
     dateSeparator: ".",
+    formal: "Pan/Pani",
     jobForms: "piekarz/piekarka",
     accepts: ["pl"],
     shortMonths: ["sty", "lut", "mar", "kwi", "maj", "cze", "lip", "sie", "wrz", "paź", "lis", "gru"],

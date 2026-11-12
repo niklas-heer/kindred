@@ -1,0 +1,255 @@
+{
+  "terms": {
+    "family": {
+      "use": "Familie",
+      "accept": [
+        "famili"
+      ]
+    },
+    "tree": {
+      "use": "Stamboom (de pagina, de boom in een zin); tab op de telefoon: Boom",
+      "accept": [
+        "stamboom",
+        "boom",
+        "bomen"
+      ]
+    },
+    "person": {
+      "use": "persoon, personen",
+      "accept": [
+        "persoon",
+        "personen",
+        "mensen"
+      ]
+    },
+    "relative": {
+      "use": "familielid, familieleden (of naaste)",
+      "accept": [
+        "familie",
+        "verwant"
+      ]
+    },
+    "member": {
+      "use": "lid, leden",
+      "accept": [
+        "lid",
+        "leden"
+      ]
+    },
+    "guest": {
+      "use": "gast, gasten",
+      "accept": [
+        "gast"
+      ]
+    },
+    "viewer": {
+      "use": "Lezer (de rol)",
+      "accept": [
+        "lezer",
+        "lezen",
+        "meekijk"
+      ]
+    },
+    "contributor": {
+      "use": "Bijdrager (de rol)",
+      "accept": [
+        "bijdrag"
+      ]
+    },
+    "editor": {
+      "use": "Bewerker (de rol), iedereen die mag bewerken",
+      "accept": [
+        "bewerk"
+      ]
+    },
+    "steward": {
+      "use": "Beheerder (de rol), de familiebeheerder",
+      "accept": [
+        "beheerder",
+        "beheer"
+      ]
+    },
+    "operator": {
+      "use": "serverbeheerder",
+      "accept": [
+        "serverbeheer",
+        "beheerder van de server",
+        "hoster"
+      ]
+    },
+    "house": {
+      "use": "Huis, huizen (een lijn van de familie, nooit een gebouw)",
+      "accept": [
+        "huis",
+        "huizen"
+      ]
+    },
+    "head of the house": {
+      "use": "hoofd van het huis",
+      "accept": [
+        "hoofd van"
+      ]
+    },
+    "arms": {
+      "use": "wapen",
+      "accept": [
+        "wapen"
+      ]
+    },
+    "blazon": {
+      "use": "blazoen",
+      "accept": [
+        "blazoen"
+      ]
+    },
+    "tincture": {
+      "use": "tinctuur (kleur, metaal of bont)",
+      "accept": [
+        "tinctu",
+        "kleur"
+      ]
+    },
+    "charge": {
+      "use": "figuur, figuren",
+      "accept": [
+        "figuur",
+        "figuren"
+      ]
+    },
+    "source": {
+      "use": "bron, bronnen",
+      "accept": [
+        "bron"
+      ]
+    },
+    "memory": {
+      "use": "herinnering, herinneringen",
+      "accept": [
+        "herinner"
+      ]
+    },
+    "story": {
+      "use": "verhaal, verhalen",
+      "accept": [
+        "verhaal",
+        "verhalen",
+        "herinner"
+      ]
+    },
+    "Today": {
+      "use": "Vandaag",
+      "accept": [
+        "vandaag"
+      ]
+    },
+    "question of the week": {
+      "use": "vraag van de week",
+      "accept": [
+        "vraag van de week",
+        "weekvraag"
+      ]
+    },
+    "quiz": {
+      "use": "quiz",
+      "accept": [
+        "quiz"
+      ]
+    },
+    "the Campaign": {
+      "use": "de Veldtocht",
+      "accept": [
+        "veldtocht"
+      ]
+    },
+    "Chronicle": {
+      "use": "Kroniek",
+      "accept": [
+        "kroniek"
+      ]
+    },
+    "Almanac": {
+      "use": "Kalender",
+      "accept": [
+        "kalender"
+      ]
+    },
+    "Atlas": {
+      "use": "Atlas",
+      "accept": [
+        "atlas"
+      ]
+    },
+    "Register": {
+      "use": "Register",
+      "accept": [
+        "register"
+      ]
+    },
+    "Gallery": {
+      "use": "Galerij",
+      "accept": [
+        "galerij"
+      ]
+    },
+    "Information needed": {
+      "use": "Ontbrekende gegevens",
+      "accept": [
+        "ontbrekende gegevens",
+        "ontbrekende"
+      ]
+    },
+    "Who is this?": {
+      "use": "Wie is dit?",
+      "accept": [
+        "wie is dit",
+        "wie is dat",
+        "wie is deze"
+      ]
+    },
+    "assistant": {
+      "use": "assistent",
+      "accept": [
+        "assistent"
+      ]
+    },
+    "proposal": {
+      "use": "voorstel, voorstellen",
+      "accept": [
+        "voorstel"
+      ]
+    },
+    "share link": {
+      "use": "deellink",
+      "accept": [
+        "deellink",
+        "link"
+      ]
+    },
+    "passkey": {
+      "use": "passkey",
+      "accept": [
+        "passkey"
+      ]
+    },
+    "invitation": {
+      "use": "uitnodiging",
+      "accept": [
+        "uitnodig"
+      ]
+    },
+    "history": {
+      "use": "geschiedenis",
+      "accept": [
+        "geschiedenis"
+      ]
+    },
+    "Cookbook": {
+      "use": "Kookboek",
+      "accept": [
+        "kookboek"
+      ]
+    }
+  },
+  "sameAsEnglish": [],
+  "ownWords": []
+}

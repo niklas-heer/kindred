@@ -19,6 +19,20 @@ export const TITLE_WORDS: Record<string, Partial<Record<Exclude<Locale, "en">, s
   Access: { de: "Zugang", af: "Toegang", es: "Acceso", "pt-BR": "Acesso", ja: "アクセス", "zh-Hans": "访问权限", fr: "Accès", it: "Accesso" },
   Statistics: { de: "Statistik", af: "Statistiek", es: "Estadísticas", "pt-BR": "Estatísticas", ja: "統計", "zh-Hans": "统计", fr: "Statistiques", it: "Statistiche" },
   Tree: { de: "Stammbaum", af: "Stamboom", es: "Árbol genealógico", "pt-BR": "Árvore genealógica", ja: "家系図", "zh-Hans": "家谱", fr: "Arbre", it: "Albero" },
+  "Sign in": { de: "Anmelden", af: "Meld aan", nl: "Inloggen", pl: "Logowanie" },
+  "Set up": { de: "Einrichten", af: "Stel op", nl: "Instellen", pl: "Konfiguracja" },
+  Invitation: { de: "Einladung", af: "Uitnodiging", nl: "Uitnodiging", pl: "Zaproszenie" },
+  Almanac: { de: "Kalender", af: "Almanak", nl: "Kalender", pl: "Kalendarz" },
+  Contacts: { de: "Kontakte", af: "Kontakte", nl: "Contacten", pl: "Kontakty" },
+  Register: { de: "Verzeichnis", af: "Register", nl: "Register", pl: "Spis" },
+  Houses: { de: "Häuser", af: "Huise", nl: "Huizen", pl: "Rody" },
+  Needed: { de: "Fehlende Angaben", af: "Inligting nodig", nl: "Ontbrekende gegevens", pl: "Brakujące informacje" },
+  "Information needed": { de: "Fehlende Angaben", af: "Inligting nodig", nl: "Ontbrekende gegevens", pl: "Brakujące informacje" },
+  Chronicle: { de: "Chronik", af: "Kroniek", nl: "Kroniek", pl: "Kronika" },
+  Gallery: { de: "Galerie", af: "Galery", nl: "Galerij", pl: "Galeria" },
+  Access: { de: "Zugang", af: "Toegang", nl: "Toegang", pl: "Dostęp" },
+  Statistics: { de: "Statistik", af: "Statistiek", nl: "Statistieken", pl: "Statystyki" },
+  Tree: { de: "Stammbaum", af: "Stamboom", nl: "Stamboom", pl: "Drzewo" },
 };
 
 /** The English word a title part stands for, whichever language it is written in. */

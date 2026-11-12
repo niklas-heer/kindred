@@ -29,6 +29,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["你", "你"],
     it: ["tu", "tu"],
     fr: ["toi", "toi"],
+    nl: ["jij", "jij"],
   },
   {
     kin: { label: "father" },
@@ -42,6 +43,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["父亲", "你的父亲"],
     it: ["padre", "tuo padre"],
     fr: ["père", "ton père"],
+    nl: ["vader", "je vader"],
   },
   {
     kin: { label: "mother" },
@@ -54,6 +56,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["母亲", "你的母亲"],
     it: ["madre", "tua madre"],
     fr: ["mère", "ta mère"],
+    nl: ["moeder", "je moeder"],
   },
   {
     kin: { label: "parent" },
@@ -67,6 +70,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["父母", "你的父母"],
     it: ["genitore", "tuo genitore"],
     fr: ["parent", "ton parent"],
+    nl: ["ouder", "je ouder"],
   },
   {
     kin: { label: "son" },
@@ -79,6 +83,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["儿子", "你的儿子"],
     it: ["figlio", "tuo figlio"],
     fr: ["fils", "ton fils"],
+    nl: ["zoon", "je zoon"],
   },
   {
     kin: { label: "daughter" },
@@ -91,6 +96,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["女儿", "你的女儿"],
     it: ["figlia", "tua figlia"],
     fr: ["fille", "ta fille"],
+    nl: ["dochter", "je dochter"],
   },
   {
     kin: { label: "child" },
@@ -104,6 +110,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["孩子", "你的孩子"],
     it: ["figlio o figlia", "tuo figlio o tua figlia"],
     fr: ["enfant", "ton enfant"],
+    nl: ["kind", "je kind"],
   },
   {
     kin: { label: "brother" },
@@ -116,6 +123,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["兄弟", "你的兄弟"],
     it: ["fratello", "tuo fratello"],
     fr: ["frère", "ton frère"],
+    nl: ["broer", "je broer"],
   },
   {
     kin: { label: "sister" },
@@ -128,6 +136,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["姐妹", "你的姐妹"],
     it: ["sorella", "tua sorella"],
     fr: ["sœur", "ta sœur"],
+    nl: ["zus", "je zus"],
   },
   {
     kin: { label: "sibling" },
@@ -141,6 +150,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["兄弟姐妹", "你的兄弟姐妹"],
     it: ["fratello o sorella", "tuo fratello o tua sorella"],
     fr: ["frère ou sœur", "ton frère ou ta sœur"],
+    nl: ["broer of zus", "je broer of zus"],
   },
   {
     kin: { label: "grandmother" },
@@ -153,6 +163,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["祖母或外祖母", "你的祖母或外祖母"],
     it: ["nonna", "tua nonna"],
     fr: ["grand-mère", "ta grand-mère"],
+    nl: ["oma", "je oma"],
   },
   {
     kin: { label: "grandchild" },
@@ -165,6 +176,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["孙辈", "你的孙辈"],
     it: ["nipote", "tuo nipote"],
     fr: ["petit-enfant", "ton petit-enfant"],
+    nl: ["kleinkind", "je kleinkind"],
   },
   {
     kin: { label: "great-grandfather" },
@@ -178,6 +190,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["曾祖父或外曾祖父", "你的曾祖父或外曾祖父"],
     it: ["bisnonno", "tuo bisnonno"],
     fr: ["arrière-grand-père", "ton arrière-grand-père"],
+    nl: ["overgrootvader", "je overgrootvader"],
   },
   {
     kin: { label: "2× great-grandmother" },
@@ -191,6 +204,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["高祖母或外高祖母", "你的高祖母或外高祖母"],
     it: ["trisnonna", "tua trisnonna"],
     fr: ["arrière-arrière-grand-mère", "ton arrière-arrière-grand-mère"],
+    nl: ["betovergrootmoeder", "je betovergrootmoeder"],
   },
   {
     kin: { label: "great-grandson" },
@@ -203,6 +217,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["曾孙或外曾孙", "你的曾孙或外曾孙"],
     it: ["pronipote", "tuo pronipote"],
     fr: ["arrière-petit-fils", "ton arrière-petit-fils"],
+    nl: ["achterkleinzoon", "je achterkleinzoon"],
   },
   {
     kin: { label: "uncle" },
@@ -215,6 +230,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["父母的兄弟", "你的父母的兄弟"],
     it: ["zio", "tuo zio"],
     fr: ["oncle", "ton oncle"],
+    nl: ["oom", "je oom"],
   },
   {
     kin: { label: "aunt" },
@@ -227,6 +243,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["父母的姐妹", "你的父母的姐妹"],
     it: ["zia", "tua zia"],
     fr: ["tante", "ta tante"],
+    nl: ["tante", "je tante"],
   },
   {
     kin: { label: "pibling" },
@@ -240,6 +257,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["父母的兄弟姐妹", "你的父母的兄弟姐妹"],
     it: ["zio o zia", "tuo zio o tua zia"],
     fr: ["oncle ou tante", "ton oncle ou ta tante"],
+    nl: ["oom of tante", "je oom of tante"],
   },
   {
     kin: { label: "nephew" },
@@ -252,6 +270,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["兄弟姐妹的儿子", "你的兄弟姐妹的儿子"],
     it: ["nipote", "tuo nipote"],
     fr: ["neveu", "ton neveu"],
+    nl: ["neef", "je neef"],
   },
   {
     kin: { label: "niece" },
@@ -264,6 +283,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["兄弟姐妹的女儿", "你的兄弟姐妹的女儿"],
     it: ["nipote", "tua nipote"],
     fr: ["nièce", "ta nièce"],
+    nl: ["nicht", "je nicht"],
   },
   {
     kin: { label: "nibling" },
@@ -277,6 +297,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["兄弟姐妹的孩子", "你的兄弟姐妹的孩子"],
     it: ["nipote", "tuo nipote"],
     fr: ["neveu ou nièce", "ton neveu ou ta nièce"],
+    nl: ["neef of nicht", "je neef of nicht"],
   },
   {
     kin: { label: "great-aunt" },
@@ -290,6 +311,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["祖父母的姐妹", "你的祖父母的姐妹"],
     it: ["prozia", "tua prozia"],
     fr: ["grand-tante", "ta grand-tante"],
+    nl: ["oudtante", "je oudtante"],
   },
   {
     kin: { label: "2× great-uncle" },
@@ -302,6 +324,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["曾祖父母的兄弟", "你的曾祖父母的兄弟"],
     it: ["2× prozio", "tuo 2× prozio"],
     fr: ["arrière-grand-oncle", "ton arrière-grand-oncle"],
+    nl: ["2× oudoom", "je 2× oudoom"],
   },
   {
     kin: { label: "great-nephew" },
@@ -314,6 +337,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["兄弟姐妹的孙子", "你的兄弟姐妹的孙子"],
     it: ["pronipote", "tuo pronipote"],
     fr: ["petit-neveu", "ton petit-neveu"],
+    nl: ["achterneef", "je achterneef"],
   },
   {
     kin: { label: "half-brother" },
@@ -327,6 +351,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["半血缘兄弟", "你的半血缘兄弟"],
     it: ["fratellastro", "tuo fratellastro"],
     fr: ["demi-frère", "ton demi-frère"],
+    nl: ["halfbroer", "je halfbroer"],
   },
   {
     kin: { label: "great-half-uncle" },
@@ -339,6 +364,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["祖父母的半血缘兄弟", "你的祖父母的半血缘兄弟"],
     it: ["mezzo prozio", "tuo mezzo prozio"],
     fr: ["demi-grand-oncle", "ton demi-grand-oncle"],
+    nl: ["halfoudoom", "je halfoudoom"],
   },
   {
     kin: { label: "cousin", cousin: { sex: 'f', up: 0 } },
@@ -352,6 +378,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["堂表姐妹", "你的堂表姐妹"],
     it: ["cugina", "tua cugina"],
     fr: ["cousine", "ta cousine"],
+    nl: ["nicht", "je nicht"],
   },
   {
     kin: { label: "cousin", cousin: { up: 0 } },
@@ -365,6 +392,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["堂表亲", "你的堂表亲"],
     it: ["cugino o cugina", "tuo cugino o tua cugina"],
     fr: ["cousin ou cousine", "ton cousin ou ta cousine"],
+    nl: ["neef of nicht", "je neef of nicht"],
   },
   {
     kin: { label: "second cousin", cousin: { sex: 'm', up: 0 } },
@@ -377,6 +405,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["再从堂表兄弟", "你的再从堂表兄弟"],
     it: ["cugino di 2º grado", "tuo cugino di 2º grado"],
     fr: ["cousin issu de germain", "ton cousin issu de germain"],
+    nl: ["neef in de tweede graad", "je neef in de tweede graad"],
   },
   {
     kin: { label: "third cousin", cousin: { sex: 'f', up: 0 } },
@@ -389,6 +418,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["三从堂表姐妹", "你的三从堂表姐妹"],
     it: ["cugina di 3º grado", "tua cugina di 3º grado"],
     fr: ["cousine au 3e degré", "ta cousine au 3e degré"],
+    nl: ["nicht in de derde graad", "je nicht in de derde graad"],
   },
   {
     kin: { label: "cousin once removed", cousin: { sex: 'm', up: 1 } },
@@ -402,6 +432,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["父母的堂表亲", "你的父母的堂表亲"],
     it: ["zio di 2º grado", "tuo zio di 2º grado"],
     fr: ["oncle à la mode de Bretagne", "ton oncle à la mode de Bretagne"],
+    nl: ["oom in de tweede graad", "je oom in de tweede graad"],
   },
   {
     kin: { label: "cousin once removed", cousin: { sex: 'f', up: -1 } },
@@ -415,6 +446,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["堂表亲的女儿", "你的堂表亲的女儿"],
     it: ["nipote di 2º grado", "tua nipote di 2º grado"],
     fr: ["nièce à la mode de Bretagne", "ta nièce à la mode de Bretagne"],
+    nl: ["nicht in de tweede graad", "je nicht in de tweede graad"],
   },
   {
     kin: { label: "second cousin twice removed", cousin: { sex: 'm', up: 2 } },
@@ -427,6 +459,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["祖父母的再从堂表亲", "你的祖父母的再从堂表亲"],
     it: ["prozio di 3º grado", "tuo prozio di 3º grado"],
     fr: ["grand-oncle au 3e degré", "ton grand-oncle au 3e degré"],
+    nl: ["oudoom in de derde graad", "je oudoom in de derde graad"],
   },
   {
     kin: { label: "half-cousin", cousin: { sex: 'm', up: 0 } },
@@ -439,6 +472,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["半血缘堂表兄弟", "你的半血缘堂表兄弟"],
     it: ["mezzo cugino", "tuo mezzo cugino"],
     fr: ["demi-cousin", "ton demi-cousin"],
+    nl: ["halfneef", "je halfneef"],
   },
   {
     kin: { label: "husband" },
@@ -451,6 +485,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["丈夫", "你的丈夫"],
     it: ["marito", "tuo marito"],
     fr: ["mari", "ton mari"],
+    nl: ["man", "je man"],
   },
   {
     kin: { label: "wife" },
@@ -463,6 +498,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["妻子", "你的妻子"],
     it: ["moglie", "tua moglie"],
     fr: ["femme", "ta femme"],
+    nl: ["vrouw", "je vrouw"],
   },
   {
     kin: { label: "partner" },
@@ -476,6 +512,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["伴侣", "你的伴侣"],
     it: ["compagno o compagna", "il tuo compagno o la tua compagna"],
     fr: ["compagnon ou compagne", "ton compagnon ou ta compagne"],
+    nl: ["partner", "je partner"],
   },
   {
     kin: { label: "mother-in-law" },
@@ -488,6 +525,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["配偶的母亲", "你的配偶的母亲"],
     it: ["suocera", "tua suocera"],
     fr: ["belle-mère", "ta belle-mère"],
+    nl: ["schoonmoeder", "je schoonmoeder"],
   },
   {
     kin: { label: "son-in-law" },
@@ -500,6 +538,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["女婿", "你的女婿"],
     it: ["genero", "tuo genero"],
     fr: ["gendre", "ton gendre"],
+    nl: ["schoonzoon", "je schoonzoon"],
   },
   {
     kin: { label: "sister-in-law" },
@@ -512,6 +551,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["姻亲姐妹", "你的姻亲姐妹"],
     it: ["cognata", "tua cognata"],
     fr: ["belle-sœur", "ta belle-sœur"],
+    nl: ["schoonzus", "je schoonzus"],
   },
   {
     kin: { label: "sibling-in-law" },
@@ -524,6 +564,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["姻亲兄弟姐妹", "你的姻亲兄弟姐妹"],
     it: ["cognato o cognata", "tuo cognato o tua cognata"],
     fr: ["beau-frère ou belle-sœur", "ton beau-frère ou ta belle-sœur"],
+    nl: ["zwager of schoonzus", "je zwager of schoonzus"],
   },
   {
     kin: { label: "grandfather-in-law", spouse: 'f' },
@@ -537,6 +578,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["妻子的祖父或外祖父", "你的妻子的祖父或外祖父"],
     it: ["nonno di tua moglie", "il nonno di tua moglie"],
     fr: ["grand-père de ta femme", "le grand-père de ta femme"],
+    nl: ["opa van je vrouw", "de opa van je vrouw"],
   },
   {
     kin: { label: "stepmother" },
@@ -549,6 +591,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["继母", "你的继母"],
     it: ["matrigna", "tua matrigna"],
     fr: ["belle-mère", "ta belle-mère"],
+    nl: ["stiefmoeder", "je stiefmoeder"],
   },
   {
     kin: { label: "stepchild" },
@@ -561,6 +604,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["继子女", "你的继子女"],
     it: ["figliastro o figliastra", "tuo figliastro o tua figliastra"],
     fr: ["beau-fils ou belle-fille", "ton beau-fils ou ta belle-fille"],
+    nl: ["stiefkind", "je stiefkind"],
   },
   {
     kin: { label: "step-grandfather" },
@@ -573,6 +617,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["继祖父", "你的继祖父"],
     it: ["nonno acquisito", "tuo nonno acquisito"],
     fr: ["grand-père par alliance", "ton grand-père par alliance"],
+    nl: ["stiefopa", "je stiefopa"],
   },
   {
     kin: { label: "foster daughter" },
@@ -585,6 +630,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["寄养女儿", "你的寄养女儿"],
     it: ["figlia in affido", "tua figlia in affido"],
     fr: ["fille d’accueil", "ta fille d’accueil"],
+    nl: ["pleegdochter", "je pleegdochter"],
   },
   {
     kin: { label: "adoptive father" },
@@ -597,6 +643,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["养父", "你的养父"],
     it: ["padre adottivo", "tuo padre adottivo"],
     fr: ["père adoptif", "ton père adoptif"],
+    nl: ["adoptievader", "je adoptievader"],
   },
   {
     kin: { label: "adopted child" },
@@ -609,6 +656,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["养子女", "你的养子女"],
     it: ["figlio adottivo o figlia adottiva", "tuo figlio adottivo o tua figlia adottiva"],
     fr: ["enfant adoptif", "ton enfant adoptif"],
+    nl: ["adoptiekind", "je adoptiekind"],
   },
   {
     kin: { label: "uncle's wife" },
@@ -622,6 +670,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["父母的兄弟的妻子", "你的父母的兄弟的妻子"],
     it: ["zia acquisita", "tua zia acquisita"],
     fr: ["tante par alliance", "ta tante par alliance"],
+    nl: ["aangetrouwde tante", "je aangetrouwde tante"],
   },
   {
     kin: { label: "aunt's husband" },
@@ -635,6 +684,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["父母的姐妹的丈夫", "你的父母的姐妹的丈夫"],
     it: ["zio acquisito", "tuo zio acquisito"],
     fr: ["oncle par alliance", "ton oncle par alliance"],
+    nl: ["aangetrouwde oom", "je aangetrouwde oom"],
   },
   {
     kin: { label: "nephew's wife" },
@@ -648,6 +698,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["兄弟姐妹的儿子的妻子", "你的兄弟姐妹的儿子的妻子"],
     it: ["moglie di tuo nipote", "la moglie di tuo nipote"],
     fr: ["femme de ton neveu", "la femme de ton neveu"],
+    nl: ["vrouw van je neef", "de vrouw van je neef"],
   },
   {
     kin: { label: "wife's sister" },
@@ -660,6 +711,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["妻子的姐妹", "你的妻子的姐妹"],
     it: ["sorella di tua moglie", "la sorella di tua moglie"],
     fr: ["sœur de ta femme", "la sœur de ta femme"],
+    nl: ["zus van je vrouw", "de zus van je vrouw"],
   },
   {
     kin: { label: "wife's sister's husband" },
@@ -673,6 +725,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["妻子的姐妹的丈夫", "你的妻子的姐妹的丈夫"],
     it: ["marito della sorella di tua moglie", "il marito della sorella di tua moglie"],
     fr: ["mari de la sœur de ta femme", "le mari de la sœur de ta femme"],
+    nl: ["zwager", "je zwager"],
   },
   {
     kin: { label: "wife's great-aunt" },
@@ -685,6 +738,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["妻子的祖父母的姐妹", "你的妻子的祖父母的姐妹"],
     it: ["prozia di tua moglie", "la prozia di tua moglie"],
     fr: ["grand-tante de ta femme", "la grand-tante de ta femme"],
+    nl: ["oudtante van je vrouw", "de oudtante van je vrouw"],
   },
   {
     kin: { label: "stepfather's brother" },
@@ -697,6 +751,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["继父的兄弟", "你的继父的兄弟"],
     it: ["fratello di tuo patrigno", "il fratello di tuo patrigno"],
     fr: ["frère de ton beau-père", "le frère de ton beau-père"],
+    nl: ["broer van je stiefvader", "de broer van je stiefvader"],
   },
   {
     kin: { label: "cousin's husband", cousin: { sex: 'f', up: 0 } },
@@ -709,6 +764,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["堂表姐妹的丈夫", "你的堂表姐妹的丈夫"],
     it: ["marito di tua cugina", "il marito di tua cugina"],
     fr: ["mari de ta cousine", "le mari de ta cousine"],
+    nl: ["man van je nicht", "de man van je nicht"],
   },
   {
     kin: { label: "cousin's husband", cousin: { sex: 'f', up: 0 } },
@@ -723,6 +779,7 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["堂表姐妹的丈夫", "你的堂表姐妹的丈夫"],
     it: ["marito della cugina", "il marito di tua cugina"],
     fr: ["mari de la cousine", "le mari de ta cousine"],
+    nl: ["man van de nicht", "de man van je nicht"],
   },
   {
     kin: { label: "relative by marriage", sex: 'f' },
@@ -736,5 +793,6 @@ export const CASES: readonly KinshipCase[] = [
     "zh-Hans": ["姻亲", "你的姻亲"],
     it: ["parente acquisita", "tua parente acquisita"],
     fr: ["parente par alliance", "ta parente par alliance"],
+    nl: ["aangetrouwde verwant", "je aangetrouwde verwant"],
   },
 ];
