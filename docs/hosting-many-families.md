@@ -324,11 +324,18 @@ is ever updated by itself.
   (`chore: update Kindred to vX`). Kept as they are: `wrangler.jsonc` (your bindings, ids, names, vars and `KINDRED_JURISDICTION`),
   `.github/` (your workflows; a token from Actions may not change them anyway), `.kindred-keep` and any path it lists (one per
   line, `#` for comments, for example a changed `public/favicon.svg`), and `.kindred-release`, where the workflow writes the
-  release your copy now has. Everything else is the release's: a file you changed elsewhere is replaced, and a file the release
-  removed is removed. When Kindred's own `wrangler.jsonc` changed between your copy's last release and the new one, the run warns
+  release your copy now has. Everything else is the release's: a file you changed elsewhere is replaced, a file the release
+  removed is removed, and **a file your copy added is removed too** unless `.kindred-keep` lists it (or it is under `.github/`).
+  The workflow **refuses a release older than `.kindred-release`**, so a leaked token that can start it cannot move your install
+  back to a release with known holes (see "Going back" for going back on purpose). When Kindred's own `wrangler.jsonc` changed between your copy's last release and the new one, the run warns
   and shows the difference in its summary; such a release is marked `manual`, so the button refuses it, and you carry the change
   over by hand. A fork to follow instead of Kindred: the repository variable `KINDRED_UPSTREAM` (`https://github.com/owner/name`).
   A protected default branch refuses the workflow's push: allow GitHub Actions to push to it, or update by hand.
+- **The workflow cannot update itself.** It lives under `.github/`, which the update keeps as your copy has it (and a token from
+  Actions may not change workflows anyway). When a release's notes say `update.yml` changed, update it by hand: copy the
+  release's `.github/workflows/update.yml` over yours (on GitHub, open the file in your copy, *Edit*, paste the release's version
+  from `https://github.com/niklas-heer/kindred/blob/vX.Y.Z/.github/workflows/update.yml`, and commit), then use the button as
+  before.
 - **Going back.** Revert the update's commit in your copy (`git revert <commit>` and push, or GitHub's "Revert" on the commit):
   Workers Builds deploys the previous release. A release's migrations only add (see
   [data-model.md](data-model.md#rules-every-change-follows)), so the previous code runs on the newer schema; the added tables and

@@ -9,7 +9,11 @@ name: Update Kindred
 #   wrangler.jsonc     the copy's bindings, ids, names, vars and jurisdiction
 #   .github/           the copy's workflows (this file too; a token from Actions may not change workflows anyway)
 #   .kindred-keep      more paths to keep, one per line (for example a changed public/favicon.svg); # starts a comment
-#   .kindred-release   the release this copy has now, written here
+#   .kindred-release   the release this copy has now, written here; a tag older than it is refused, so a leaked token
+#                      cannot move the copy back (going back on purpose: revert the update's commit)
+# Every other file is the release's: a file the copy added and did not list in .kindred-keep is removed.
+# This file cannot update itself (it is under .github/, which is kept, and a token from Actions may not change workflows): when a
+# release changes it, copy the release's .github/workflows/update.yml over yours by hand and push (docs/hosting-many-families.md).
 # When the release changes Kindred's own wrangler.jsonc since the copy's last release, the run says so (a warning and the
 # difference in its summary), because the copy keeps its own: compare and carry over by hand. A release that needs that is
 # marked "manual", and the console's button refuses it.
@@ -53,6 +57,24 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
           fetch-depth: 1
+      # Never backwards: a token that can start this workflow (the console's, if it leaked) must not be able to move the install
+      # to an older release with known holes. To go back on purpose, revert the update's commit instead.
+      - name: Refuse a release older than the copy has
+        run: |
+          prev=""
+          if [[ -f .kindred-release ]]; then prev=$(tr -d '[:space:]' < .kindred-release); fi
+          if [[ "$prev" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            have=("${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}")
+            [[ "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]
+            want=("${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}")
+            for i in 0 1 2; do
+              if (( 10#${want[i]} > 10#${have[i]} )); then exit 0; fi
+              if (( 10#${want[i]} < 10#${have[i]} )); then
+                echo "::error::$TAG is older than $prev, the release this copy has. An update never goes back; to return to an older release, revert the update's commit (docs/hosting-many-families.md, \"Going back\")."
+                exit 1
+              fi
+            done
+          fi
       - name: Fetch the release
         run: |
           git fetch --no-tags --depth=1 "$UPSTREAM" "refs/tags/$TAG"
