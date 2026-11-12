@@ -42,12 +42,13 @@ function cookie(request: Request, value: string, maxAgeSeconds: number) {
 /**
  * Signs `user` in: always a brand-new session (so a session planted before sign-in is worthless),
  * and the old one, if any, is ended. `credential` is the passkey used, so removing it later signs this session out.
- * `method` is the way in (methods.ts): turning that way off later ends this session. Returns the Set-Cookie value.
+ * `method` is the way in (methods.ts): turning that way off later ends this session; `provider` is the single sign-on provider
+ * that started it (oidc.server.ts), whose switching off ends it too. Returns the Set-Cookie value.
  */
-export async function startSession(request: Request, user: string, credential: string | null = null, proved = false, method: SignInMethod = 'passkey'): Promise<string> {
+export async function startSession(request: Request, user: string, credential: string | null = null, proved = false, method: SignInMethod = 'passkey', provider: string | null = null): Promise<string> {
   const old = sessionToken(request);
   if (old) await deleteSession(old);
-  const { token, expires } = await createSession(user, credential, proved, method);
+  const { token, expires } = await createSession(user, credential, proved, method, provider);
   return cookie(request, token, Math.floor((expires - now()) / 1000));
 }
 

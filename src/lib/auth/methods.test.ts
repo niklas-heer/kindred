@@ -83,7 +83,8 @@ test('the console counts who can use each method and who would have nothing else
   const s = await m.signInSettings({});
   assert.equal(s.mode, 'kindred');
   assert.equal(s.source, 'console');
-  assert.deepEqual(s.methods.map((c) => [c.id, c.state, c.accounts, c.onlyWay]), [['passkey', 'enabled', 2, 1], ['password', 'enabled', 2, 1]]);
+  assert.deepEqual(s.methods.map((c) => [c.id, c.state, c.accounts, c.onlyWay]), [['passkey', 'enabled', 2, 1], ['password', 'enabled', 2, 1], ['oidc', 'unavailable', 0, 0]]);
+  // Single sign-on shows, unavailable until the operator adds a provider (src/lib/auth/oidc.server.ts).
   assert.equal((await m.previewMethods(['passkey'])).lockedOut, 1, 'turning passwords off locks out Bo');
   assert.deepEqual((await m.previewMethods(['passkey'])).removed, ['password']);
 });
@@ -132,7 +133,7 @@ test('passkeys turned off: passkey sign-in, adding and proofs by passkey are ref
   const bo = await account('Bo Testfield', { username: 'bo.t' });
   const { token } = await store.createSession(bo.id, null, false, 'password');
   await assert.rejects(proof.proofOptions(browser(token), bo), /auth\.passkeys_off/);
-  assert.deepEqual(await proof.proofKinds(bo), { passkey: false, password: true, totp: false });
+  assert.deepEqual(await proof.proofKinds(bo), { passkey: false, password: true, totp: false, oidc: [] });
 });
 
 // ---------- the fresh proof by password ----------

@@ -1,16 +1,18 @@
 // The operator console's sign-in tab (docs/hosting-many-families.md): which ways in the server offers (src/lib/auth/
-// methods.server.ts holds the rules), and a one-hour reset link for someone who cannot sign in any more. Both need the
-// operator's fresh proof (checked by the server function) and are written to the audit log in the same batch.
+// methods.server.ts holds the rules), the single sign-on providers (src/lib/auth/oidc.server.ts), and a one-hour reset link
+// for someone who cannot sign in any more. Every change needs the operator's fresh proof (checked by the server function) and
+// is written to the audit log in the same batch.
 import { AuthError } from '../auth/errors.ts';
 import { previewMethods, saveMethods, signInSettings, type MethodChange } from '../auth/methods.server.ts';
 import { normalizeUsername, type SignInMethod, type SignInSettings } from '../auth/methods.ts';
 import { makeResetLink } from '../auth/password.server.ts';
+import { deleteProvider, listProviders, saveProvider, type ProviderInput } from '../auth/oidc.server.ts';
 import { accounts, type UserRow } from '../auth/store.server.ts';
 import { audit } from './settings.server.ts';
 
 const actor = (u: UserRow) => ({ id: u.id, name: u.name });
 
-export { signInSettings, previewMethods };
+export { signInSettings, previewMethods, listProviders };
 export type { SignInSettings, MethodChange };
 
 /** Saves which ways in the server offers. Refused when an operator would be left without one; ends the removed methods' sessions. */
@@ -31,4 +33,14 @@ export async function resetLinkFor(op: UserRow, who: string, clearTotp: boolean)
   const { token, expires, writes } = await makeResetLink(target.id, op.id, clearTotp);
   await accounts().batch([...writes, audit(actor(op), 'signin.reset_link', null, { account: target.id, name: target.name, clearTotp })]);
   return { token, expires, name: target.name };
+}
+
+/** Adds or changes a single sign-on provider (the secret is sealed; the issuer is fixed once it exists). */
+export function setProvider(op: UserRow, input: ProviderInput): Promise<void> {
+  return saveProvider(input, (detail) => audit(actor(op), 'signin.provider', null, detail));
+}
+
+/** Removes a single sign-on provider, the identities at it and the sessions it started. */
+export function removeProvider(op: UserRow, id: string): Promise<void> {
+  return deleteProvider(id, (detail) => audit(actor(op), 'signin.provider_deleted', null, detail));
 }

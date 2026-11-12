@@ -75,25 +75,33 @@ async function provePasskey() {
 
 // ---------- the proof by password ----------
 
-/** What the password prompt (ProofHost) is asked for; it resolves once the server accepted the proof, rejects when cancelled. */
-export interface PasswordProofAsk { totp: boolean; resolve: () => void; reject: (e: Error) => void }
+/**
+ * What the proof prompt (ProofHost) is asked for: the password (`password`, with a two-step code when `totp`), or signing in
+ * again at one of `oidc`'s providers, which leaves the page and comes back (the step is then done again by the reader). It
+ * resolves once the server accepted a password proof, rejects when cancelled.
+ */
+export interface PasswordProofAsk { password: boolean; totp: boolean; oidc: { id: string; label: string }[]; resolve: () => void; reject: (e: Error) => void }
 const proofListeners = new Set<(ask: PasswordProofAsk) => void>();
 /** The prompt registers here (one is mounted at the root of the app). */
 export const onPasswordProof = (fn: (ask: PasswordProofAsk) => void) => { proofListeners.add(fn); return () => { proofListeners.delete(fn); }; };
 /** Sends the password (and the two-step code) as this session's proof. */
 export const confirmPassword = (body: { password: string; code?: string; recovery?: string }) => post('confirm-password', body);
 
-function provePassword(totp: boolean): Promise<void> {
+function askProof(kinds: { password: boolean; totp: boolean; oidc: { id: string; label: string }[] }): Promise<void> {
   const [listen] = proofListeners;
   if (!listen) return Promise.reject(new Error('pw.err.no_proof'));
-  return new Promise((resolve, reject) => listen({ totp, resolve, reject }));
+  return new Promise((resolve, reject) => listen({ ...kinds, resolve, reject }));
 }
 
-/** Confirms it is the reader: with a passkey when they have one this device can use, else with their password. */
+/**
+ * Confirms it is the reader: with a passkey when they have one this device can use, else with their password or by signing in
+ * again at a single sign-on provider they use.
+ */
 async function proveItsYou() {
-  const kinds = await post<{ passkey: boolean; password: boolean; totp: boolean }>('proof-kinds');
-  if (kinds.passkey && (passkeysSupported() || !kinds.password)) return provePasskey();
-  if (kinds.password) return provePassword(kinds.totp);
+  const kinds = await post<{ passkey: boolean; password: boolean; totp: boolean; oidc: { id: string; label: string }[] }>('proof-kinds');
+  const others = kinds.password || kinds.oidc.length > 0;
+  if (kinds.passkey && (passkeysSupported() || !others)) return provePasskey();
+  if (others) return askProof({ password: kinds.password, totp: kinds.totp, oidc: kinds.oidc });
   throw new Error('pw.err.no_proof');
 }
 
@@ -149,6 +157,21 @@ export const setUpWithPassword = (body: { code: string; name: string; familyName
   post<{ ok: boolean; tree: string | null }>('password-setup', body);
 /** An invitation taken with a new password account. */
 export const acceptWithPassword = (body: { token: string; name: string; username: string; password: string; acceptTerms?: boolean }) => post('password-invite', body);
+
+// ---------- single sign-on ----------
+
+/**
+ * Starts a single sign-on flow (src/lib/auth/oidc.server.ts) and leaves for the provider; the provider sends the browser back
+ * to /api/auth/oidc/<provider>/callback, which goes on to `next` (a path on this site). `link` and `proof` need the reader
+ * signed in; `invite` takes the invitation with a new account.
+ */
+export async function startSingleSignOn(body: { provider: string; purpose: 'signin' | 'invite' | 'link' | 'proof'; next?: string; token?: string; name?: string; acceptTerms?: boolean }) {
+  const { url } = await post<{ url: string }>('oidc-start', body);
+  window.location.assign(url);
+}
+
+/** The path and query of the page the reader is on, for coming back to it after a provider's sign-in. */
+export const hereForReturn = () => (typeof window === 'undefined' ? '/' : `${window.location.pathname}${window.location.search}`);
 
 /** Forgets per-reader state in this browser (who you are in each family), so the next reader starts fresh. */
 export function forgetLocalIdentity() {

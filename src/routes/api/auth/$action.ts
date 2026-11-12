@@ -15,6 +15,8 @@ const ACTIONS = new Set([
   'password-signin', 'password-second', 'password-setup', 'password-invite', 'password-recover', 'password-reset', 'proof-kinds', 'confirm-password',
   // Sign-up for a new family (src/lib/operator/signup.server.ts), while the operator allows it.
   'signup-options', 'signup',
+  // Single sign-on (src/lib/auth/oidc.server.ts): starts a flow and answers with the provider's address to go to.
+  'oidc-start',
 ]);
 
 export const Route = createFileRoute('/api/auth/$action')({
@@ -43,7 +45,8 @@ export const Route = createFileRoute('/api/auth/$action')({
           (action === 'setup-options' && (!allow(`setup:${ip}`, 5, 60_000) || !allow('setup:all', 20, 10 * 60_000))) ||
           ((action === 'invite-options' || action === 'password-invite') && !allow(`invite:${ip}`, 20, 10 * 60_000)) ||
           (action === 'password-setup' && (!allow(`setup:${ip}`, 5, 60_000) || !allow('setup:all', 20, 10 * 60_000))) ||
-          (action === 'signup-options' && !allow(`signup:${ip}`, 10, 10 * 60_000));
+          (action === 'signup-options' && !allow(`signup:${ip}`, 10, 10 * 60_000)) ||
+          (action === 'oidc-start' && !allow(`oidc:${ip}`, 30, 10 * 60_000));
         if (limited) return json({ error: 'Too many attempts. Please wait a minute and try again.' }, 429);
 
         const body = (await request.json().catch(() => null)) as Record<string, any> | null;
@@ -133,6 +136,13 @@ export const Route = createFileRoute('/api/auth/$action')({
             case 'confirm-password':
               await (await proof()).finishPasswordProof(request, await requireUser(), body, await attempt());
               return json({ ok: true });
+            case 'oidc-start': {
+              // Adding a provider to the account and a fresh proof belong to the signed-in reader; the guard also makes a
+              // "View as" preview's request read-only, which the start refuses.
+              const user = body.purpose === 'link' || body.purpose === 'proof' ? await requireUser() : undefined;
+              const { url, cookie } = await (await import('~/lib/auth/oidc.server')).startOidc(request, body, user);
+              return json({ url }, 200, cookie);
+            }
           }
           return json({ error: 'Not found' }, 404);
         } catch (e) {

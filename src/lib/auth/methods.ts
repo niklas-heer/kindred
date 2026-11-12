@@ -2,8 +2,8 @@
 // browser. Plain code, no server imports. Cloudflare Access is not one of these: it is a mode of the whole deployment
 // (method.server.ts) that replaces them all.
 //
-// Single sign-on (`oidc`) is named here so the type, the stored setting and the console have room for it; the `oidc` lane adds
-// its tables (`auth_provider`, `oidc_identity`), its card's availability (methods.server.ts, `availability`) and its button.
+// Single sign-on (`oidc`) is OpenID Connect with providers the operator adds in the console (./oidc.ts, ./oidc.server.ts): it is
+// available once one provider is on.
 
 export const SIGN_IN_METHODS = ['passkey', 'password', 'oidc'] as const;
 export type SignInMethod = (typeof SIGN_IN_METHODS)[number];

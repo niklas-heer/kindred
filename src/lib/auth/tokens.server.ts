@@ -9,7 +9,7 @@ export const randomToken = (bytes = 32) => base64url(crypto.getRandomValues(new 
 
 /** What the store keeps instead of a token: a SHA-256, so a copied database can't sign anyone in. */
 export const hashToken = async (
-  purpose: 'session' | 'invite' | 'share' | 'guest' | 'share-ip' | 'join' | 'visitor' | 'view-as' | 'auth-user' | 'auth-ip' | 'recovery' | 'signin-step' | 'reset',
+  purpose: 'session' | 'invite' | 'share' | 'guest' | 'share-ip' | 'join' | 'visitor' | 'view-as' | 'auth-user' | 'auth-ip' | 'recovery' | 'signin-step' | 'reset' | 'oidc-state' | 'oidc-browser',
   token: string,
 ) => base64url(await sha256(`kindred:${purpose}:${token}`));
 

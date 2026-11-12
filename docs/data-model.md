@@ -184,6 +184,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0043_signup.sql` | Hosting and sign-up ([hosting-many-families.md](hosting-many-families.md#hosting-and-sign-up)): `signup`, `signup_code`, `family_admin.self_signed`, and `challenge` made again with the purpose `signup`. |
 | `0044_gdpr.sql` | Data protection ([gdpr.md](gdpr.md)): `terms_acceptance.kind` (`terms` or `dpa`), `data_request.extended_at`, `extension_reason`, `person` and `outcome`, the statement of reasons on `family_admin` (`status_reason`, `status_ground`, `status_at`), `subject_restriction` and `subject_action`. |
 | `0045_breach.sql` | The operator's breach register: `breach` and `breach_family`. |
+| `0046_oidc.sql` | Single sign-on with OpenID Connect: `auth_provider` (the operator's providers), `oidc_identity` (an account's identity at a provider, by `sub`), `oidc_flow` (a sign-in in flight: state, nonce and PKCE verifier) and `session.provider`. |
 | `0047_updates_health.sql` | The console's Update button and Health tab ([hosting-many-families.md](hosting-many-families.md), "Updates" and "Health"): `update_github` (the install's repository and sealed GitHub token, and the last update's run), `job_run` (each daily job's last run) and `family_schema` (the schema each family last reported). |
 
 ### Tables
@@ -264,7 +265,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   or not), `n:` and a hash of the network, or `all` for the server. `window_start`, `count`, and `level` (each lockout doubles the
   next window, up to 16 hours). One statement counts a failure and answers the count, so the limit holds across every Worker
   isolate (`src/lib/auth/attempts.server.ts`). A success deletes the username's row; old rows go with the next failure.
-- **`session.method`**, **`session.proved_via`** (0040): which way in started a session (`passkey`, `password`; NULL for a session
+- **`session.method`**, **`session.proved_via`** (0040): which way in started a session (`passkey`, `password`, `oidc` from 0046; NULL for a session
   from before, read as a passkey's) and how its last fresh proof was given. Turning a way in off deletes the sessions it started;
   a session of a way that `KINDRED_AUTH_METHODS` leaves out is not honoured.
 - **`signin_step`** (0041): a right password whose account has two-step codes: the hash of a ticket the browser holds, the account,
@@ -272,6 +273,23 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 - **`password_reset`** (0041): an operator's reset link: the hash of its token, the account, `created_by` (the operator, no foreign
   key), `expires` (an hour), `used_at` (once: guarded in the batch that sets the password) and `clear_totp` (1: the link also
   turns two-step codes off). A new link for the account replaces an unused one. Goes with the account.
+- **`auth_provider`** (0046): a single sign-on provider the operator added: `id` (the slug in the redirect URI
+  `/api/auth/oidc/<id>/callback`, never changed), `kind` (`google`, `entra`, `authentik`, `keycloak`, `generic`: only presets and
+  help), `label` (the button), `issuer` (compared exactly; fixed once saved), `client_id`, `secret_sealed` (AES-GCM under a key
+  from `KINDRED_SECRET` and the provider; NULL for a public client), `scopes` (space-separated, `openid` first), `trust_email`
+  (0/1, off by default: a verified email the provider vouches for may find an account), `enabled`, and a cache of the discovery
+  document (`discovery`, `discovered_at`, a day) and the signing keys (`jwks`, `jwks_at`, a day; fetched again for an unknown key
+  id, at most once a minute). Not a family's: no `tree`.
+- **`oidc_identity`** (0046): an account's identity at a provider: `(provider, subject)` is the key (the provider's `sub`), so
+  one identity belongs to one account; `UNIQUE (user, provider)` keeps one per provider per account. `email` and `email_verified`
+  as the last sign-in said: `email_verified = 1` is the account's **verified email** (`verifiedEmailOf` in
+  `src/lib/auth/oidc.server.ts`), which nothing else gives. Goes with the account or the provider.
+- **`oidc_flow`** (0046): a sign-in in flight, ten minutes: the hash of its `state`, `provider`, `purpose` (`signin`, `invite`,
+  `link`, `proof`), the hash of the browser's flow cookie, `nonce`, the PKCE `verifier`, `subject` (the account and session for
+  `link` and `proof`), `next` (a same-site path) and `data` (an invitation's id, name and terms). The callback deletes its row
+  first: a state works once. Not in any backup worth keeping; old rows go with the next flow.
+- **`session.provider`** (0046): the provider that started a session whose `method` is `oidc`; turning that provider off or
+  removing it deletes those sessions.
 - **`instance_setting`** (0034): the server's own settings, one row per `key` (`family_creation`, `instance_name`,
   `contact_email`, `impressum`, `privacy`, `terms`, `report_contact`, `default_cap_bytes`, `families_per_account` from 0037,
   `update_check` from 0038: `on` once an operator agreed to the daily update check, `off` when they declined or turned it off;

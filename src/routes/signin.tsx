@@ -11,9 +11,14 @@ import { sessionQuery } from '~/lib/auth/functions';
 import { useIsClient } from '~/components/ui';
 import { useSignInMethods } from '~/components/signin/PasswordFields';
 import { PasswordSignIn } from '~/components/signin/PasswordSignIn';
+import { OIDC_ERRORS, SsoButtons, useSignInProviders } from '~/components/signin/SingleSignOn';
 
 export const Route = createFileRoute('/signin')({
-  validateSearch: (s: Record<string, unknown>): { next?: string } => (typeof s.next === 'string' ? { next: s.next } : {}),
+  validateSearch: (s: Record<string, unknown>): { next?: string; oidc_error?: string } => ({
+    ...(typeof s.next === 'string' ? { next: s.next } : {}),
+    // A single sign-on provider's callback that failed says why here (src/lib/auth/oidc.server.ts).
+    ...(typeof s.oidc_error === 'string' ? { oidc_error: s.oidc_error } : {}),
+  }),
   beforeLoad: async ({ context, search }) => {
     const session = await context.queryClient.fetchQuery({ ...sessionQuery, staleTime: 0 });
     if (session.needsSetup) throw redirect({ to: '/setup' });
@@ -47,12 +52,14 @@ function AccessSignIn({ uninvited, logout }: { uninvited?: string; logout?: stri
 /** Kindred's own sign-in: a passkey, a username and password, or both, as the server's operator chose. */
 function PasskeySignIn() {
   const t = useT();
-  const { next } = Route.useSearch();
+  const { next, oidc_error } = Route.useSearch();
   const methods = useSignInMethods();
   const passkeys = methods.includes('passkey');
   const passwords = methods.includes('password');
+  const providers = useSignInProviders();
+  const sso = methods.includes('oidc') && providers.length > 0;
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(oidc_error ? t(OIDC_ERRORS[oidc_error] ?? 'oidc.err.failed') : null);
   const client = useIsClient();
   const supported = !client || passkeysSupported();
 
@@ -89,6 +96,11 @@ function PasskeySignIn() {
       </>}
       {passkeys && passwords && <p className="pw-or">{t('pw.or')}</p>}
       {passwords && <PasswordSignIn next={next} />}
+      {sso && <>
+        {(passkeys || passwords) && <p className="pw-or">{t('pw.or')}</p>}
+        {!passkeys && <AuthError>{error}</AuthError>}
+        <SsoButtons providers={providers} purpose="signin" next={safeNext(next)} onError={setError} />
+      </>}
       {passkeys && <PasskeyExplainer />}
       <RequestFamilyLink />
     </AuthCard>

@@ -173,6 +173,8 @@ const ACTIONS: Record<string, Key> = {
   'hosting.settings': 'signup.audit_settings',
   'signup_code.create': 'signup.audit_code_create',
   'signup_code.revoke': 'signup.audit_code_revoke',
+  'signin.provider': 'oidc.audit_provider',
+  'signin.provider_deleted': 'oidc.audit_provider_deleted',
 };
 
 export function AuditTab({ families }: { families: OperatorFamily[] }) {

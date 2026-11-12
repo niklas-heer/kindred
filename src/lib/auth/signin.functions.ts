@@ -6,6 +6,8 @@ import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import type { MySignIn } from './my-signin.server';
 import { SIGN_IN_METHODS, type SignInMethod, type SignInSettings } from './methods';
+import { OIDC_KINDS, type ProviderView, type PublicProvider } from './oidc';
+import type { MyProvider } from './oidc.server';
 
 const guard = () => import('./guard.server');
 const mine = () => import('./my-signin.server');
@@ -20,10 +22,14 @@ async function failing<T>(work: () => Promise<T>): Promise<T> {
   }
 }
 
-/** The ways in the sign-in, setup, invitation and join pages may offer. Empty under Cloudflare Access. Anyone may ask. */
-export const fetchSignInMethods = createServerFn({ method: 'GET' }).handler(async (): Promise<{ methods: SignInMethod[] }> => {
-  const [{ enabledMethods }, { isDemo }] = await Promise.all([import('./methods.server'), import('../demo')]);
-  return { methods: isDemo() ? [] : await enabledMethods() };
+/**
+ * The ways in the sign-in, setup, invitation and join pages may offer, and the single sign-on providers' buttons. Empty under
+ * Cloudflare Access and in a demo. Anyone may ask.
+ */
+export const fetchSignInMethods = createServerFn({ method: 'GET' }).handler(async (): Promise<{ methods: SignInMethod[]; providers: PublicProvider[] }> => {
+  const [{ enabledMethods }, { isDemo }, { signInProviders }] = await Promise.all([import('./methods.server'), import('../demo'), import('./oidc.server')]);
+  if (isDemo()) return { methods: [], providers: [] };
+  return { methods: await enabledMethods(), providers: await signInProviders() };
 });
 export const signInMethodsQuery = queryOptions({ queryKey: ['signin-methods'], queryFn: () => fetchSignInMethods(), staleTime: 60_000 });
 
@@ -79,6 +85,23 @@ export const renewMyRecoveryCodes = createServerFn({ method: 'POST' }).handler(a
   return failing(() => m.renewMyRecoveryCodes(getRequest(), user));
 });
 
+/** The single sign-on providers this server offers, and which the reader's account uses. */
+export const fetchMyProviders = createServerFn({ method: 'GET' }).handler(async (): Promise<MyProvider[]> => {
+  const [{ requireUser }, { myProviders }] = await Promise.all([guard(), import('./oidc.server')]);
+  return myProviders(await requireUser());
+});
+export const myProvidersQuery = queryOptions({ queryKey: ['session', 'signin', 'oidc'], queryFn: () => fetchMyProviders() });
+
+/** Removes a single sign-on provider from the reader's account. Needs a fresh proof; refused for the last way in. */
+export const unlinkMyProvider = createServerFn({ method: 'POST' })
+  .validator(z.object({ provider: z.string().max(40) }))
+  .handler(async ({ data }): Promise<{ signedOut: boolean }> => {
+    const [{ requireUser }, { unlinkMine }, { getRequest }, { sessionStillOpen }] = await Promise.all([guard(), import('./oidc.server'), import('@tanstack/react-start/server'), import('./session.server')]);
+    const user = await requireUser();
+    await failing(() => unlinkMine(getRequest(), user, data.provider));
+    return { signedOut: !(await sessionStillOpen(getRequest())) };
+  });
+
 // ---------- the operator ----------
 
 /** The operator, for a change: refused in a demo and in a preview, and only with a fresh proof on this session. */
@@ -124,6 +147,35 @@ export const makeResetLink = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const op = await operatorWithProof();
     return failing(async () => (await import('../operator/signin.server')).resetLinkFor(op, data.who, data.clearTotp));
+  });
+
+/** The single sign-on providers, and the site's origin the redirect URIs start with. */
+export const fetchProviders = createServerFn({ method: 'GET' }).handler(async (): Promise<{ origin: string; providers: ProviderView[] }> => {
+  const [{ requireOperator }, { getRequest }, { siteOrigin }] = await Promise.all([guard(), import('@tanstack/react-start/server'), import('./origin')]);
+  await requireOperator();
+  return { origin: siteOrigin(getRequest()).origin, providers: await (await import('../operator/signin.server')).listProviders() };
+});
+export const providersQuery = queryOptions({ queryKey: ['operator', 'signin', 'providers'], queryFn: () => fetchProviders() });
+
+const providerInput = z.object({
+  id: z.string().max(40), kind: z.enum(OIDC_KINDS), label: z.string().max(200), issuer: z.string().max(500), clientId: z.string().max(500),
+  secret: z.string().max(2000).optional(), scopes: z.string().max(1000), trustEmail: z.boolean(), enabled: z.boolean(),
+});
+
+export const saveProvider = createServerFn({ method: 'POST' })
+  .validator(providerInput)
+  .handler(async ({ data }) => {
+    const op = await operatorWithProof();
+    await failing(async () => (await import('../operator/signin.server')).setProvider(op, data));
+    return { ok: true as const };
+  });
+
+export const deleteProvider = createServerFn({ method: 'POST' })
+  .validator(z.object({ id: z.string().max(40) }))
+  .handler(async ({ data }) => {
+    const op = await operatorWithProof();
+    await failing(async () => (await import('../operator/signin.server')).removeProvider(op, data.id));
+    return { ok: true as const };
   });
 
 // ---------- the reset page ----------

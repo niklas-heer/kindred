@@ -1,6 +1,6 @@
 // The operator console's Sign-in tab: a card per way in (Unavailable, Configured or Enabled, with how many accounts use it and
-// how many have nothing else), saving the choice after showing what it changes, and a one-hour reset link for someone who
-// cannot sign in. Rules: src/lib/auth/methods.server.ts and src/lib/operator/signin.server.ts. Both changes need a fresh proof.
+// how many have nothing else), saving the choice after showing what it changes, the single sign-on providers (OperatorOidc.tsx),
+// and a one-hour reset link for someone who cannot sign in. Rules: src/lib/auth/methods.server.ts and src/lib/operator/signin.server.ts. Both changes need a fresh proof.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Fingerprint, KeyRound, LifeBuoy, LogIn } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
@@ -11,6 +11,7 @@ import { makeResetLink, previewSignInMethods, saveSignInMethods, signInSettingsQ
 import { errorText } from '~/lib/errortext';
 import { formatDate, useT, type Key } from '~/lib/i18n';
 import { LinkBox } from './OperatorConsole';
+import { ProvidersSection } from './OperatorOidc';
 import '~/components/signin/signin.css';
 
 const NAME: Record<SignInMethod, Key> = { passkey: 'pw.method_passkey', password: 'pw.method_password', oidc: 'pw.method_oidc' };
@@ -80,6 +81,7 @@ export function SignInTab() {
           {save.isPending ? t('pw.saving') : t('pw.console_save')}
         </button>
       )}
+      {!access && <ProvidersSection />}
       {!access && <ResetLink />}
     </section>
   );

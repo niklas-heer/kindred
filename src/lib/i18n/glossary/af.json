@@ -248,7 +248,8 @@
     "gallery.album_count",
     "needed.stopEsc",
     "look.beard.vandyke",
-    "feedback.key_mod"
+    "feedback.key_mod",
+    "oidc.kind_entra"
   ],
   "ownWords": [
     "as",

@@ -104,6 +104,8 @@ export interface SessionRow {
   method?: string | null;
   /** How its last fresh proof was given. */
   proved_via?: string | null;
+  /** The single sign-on provider that started it (accounts migration 0046), for method 'oidc'. */
+  provider?: string | null;
 }
 
 /** How a session was started, reading a session from before migration 0040 as a passkey's. */
@@ -114,14 +116,14 @@ export const sessionMethod = (s: Pick<SessionRow, 'method'>): SignInMethod => (i
  * started it, so removing that passkey ends this session too (removeCredential). `proved` says the sign-in verified the
  * reader (face, fingerprint or PIN), which counts as a fresh proof for a few minutes (proof.server.ts).
  */
-export async function createSession(user: string, credential: string | null = null, proved = false, method: SignInMethod = 'passkey'): Promise<{ token: string; expires: number }> {
+export async function createSession(user: string, credential: string | null = null, proved = false, method: SignInMethod = 'passkey', provider: string | null = null): Promise<{ token: string; expires: number }> {
   const token = randomToken(32);
   const t = now();
   const expires = t + SESSION_DAYS * DAY;
   await accounts().batch([
     q('DELETE FROM session WHERE expires < ?', t),
-    q('INSERT INTO session (hash, user, created, expires, refreshed, credential, proved, method, proved_via) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      await hashToken('session', token), user, t, expires, t, credential, proved ? t : null, method, proved ? method : null),
+    q('INSERT INTO session (hash, user, created, expires, refreshed, credential, proved, method, proved_via, provider) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      await hashToken('session', token), user, t, expires, t, credential, proved ? t : null, method, proved ? method : null, provider),
   ]);
   return { token, expires };
 }
@@ -181,13 +183,15 @@ export async function endOtherSessions(user: string, keep: string): Promise<numb
  * that rule however many removals race. Sessions from before migration
  * 0022 name no passkey and are left alone; "sign out everywhere else" ends those.
  */
-export async function removeCredential(user: string, id: string, passwordCounts = false): Promise<'removed' | 'already-removed' | 'last'> {
+export async function removeCredential(user: string, id: string, passwordCounts = false, oidcCounts = false): Promise<'removed' | 'already-removed' | 'last'> {
   let r;
   try {
     [r] = await accounts().batch([
       q('DELETE FROM credential WHERE id = ? AND user = ?', id, user),
-      // `passwordCounts`: the server offers passwords and that is a way in too (accounts migration 0040).
-      guard(`EXISTS (SELECT 1 FROM credential WHERE user = ?)${passwordCounts ? ' OR EXISTS (SELECT 1 FROM password WHERE user = ?)' : ''}`, user, ...(passwordCounts ? [user] : [])),
+      // `passwordCounts`: the server offers passwords and that is a way in too (accounts migration 0040); `oidcCounts`: it
+      // offers single sign-on, and an identity at a provider that is on counts (accounts migration 0046).
+      guard(`EXISTS (SELECT 1 FROM credential WHERE user = ?)${passwordCounts ? ' OR EXISTS (SELECT 1 FROM password WHERE user = ?)' : ''}${oidcCounts ? ' OR EXISTS (SELECT 1 FROM oidc_identity o JOIN auth_provider ap ON ap.id = o.provider WHERE o.user = ? AND ap.enabled = 1)' : ''}`,
+        user, ...(passwordCounts ? [user] : []), ...(oidcCounts ? [user] : [])),
       q('DELETE FROM session WHERE credential = ? AND user = ?', id, user),
     ]);
   } catch (e) {

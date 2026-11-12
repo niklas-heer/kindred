@@ -11,6 +11,7 @@ import { confirmMyTotp, mySignInQuery, removeMyPassword, renewMyRecoveryCodes, s
 import { errorText } from '~/lib/errortext';
 import { formatDate, useT } from '~/lib/i18n';
 import { NewPasswordFields, newPasswordReady } from './PasswordFields';
+import { QrCode } from './QrCode';
 import './signin.css';
 
 export function MySignIn({ open }: { open: boolean }) {
@@ -56,6 +57,8 @@ export function MySignIn({ open }: { open: boolean }) {
   if (!d) return null;
   const offered = d.methods.includes('password');
   if (!offered && !d.password) return null;
+  // Another way in remains without the password: a passkey the server accepts, or a single sign-on provider.
+  const otherWay = (d.passkeys > 0 && d.methods.includes('passkey')) || d.oidc > 0;
   const busy = save.isPending || remove.isPending || begin.isPending || confirm.isPending || stop.isPending || renew.isPending;
 
   return (
@@ -81,8 +84,8 @@ export function MySignIn({ open }: { open: boolean }) {
             <KeyRound size={16} /> {d.password ? t('pw.change_password') : t('pw.add_password')}
           </button>
           {d.password && (
-            <button className="btn ghost acct-add" onClick={() => { setError(null); setConfirmRemove(true); }} disabled={busy || d.passkeys === 0 || !d.methods.includes('passkey')}
-              title={d.passkeys === 0 || !d.methods.includes('passkey') ? t('pw.only_way') : undefined}>
+            <button className="btn ghost acct-add" onClick={() => { setError(null); setConfirmRemove(true); }} disabled={busy || !otherWay}
+              title={otherWay ? undefined : t('pw.only_way')}>
               <Trash2 size={16} /> {t('pw.remove_password')}
             </button>
           )}
@@ -96,6 +99,8 @@ export function MySignIn({ open }: { open: boolean }) {
         {totpSetup ? (
           <form className="acc-form" onSubmit={(e) => { e.preventDefault(); setError(null); confirm.mutate(); }}>
             <p className="acct-help">{t('pw.totp_setup')}</p>
+            <QrCode text={totpSetup.uri} label={t('oidc.qr_label')} />
+            <p className="acct-help">{t('oidc.qr_or_type')}</p>
             <p className="pw-secret">{totpSetup.secret.replace(/(.{4})/g, '$1 ').trim()}</p>
             <p className="acct-help"><a className="auth-link" href={totpSetup.uri}>{t('pw.totp_open_app')}</a></p>
             <label className="field" htmlFor={codeId}>

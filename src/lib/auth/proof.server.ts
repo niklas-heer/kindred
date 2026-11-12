@@ -5,13 +5,15 @@
 // proof does not count here, and signing out ends it. A sign-in that verified the reader counts as a proof.
 //
 // An account with no passkey the server accepts proves itself with its password instead, and its two-step code when that is
-// on (accounts migration 0040, `session.proved_via`): so deleting a family and the other steps that ask for a proof work for
-// every account. `proofKinds` tells the browser which to ask for.
+// on (accounts migration 0040, `session.proved_via`), or by signing in again at a single sign-on provider it uses (accounts
+// migration 0046; oidc.server.ts asks the provider with `max_age=0` and checks `auth_time`): so deleting a family and the other
+// steps that ask for a proof work for every account. `proofKinds` tells the browser which to ask for.
 import { generateAuthenticationOptions, verifyAuthenticationResponse, type AuthenticationResponseJSON } from '@simplewebauthn/server';
 import { AuthError, needsProof } from './errors.ts';
 import { authMethod } from './method.server.ts';
 import { enabledMethods, requireMethod } from './methods.server.ts';
 import { checkOwnPassword, passwordOf, type Attempt } from './password.server.ts';
+import type { PublicProvider } from './oidc.ts';
 import { totpOn } from './totp.server.ts';
 import { sessionOf, siteOrigin } from './session.server.ts';
 import { credentialById, credentialsOf, credentialUsed, now, saveChallenge, sessionProved, takeChallenge, type UserRow } from './store.server.ts';
@@ -40,11 +42,16 @@ export async function requireFreshProof(request: Request, user: UserRow): Promis
   if (s.proved === null || now() - s.proved > PROOF_MS) throw needsProof();
 }
 
-/** Which proofs this account can give here: a passkey (one saved, and passkeys on), its password (and whether a code goes with it). */
-export async function proofKinds(user: UserRow): Promise<{ passkey: boolean; password: boolean; totp: boolean }> {
+/**
+ * Which proofs this account can give here: a passkey (one saved, and passkeys on), its password (and whether a code goes with
+ * it), and the single sign-on providers it uses (signing in there again: oidc.server.ts, purpose `proof`).
+ */
+export async function proofKinds(user: UserRow): Promise<{ passkey: boolean; password: boolean; totp: boolean; oidc: PublicProvider[] }> {
   needPasskeys();
-  const [methods, keys, pw, totp] = await Promise.all([enabledMethods(), credentialsOf(user.id), passwordOf(user.id), totpOn(user.id)]);
-  return { passkey: methods.includes('passkey') && keys.length > 0, password: methods.includes('password') && !!pw, totp };
+  const [methods, keys, pw, totp, oidc] = await Promise.all([
+    enabledMethods(), credentialsOf(user.id), passwordOf(user.id), totpOn(user.id), import('./oidc.server.ts').then((m) => m.proofProviders(user)),
+  ]);
+  return { passkey: methods.includes('passkey') && keys.length > 0, password: methods.includes('password') && !!pw, totp, oidc };
 }
 
 /** The proof by password: the password typed again on this session (and the two-step code, when on). */

@@ -46,6 +46,7 @@ import * as presenceArea from "./areas/presence.ts";
 import * as profileArea from "./areas/profile.ts";
 import * as proofArea from "./areas/proof.ts";
 import * as passwordArea from "./areas/password.ts";
+import * as oidcArea from "./areas/oidc.ts";
 import * as remindersArea from "./areas/reminders.ts";
 import * as researchArea from "./areas/research.ts";
 import * as setupArea from "./areas/setup.ts";
@@ -97,6 +98,7 @@ export const AREAS = [
   presenceArea,
   proofArea,
   passwordArea,
+  oidcArea,
   atlasArea,
   almanacArea,
   chronicleArea,

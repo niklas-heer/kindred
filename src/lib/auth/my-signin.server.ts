@@ -8,7 +8,7 @@
 // signs in with a password keeps two-step codes on (guard.server.ts, requireOperator, asks for them).
 import { AuthError } from './errors.ts';
 import { authMethod } from './method.server.ts';
-import { enabledMethods } from './methods.server.ts';
+import { enabledMethods, hasWayIn } from './methods.server.ts';
 import type { SignInMethod } from './methods.ts';
 import { checkNewPassword, cleanUsername, passwordAllowed, passwordOf, passwordWrites, requireFreeUsername, rethrowTaken } from './password.server.ts';
 import { requireFreshProof } from './proof.server.ts';
@@ -30,15 +30,19 @@ export interface MySignIn {
   totp: boolean;
   recoveryLeft: number;
   passkeys: number;
+  /** Single sign-on providers the account uses that are on (0 while single sign-on is off). */
+  oidc: number;
 }
 
 export async function mySignIn(request: Request, user: UserRow): Promise<MySignIn> {
-  const [methods, pw, totp, left, keys, session] = await Promise.all([
+  const [methods, pw, totp, left, keys, session, oidc] = await Promise.all([
     enabledMethods(), passwordOf(user.id), totpOf(user.id), recoveryLeft(user.id), credentialsOf(user.id), sessionOf(request),
+    accounts().get<{ n: number }>('SELECT count(*) AS n FROM oidc_identity o JOIN auth_provider p ON p.id = o.provider WHERE o.user = ? AND p.enabled = 1', user.id),
   ]);
   return {
     methods, current: session ? ((session.method as SignInMethod | null) ?? 'passkey') : null, username: user.username ?? null,
     password: pw ? { setAt: pw.set_at } : null, totp: !!totp?.confirmed_at, recoveryLeft: left, passkeys: keys.length,
+    oidc: methods.includes('oidc') ? oidc?.n ?? 0 : 0,
   };
 }
 
@@ -68,20 +72,21 @@ export async function setMyPassword(request: Request, user: UserRow, input: { us
 
 /**
  * Removes the reader's password, its username, two-step codes and recovery codes, and every session a password started (this
- * one too, when it was). Refused unless a passkey the server accepts remains.
+ * one too, when it was). Refused unless another way in the server accepts remains (a passkey, a single sign-on provider).
  */
 export async function removeMyPassword(request: Request, user: UserRow): Promise<void> {
   if (authMethod() !== 'kindred') throw invalid('pw.err.method_off');
   refuseReadOnly();
   await requireFreshProof(request, user);
-  if (!(await enabledMethods()).includes('passkey')) throw invalid('pw.err.last_way_in');
+  const methods = await enabledMethods();
   try {
     await accounts().batch([
       q('DELETE FROM password WHERE user = ?', user.id),
       q('UPDATE user SET username = NULL WHERE id = ?', user.id),
       removeTotp(user.id),
       q('DELETE FROM recovery_code WHERE user = ?', user.id),
-      guard('EXISTS (SELECT 1 FROM credential WHERE user = ?)', user.id),
+      // Another way in the server accepts remains: a passkey, or a single sign-on provider (accounts migration 0046).
+      guard(`EXISTS (SELECT 1 FROM user u WHERE u.id = ? AND ${hasWayIn(methods)})`, user.id),
       q("DELETE FROM session WHERE user = ? AND method = 'password'", user.id),
     ]);
   } catch (e) {

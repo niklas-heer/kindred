@@ -17,6 +17,7 @@ import { appCommit, appVersion, releaseUrl } from '~/lib/version';
 import { myPasskeysQuery, removeMyPasskey, renameMe, signOutElsewhere, type Passkey } from '~/lib/auth/functions';
 import { mySignInQuery } from '~/lib/auth/signin.functions';
 import { MySignIn } from './signin/MySignIn';
+import { MySingleSignOn } from './signin/SingleSignOn';
 import { fetchRemindersAvailable } from '~/lib/reminders.functions';
 import { newsCountQuery } from '~/lib/history.functions';
 import '~/components/history/history.css';
@@ -430,6 +431,7 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
         )}
         {add.isSuccess && <p className="acct-ok" role="status"><Check size={15} /> {t("accountmenu.passkey_added")}</p>}
         <MySignIn open={open} />
+        <MySingleSignOn open={open} />
         <h3 className="acct-h">{t("accountmenu.other_sign_ins")}</h3>
         <p className="acct-help">{t("accountmenu.sign_out_everywhere_else_help")}</p>
         <p className="acct-help">{t("proof.hint")}</p>

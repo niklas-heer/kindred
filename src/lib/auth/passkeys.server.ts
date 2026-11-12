@@ -203,7 +203,7 @@ export async function removePasskey(request: Request, user: UserRow, id: string)
   if (authMethod() !== 'kindred') throw invalid('auth.passkeys_off');
   await requireFreshProof(request, user);
   // A password the server accepts is a way in too, so with one the last passkey may go (and with passkeys off, every one may).
-  return removeCredential(user.id, id, await methodEnabled('password'));
+  return removeCredential(user.id, id, await methodEnabled('password'), await methodEnabled('oidc'));
 }
 
 // ---------- signing in ----------

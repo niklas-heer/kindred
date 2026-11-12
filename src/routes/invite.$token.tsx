@@ -11,6 +11,7 @@ import { useIsClient } from '~/components/ui';
 import { graphQuery } from '~/lib/api';
 import { acceptWithPasskey, acceptWithPassword, forgetLocalIdentity, passkeysSupported, signOutRequest } from '~/lib/auth/client';
 import { firstWay, NewPasswordFields, newPasswordReady, useSignInMethods, WayPicker, type NewWay } from '~/components/signin/PasswordFields';
+import { SsoButtons, useSignInProviders } from '~/components/signin/SingleSignOn';
 import { errorText } from '~/lib/errortext';
 import { acceptInvite, fetchInvite, joinWithAccess, sessionQuery, setMyPerson } from '~/lib/auth/functions';
 import { TermsCheck } from '~/components/operator/TermsCheck';
@@ -53,6 +54,9 @@ function Invite() {
   const session = useSession();
   const access = session?.auth === 'cloudflare-access';
   const methods = useSignInMethods();
+  const providers = useSignInProviders();
+  // Single sign-on is the only way in this server offers: its buttons are the form's only way to finish.
+  const onlySso = !access && !methods.includes('passkey') && !methods.includes('password');
   const [chosenWay, setWay] = useState<NewWay | null>(null);
   const way = chosenWay ?? firstWay(methods);
   const byPassword = !access && way === 'password' && methods.includes('password');
@@ -175,19 +179,24 @@ function Invite() {
             {byPassword && <NewPasswordFields username={username} onUsername={setUsername} password={password} onPassword={setPassword} />}
             {info.terms && <TermsCheck checked={accepted} onChange={setAccepted} />}
             <AuthError>{error}</AuthError>
-            {!access && !supported && <AuthError>{t("invitetoken.this_browser_can_t_use_passkeys_open_the_link_in_the_newest_safari_chrome_edge_or_firefox_or_on_your_phone")}</AuthError>}
-            <button className="btn primary auth-go" disabled={busy || (!access && !supported) || !name.trim() || (!!info.terms && !accepted) || (byPassword && !newPasswordReady(username, password))}>
+            {!access && !onlySso && !supported && <AuthError>{t("invitetoken.this_browser_can_t_use_passkeys_open_the_link_in_the_newest_safari_chrome_edge_or_firefox_or_on_your_phone")}</AuthError>}
+            {!onlySso && <button className="btn primary auth-go" disabled={busy || (!access && !supported) || !name.trim() || (!!info.terms && !accepted) || (byPassword && !newPasswordReady(username, password))}>
               {access ? t('auth.join_as', { email: session?.uninvitedEmail ?? '' })
                 : byPassword ? <><KeyRound size={19} /> {busy ? t('pw.saving') : t('pw.create_account')}</>
                 : <><KeyRound size={19} /> {busy ? t("invitetoken.waiting_for_your_device") : t("invitetoken.create_your_passkey")}</>}
-            </button>
+            </button>}
           </form>
+          {!access && methods.includes('oidc') && providers.length > 0 && <>
+            {!onlySso && <p className="pw-or">{t('pw.or')}</p>}
+            <SsoButtons providers={providers} purpose="invite" token={token} name={name.trim()} acceptTerms={info.terms ? accepted : undefined}
+              disabled={busy || !name.trim() || (!!info.terms && !accepted)} onError={setError} />
+          </>}
           {!access && <>
             <div className="auth-alt">
               <span>{t("invitetoken.already_use_kindred")}</span>
               <Link className="auth-link" to="/signin" search={{ next: `/invite/${token}` }}>{t("invitetoken.sign_in_first")}</Link>
             </div>
-            {!byPassword && <PasskeyExplainer creating />}
+            {!byPassword && !onlySso && <PasskeyExplainer creating />}
           </>}
         </>
       )}

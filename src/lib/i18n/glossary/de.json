@@ -246,7 +246,8 @@
   "sameAsEnglish": [
     "houses.mottoLabel",
     "look.beard.vandyke",
-    "signup.ready_turnstile"
+    "signup.ready_turnstile",
+    "oidc.kind_entra"
   ],
   "ownWords": [
     "also",

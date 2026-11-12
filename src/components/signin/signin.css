@@ -13,3 +13,12 @@
 .signin-state { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
 .signin-state[data-state='enabled'] { color: var(--ok, #2a7a3a); }
 .signin-state[data-state='unavailable'] { color: var(--ink-faint, #888); }
+/* Single sign-on (SingleSignOn.tsx, the console's providers) and the two-step codes' QR code (QrCode.tsx). */
+.sso-buttons { display: grid; gap: 0.5rem; margin-top: 0.75rem; }
+.sso-list { list-style: none; padding: 0; margin: 0.5rem 0; display: grid; gap: 0.5rem; }
+.sso-list li { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
+.sso-list small { color: var(--ink-faint, #888); }
+.sso-provider { display: grid; gap: 0.25rem; padding: 0.75rem 1rem; border: 1px solid var(--rule, #ccc); border-radius: 10px; margin: 0.5rem 0; }
+.sso-provider header { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
+.sso-redirect { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; word-break: break-all; user-select: all; }
+.qr-code { display: block; margin: 0.5rem 0; border-radius: 6px; max-width: 100%; height: auto; }

@@ -29,7 +29,7 @@ export function breakGlass(env: Env = process.env): SignInMethod[] | null {
   const list = parseMethods(raw);
   if (!list && !warned) {
     warned = true;
-    console.error(`[kindred] KINDRED_AUTH_METHODS="${raw}" is not a list of sign-in methods (passkey, password); it is ignored.`);
+    console.error(`[kindred] KINDRED_AUTH_METHODS="${raw}" is not a list of sign-in methods (passkey, password, oidc); it is ignored.`);
   }
   return list;
 }
@@ -71,15 +71,15 @@ export async function methodEnabled(m: SignInMethod): Promise<boolean> {
 
 /** Refuses unless `m` is on: every ceremony and form of a method starts with this. */
 export async function requireMethod(m: SignInMethod): Promise<void> {
-  if (!(await methodEnabled(m))) throw new AuthError('invalid', m === 'passkey' ? 'auth.passkeys_off' : 'pw.err.method_off');
+  if (!(await methodEnabled(m))) throw new AuthError('invalid', m === 'passkey' ? 'auth.passkeys_off' : m === 'oidc' ? 'oidc.err.off' : 'pw.err.method_off');
 }
 
 /**
  * Whether this server could offer a method at all. Passkeys and passwords need nothing more than Kindred's own sign-in.
- * Single sign-on needs a provider: the `oidc` lane answers here from its `auth_provider` table.
+ * Single sign-on needs a provider the operator added and left on (`auth_provider`, oidc.server.ts).
  */
 async function available(m: SignInMethod): Promise<boolean> {
-  if (m === 'oidc') return false; // seam: the oidc lane returns whether an enabled provider is configured
+  if (m === 'oidc') return !!(await accounts().get('SELECT 1 FROM auth_provider WHERE enabled = 1 LIMIT 1'));
   return true;
 }
 
@@ -87,8 +87,8 @@ async function available(m: SignInMethod): Promise<boolean> {
 const HAS = {
   passkey: 'EXISTS (SELECT 1 FROM credential c WHERE c.user = u.id)',
   password: 'EXISTS (SELECT 1 FROM password p WHERE p.user = u.id)',
-  // seam: the oidc lane adds 'EXISTS (SELECT 1 FROM oidc_identity o WHERE o.user = u.id)'
-  oidc: '0',
+  // An identity at a provider that is on (oidc.server.ts): turning the provider off takes this way in away.
+  oidc: 'EXISTS (SELECT 1 FROM oidc_identity o JOIN auth_provider ap ON ap.id = o.provider WHERE o.user = u.id AND ap.enabled = 1)',
 } as const satisfies Record<SignInMethod, string>;
 
 /** An SQL condition: the account `u` has a way in among `methods`. */
@@ -105,7 +105,6 @@ export async function signInSettings(env: Env = process.env): Promise<SignInSett
   const cards: MethodCard[] = [];
   for (const m of SIGN_IN_METHODS) {
     const can = mode === 'kindred' && (await available(m));
-    if (m === 'oidc' && !can) continue; // shown once the oidc lane makes it available
     const state: MethodState = !can ? 'unavailable' : enabled.includes(m) ? 'enabled' : 'configured';
     cards.push({ id: m, state, accounts: counts?.[m] ?? 0, onlyWay: counts?.[`${m}_only`] ?? 0 });
   }

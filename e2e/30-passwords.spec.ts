@@ -85,6 +85,8 @@ test('passwords beside passkeys: the console, an invitation, two-step codes and 
     const dialog = pip.getByRole('dialog', { name: 'Your name & passkeys' });
     await expect(dialog.getByText(/You sign in as pip\.pennywhistle/)).toBeVisible();
     await dialog.getByRole('button', { name: 'Turn on two-step codes' }).click();
+    // A QR code for the app to scan (src/lib/qr/qrcode.ts), and the key to type for an app that cannot.
+    await expect(dialog.getByRole('img', { name: 'QR code for your authenticator app' })).toBeVisible();
     const secret = (await dialog.locator('.pw-secret').innerText()).trim();
     await dialog.getByLabel('Code from your authenticator app').fill(totp(secret));
     await dialog.getByRole('button', { name: 'Turn on', exact: true }).click();
