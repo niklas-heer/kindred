@@ -1,4 +1,4 @@
-import { localizeTitle, useT } from '~/lib/i18n';
+import { localizeTitle, richText, useT } from '~/lib/i18n';
 import { errorText } from '~/lib/errortext';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, redirect } from '@tanstack/react-router';
@@ -42,7 +42,7 @@ function AccessSignIn({ uninvited, logout }: { uninvited?: string; logout?: stri
       crest={<KeyRound size={44} />}
       kicker="Kindred"
       title={t('auth.uninvited_title')}
-      lede={<>{t("signin.you_re_signed_in_as")} <b>{uninvited}</b>{t("signin.but_nobody_has_invited_that_address_to_a_family_yet_ask_a_steward_of_your_family_to_invite_you")}</>}
+      lede={richText(t, "signin.uninvited", { email: <b>{uninvited}</b> })}
     >
       {logout && <a className="btn auth-go" href={logout}><LogOut size={16} /> {t("signin.use_another_account")}</a>}
     </AuthCard>

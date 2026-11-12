@@ -14,7 +14,7 @@ import { RecipeTeaser } from '~/components/recipes/RecipeCard';
 import { RecipeForm } from '~/components/recipes/RecipeForm';
 import { addStory, deleteStory, newOpKey, opKeys, restoreStory, setPartnershipEnd, uploadPhoto, unlinkRelative } from '~/lib/api';
 import { addPersonField, deletePersonField, personDetailQuery } from '~/lib/person.functions';
-import { dateText, yourKinshipParts, locales, ordinal, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
+import { dateText, yourKinshipParts, locales, ordinal, richText, translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
 import { occupationText } from '~/lib/occupations';
 import { translateOccupation } from '~/lib/occupations.functions';
 import { useAiStatus } from './assistant/store';
@@ -711,16 +711,16 @@ function useLifeEvents(f: Family, tree: string, p: GPerson, onSelect: (id: strin
       if (!o) continue;
       const who = <button className="pp-inline-link" onClick={() => onSelect(o.id)}>{displayName(o, f)}</button>;
       if (!isNaN(yearOf(u.start))) out.push({ key: `u${u.id}`, year: yearOf(u.start), date: u.start, age: ageOn(p.born, u.start), icon: <Heart size={13} />, text: <>{u.kind === 'marriage' ? c('fact.married') : c('panel.partneredWith')} {who}{u.place && <> {c('fact.in')} <PlaceLink tree={tree} name={u.place} /></>}<SourcedMark count={cites({ fact: 'partnership', partnership: u.id })} /></> });
-      if (!isNaN(yearOf(u.end)) && u.endReason !== 'death') out.push({ key: `e${u.id}`, year: yearOf(u.end), date: u.end, age: ageOn(p.born, u.end), icon: <HeartCrack size={13} />, text: <>{u.endReason === 'divorce' ? c('panel.divorced') : c('panel.partedFrom')} {who}</> });
+      if (!isNaN(yearOf(u.end)) && u.endReason !== 'death') out.push({ key: `e${u.id}`, year: yearOf(u.end), date: u.end, age: ageOn(p.born, u.end), icon: <HeartCrack size={13} />, text: richText(c, u.endReason === 'divorce' ? 'panel.divorced' : 'panel.partedFrom', { name: who }) });
       // A spouse who died while this marriage stood (see widowedOn for when that is not so).
       const died = widowedOn(p, o, u);
-      if (died && !isNaN(yearOf(died))) out.push({ key: `w${u.id}`, year: yearOf(died), date: died, age: ageOn(p.born, died), icon: <span aria-hidden>✝</span>, text: u.kind === 'marriage' ? <>{c('panel.widowed')} {who} {c('panel.widowedDied')}</> : <>{c('panel.partnerDied')} {who}</> });
+      if (died && !isNaN(yearOf(died))) out.push({ key: `w${u.id}`, year: yearOf(died), date: died, age: ageOn(p.born, died), icon: <span aria-hidden>✝</span>, text: u.kind === 'marriage' ? richText(c, 'panel.widowed', { name: who }) : <>{c('panel.partnerDied')} {who}</> });
     }
     for (const kidId of children(f, p.id)) {
       const kid = f.byId.get(kidId);
       if (!kid || isNaN(yearOf(kid.born))) continue;
-      const word = kid.sex === 'm' ? c('panel.childSon') : kid.sex === 'f' ? c('panel.childDaughter') : c('panel.childAny');
-      out.push({ key: `c${kidId}`, year: yearOf(kid.born), date: kid.born, age: ageOn(p.born, kid.born), icon: <Baby size={13} />, text: <>{word}, <button className="pp-inline-link" onClick={() => onSelect(kidId)}>{kid.given}</button>, {c('panel.isBorn')}</> });
+      const line = kid.sex === 'm' ? 'panel.childSon' : kid.sex === 'f' ? 'panel.childDaughter' : 'panel.childAny';
+      out.push({ key: `c${kidId}`, year: yearOf(kid.born), date: kid.born, age: ageOn(p.born, kid.born), icon: <Baby size={13} />, text: richText(c, line, { name: <button className="pp-inline-link" onClick={() => onSelect(kidId)}>{kid.given}</button> }) });
     }
     if (!p.living && !isNaN(yearOf(p.died))) out.push({ key: 'died', year: yearOf(p.died), date: p.died, icon: <span aria-hidden>✝</span>, text: <>{c('fact.died')}{p.diedPlace && <> {c('fact.in')} <PlaceLink tree={tree} name={p.diedPlace} /></>}{age(p) !== undefined && <span className="muted">, {c('fact.agedN', { n: age(p)! })}</span>}<SourcedMark count={cites({ fact: 'death', person: p.id })} /></> });
     // Undated recorded events come last; a burial or cremation follows the death in the same year.

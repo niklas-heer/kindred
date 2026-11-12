@@ -1,4 +1,4 @@
-import { translateMessage, formatDate, relativeTime, useT, type Locale } from '~/lib/i18n';
+import { translateMessage, formatDate, relativeTime, richText, useT, type Locale } from '~/lib/i18n';
 // The signed-in reader's menu in the topbar: who they are, their role in this family, the way to their passkeys,
 // the steward's Access page and AI assistant settings, the editor's import and export, and signing out. Also
 // `Initials`, a name's monogram.
@@ -450,7 +450,7 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
         onClose={() => setConfirm(null)}
         title={t("accountmenu.remove_this_passkey")}
         width={420}
-        description={<>{t("accountmenu.the_passkey_on")} <b>{confirm?.device ? translateMessage(confirm.device, t.locale) : t("accountmenu.that_device")}</b> {t("accountmenu.will_no_longer_sign_you_in_you_can_add_it_again_later")} {t("accountmenu.anything_signed_in_with_it_is_signed_out_too")}</>}
+        description={<>{confirm?.device ? richText(t, "accountmenu.remove_passkey_on", { device: <b>{translateMessage(confirm.device, t.locale)}</b> }) : t("accountmenu.remove_passkey_other")} {t("accountmenu.anything_signed_in_with_it_is_signed_out_too")}</>}
         footer={
           <>
             <button className="btn" data-autofocus onClick={() => setConfirm(null)}>{t("accountmenu.keep_it")}</button>

@@ -1,4 +1,4 @@
-import { formatNumber, useT } from '~/lib/i18n';
+import { formatNumber, richText, useT } from '~/lib/i18n';
 // A signed-in reader opened a family they don't belong to. Says so without revealing whether that
 // family exists, and offers the families they do belong to.
 import { useQuery } from '@tanstack/react-query';
@@ -21,7 +21,7 @@ export function NoAccessPage() {
       <NotFound
         icon={<Lock size={28} />}
         title={t("noaccess.you_don_t_have_access_to_this_family")}
-        text={<>{t("noaccess.you_re_signed_in_as")} <b>{session?.user?.name ?? t("noaccess.someone_else")}</b>{t("noaccess.if_you_should_be_here_ask_one_of_this_family_s_stewards_to_send_you_an_invitation")}</>}
+        text={session?.user?.name ? richText(t, "noaccess.signed_in_as", { name: <b>{session.user.name}</b> }) : t("noaccess.signed_in_unknown")}
       >
         {trees && trees.length > 0 && (
           <ul className="ui-state-links" aria-label={t("noaccess.your_families")}>

@@ -76,8 +76,8 @@ export function linkVerdict(f: Family, anchor: string, relation: AddRelation, id
     if (desc.has(id)) return no(children(f, anchor).includes(id) ? msg('quick.v.isChild', { name }) : msg('quick.v.isDescendant', { name }));
     if (siblings(f, anchor).includes(id)) return no(msg('quick.v.isSibling', { name }));
     if (known && older <= 0) return no(older === 0 ? msg('quick.v.sameYear', { name }) : msg('quick.v.bornAfter', { name }));
-    if (known && older < 13) warn = msg('quick.v.olderOnly', { count: older });
-    else if (known && older > 60) warn = msg('quick.v.olderYears', { count: older });
+    if (known && older < 13) warn = msg('quick.v.olderOnly', { count: older, name });
+    else if (known && older > 60) warn = msg('quick.v.olderYears', { count: older, name });
     expect = GENERATION;
   } else if (relation === 'child') {
     if (children(f, anchor).includes(id)) return no(msg('quick.v.alreadyChild', { name }));
@@ -88,9 +88,9 @@ export function linkVerdict(f: Family, anchor: string, relation: AddRelation, id
     const co = opts.coParent && opts.coParent !== anchor ? f.byId.get(opts.coParent) : undefined;
     if (co && !isNaN(yearOf(co.born)) && !isNaN(py) && py <= yearOf(co.born)) return no(msg('quick.v.bornBefore', { name: co.given }));
     const after = new Set([...parents(f, id), anchor, ...(co ? [co.id] : [])]);
-    if (after.size > 2) return no(parents(f, id).length >= 2 ? msg('quick.v.hasTwoParents') : msg('quick.v.anotherParent'));
-    if (known && -older < 13) warn = msg('quick.v.youngerOnly', { count: -older });
-    else if (known && -older > 60) warn = msg('quick.v.youngerYears', { count: -older });
+    if (after.size > 2) return no(parents(f, id).length >= 2 ? msg('quick.v.twoParents', { name: p.given }) : msg('quick.v.anotherParent', { name: p.given }));
+    if (known && -older < 13) warn = msg('quick.v.youngerOnly', { count: -older, name });
+    else if (known && -older > 60) warn = msg('quick.v.youngerYears', { count: -older, name });
     expect = -GENERATION;
   } else if (relation === 'sibling') {
     const ps = parents(f, anchor);
@@ -98,15 +98,15 @@ export function linkVerdict(f: Family, anchor: string, relation: AddRelation, id
     if (ps.every((x) => parents(f, id).includes(x))) return no(msg('quick.v.alreadySibling', { name }));
     const rel = anc.has(id) || desc.has(id) ? blood() : undefined;
     if (rel) return no(rel);
-    if (new Set([...parents(f, id), ...ps]).size > 2) return no(msg('quick.v.otherParents'));
+    if (new Set([...parents(f, id), ...ps]).size > 2) return no(msg('quick.v.otherParents', { name: p.given }));
     const tooOld = ps.map((x) => f.byId.get(x)).find((x) => x && !isNaN(yearOf(x.born)) && !isNaN(py) && py <= yearOf(x.born));
     if (tooOld) return no(msg('quick.v.bornBefore', { name: tooOld.given }));
-    if (known && Math.abs(older) > 25) warn = msg('quick.v.apart', { count: Math.abs(older) });
+    if (known && Math.abs(older) > 25) warn = msg('quick.v.apart', { count: Math.abs(older), name });
   } else {
     if (partnersOf(f, anchor).includes(id)) return no(msg('quick.v.alreadyPartner', { name }));
     const rel = blood();
     if (rel) return no(rel);
-    if (known && Math.abs(older) > 25) warn = msg('quick.v.apart', { count: Math.abs(older) });
+    if (known && Math.abs(older) > 25) warn = msg('quick.v.apart', { count: Math.abs(older), name });
   }
   // Each ten years from the likely age costs a point; a warning costs two.
   const fit = (known ? -Math.abs(older - expect) / 10 : -1) - (warn ? 2 : 0);

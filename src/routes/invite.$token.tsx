@@ -1,4 +1,4 @@
-import { formatDate, translate, useT } from '~/lib/i18n';
+import { formatDate, richText, translate, useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { KeyRound, MailX, Shield } from 'lucide-react';
@@ -78,7 +78,7 @@ function Invite() {
   // they are in, and here is the way. Whatever became of the link itself no longer matters to them.
   if (fam && info.alreadyMember && step === 'welcome') {
     return (
-      <AuthCard crest={crest} kicker={fam.name} title={t("invitetoken.you_re_already_in_this_family")} lede={<>{t("invitetoken.you_re_signed_in_as")} <b>{info.signedInAs}</b> {t("invitetoken.and_you_already_belong_to")} {fam.name}.</>}>
+      <AuthCard crest={crest} kicker={fam.name} title={t("invitetoken.you_re_already_in_this_family")} lede={richText(t, "invitetoken.already_member", { name: <b>{info.signedInAs}</b> }, { family: fam.name })}>
         <a className="btn primary auth-go" href={`/${fam.id}`} data-autofocus>{t("invitetoken.open")} {fam.name}</a>
       </AuthCard>
     );
@@ -86,7 +86,7 @@ function Invite() {
 
   if (!fam || info.status !== 'open') {
     const copy = {
-      expired: [t("invitetoken.this_invitation_has_expired"), <>{t("invitetoken.invitations_last_two_weeks_ask")} {info.inviter ?? t("invitetoken.whoever_sent_it")} {t("invitetoken.for_a_new_link")}</>],
+      expired: [t("invitetoken.this_invitation_has_expired"), info.inviter ? t("invitetoken.expired_ask", { inviter: info.inviter }) : t("invitetoken.expired_ask_sender")],
       // Someone signed in is never told to sign in: the link was used by another person.
       used: [t("invitetoken.this_invitation_was_already_used"), access ? t('auth.invite_used_access') : info.signedInAs ? t('invitetoken.used_signed_in', { name: info.signedInAs }) : t("invitetoken.if_it_was_you_sign_in_with_your_passkey_each_link_works_once_for_one_person")],
       revoked: [t("invitetoken.this_invitation_was_withdrawn"), t("invitetoken.the_steward_who_sent_it_has_cancelled_it_ask_them_if_you_should_have_a_new_one")],
