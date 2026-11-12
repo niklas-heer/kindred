@@ -62,16 +62,25 @@ The turn's three steps are shown above the orders:
 
 The twelve turns are three years of four seasons; the turn's head says which ("Autumn, year 2").
 
-The map and the list show the same provinces and work the same way. On a phone the order bar stays at the bottom of the
-screen, and while an order is being chosen the map moves in on the province and what it can reach, so their names and
-chances are large enough to read.
+The map and the list show the same provinces and work the same way.
+
+**On a phone** the turn's panel is below the map, so a strip stays at the foot of the screen while a reign is on: the
+turn, what is left of it ("3 orders left", or "2 troops to place"), Undo, and the way on ("On to the orders" while levy
+waits, then "End the turn"). The order bar takes its place while an order is being made. The legend is one line,
+"Reading the map", until it is opened. While an order is being chosen the map moves in on the province and what it can
+reach, and writes only their names, inside what the view shows.
 
 ### What the board shows
 
 - **What is chosen and where it can go:** the chosen province has a thick gold outline; what it can reach is ringed with
   a moving dashed line and carries a badge (footprints, or swords with the chance, with a wave or a sail when a river or
-  the sea lies between); the rest of the map dims. While the levy is being placed, your provinces with room carry a
+  the sea lies between); the rest of the map dims and gives up its names. The badges have the say: each stands clear of
+  the banners and names in play (above the banner, or beside or below it), and the little trees, hills and houses of
+  those provinces step aside until the choice is made. While the levy is being placed, your provinces with room carry a
   small plus.
+- **Names and pictures keep out of each other's way:** a name is written under its banner, or above or beside it when a
+  mountain ridge, another banner or another name is there, and on its own land where it can be; the land's pictures keep
+  clear of every name.
 - **What moves:** troops travel from one province to the other as a token; where two armies meet there is a burst, then
   the battle's dialog; a province that changes hands fills with its new holder's colour from the side the attack came
   from; a banner names each new turn and its season.
@@ -104,17 +113,31 @@ provinces, each a cluster of tiles around its own centre, so every border wander
 - **Towns:** every seat, and two free towns as many borders from every seat as the land allows.
 - **The rest of the terrain** follows the lie of the land: the two highest provinces are highland, the two lowest by the
   water (on the coast or a river) are marsh, the two wettest of the rest are forest, and what remains is plains.
-- **Names** for the continent, every province and the open sea come from `src/lib/campaign/names.ts`: a root of two
-  syllables ("Kel" + "an") and an ending for what the thing is ("-wold" and "-holt" for forest, "-fell" and "-crag" for
-  highland, "-fen" and "-mire" for marsh, "-mark" and "-vale" for plains, "-hold" and "-keep" for a seat, "-haven" for a
-  town on the coast, "Mare …um" for a sea). They are names, so they are the same in every language. No two provinces of
-  a map share a root.
+- **Names** for the continent, every province and the open sea come from `src/lib/campaign/names.ts`. A name is a root
+  and an ending. The root is two syllables from two banks that share nothing: a head with a cluster of its own ("Drev",
+  "Isk", "Maer", "Quen") and a heavy tail ("-ost", "-und", "-eth", "-orn"), never an ending given names have ("-an",
+  "-en", "-in", "-ar"). A head and a tail that jar ("Lund-und", "Orm-orn") make no root. A province carries what it is
+  after a hyphen ("Drevost-fell": "-wold" and "-holt" for forest, "-fell" and "-crag" for highland, "-fen" and "-mire" for
+  marsh, "-mark" and "-vale" for plains, "-hold" and "-keep" for a seat, "-haven" for a town on the coast); the continent
+  and the sea take a vowel ending ("Drevostune", "Mare Drevostum"). They are names, so they are the same in every
+  language. No two provinces of a map begin with the same head.
 
-The names are invented and none is a real place's: every name the generator can make is listed (`everyName`), and the
-whole list was compared with every spelling in GeoNames' cities500 (about a million names). The handful it shared are
-in `DENIED` and are never dealt, and a list of rude letter runs in English, German and Afrikaans is refused the same
-way. `KINDRED_GEONAMES=<path to cities500.txt> node --test src/lib/campaign/engine.test.ts` makes the comparison again;
-do that after changing the syllables or the endings.
+The names are invented, and three things are checked to keep them so. Every name the generator can make is listed
+(`everyMade`), and `src/lib/campaign/names.test.ts` compares the whole list:
+
+- with **known names** (`src/lib/campaign/known-names.ts`, about 3,300 of them: Middle-earth, Narnia, Westeros, Hyrule,
+  the Witcher's world, Tamriel, Final Fantasy and other invented worlds; common given names; Europe's countries and
+  regions).
+  No root and no name may be one of them, begin with one of five letters or more, or be one letter away from one. The
+  first continent could deal "Valeria", "Valinor", "Elanor", "Darunia" and "Selandia"; none of them can be made now.
+- with **real places**, when GeoNames is at hand: `KINDRED_GEONAMES=<path to cities500.txt> node --test
+  src/lib/campaign/names.test.ts` compares every name and every root with every spelling in cities500. That file lists
+  places of 500 people or more, so a hamlet, a farm or a street of the same name would not be found.
+- with a list of **rude letter runs** in English, German and Afrikaans.
+
+What these find goes in `DENIED_ROOTS` (a root is never dealt, whatever its ending) or `DENIED` (one name), and stays
+there. The known names are a hand-made list and will never be complete: this makes a name that reads like a known one
+unlikely, not impossible. Add to the list when one turns up, and run the test after changing a syllable or an ending.
 
 The same seed gives the same continent on the server and in the browser, and a continent holds nothing of the family: the
 houses are only put on it as the four sides.
@@ -153,7 +176,8 @@ raise them. It counts what is recorded, never what it says: no number comes from
 of children. A reign keeps the renown it began with, so what you record counts from your next reign; edits made during a
 reign never change it.
 
-A right answer in Today's daily quiz adds **2 troops** to the first turn of your next reign that day (once a day).
+A right answer in Today's daily quiz adds **2 troops** to the first turn of that day's counted reign, when you answer
+before you begin it (once a day). An extra reign never takes the reward.
 
 ### The score
 
@@ -164,15 +188,22 @@ At the end of turn 12: **10 a province, 20 a town, 2 a battle won** (a province 
 
 When a reign ends the page shows its **chronicle**: the score in its parts, the provinces held turn by turn as a small
 line, and up to five things worth telling in the order they happened (a town changing hands, a win against the odds or
-across the sea, a province lost). Under a counted reign it also says where you stand this week, whether it is your best
-this week or your best ever, and where your house stands among the houses ("House Ash rose to 2nd of 3 houses this
-week").
+across the sea, a province lost). Under it the page says where you stand this week and where your house stands among
+the houses ("House Ash rose to 2nd of 3 houses this week"). What it says is kept honest:
+
+- "Your best this week!" and "Your best reign yet!" are said only of a reign that beat an earlier one and has points. A
+  reign that equals your best is not a new best.
+- Your first reign is called "Your first reign", not your best.
+- Alone on the table you are "alone on this week's table so far", not "first of 1"; with the same best as someone else
+  you "share 2nd place of 5".
+- An extra reign (see "The week's challenge") says that it is not ranked.
 
 Every reign gets a **title**, the first of these that fits: a conquering reign (nine provinces or more), a reign of towns
 (four towns), a bold reign (a province taken with a chance under 40%), a seafaring reign (a province taken across the
 sea), an unbroken reign (no province lost, five or more held), a relentless reign (twelve battles won), a prudent reign
 (four troops lost at most, with four provinces), a reign the dice disliked (three attacks lost at 60% or better), a
-peaceable reign (no attack ordered), a steadfast reign. The title is about the reign, never about the person, so it
+peaceable reign (no attack ordered), a steadfast reign. A reign that ends with no points is **a hard reign**, whatever
+it did on the way: nothing is called bold that came to nothing. The title is about the reign, never about the person, so it
 needs no "he" or "she" in any language. The family's table shows it beside each score. It is worked out from the moves
 (`src/lib/campaign/chronicle.ts`) by the browser for the page and by the server for the table.
 
@@ -184,9 +215,21 @@ needs no "he" or "she" in any language. The family's table shows it beside each 
   leaves, or two first reigns begin at the same moment. Next week brings a new continent. The dice are each reign's own,
   so playing the week again is a new game on the same field. The week's page shows the continent as a picture, with its
   name, before a reign begins.
-- **Play as often as you like.** The table has three views: **This week** (each member's best, with their count of
-  reigns and the reign's title), **All time** (the ten best reigns ever), and **Houses** (each house's total: the sum of
-  its members' bests this week, by the house each one ruled). The week's page also says your best reign so far.
+- **One reign a day counts.** Of the reigns you begin on a day (UTC), the first you finish is that day's **counted**
+  reign; the table keeps your best counted reign of the week, so a week has seven tries at most. More reigns on the same
+  day are **extra**: kept, never ranked, and still your personal best when they beat it ("Your best reign so far"). With
+  fresh dice for every reign, a table of everyone's best of any number would reward whoever played most; this way a
+  better week comes from coming back tomorrow. The week's page says whether today's reign is still to play, and so does
+  the card on Today. Nothing stores "counted": it follows from the reigns themselves, so two reigns finished at the same
+  moment cannot both count.
+- **The table** has three views: **This week** (each member's best counted reign, with their count of counted reigns and
+  the reign's title), **All time** (the ten best counted reigns ever), and **Houses**. Members with the same score share
+  a place, and the next place is skipped (1, 1, 3).
+- **What helped is shown.** Renown can add as much as the base levy again, and the quiz adds troops to a first turn, so
+  beside each score the table says what that reign had: "Renown +2", "Quiz +2". The quiz's reward goes to the day's
+  counted reign.
+- **A house's total is a participation total:** the sum of its members' best counted reigns this week, by the house each
+  one ruled. A house with more players has more, so it says who took part, not who ruled best, and the page labels it so.
 - **A reign in progress is kept in the tab.** A reload, or a visit to another page and back, returns to the same turn:
   the tab keeps the reign and its moves (sessionStorage, by family, account and reign) and the page plays them again.
   Closing the tab lets it go, and so does "Leave the reign", which asks first once a move is made: leaving ends the
@@ -236,7 +279,8 @@ nightly job, the push "a province of your house has fallen", the chronicle and t
   `Board.tsx` plays the scenes, and `campaign.css` holds every animation behind `prefers-reduced-motion`. The map keeps
   its parchment in every theme, a little dimmer at night.
 - **The server never takes a score.** "Begin a reign" (`startCampaignRun`) stores the reign (account, name, side, week,
-  seed, and the field with the renown and the quiz's reward as they were then) and returns what the browser needs. At the
+  seed, and the field with the renown and the quiz's reward as they were then) and returns what the browser needs, with
+  whether the reign can still be the day's counted one. At the
   end the browser sends the list of moves (`finishCampaignRun`); the server plays them again from the stored field and
   keeps the score that comes out. A move the rules refuse, a list that stops early, someone else's reign or a reign
   finished before is refused.
@@ -248,8 +292,9 @@ nightly job, the push "a province of your house has fallen", the chronicle and t
 - **An honour board, not a referee.** The weekly table is the family's honour board. The server rejects every score it
   cannot replay from legal moves, and the daily quiz's reward is given to one reign a day, but the dice are in the
   browser's hands once a reign begins: a determined player with a modified browser could look at them in advance and
-  choose their moves by them, or begin reigns until the dice favour them. That is enough for a family; it is not meant
-  to stop a determined cheat.
+  choose their moves by them. One reign a day counts, and it is the first one *finished*, so a reign left unfinished
+  (a closed tab, "Leave the reign") costs nothing and the next one can still count: someone could leave reigns that
+  begin badly. That is enough for a family; it is not meant to stop a determined cheat.
 - **For other features:** `<CampaignCard tree={…} />` in `src/components/campaign/CampaignCard.tsx` is a small card that
   fetches its own data and renders nothing while the game is off. `quizRewardOn(tree)` in
   `src/lib/campaign/campaign.server.ts` says whether a right quiz answer earns the levy (the game reads the answer itself
