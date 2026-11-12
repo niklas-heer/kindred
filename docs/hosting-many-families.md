@@ -155,8 +155,8 @@ them when they take its steward invitation.
 
 ### Sign-in
 
-How people get into their accounts (rules in [self-host.md](self-host.md#ways-in-passkeys-and-passwords)). Each way in, passkeys and
-a username and password, has a card: *Unavailable*, *Configured* or *Enabled*, how many accounts can use it and for how many it is
+How people get into their accounts (rules in [self-host.md](self-host.md#ways-in-passkeys-passwords-and-single-sign-on)). Each way in,
+passkeys, a username and password, and single sign-on, has a card: *Unavailable*, *Configured* or *Enabled*, how many accounts can use it and for how many it is
 the only way in. Before you save, the tab says how many accounts would be left with no way in; saving needs your fresh proof, ends
 every session a way you turned off started, and is refused if an operator would have no way in. Behind Cloudflare Access the tab
 is read-only, and while `KINDRED_AUTH_METHODS` is set it only shows what that setting chose.
@@ -166,6 +166,15 @@ is read-only, and while `KINDRED_AUTH_METHODS` is set it only shows what that se
   families need them, and tell them to save their recovery codes.
 - **An operator who signs in with a password** reaches the console only with two-step codes on, and keeps them on while the
   password is their only way in. Give every operator a passkey too if you can.
+- **Single sign-on providers** (in the same tab; how to register Kindred with Google, Microsoft Entra ID, Authentik or Keycloak is
+  in [self-host.md](self-host.md#single-sign-on-openid-connect)). *Add a provider*, pick a preset, choose its short name, and copy
+  the **redirect URI** the form shows into the provider's client settings (`https://<this server>/api/auth/oidc/<short name>/callback`,
+  scopes `openid email profile`). Then paste the client ID and secret and save: Kindred reads the provider's discovery document
+  first, so a wrong issuer is caught now. Microsoft's shared `common` and `organizations` issuers are refused; use your tenant's
+  ID. *Trust this provider's verified emails* stays off unless you run the provider yourself. Turning a provider off ends its
+  sessions; removing it also removes every account's identity there; both are refused while an operator would have no way in.
+  On a hosting server, single sign-on gives people a way back in without email, and it is the only way in that verifies an email
+  address (the provider's `email_verified`).
 - **A reset link** (in the same tab): type someone's username or email, optionally tick "also turn off their two-step codes"
   (a lost phone), and hand them the link yourself. It works once, for an hour, sets a new password (and a username, if the
   account had none) and signs out their other sessions. It needs your fresh proof, goes into the log, and adds nobody to any family

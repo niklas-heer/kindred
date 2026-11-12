@@ -199,7 +199,7 @@ invites the others.
 | `KINDRED_GUEST_ORIGIN` | variable | The guest host for family share links, e.g. `https://guests.family.example.org`. Needed only with `KINDRED_AUTH=cloudflare-access`. See step 6, [Guests behind Access](#guests-behind-access). |
 | `KINDRED_DEFAULT_TREE` | variable | The family `/` opens directly, for its members. Without it, two or more families show the chooser. |
 | `KINDRED_AUTH` | variable | The sign-in mode: `kindred` (the default) or `cloudflare-access`; or a list of Kindred's own ways in (`passkey,password`) for the operator console to start from. See step 6. |
-| `KINDRED_AUTH_METHODS` | variable | Break-glass: overrides the console's ways in (`passkey,password`) for an operator who locked themselves out. Remove it once fixed. See [Ways in](self-host.md#ways-in-passkeys-and-passwords). |
+| `KINDRED_AUTH_METHODS` | variable | Break-glass: overrides the console's ways in (`passkey,password,oidc`) for an operator who locked themselves out. Remove it once fixed. See [Ways in](self-host.md#ways-in-passkeys-passwords-and-single-sign-on). |
 | `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` | variable | Used only with `KINDRED_AUTH=cloudflare-access`. The team domain and the application's audience tag. See step 6. |
 | `KINDRED_VAPID_PUBLIC_KEY`, `KINDRED_VAPID_SUBJECT` | variable | Web Push reminders: the public VAPID key and a contact (`mailto:` or `https:`). Reminders stay hidden without them. See Reminders below. |
 | `KINDRED_VAPID_PRIVATE_JWK` | secret | Web Push reminders: the private VAPID key as JWK JSON. Keep it secret. |
@@ -284,7 +284,7 @@ subscriptions are rows of the `push_subscription` table in the `ACCOUNTS` databa
 > sign in until the variable is set and deployed.
 
 Each installation has exactly one sign-in mode. Leave `KINDRED_AUTH` unset, or set it to `kindred`, for Kindred's own accounts (passkeys,
-and a username and password when the operator console offers them; see [Ways in](self-host.md#ways-in-passkeys-and-passwords)). Then this step has nothing for you: put no Access application on the members' host name, or people will sign in twice.
+and a username and password when the operator console offers them; see [Ways in](self-host.md#ways-in-passkeys-passwords-and-single-sign-on)). Then this step has nothing for you: put no Access application on the members' host name, or people will sign in twice.
 Self-hosting has the trade-offs and what happens to accounts: [Choosing how people sign in](self-host.md#choosing-how-people-sign-in).
 
 To make Cloudflare Access the only sign-in:

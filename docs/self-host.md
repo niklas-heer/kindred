@@ -68,7 +68,7 @@ This file was written from the repository's `compose.yaml` and could not be run 
 Each installation uses exactly one sign-in mode, set by `KINDRED_AUTH`: Kindred's own accounts, or Cloudflare Access. It is a
 deployment setting, not a switch inside Kindred, because choosing wrongly can lock people out or open the site. Under Kindred's
 own accounts, the operator then chooses in the console which ways in it offers (passkeys, a username and password, or both; see
-[Ways in](#ways-in-passkeys-and-passwords)).
+[Ways in](#ways-in-passkeys-passwords-and-single-sign-on)).
 
 | | `kindred` (the default) | `cloudflare-access` |
 | --- | --- | --- |
@@ -97,7 +97,7 @@ With `cloudflare-access`, set three things (`KINDRED_AUTH`, `CF_ACCESS_TEAM_DOMA
 
 Stewards can see the active method on the family's Access page. It is read-only there.
 
-### Ways in: passkeys and passwords
+### Ways in: passkeys, passwords and single sign-on
 
 Under Kindred's own sign-in, the operator console's **Sign-in** tab shows each way in as *Unavailable* (this server cannot
 offer it), *Configured* (it could be turned on) or *Enabled*, with how many accounts use it and how many have no other way in.
@@ -129,11 +129,64 @@ Any combination works. A fresh install and an upgrade offer passkeys only, so up
   from the sign-in page; a passkey on the account still signs in; or an operator makes a **one-hour reset link** in the console's
   Sign-in tab (it needs their fresh proof, is in the audit log, may also turn two-step codes off for a lost phone, and changes
   nothing but the password). Stewards cannot reset anyone.
-- **Linking ways in**: a signed-in account adds a password or a passkey from "Your name & passkeys", after confirming it is them.
+- **Linking ways in**: a signed-in account adds a password, a passkey or a single sign-on provider from "Your name & passkeys",
+  after confirming it is them. Two-step codes are set up by scanning a QR code (or typing the key).
   A way in is never added by matching an email address. An account always keeps one way in the server accepts.
 - **Every sign-in is a new session**, and confirming "it's you" before a sensitive step (deleting a family, adding a passkey)
   works with the password (and the app's code) for accounts without a passkey.
 - The guest host never honours a password, and a demo offers none.
+
+### Single sign-on (OpenID Connect)
+
+The third way in: people sign in with an account they already have at a provider, such as Google, Microsoft Entra ID, or your
+own Authentik or Keycloak. Add providers in the console's **Sign-in** tab (under "Single sign-on providers"), then switch on the
+*Single sign-on* card; it stays *Unavailable* until one provider is on.
+
+**Registering Kindred with a provider.** Every provider needs the same three things:
+
+- **Redirect URI**: exactly `https://<your Kindred address>/api/auth/oidc/<short name>/callback`, where the short name is what you
+  choose in the form (`google`, `microsoft`, …; it cannot change later). The form shows the full URI to copy. Behind a proxy,
+  `KINDRED_ORIGIN` decides the address. Nothing else is accepted, not even a trailing slash.
+- **Scopes**: `openid email profile` (the default). `openid` is always asked for; `email` and `profile` give a name and an email.
+- **Client type**: a web application with a client secret (a *confidential* client). Kindred always uses the authorization code
+  flow with PKCE (S256); a public client (no secret) works if the provider allows it.
+
+| Provider | Where | Issuer |
+| --- | --- | --- |
+| Google | Google Cloud console → APIs & Services → Credentials → *Create OAuth client ID* → *Web application*; add the redirect URI under *Authorized redirect URIs*. | `https://accounts.google.com` |
+| Microsoft Entra ID | Entra admin center → App registrations → *New registration*, platform *Web*, the redirect URI; then *Certificates & secrets* → a client secret. | `https://login.microsoftonline.com/<Directory (tenant) ID>/v2.0` |
+| Authentik | Applications → Providers → *OAuth2/OpenID Provider*, client type *Confidential*, the redirect URI (strict); then an Application for it. | The provider's *OpenID Configuration Issuer*, such as `https://auth.example.org/application/o/kindred/` (with the slash) |
+| Keycloak | Your realm → Clients → *Create client*, OpenID Connect, *Client authentication* on, *Standard flow*, the redirect URI under *Valid redirect URIs*. | `https://<host>/realms/<realm>` |
+
+Microsoft's shared issuers (`common`, `organizations`, `consumers`) are refused: tokens from them can come from any tenant, so
+anyone with a Microsoft account could sign in. Use your tenant's ID (a GUID).
+
+**What Kindred checks.** It reads the provider's settings from the issuer's fixed address
+(`<issuer>/.well-known/openid-configuration`, whose `issuer` must be the one you typed exactly) when you save, and keeps them a
+day. Each sign-in has its own `state`, `nonce` and PKCE verifier, kept on the server for ten minutes and bound to the browser that
+started it; a callback works once. The ID token must be signed with one of the provider's published keys (asymmetric algorithms
+only, never `none`; a new key id makes Kindred fetch the keys again, so key rotation needs nothing from you), name the issuer
+exactly, have the client ID as its audience (and as `azp` when present), not be expired (a minute's leeway) and carry the nonce.
+After signing in, Kindred only ever sends the browser to a path on its own site. The client secret is stored sealed with
+`KINDRED_SECRET`; **changing `KINDRED_SECRET` means typing the client secrets again**. The server must be able to reach the
+provider (an outgoing HTTPS request); plain `http://` is accepted only for a provider on the same machine (`localhost`).
+
+**Accounts.** A sign-in finds the account by the provider's own account ID (`sub`) and nothing else:
+
+- **Nobody is found by email**, unless you tick *Trust this provider's verified emails* for that provider (off by default) and the
+  provider says the email is verified (`email_verified`). Then the account with that email is found and the provider is added to
+  it. Only do that for a provider you run or fully trust.
+- **New people** join with single sign-on through an invitation link ("Join with …" on the invitation page), which makes their
+  account and adds them to the family, as a passkey or a password would. An unknown account at the provider is told to sign in
+  another way or use their invitation; it never gets an account by itself.
+- **Adding a provider to an existing account** happens from the account menu ("Single sign-on" → *Add*), signed in, after
+  confirming it is them; one identity belongs to one account, and each account has at most one per provider. Removing one needs
+  the same confirmation and another way in.
+- **Confirming "it's you"** before a sensitive step works by signing in at the provider again: Kindred asks it with `max_age=0`
+  and `prompt=login` and checks `auth_time`. The page is left and comes back; then the reader does the step again.
+- **Turning a provider off** (or removing it) ends the sessions it started and is refused while an operator would be left
+  without a way in. Removing it also removes every account's identity there.
+- The guest host never offers single sign-on, and a demo or a "View as" preview cannot start it.
 
 ### When the setting is wrong
 
@@ -175,7 +228,7 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `KINDRED_AUTH` | `kindred` | The installation's sign-in mode: `kindred` or `cloudflare-access`. Or a list of Kindred's own ways in (`passkey,password`), which the operator console starts from. See [Choosing how people sign in](#choosing-how-people-sign-in). |
-| `KINDRED_AUTH_METHODS` | empty | Break-glass: a list of ways in (`passkey`, `password`) that overrides the console, for an operator who locked themselves out. Remove it once fixed. See [Ways in](#ways-in-passkeys-and-passwords). |
+| `KINDRED_AUTH_METHODS` | empty | Break-glass: a list of ways in (`passkey`, `password`, `oidc`) that overrides the console, for an operator who locked themselves out. Remove it once fixed. See [Ways in](#ways-in-passkeys-passwords-and-single-sign-on). |
 | `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` | unset | Used only with `KINDRED_AUTH=cloudflare-access`: your team domain and the Access application's audience tag. |
 | `KINDRED_GUEST_ORIGIN` | unset | The guest host for family share links, needed only with `KINDRED_AUTH=cloudflare-access` (see [deploy-cloudflare.md](deploy-cloudflare.md#guests-behind-access)). |
 | `KINDRED_ORIGIN` | `http://localhost:4901` in Compose; otherwise the address the request came in on | The public address, such as `https://family.example.org`. Passkeys are bound to its host name, sessions use its scheme for the cookie's `Secure` flag, and the setup warning uses it. Set it before the first sign-in. |
