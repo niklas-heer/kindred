@@ -3,6 +3,7 @@
     "family": {
       "use": "família",
       "accept": [
+        "famili",
         "famíli"
       ]
     },
@@ -30,6 +31,7 @@
     "member": {
       "use": "membro, membros",
       "accept": [
+        "familiar",
         "membro"
       ]
     },
@@ -251,6 +253,10 @@
       ]
     }
   },
-  "sameAsEnglish": [],
+  "sameAsEnglish": [
+    "oidc.kind_entra",
+    "feedback.key_mod",
+    "signup.ready_turnstile"
+  ],
   "ownWords": []
 }
