@@ -8,6 +8,8 @@ export default {
   "policy.err.no_price": "Kindred 不知道这个模型的价格，所以这台服务器的 AI 无法使用它。请选择价格已知的模型。",
   "policy.err.operator_model": "请选择这台服务器的 AI 使用的服务商和模型。",
   "policy.err.operator_budget": "这台服务器提供的 AI 已用完本月预算，将在 UTC 的1号重新开始。",
+  "policy.err.operator_paused": "这台服务器提供的 AI 已对这个家族暂停：有一次调用的费用超过了为它预留的额度。由服务器运营者重新开启。",
+  "policy.err.operator_unbounded": "这台服务器提供的 AI 不会搜索网络，也不会看图片：这类费用无法事先估算。请不带图片提问，或者换用你家族自己的 AI 密钥。",
   "policy.err.not_offered": "这台服务器没有向这个家族提供它的 AI。",
   "policy.err.announcement_title": "公告需要一个标题。",
   "policy.err.announcement_end": "公告的结束时间必须晚于开始时间。",

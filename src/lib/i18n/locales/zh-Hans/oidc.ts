@@ -54,7 +54,7 @@ export default {
   "oidc.audit_provider_deleted": "删除了一个单点登录服务商",
   "oidc.providers_title": "单点登录服务商",
   "oidc.providers_lede": "人们用在这些服务商之一的账号登录。每个账号按服务商自己的账号 ID 来匹配，绝不按邮箱匹配（除非你信任某个服务商已验证的邮箱）。",
-  "oidc.state_off": "关",
+  "oidc.state_off": "已关闭",
   "oidc.identities": "有{count}个账号用它登录",
   "oidc.trusts_email": "信任已验证的邮箱",
   "oidc.edit": "修改",
@@ -93,4 +93,7 @@ export default {
   "oidc.enabled": "提供此登录方式",
   "oidc.turn_off_warning": "关闭后，由它开始的会话会结束；有{count}个账号在重新开启之前将无法通过这条途径登录。",
   "oidc.save": "保存服务商",
+  "oidc.err.signup_unverified": "你的服务商没有确认你的邮箱地址，这台服务器会先审核这样的注册。你可以改为发送申请，或使用会确认邮箱的服务商。",
+  "oidc.err.signup_failed": "无法创建家族：地址可能已被占用，或者服务器暂时不再接收新家族。检查表单后再试一次。",
+  "oidc.err.signup_exists": "这个登录方式已经属于一个 Kindred 账号。先用它登录，再从那里创建家族。",
 } satisfies Strings<typeof en, "zh-Hans">;

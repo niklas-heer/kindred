@@ -156,4 +156,6 @@ export default {
   "ops.r200.access_text": "可以邀请亲戚担任查看者、贡献者、编辑者或负责人，或分享一个只读链接。",
   "ops.r200.ai_title": "可选的助手。",
   "ops.r200.ai_text": "选择服务商和月度预算；没有批准，什么都不会改变。",
+  "ops.signins_password": "密码登录（30天）",
+  "ops.signins_oidc": "单点登录（30天）",
 } satisfies Strings<typeof en, "zh-Hans">;

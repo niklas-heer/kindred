@@ -15,7 +15,7 @@ export default {
   "needed.allFilter": "全部",
   "needed.viewerNote": "你可以浏览缺少的信息；要补充，请联系编辑者。",
   "needed.editorNote": "只有编辑者可以补充这些信息。你可以添加照片和回忆：在“统计哪些信息？”里选择即可。",
-  "needed.countAsNeeded": "计入待补充（会为这棵家谱记住）",
+  "needed.countAsNeeded": "计入待补充（会为这份家谱记住）",
   "needed.noOneGap": "没有人缺这一项",
   "needed.allComplete": "统计的信息都已齐全",
   "needed.noPeople": "还没有记录任何人物",

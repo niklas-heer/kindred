@@ -213,5 +213,5 @@ export default {
   "panel.occupation.translate": "翻译",
   "panel.occupation.translating": "正在翻译…",
   "panel.occupation.translateFailed": "翻译没有成功，请再试一次。",
-  "panel.occupation.translatedAs": "用你的语言：{label}",
+  "panel.occupation.translatedAs": "中文：{label}",
 } satisfies Strings<typeof en, "zh-Hans">;

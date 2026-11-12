@@ -73,7 +73,7 @@ export default {
   "shell.members_invitations": "成员与邀请",
   "shell.theme": "主题",
   "shell.sound_effects": "音效",
-  "index.a_family_tree_you_can_live_in_pick_a_family": "一棵可以生活其中的家谱。请选择一个家族。",
+  "index.a_family_tree_you_can_live_in_pick_a_family": "一部鲜活的家谱。请选择一个家族。",
   "index.loading_families": "正在加载家族",
   "index.could_not_load_your_families": "无法加载你的家族",
   "index.no_families_yet": "还没有家族",

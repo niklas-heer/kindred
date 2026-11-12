@@ -75,7 +75,7 @@ export default {
   "tour.g.cards.body": "每周一问会请家人分享一段回忆。问答会考考你对自己亲人的了解。日期会显示谁的生日快到了，“新动态”则显示自你上次来访后有什么变化。",
   "tour.g.select.title": "选中一个人",
   "tour.g.minimap.title": "小地图",
-  "tour.g.minimap.body": "整棵家谱一览无余，用一个方框标出你当前看到的范围。在里面点击或拖动就能移动，家族大的时候很有用。",
+  "tour.g.minimap.body": "整个家谱一览无余，用一个方框标出你当前看到的范围。在里面点击或拖动就能移动，家族大的时候很有用。",
   "tour.g.here.title": "谁现在在线",
   "tour.g.here.body": "当亲戚同时在 Kindred 里时，他们的头像会出现在顶栏上，他们正在看的卡片会有一圈光晕，当有人正在编辑你打开的这个人时，还会有一条提示。",
   "tour.g.person.chapter": "一个人",
@@ -123,5 +123,5 @@ export default {
   "tour.g.share.body": "给想不注册账号就看一看的亲戚的链接。他们以访客身份阅读，在世的人受到保护，你随时可以让链接失效。",
   "tour.g.viewas.title": "以他人身份查看",
   "tour.g.viewas.body": "无需借用对方的手机，就能完全按查看者、贡献者、编辑者或访客看到的样子来查看家族。预览是只读的。",
-  "tour.g.games.body": "可以为整个家族开启或关闭战役和每周的问答。",
+  "tour.g.games.body": "可以为整个家族开启或关闭战役和每日问答。",
 } satisfies Strings<typeof en, "zh-Hans">;

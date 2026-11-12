@@ -226,4 +226,5 @@ export default {
   "request.full": "目前等待答复的申请太多，这个表单暂时关闭。请几天后再试。",
   "privacyreq.full": "目前等待答复的申请太多，这个表单暂时关闭。",
   "privacyreq.full_write": "你仍然可以直接写信给运营者：",
+  "operator.err.needs_totp": "这个账号有密码，但没有两步验证码。对方先开启验证码，才能设为运营者。",
 } satisfies Strings<typeof en, "zh-Hans">;

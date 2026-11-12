@@ -5,7 +5,7 @@ import type { en } from "../../areas/reminders.ts";
 export default {
   "reminders.menu": "提醒",
   "reminders.title": "提醒",
-  "reminders.intro": "Kindred可以提醒你这个家族里的生日、结婚纪念日和忌日。提醒会以通知的形式发到这台设备上，只使用这个家族里人物的姓名和日期。",
+  "reminders.intro": "Kindred 可以提醒你这个家族里的生日、结婚纪念日和忌日。提醒会以通知的形式发到这台设备上，只使用这个家族里人物的姓名和日期。",
   "reminders.perFamily": "提醒按家族分别设置。在这台设备上，每个家族可以有各自的选择。",
   "reminders.privacy": "每条提醒在离开服务器之前，都会为这台设备加密。浏览器的推送服务负责传送，但看不到内容。",
   "reminders.when": "何时",

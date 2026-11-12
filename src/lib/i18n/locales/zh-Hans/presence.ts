@@ -5,7 +5,7 @@ import type { en } from "../../areas/presence.ts";
 export default {
   "presence.here_now": "现在有{count}人在线",
   "presence.list_title": "现在在线",
-  "presence.list_hint": "此刻正开着Kindred的家族成员。",
+  "presence.list_hint": "此刻正开着 Kindred 的家族成员。",
   "presence.on_page": "{name}，{page}",
   "presence.last_here": "最近来过：{name}，{ago}",
   "presence.alone": "现在没有其他人在。",

@@ -3,6 +3,7 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/houses.ts";
 
 export default {
+  "houses.story_about": "关于{name}",
   "houses.allHouses": "所有支系",
   "houses.armsOf": "{name}的纹章",
   "houses.automatic": "自动：{name}",
@@ -81,7 +82,7 @@ export default {
   "houses.heirField": "继承人",
   "houses.heads": "历代家主",
   "houses.heirHeading": "法定继承人",
-  "houses.heirOf": "{name}继承人",
+  "houses.heirOf": "{name}的继承人",
   "houses.heirRibbon": "继承人",
   "houses.historyNone": "根据已记录的年份，不知道有哪位家主。",
   "houses.houseCount": "{count}个支系",
@@ -112,6 +113,7 @@ export default {
   "houses.notFoundText": "这个家族没有这样的支系。它可能已被改名或删除。",
   "houses.notSet": "未设置",
   "houses.notable": "知名成员",
+  "houses.quote_of": "{name}的话",
   "houses.onlySteward": "只有负责人可以更改纹章和继承",
   "houses.openTree": "打开家谱",
   "houses.perGeneration": "每代的成员数",

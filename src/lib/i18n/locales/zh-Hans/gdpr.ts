@@ -97,6 +97,8 @@ export default {
   "gdpr.ret_family_requests": "{count}个被拒绝的家族申请",
   "gdpr.ret_data_requests": "{count}个已答复的数据请求",
   "gdpr.ret_terms": "{count}条同意记录",
+  "gdpr.ret_kept": "保留了{count}个账号：它们在被选中后又被使用过，或加入了家族。",
+  "gdpr.ret_failed": "有{count}个账号无法删除。明天会再试一次；原因见服务器日志。",
   "gdpr.breach_title": "数据泄露登记簿",
   "gdpr.breach_hint": "每一次个人数据泄露都要记录，无论是否已通知（GDPR 第33条第5款）。可能给人们带来风险的泄露，须在发现后72小时内报告给你的监管机构。Kindred 不会通知任何人：由你去通知，并在这里记录。",
   "gdpr.breach_new": "记录一次泄露",

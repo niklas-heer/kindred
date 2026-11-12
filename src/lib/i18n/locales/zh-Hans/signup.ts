@@ -5,7 +5,7 @@ import type { en } from "../../areas/signup.ts";
 export default {
   "signup.landing_nav": "登录与语言",
   "signup.landing_kicker": "托管的家谱",
-  "signup.landing_lede": "一棵可以生活其中的家谱：你的亲人、他们的故事、照片和生日，由共同分享的人一起保管。",
+  "signup.landing_lede": "一部鲜活的家谱：你的亲人、他们的故事、照片和生日，由共同分享的人一起保管。",
   "signup.start_family": "创建家族",
   "signup.ask_family": "申请创建家族",
   "signup.have_account": "我已有账号",
@@ -159,4 +159,6 @@ export default {
   "signup.audit_settings": "修改了托管设置",
   "signup.audit_code_create": "生成了注册码",
   "signup.audit_code_revoke": "撤回了注册码",
+  "signup.password_button": "创建账号和家族",
+  "signup.sso_skips_wait": "或者用会确认邮箱地址的提供方登录，立即开始：",
 } satisfies Strings<typeof en, "zh-Hans">;

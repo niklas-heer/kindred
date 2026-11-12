@@ -1,7 +1,8 @@
-// Simplified Chinese kinship words. One possessive ("你的"), no agreement; a relation named through someone is joined with 的
-// ("妻子的姐妹"). Chinese splits most relatives by the father's or mother's side (祖父/外祖父, 叔伯/舅, 堂/表) and by age
-// (哥/弟), and Kindred knows neither. Where the English word is the same on both sides, this module gives both words with
-// "或" ("祖父或外祖父") or describes the tie from the parent ("父母的兄弟"), so no word claims a side it does not know.
+// Simplified Chinese kinship words. One possessive ("你的", just "你" before a relation already joined with 的: "你父母的
+// 兄弟"), no agreement; a relation named through someone is joined with 的 ("妻子的姐妹"). Chinese splits most relatives by
+// the father's or mother's side (祖父/外祖父, 叔伯/舅, 堂/表) and by age (哥/弟), and Kindred knows neither. Where the English
+// word is the same on both sides, this module gives both words with "或" ("祖父或外祖父") or describes the tie from the parent
+// ("父母的兄弟"), so no word claims a side it does not know.
 import type { Kinship } from "../../graph";
 import { BY_MARRIAGE, cousinDegree, removedCount, type KinshipPart, type KinshipRules } from "./shared.ts";
 
@@ -145,10 +146,13 @@ function render(k: Kinship): string {
   }
 }
 
-const phrase = (k: Kinship) => (k.label === "you" ? "你" : `你的${render(k)}`);
+/** "你的父亲", but "你父母的兄弟" rather than "你的父母的兄弟": a relation already joined with 的 takes 你 alone. */
+const possessive = (word: string) => (word.includes("的") ? "你" : "你的");
+const phrase = (k: Kinship) => (k.label === "you" ? "你" : `${possessive(render(k))}${render(k)}`);
 
 function yourParts(k: Kinship): KinshipPart[] {
-  return [{ text: "你的" }, { text: render(k), kin: true }];
+  const word = render(k);
+  return [{ text: possessive(word) }, { text: word, kin: true }];
 }
 
 const zhHans: KinshipRules = {
