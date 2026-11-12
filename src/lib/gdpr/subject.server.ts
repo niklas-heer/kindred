@@ -354,9 +354,14 @@ export async function erasePerson(tree: string, person: string, by: string, requ
   return { counts, files };
 }
 
-/** Whether an erasure of this person stopped after the family's step (erasePerson then finishes it). */
+/**
+ * Whether an erasure of this person stopped after the family's step (erasePerson then finishes it): its record waits and the
+ * person is really gone from the family. One that stopped before (the person still there) is not: a retry is a new erasure,
+ * and the steward confirms it with the name again.
+ */
 export async function pendingErasure(tree: string, person: string): Promise<boolean> {
-  return !!(await accounts().get("SELECT 1 FROM subject_action WHERE tree = ? AND kind = 'erase' AND pending = ?", tree, person));
+  if (!(await accounts().get("SELECT 1 FROM subject_action WHERE tree = ? AND kind = 'erase' AND pending = ?", tree, person))) return false;
+  return !(await personRow(db(tree), person));
 }
 
 /** The erasure's last step: its record stops naming the person, and the request it answers is done. Safe to repeat. */

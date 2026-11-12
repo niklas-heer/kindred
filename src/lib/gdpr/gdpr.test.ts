@@ -410,6 +410,32 @@ test('an erasure that failed between the two databases is finished by trying aga
   await assert.rejects(subject.erasePerson(tree, 'nobody_zzzzzz', ROSA.id), /no longer in the family/);
 });
 
+test('an erasure that stopped before the family’s step is not "pending": the person is still there, so a retry needs the name', async () => {
+  const tree = 'ashgrove';
+  const d = dbs.db(tree);
+  const P = 'una_gggggg';
+  await d.run("INSERT INTO person (id, given, surname, living) VALUES (?, 'Una', 'Reede', 1)", P);
+  const familyBatch = d.batch.bind(d);
+  let failed = false;
+  // The family's database fails during step (2): the accounts step and its pending record are done, the person is not.
+  d.batch = (async (qs: { sql: string }[]) => {
+    if (!failed && qs.some((x) => /DELETE FROM person WHERE/.test(x.sql))) { failed = true; throw new Error('the family database went away'); }
+    return familyBatch(qs as never);
+  }) as typeof d.batch;
+  try {
+    await assert.rejects(subject.erasePerson(tree, P, ROSA.id), /went away/);
+  } finally {
+    d.batch = familyBatch;
+  }
+  assert.ok(failed, 'the failure was injected');
+  assert.ok(await d.get('SELECT 1 FROM person WHERE id = ?', P), 'still in the family');
+  assert.ok(await one("SELECT 1 FROM subject_action WHERE tree = ? AND kind = 'erase' AND pending = ?", tree, P), 'its record waits');
+  assert.equal(await subject.pendingErasure(tree, P), false, 'so the retry skips nothing: the steward types the name again');
+  await subject.erasePerson(tree, P, ROSA.id);
+  assert.equal(await d.get('SELECT 1 FROM person WHERE id = ?', P), undefined);
+  assert.equal(await subject.pendingErasure(tree, P), false);
+});
+
 test('erasing an imported short id leaves the ids that merely start with it alone', async () => {
   const tree = 'ashgrove';
   const d = dbs.db(tree);

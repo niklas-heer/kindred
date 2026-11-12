@@ -112,7 +112,8 @@ export const eraseSubject = createServerFn({ method: 'POST' })
     const m = await steward(data.tree);
     const s = await import('./subject.server');
     try {
-      // An erasure that stopped after the family's records went is finished without the name, which is no longer known.
+      // An erasure that stopped after the family's records went is finished without the name, which is no longer known. Only
+      // then: while the person is still in the family (it stopped before), the name is typed again.
       if (!(await s.pendingErasure(data.tree, data.person))) {
         const report = await s.subjectReport(data.tree, data.person);
         if (data.confirm.trim().toLowerCase() !== report.person.name.trim().toLowerCase()) {
