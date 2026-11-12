@@ -20,6 +20,7 @@ const OFF = new Set(['', '0', 'false', 'no', 'off']);
 /** Settings a demo cannot have: they turn on accounts, a guest host for share links, setup, or push. */
 export const DEMO_CONFLICTS = [
   'KINDRED_AUTH',
+  'KINDRED_AUTH_METHODS',
   'CF_ACCESS_TEAM_DOMAIN',
   'CF_ACCESS_AUD',
   'KINDRED_GUEST_ORIGIN',

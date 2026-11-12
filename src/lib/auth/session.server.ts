@@ -3,9 +3,11 @@
 import { setupCodeRequired } from './setup.server.ts';
 import { families, makeFirstFamily } from './trees.server.ts';
 import { accessEmail, authMethod } from './method.server.ts';
+import { resolveMethods } from './methods.server.ts';
+import type { SignInMethod } from './methods.ts';
 import { isLocale, negotiateLocale, translate, type Locale } from '../i18n/dictionary.ts';
 import {
-  commit, createSession, deleteSession, endOtherSessions, newUser, noUsersYet, now, pendingInvitesFor, sessionByToken, sessionWithUser, slideSession, touchUser, upsertMembership, useInvite,
+  commit, createSession, deleteSession, endOtherSessions, newUser, noUsersYet, now, pendingInvitesFor, sessionByToken, sessionMethod, sessionWithUser, slideSession, touchUser, upsertMembership, useInvite,
   userByEmail, userCount, type MembershipRow, type SessionRow, type UserRow,
 } from './store.server.ts';
 import { endGuestVisit, guestVisitByToken, type GuestSession } from './share.server.ts';
@@ -40,12 +42,12 @@ function cookie(request: Request, value: string, maxAgeSeconds: number) {
 /**
  * Signs `user` in: always a brand-new session (so a session planted before sign-in is worthless),
  * and the old one, if any, is ended. `credential` is the passkey used, so removing it later signs this session out.
- * Returns the Set-Cookie value.
+ * `method` is the way in (methods.ts): turning that way off later ends this session. Returns the Set-Cookie value.
  */
-export async function startSession(request: Request, user: string, credential: string | null = null, proved = false): Promise<string> {
+export async function startSession(request: Request, user: string, credential: string | null = null, proved = false, method: SignInMethod = 'passkey'): Promise<string> {
   const old = sessionToken(request);
   if (old) await deleteSession(old);
-  const { token, expires } = await createSession(user, credential, proved);
+  const { token, expires } = await createSession(user, credential, proved, method);
   return cookie(request, token, Math.floor((expires - now()) / 1000));
 }
 
@@ -126,8 +128,13 @@ export interface Session {
   /** A guest's visit through a family share link. Never an account: the guard lets it reach only the reads that allow guests. */
   guest?: GuestSession;
   user: UserRow | null;
-  /** How they are signed in. `demo`: nobody is; this is a demo's visitor (src/lib/demo.ts). */
+  /**
+   * How they are signed in. `passkey`: Kindred's own session, whichever way in started it (`method` says which); `access`:
+   * Cloudflare Access; `demo`: nobody is, this is a demo's visitor (src/lib/demo.ts).
+   */
   via: 'passkey' | 'access' | 'demo' | null;
+  /** Kindred's own sign-in: the way in that started this session (a passkey or a password). */
+  method?: SignInMethod;
   /** A verified Cloudflare Access email that has no account and no invitation. */
   uninvitedEmail?: string;
   /** A refreshed session cookie to send back (sliding expiry). */
@@ -185,16 +192,21 @@ export async function demoSession(): Promise<Session> {
   return { user, via: 'demo', memberships };
 }
 
-/** `kindred`: the session cookie, and nothing else. An Access token on the request is not looked at. */
+/** `kindred`: the session cookie, and nothing else. An Access token on the request is not looked at. Any way in (a passkey, a password) ends in this cookie. */
 async function passkeySession(request: Request): Promise<Session> {
   const token = sessionToken(request);
   if (token) {
     const found = await sessionWithUser(token);
-    if (found) {
+    // A session of a way in that is off now is no session (turning it off in the console also deleted it; KINDRED_AUTH_METHODS
+    // does not delete, so this is what ends those).
+    if (found && resolveMethods(found.methodsSetting).methods.includes(sessionMethod(found.session))) {
       const { session: row, user, memberships } = found;
       await touchUser(user.id, user.last_seen);
       const slid = await slideSession(row);
-      return { user, via: 'passkey', memberships, sessionHash: row.hash, setCookie: slid ? cookie(request, token, Math.floor((slid - now()) / 1000)) : undefined };
+      return {
+        user, via: 'passkey', method: sessionMethod(row), memberships, sessionHash: row.hash,
+        setCookie: slid ? cookie(request, token, Math.floor((slid - now()) / 1000)) : undefined,
+      };
     }
   }
   return { user: null, via: null };

@@ -178,6 +178,8 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0036_family_import.sql` | `family_import` (an import into a family's Durable Object, bound to the account that began it), `invite.by_operator` (an operator's first-steward invitation) and `media_usage.pending_at` (an upload on its way). |
 | `0037_operator_forms.sql` | `family_admin.closed` (a closed family), `data_request.forwarded_at` (stewards see a request only once forwarded), `terms_acceptance`, `operator_push`, and the `families_per_account` setting (5 on a new install only). |
 | `0038_operator_insight.sql` | The operator's statistics and update check, and "New in Kindred": `instance_daily`, `update_check`, `release_seen` and `release_running`. |
+| `0040_password.sql` | A username and password as a second way in: `user.username`, `password`, `totp`, `recovery_code`, `auth_attempt` (the database-backed limit on guessing), and `session.method` / `session.proved_via`. |
+| `0041_signin_step.sql` | `signin_step` (a right password waiting for its two-step code) and `password_reset` (an operator's one-hour reset link). |
 | `0042_policies.sql` | The operator's policies ([hosting-many-families.md](hosting-many-families.md), "Policies"): `instance_policy`, `family_policy`, operator-funded AI (`operator_ai_provider`, `ai_operator_spend`, `ai_operator_month`, `ai_operator_booking`, `ai_settings.funding`) and `announcement`. Every policy starts as `families` (today's behaviour) and `ai.source` as `byo`. |
 
 ### Tables
@@ -244,10 +246,34 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 - **`user.operator`** (0034): 1 for an operator of the server, an instance role apart from every family's
   ([roles-and-privacy.md](roles-and-privacy.md#the-operator)). The migration makes the earliest account one; afterwards a new
   account is one only when it is the server's first (`newUser`). The last operator cannot step down.
+- **`user.username`** (0040): the name a password sign-in types, normalised to lower case and unique (`COLLATE NOCASE`); NULL for
+  an account without a password. Chosen with the first password; cleared when the password is removed.
+- **`password`** (0040): one row per account with a password: `hash` (`pbkdf2-sha256-6x100k-v1$salt$key`: PBKDF2-HMAC-SHA-256,
+  six chained rounds of 100,000 iterations, over the password after an HMAC pepper keyed from `KINDRED_SECRET`), `params` (the
+  scheme, to find old hashes; a sign-in with an old one stores it again) and `set_at`. Goes with the account (`ON DELETE CASCADE`).
+- **`totp`** (0040): an account's two-step codes: `secret_sealed` (AES-GCM under a key from `KINDRED_SECRET` and the account),
+  `last_step` (the last 30-second step used: a code is accepted only for a later step, in one statement, so it works once),
+  `created`, and `confirmed_at` (NULL while being set up). Goes with the account.
+- **`recovery_code`** (0040): ten per account, `hash` only (SHA-256 of the account and the code; codes are 50 random bits),
+  `created` and `used_at` (one use: the update that sets it is the check). Replaced by a new set; goes with the account.
+- **`auth_attempt`** (0040): failed password, two-step and recovery-code tries per `key`: `u:` and a hash of the username (known
+  or not), `n:` and a hash of the network, or `all` for the server. `window_start`, `count`, and `level` (each lockout doubles the
+  next window, up to 16 hours). One statement counts a failure and answers the count, so the limit holds across every Worker
+  isolate (`src/lib/auth/attempts.server.ts`). A success deletes the username's row; old rows go with the next failure.
+- **`session.method`**, **`session.proved_via`** (0040): which way in started a session (`passkey`, `password`; NULL for a session
+  from before, read as a passkey's) and how its last fresh proof was given. Turning a way in off deletes the sessions it started;
+  a session of a way that `KINDRED_AUTH_METHODS` leaves out is not honoured.
+- **`signin_step`** (0041): a right password whose account has two-step codes: the hash of a ticket the browser holds, the account,
+  `tries` (five wrong codes end it) and `expires` (five minutes). Deleting it is the check that starts the session.
+- **`password_reset`** (0041): an operator's reset link: the hash of its token, the account, `created_by` (the operator, no foreign
+  key), `expires` (an hour), `used_at` (once: guarded in the batch that sets the password) and `clear_totp` (1: the link also
+  turns two-step codes off). A new link for the account replaces an unused one. Goes with the account.
 - **`instance_setting`** (0034): the server's own settings, one row per `key` (`family_creation`, `instance_name`,
   `contact_email`, `impressum`, `privacy`, `terms`, `report_contact`, `default_cap_bytes`, `families_per_account` from 0037,
   `update_check` from 0038: `on` once an operator agreed to the daily update check, `off` when they declined or turned it off;
-  `languages`: the offered languages as `en,de,af`, English always among them, no migration needed) with
+  `languages`: the offered languages as `en,de,af`, English always among them, no migration needed;
+  `auth_methods` from 0040: a JSON list of the ways in the operator offers, `["passkey","password"]`; missing means
+  passkeys only, or what `KINDRED_AUTH` lists, src/lib/auth/methods.server.ts) with
   its text `value`, and when and by whom it last changed. A missing row is the default (`family_creation` is then `stewards`; no
   storage cap; no limit of families per account; every complete language offered). Migration 0037 writes `families_per_account` = 5 only on an install with no
   accounts yet.

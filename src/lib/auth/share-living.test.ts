@@ -222,7 +222,10 @@ const ANSWERS_A_GUEST = new Set([
   'getCookbook', 'getRecipe',
   'fetchSession', 'fetchMyFamilies', 'fetchInvite', 'fetchShareEntry', 'openShareLink', 'leaveGuestVisit', 'fetchRemindersAvailable', 'forgetThisDevice',
   // "Ask to join": a guest's own request and what it would send, never another person's data (join.test.ts).
-  'fetchJoinState', 'fetchJoinPreview', 'joinOptions', 'sendJoinRequest',
+  'fetchJoinState', 'fetchJoinPreview', 'joinOptions', 'sendJoinRequest', 'sendJoinWithPassword',
+  // Which ways in the sign-in pages may offer, and whether an operator's reset link holds: no family, no account
+  // (password.test.ts and methods.test.ts hold their rules).
+  'fetchSignInMethods', 'fetchResetLink',
   // Stopping a "View as" preview: always allowed, and it answers nothing but { ok: true } (view-as.test.ts).
   'stopViewAs',
   // The server's public pages: its name, legal texts and request forms, which read no family (operator.test.ts).

@@ -8,7 +8,7 @@
 /** The sections under a family that a guest may open. Anything not listed (a new route, access, settings) stays closed. */
 const GUEST_SECTIONS = new Set(['almanac', 'atlas', 'chronicle', 'gallery', 'house', 'houses', 'needed', 'people', 'person', 'research']);
 /** First path segments that are not families and that a guest must not reach: the routes for accounts and setup. */
-const NOT_GUEST_ROOTS = new Set(['signin', 'setup', 'invite', 'ui', 'ui_', 'api', 'operator']);
+const NOT_GUEST_ROOTS = new Set(['signin', 'setup', 'invite', 'reset', 'ui', 'ui_', 'api', 'operator']);
 const GUEST_MEDIA = /^\/api\/(?:photo|portrait|media|research)\/[^/]+\/[^/]+$/;
 
 /** Whether the guest host may answer a path: an allow-list, so a route added later stays closed until it is added here. */

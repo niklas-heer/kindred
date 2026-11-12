@@ -319,7 +319,10 @@ const GUEST_READS = new Set([
 const OPEN = new Set([
   'fetchSession', 'fetchMyFamilies', 'fetchInvite', 'fetchShareEntry', 'openShareLink', 'leaveGuestVisit', 'fetchRemindersAvailable', 'forgetThisDevice',
   // "Ask to join" is for guests by design; it gives them nothing to read but their own request (join.test.ts holds its rules).
-  'fetchJoinState', 'fetchJoinPreview', 'joinOptions', 'sendJoinRequest',
+  'fetchJoinState', 'fetchJoinPreview', 'joinOptions', 'sendJoinRequest', 'sendJoinWithPassword',
+  // Which ways in the sign-in pages may offer, and whether an operator's reset link holds: no family, no account
+  // (password.test.ts and methods.test.ts hold their rules).
+  'fetchSignInMethods', 'fetchResetLink',
   // Stopping a "View as" preview ends this browser's preview, if it has one, and carries nothing (view-as.test.ts).
   'stopViewAs',
   // The server's own public pages (docs/hosting-many-families.md): its name and legal texts, and the two request forms anyone

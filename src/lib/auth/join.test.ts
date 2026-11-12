@@ -470,3 +470,28 @@ test('usage goes when the link is replaced or turned off, and 90 days after the 
   await j.pruneJoin();
   assert.equal((await store.accounts().get<{ n: number }>('SELECT count(*) AS n FROM guest_visitor'))!.n, 0, '90 days');
 });
+
+// ---------- asking with a password ----------
+
+test('with passwords on, a guest asks with a username and password; the pending account cannot sign in until a steward says yes', async () => {
+  const pw = await load<typeof import('./password.server.ts')>('/src/lib/auth/password.server.ts');
+  const a = store.accounts();
+  await assert.rejects(j.joinWithPassword(req(), { user: null, guest: guestOf() }, TREE, { name: 'Dora Newcomer', person: null, username: 'dora', password: 'a long evening walk' }, '198.51.100.70'),
+    (e: Error) => e.message === 'pw.err.method_off', 'refused while the operator offers passkeys only');
+  await a.run("INSERT INTO instance_setting (key, value, updated_at) VALUES ('auth_methods', '[\"passkey\",\"password\"]', 0)");
+  try {
+    await assert.rejects(j.joinWithPassword(req(), { user: null, guest: guestOf() }, TREE, { name: 'Dora Newcomer', person: null, username: 'dora', password: 'password1234' }, '198.51.100.70'),
+      (e: Error) => e.message === 'pw.err.common');
+    const done = await j.joinWithPassword(req(), { user: null, guest: guestOf() }, TREE, { name: 'Dora Newcomer', person: null, username: 'Dora', password: 'a long evening walk' }, '198.51.100.71');
+    assert.equal(done.tree, TREE);
+    const row = (await a.get<{ user: string; status: string }>("SELECT user, status FROM join_request WHERE name = 'Dora Newcomer'"))!;
+    assert.equal(row.status, 'open');
+    assert.equal((await store.userById(row.user))!.username, 'dora');
+    assert.deepEqual(await store.membershipsOf(row.user), [], 'no family until a steward says yes');
+    // The password is right, but the sign-in route refuses the pending account (as it does a passkey's).
+    assert.equal((await pw.passwordSignIn(new Request('http://localhost/api/auth/password-signin'), { username: 'dora', password: 'a long evening walk' }, { ip: '198.51.100.72' })).kind, 'session');
+    assert.equal(await j.signInAllowed(row.user), 'pending');
+  } finally {
+    await a.run("DELETE FROM instance_setting WHERE key = 'auth_methods'");
+  }
+});

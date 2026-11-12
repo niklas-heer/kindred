@@ -9,6 +9,7 @@ import {
 import { isoBase64URL } from '@simplewebauthn/server/helpers';
 import { AuthError } from './errors.ts';
 import { authMethod } from './method.server.ts';
+import { methodEnabled, requireMethod } from './methods.server.ts';
 import { requireFreshProof } from './proof.server.ts';
 import { guestChoice, siteOrigin } from './session.server.ts';
 import { checkSetupCode } from './setup.server.ts';
@@ -30,9 +31,13 @@ export function relyingParty(request: Request) {
 
 const invalid = (message: string) => new AuthError('invalid', message);
 
-/** Passkeys exist only under the `kindred` method. Every ceremony starts with options or finishes with `take`, and both check this. */
-function needPasskeys() {
+/**
+ * Passkeys exist only under the `kindred` method, and only while the operator offers them (methods.server.ts). Every ceremony
+ * starts with options or finishes with `take`, and both check this.
+ */
+async function needPasskeys() {
   if (authMethod() !== 'kindred') throw invalid('auth.passkeys_off');
+  await requireMethod('passkey');
 }
 
 /** A display name: trimmed, 1–60 characters, no control characters. */
@@ -69,7 +74,7 @@ const newHandle = () => isoBase64URL.fromBuffer(crypto.getRandomValues(new Uint8
  * able to make one (on Workers its database must be bound), so a missing binding is refused here, before a passkey.
  */
 export async function setupOptions(request: Request, code: string, rawName: unknown, rawFamily?: unknown) {
-  needPasskeys();
+  await needPasskeys();
   if (!(await checkSetupCode(code))) throw invalid((await userCount()) ? 'Kindred is already set up. Sign in instead.' : 'That setup code isn’t right. Check the server’s console and try again.');
   const name = cleanName(rawName);
   cleanFamilyName(rawFamily);
@@ -81,7 +86,7 @@ export async function setupOptions(request: Request, code: string, rawName: unkn
 
 /** Options for a passkey from an invitation link. A steward's invitation asks for the server's terms first, when it has any. */
 export async function inviteOptions(request: Request, token: string, rawName: unknown, acceptTerms?: unknown) {
-  needPasskeys();
+  await needPasskeys();
   const invite = await openInvite(token);
   if (!invite) throw invalid('This invitation has expired, was already used, or was withdrawn. Ask for a new one.');
   if (acceptTerms !== true && (await inviteNeedsTerms(invite))) throw termsRefused();
@@ -93,7 +98,7 @@ export async function inviteOptions(request: Request, token: string, rawName: un
 
 /** Options for another passkey of a signed-in reader (a new phone, a second laptop), once they have just confirmed it is them. */
 export async function addOptions(request: Request, user: UserRow) {
-  needPasskeys();
+  await needPasskeys();
   await requireFreshProof(request, user);
   const options = await creationOptions(request, { name: user.name, handle: user.handle, existing: await credentialsOf(user.id) });
   return { options, challengeId: await saveChallenge({ challenge: options.challenge, purpose: 'add', subject: user.id }) };
@@ -114,7 +119,7 @@ async function verifyNew(request: Request, challenge: string, response: Registra
 }
 
 const take = async (id: unknown, purpose: string) => {
-  needPasskeys();
+  await needPasskeys();
   const c = typeof id === 'string' && id.length < 100 ? await takeChallenge(id) : undefined;
   if (!c || c.purpose !== purpose) throw invalid('That took too long. Please try again.');
   return c;
@@ -195,15 +200,16 @@ export async function finishAdd(request: Request, user: UserRow, challengeId: un
  * passkey proof on this session, so someone at a borrowed, unlocked browser cannot remove the owner's other devices.
  */
 export async function removePasskey(request: Request, user: UserRow, id: string) {
-  needPasskeys();
+  if (authMethod() !== 'kindred') throw invalid('auth.passkeys_off');
   await requireFreshProof(request, user);
-  return removeCredential(user.id, id);
+  // A password the server accepts is a way in too, so with one the last passkey may go (and with passkeys off, every one may).
+  return removeCredential(user.id, id, await methodEnabled('password'));
 }
 
 // ---------- signing in ----------
 
 export async function signInOptions(request: Request) {
-  needPasskeys();
+  await needPasskeys();
   const { rpID } = relyingParty(request);
   // No allowCredentials: the device offers whichever of its passkeys for this site the reader picks.
   const options = await generateAuthenticationOptions({ rpID, allowCredentials: [], userVerification: 'preferred' });

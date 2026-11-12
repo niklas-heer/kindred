@@ -18,7 +18,8 @@ import { CHANGE_OF_ACTION } from '../stats/shared';
 import { onChangeCommitted } from '../db.server';
 import { onActor, type Actor } from '../history.server';
 import { can, needs, type Action, type Role } from '../roles';
-import { closedFamily, forbidden, notMember, notOperator, signedOut, suspended, type AuthError } from './errors';
+import { AuthError, closedFamily, forbidden, notMember, notOperator, signedOut, suspended } from './errors';
+import { totpOn } from './totp.server';
 import { getSession, type Session } from './session.server';
 import { membershipsOf, type MembershipRow, type UserRow } from './store.server';
 import { demoRefused, isDemo } from '../demo';
@@ -232,5 +233,7 @@ export async function requireOperator(): Promise<UserRow> {
   const session = await currentSession();
   if (!session.user) throw fail(signedOut());
   if (isDemo() || session.via === 'demo' || session.user.operator !== 1) throw fail(notOperator());
+  // An operator signed in with a password reaches the console only with two-step codes on (docs/hosting-many-families.md).
+  if (session.method === 'password' && !(await totpOn(session.user.id))) throw fail(new AuthError('forbidden', 'pw.err.operator_needs_totp'));
   return session.user;
 }

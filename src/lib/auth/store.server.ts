@@ -9,6 +9,7 @@ import type { Role } from '../roles';
 import type { Locale } from '../i18n/types';
 import { guard, isGuardError, isUniqueError, NOT_TREES as NOT_TREE_FILES, q, store, type Db, type Query } from '../store/index.ts';
 import { hashToken, randomToken } from './tokens.server.ts';
+import { isSignInMethod, type SignInMethod } from './methods.ts';
 
 /** data/*.db files that are not family trees. */
 export const NOT_TREES = NOT_TREE_FILES;
@@ -48,12 +49,16 @@ export interface UserRow {
   id: string; name: string; email: string | null; handle: string; created: number; last_seen: number | null; locale: Locale | null;
   /** 1 for an operator of this server (migration 0034, src/lib/operator/): an instance role, never a family's. */
   operator?: number;
+  /** The name a password sign-in types (accounts migration 0040), lower case; null without a password. */
+  username?: string | null;
 }
 
 export const userCount = async () => (await accounts().get<{ n: number }>('SELECT count(*) AS n FROM user'))!.n;
 export const userById = (id: string) => accounts().get<UserRow>('SELECT * FROM user WHERE id = ?', id);
 export const userByEmail = (email: string) => accounts().get<UserRow>('SELECT * FROM user WHERE email = ?', email);
 export const userByHandle = (handle: string) => accounts().get<UserRow>('SELECT * FROM user WHERE handle = ?', handle);
+/** The account a password sign-in names (`username` already normalised; the column compares without case). */
+export const userByUsername = (username: string) => accounts().get<UserRow>('SELECT * FROM user WHERE username = ?', username);
 
 /**
  * A new account and the statement that stores it. `locale` is the language the reader picked before they had an account
@@ -93,20 +98,30 @@ export const credentialUsed = (id: string, counter: number) => accounts().run('U
 
 // ---------- sessions ----------
 
-export interface SessionRow { hash: string; user: string; created: number; expires: number; refreshed: number; credential: string | null; proved: number | null }
+export interface SessionRow {
+  hash: string; user: string; created: number; expires: number; refreshed: number; credential: string | null; proved: number | null;
+  /** How it was started (accounts migration 0040): 'passkey' or 'password'; null for a session from before, a passkey's. */
+  method?: string | null;
+  /** How its last fresh proof was given. */
+  proved_via?: string | null;
+}
+
+/** How a session was started, reading a session from before migration 0040 as a passkey's. */
+export const sessionMethod = (s: Pick<SessionRow, 'method'>): SignInMethod => (isSignInMethod(s.method) ? s.method : 'passkey');
 
 /**
  * A new session for `user`; returns the cookie's token (only its hash is stored). `credential` is the passkey that
  * started it, so removing that passkey ends this session too (removeCredential). `proved` says the sign-in verified the
  * reader (face, fingerprint or PIN), which counts as a fresh proof for a few minutes (proof.server.ts).
  */
-export async function createSession(user: string, credential: string | null = null, proved = false): Promise<{ token: string; expires: number }> {
+export async function createSession(user: string, credential: string | null = null, proved = false, method: SignInMethod = 'passkey'): Promise<{ token: string; expires: number }> {
   const token = randomToken(32);
   const t = now();
   const expires = t + SESSION_DAYS * DAY;
   await accounts().batch([
     q('DELETE FROM session WHERE expires < ?', t),
-    q('INSERT INTO session (hash, user, created, expires, refreshed, credential, proved) VALUES (?, ?, ?, ?, ?, ?, ?)', await hashToken('session', token), user, t, expires, t, credential, proved ? t : null),
+    q('INSERT INTO session (hash, user, created, expires, refreshed, credential, proved, method, proved_via) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      await hashToken('session', token), user, t, expires, t, credential, proved ? t : null, method, proved ? method : null),
   ]);
   return { token, expires };
 }
@@ -120,17 +135,19 @@ export async function sessionByToken(token: string): Promise<SessionRow | undefi
  * A live session with its account and the account's memberships, read in one round trip: every signed-in request starts
  * with this, so on D1 it is one trip instead of three. Undefined when the session has expired or its account is gone.
  */
-export async function sessionWithUser(token: string): Promise<{ session: SessionRow; user: UserRow; memberships: MembershipRow[] } | undefined> {
+export async function sessionWithUser(token: string): Promise<{ session: SessionRow; user: UserRow; memberships: MembershipRow[]; methodsSetting: string | undefined } | undefined> {
   const hash = await hashToken('session', token);
   const t = now();
   const live = 'SELECT user FROM session WHERE hash = ? AND expires > ?';
-  const [s, u, m] = (await accounts().readBatch([
+  const [s, u, m, setting] = (await accounts().readBatch([
     q('SELECT * FROM session WHERE hash = ? AND expires > ?', hash, t),
     q(`SELECT * FROM user WHERE id = (${live})`, hash, t),
     q(`SELECT ${MEMBERSHIP} WHERE m.user = (${live}) ORDER BY m.created`, hash, t),
-  ])) as unknown as [SessionRow[], UserRow[], MembershipRow[]];
+    // The enabled ways in (methods.server.ts), so a session of a method turned off is refused in the same trip.
+    q("SELECT value FROM instance_setting WHERE key = 'auth_methods'"),
+  ])) as unknown as [SessionRow[], UserRow[], MembershipRow[], { value: string }[]];
   const session = s[0], user = u[0];
-  return session && user ? { session, user, memberships: m } : undefined;
+  return session && user ? { session, user, memberships: m, methodsSetting: setting[0]?.value } : undefined;
 }
 
 /** Sliding expiry: a session used within 30 days lives on, up to a year from sign-in. Refreshed at most daily. */
@@ -143,8 +160,9 @@ export async function slideSession(row: SessionRow): Promise<number | undefined>
   return expires;
 }
 
-/** Records a fresh passkey proof on one session of `user` (proof.server.ts). */
-export const sessionProved = (hash: string, user: string) => accounts().run('UPDATE session SET proved = ? WHERE hash = ? AND user = ?', now(), hash, user);
+/** Records a fresh proof (a passkey, or the password and its two-step code) on one session of `user` (proof.server.ts). */
+export const sessionProved = (hash: string, user: string, via: SignInMethod = 'passkey') =>
+  accounts().run('UPDATE session SET proved = ?, proved_via = ? WHERE hash = ? AND user = ?', now(), via, hash, user);
 
 /** Ends a session, and any "View as" preview it had started (src/lib/auth/view-as.server.ts). */
 export async function deleteSession(token: string) {
@@ -158,16 +176,18 @@ export async function endOtherSessions(user: string, keep: string): Promise<numb
 }
 
 /**
- * Removes one of `user`'s passkeys and ends every session it started, so a lost device is signed out with it. Never the
- * last passkey: the guard after the delete keeps that rule however many removals race. Sessions from before migration
+ * Removes one of `user`’s passkeys and ends every session it started, so a lost device is signed out with it. Never the
+ * last way in (the last passkey, unless the account has a password the server accepts): the guard after the delete keeps
+ * that rule however many removals race. Sessions from before migration
  * 0022 name no passkey and are left alone; "sign out everywhere else" ends those.
  */
-export async function removeCredential(user: string, id: string): Promise<'removed' | 'already-removed' | 'last'> {
+export async function removeCredential(user: string, id: string, passwordCounts = false): Promise<'removed' | 'already-removed' | 'last'> {
   let r;
   try {
     [r] = await accounts().batch([
       q('DELETE FROM credential WHERE id = ? AND user = ?', id, user),
-      guard('EXISTS (SELECT 1 FROM credential WHERE user = ?)', user),
+      // `passwordCounts`: the server offers passwords and that is a way in too (accounts migration 0040).
+      guard(`EXISTS (SELECT 1 FROM credential WHERE user = ?)${passwordCounts ? ' OR EXISTS (SELECT 1 FROM password WHERE user = ?)' : ''}`, user, ...(passwordCounts ? [user] : [])),
       q('DELETE FROM session WHERE credential = ? AND user = ?', id, user),
     ]);
   } catch (e) {

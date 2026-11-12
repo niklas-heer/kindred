@@ -2,6 +2,8 @@
 //
 //   kindred            Kindred's own accounts and passkeys. Cloudflare Access tokens are ignored, even valid ones.
 //   cloudflare-access  Cloudflare Access is the only sign-in. Kindred's sessions and passkeys are off.
+//   passkey,password   Kindred's own accounts, with these ways in to start from (./methods.server.ts): the operator console
+//                      takes over the list once it is saved there.
 //
 // Empty means `kindred`, which is what every install without Access settings already does. With Access settings present and
 // no KINDRED_AUTH, Kindred refuses to guess: the two answers lock out different people. So does any value it cannot use, and
@@ -9,6 +11,7 @@
 import { accessConfig, verifyAccessToken, type AccessConfig } from './access.server.ts';
 import { onGuestHost } from './origin.ts';
 import { negotiateLocale, translate, type Key } from '../i18n/dictionary.ts';
+import { parseMethods } from './methods.ts';
 
 export type AuthMethod = 'kindred' | 'cloudflare-access';
 export type AuthProblem = 'ambiguous' | 'unknown-value' | 'needs-access-settings' | 'bad-team-domain';
@@ -20,7 +23,7 @@ type Env = Record<string, string | undefined>;
 export function authSetting(env: Env = process.env): AuthSetting {
   const chosen = env.KINDRED_AUTH?.trim().toLowerCase();
   if (!chosen) return env.CF_ACCESS_TEAM_DOMAIN?.trim() || env.CF_ACCESS_AUD?.trim() ? { method: null, problem: 'ambiguous' } : { method: 'kindred' };
-  if (chosen === 'kindred') return { method: 'kindred' };
+  if (chosen === 'kindred' || parseMethods(chosen)) return { method: 'kindred' };
   if (chosen !== 'cloudflare-access') return { method: null, problem: 'unknown-value' };
   try {
     const access = accessConfig(env);

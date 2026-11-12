@@ -90,6 +90,24 @@ export const sendJoinRequest = createServerFn({ method: 'POST' })
     });
   });
 
+/** Sends the request with a username and password instead of a passkey (when the operator turned passwords on). */
+export const sendJoinWithPassword = createServerFn({ method: 'POST' })
+  .validator(input.extend({ username: z.string().max(200), password: z.string().max(2000) }))
+  .handler(async ({ data }) => {
+    const [{ currentSession }, j, { getRequest, appendResponseHeader }, { allow, clientIP }, { AuthError }, { vapidFrom, envSetting }] = await Promise.all([
+      guard(), join(), import('@tanstack/react-start/server'), import('./throttle.server'), import('./errors'), import('../reminders.server'),
+    ]);
+    return failing(async () => {
+      const ip = clientIP();
+      if (!allow(`join:${ip}`, 20, 10 * 60_000)) throw new AuthError('throttled', 'join.err_slow');
+      const { tree: t, username, password, ...rest } = data;
+      const done = await j.joinWithPassword(getRequest(), await currentSession(), t, { ...rest, username, password }, ip);
+      appendResponseHeader('Set-Cookie', done.cookie);
+      await j.notifyStewards(done.tree, done.name, vapidFrom(envSetting));
+      return { ok: true as const };
+    });
+  });
+
 // ---------- the steward's side ----------
 
 export interface JoinRequests { requests: JoinRequestView[] }

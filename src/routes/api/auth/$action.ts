@@ -9,7 +9,11 @@ const json = (body: unknown, status = 200, cookie?: string | string[]) => {
   return new Response(JSON.stringify(body), { status, headers });
 };
 
-const ACTIONS = new Set(['setup-options', 'setup', 'invite-options', 'invite', 'signin-options', 'signin', 'add-options', 'add', 'confirm-options', 'confirm', 'signout']);
+const ACTIONS = new Set([
+  'setup-options', 'setup', 'invite-options', 'invite', 'signin-options', 'signin', 'add-options', 'add', 'confirm-options', 'confirm', 'signout',
+  // Username and password (src/lib/auth/password.server.ts): each refuses unless the operator turned passwords on.
+  'password-signin', 'password-second', 'password-setup', 'password-invite', 'password-recover', 'password-reset', 'proof-kinds', 'confirm-password',
+]);
 
 export const Route = createFileRoute('/api/auth/$action')({
   server: {
@@ -35,12 +39,26 @@ export const Route = createFileRoute('/api/auth/$action')({
         const limited =
           !allow(`auth:${ip}`, 40, 60_000) ||
           (action === 'setup-options' && (!allow(`setup:${ip}`, 5, 60_000) || !allow('setup:all', 20, 10 * 60_000))) ||
-          (action === 'invite-options' && !allow(`invite:${ip}`, 20, 10 * 60_000));
+          ((action === 'invite-options' || action === 'password-invite') && !allow(`invite:${ip}`, 20, 10 * 60_000)) ||
+          (action === 'password-setup' && (!allow(`setup:${ip}`, 5, 60_000) || !allow('setup:all', 20, 10 * 60_000)));
         if (limited) return json({ error: 'Too many attempts. Please wait a minute and try again.' }, 429);
 
         const body = (await request.json().catch(() => null)) as Record<string, any> | null;
         if (!body || typeof body !== 'object') return json({ error: 'Expected JSON' }, 400);
         const str = (v: unknown, max = 200) => (typeof v === 'string' && v.length <= max ? v : '');
+        const pw = () => import('~/lib/auth/password.server');
+        // Failed password tries are counted in the database (src/lib/auth/attempts.server.ts); Turnstile joins in when the
+        // whole server sees a flood of them and has its keys.
+        const attempt = async () => {
+          const { passesTurnstile } = await import('~/lib/operator/turnstile.server');
+          return { ip, turnstile: (token: string | undefined) => passesTurnstile(token, ip) };
+        };
+        /** A password sign-in that went all the way: the same checks as a passkey's, then a brand-new session. */
+        const passwordSession = async (user: string) => {
+          const allowed = await (await import('~/lib/auth/join.server')).signInAllowed(user);
+          if (allowed !== 'ok') throw new AuthError('invalid', allowed === 'pending' ? 'join.err_signin_pending' : 'join.err_signin_expired');
+          return json({ ok: true }, 200, await s.startSession(request, user, null, true, 'password'));
+        };
 
         try {
           switch (action) {
@@ -80,6 +98,31 @@ export const Route = createFileRoute('/api/auth/$action')({
               return json({ ok: true });
             case 'signout':
               return json({ ok: true }, 200, await s.endAllSessions(request));
+            case 'password-signin': {
+              const r = await (await pw()).passwordSignIn(request, body, await attempt());
+              return r.kind === 'second' ? json({ step: 'code', ticket: r.ticket }) : passwordSession(r.user);
+            }
+            case 'password-second':
+              return passwordSession((await (await pw()).passwordSecondStep(request, body, await attempt())).user);
+            case 'password-recover':
+              return passwordSession((await (await pw()).resetWithRecoveryCode(request, body, await attempt())).user);
+            case 'password-reset':
+              return passwordSession((await (await pw()).redeemResetLink(request, body, await attempt())).user);
+            case 'password-setup': {
+              const trees = (await families()).map((t) => t.id);
+              const { user, tree } = await (await import('~/lib/auth/password-accounts.server')).setupWithPassword(request, body, trees);
+              return json({ ok: true, tree }, 200, await s.startSession(request, user, null, true, 'password'));
+            }
+            case 'password-invite': {
+              const { user } = await (await import('~/lib/auth/password-accounts.server')).inviteWithPassword(request, body);
+              return json({ ok: true }, 200, await s.startSession(request, user, null, true, 'password'));
+            }
+            // Which proof the signed-in reader can give (a passkey, or the password), and the password's own proof.
+            case 'proof-kinds':
+              return json(await (await proof()).proofKinds(await requireUser()));
+            case 'confirm-password':
+              await (await proof()).finishPasswordProof(request, await requireUser(), body, await attempt());
+              return json({ ok: true });
           }
           return json({ error: 'Not found' }, 404);
         } catch (e) {

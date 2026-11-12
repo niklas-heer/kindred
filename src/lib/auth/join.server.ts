@@ -28,6 +28,8 @@ import {
   type Place, type Usage, type UsageRow,
 } from './join-rules.ts';
 import { authMethod } from './method.server.ts';
+import { enabledMethods, requireMethod } from './methods.server.ts';
+import { checkNewPassword, cleanUsername, hashAccountPassword, passwordAllowed, passwordRows, requireFreeUsername, rethrowTaken } from './password.server.ts';
 import { onGuestHost, publicOrigin } from './origin.ts';
 import { cleanName, deviceName, relyingParty } from './passkeys.server.ts';
 import { readCookie, guestChoice, guestToken, type Session } from './session.server.ts';
@@ -142,7 +144,7 @@ export async function joinState(request: Request, session: Pick<Session, 'user' 
   if (session.user || session.guest?.tree !== tree) return { available: false, request: null };
   const mine = await requestOfBrowser(request);
   if (mine && mine.tree === tree) return { available: false, request: { status: mine.status, name: mine.name, created: mine.created, expires: mine.expires } };
-  return { available: joinPossible(request, session.guest, await shareLinkOf(tree)), request: null };
+  return { available: joinPossible(request, session.guest, await shareLinkOf(tree)) && (await enabledMethods()).length > 0, request: null };
 }
 
 /** Everything that must hold before a guest may ask, and again when they send. Returns the link. */
@@ -181,6 +183,7 @@ async function cleanInput(tree: string, input: JoinInput): Promise<Omit<Payload,
 
 /** Starts the passkey for a request: everything is checked first, and the try is counted before a passkey is made. */
 export async function joinOptions(request: Request, session: Pick<Session, 'user' | 'guest'>, tree: string, input: JoinInput, ip: string) {
+  await requireMethod('passkey');
   const { link } = await checkCanAsk(request, session, tree);
   const clean = await cleanInput(tree, input);
   const network = await networkKey(link.id, ip);
@@ -245,6 +248,7 @@ export async function finishJoin(
   request: Request, session: Pick<Session, 'user' | 'guest'>, challengeId: unknown, response: RegistrationResponseJSON, verify: VerifyNew = verifyNewPasskey,
 ): Promise<{ cookie: string; tree: string; name: string }> {
   if (authMethod() !== 'kindred') throw refuse('auth.passkeys_off');
+  await requireMethod('passkey');
   const c = typeof challengeId === 'string' && challengeId.length < 100
     ? await accounts().get<{ challenge: string; payload: string }>('DELETE FROM join_challenge WHERE id = ? AND expires > ? RETURNING challenge, payload', challengeId, now())
     : undefined;
@@ -254,6 +258,36 @@ export async function finishJoin(
   if (link.id !== p.link) throw refuse('join.err_unavailable');
   const cred = await verify(request, c.challenge, response);
   if (await credentialById(cred.id)) throw refuse('This passkey is already saved.');
+  return storeJoinRequest(request, link, p, (user) => [insertCredential({ ...cred, user, device: deviceName(request) })]);
+}
+
+/**
+ * The same request with a username and password instead of a passkey (when the operator turned passwords on). Everything is
+ * checked and the try counted as for a passkey; the pending account cannot sign in until a steward says yes.
+ */
+export async function joinWithPassword(
+  request: Request, session: Pick<Session, 'user' | 'guest'>, tree: string, input: JoinInput & { username?: unknown; password?: unknown }, ip: string,
+): Promise<{ cookie: string; tree: string; name: string }> {
+  await passwordAllowed(request);
+  const { link } = await checkCanAsk(request, session, tree);
+  const clean = await cleanInput(tree, input);
+  const username = cleanUsername(input.username);
+  const password = checkNewPassword(input.password, username);
+  const network = await networkKey(link.id, ip);
+  if ((await openFromNetwork(link.id, network)) >= MAX_OPEN_PER_NETWORK) throw refuse('join.err_network');
+  if (!(await spendJoinTry(link.id, ip))) throw new AuthError('throttled', 'join.err_slow');
+  await requireFreeUsername(username);
+  const hash = await hashAccountPassword(password);
+  const handle = isoBase64URL.fromBuffer(crypto.getRandomValues(new Uint8Array(32)));
+  try {
+    return await storeJoinRequest(request, link, { tree, link: link.id, handle, network, ...clean }, (user) => passwordRows(user, username, hash));
+  } catch (e) {
+    return rethrowTaken(e);
+  }
+}
+
+/** The pending account, its way in and the request, in one batch whose guards restate the link's switch and its limits. */
+async function storeJoinRequest(request: Request, link: ShareLinkRow, p: Payload, credentials: (user: string) => Query[]): Promise<{ cookie: string; tree: string; name: string }> {
   const { place, device } = context(request);
   const { hash: visitor, usage } = await visitorUsage(request, link.id);
   const browserToken = randomToken(32);
@@ -267,7 +301,7 @@ export async function finishJoin(
       ...(visitor ? [guard("NOT EXISTS (SELECT 1 FROM join_request WHERE visitor = ? AND link = ? AND status = 'open' AND expires > ?)", visitor, link.id, t)] : []),
       ...(p.network ? [guard("(SELECT count(*) FROM join_request WHERE link = ? AND network = ? AND status = 'open' AND expires > ?) < ?", link.id, p.network, t, MAX_OPEN_PER_NETWORK)] : []),
       insert,
-      insertCredential({ ...cred, user: user.id, device: deviceName(request) }),
+      ...credentials(user.id),
       q(`INSERT INTO join_request (id, tree, link, user, browser, visitor, network, status, name, person, message, city, region, country, time_zone, language, device, usage, created, expires)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         crypto.randomUUID(), p.tree, link.id, user.id, browser, visitor, p.network ?? null, p.name, p.person, p.message, place?.city ?? null, place?.region ?? null, place?.country ?? null,
