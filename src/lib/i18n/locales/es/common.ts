@@ -55,7 +55,7 @@ export default {
   "ui.discard": "Descartar",
   "ui.loading": "Cargando…",
   "ui.retry": "Reintentar",
-  "ui.dismiss": "Omitir",
+  "ui.dismiss": "Ocultar",
   "ui.something_went_wrong": "Algo salió mal",
   "ui.could_not_show": "No se pudo mostrar esta parte de Kindred.",
   "ui.nothing_here": "Aquí no hay nada",

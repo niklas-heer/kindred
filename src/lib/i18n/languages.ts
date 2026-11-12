@@ -126,7 +126,7 @@ export const LANGUAGES = {
     jobForms: "panadero/panadera",
     accepts: ["es"],
     shortMonths: ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"],
-    complete: false, // TOP-UP: 20 keys added after the translation; set back to true then
+    complete: true,
   },
   fr: {
     native: "Français",

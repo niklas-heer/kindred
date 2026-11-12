@@ -14,7 +14,7 @@ export default {
   "sources.empty_text": "Añade el registro parroquial, la carta o el sitio web del que viene un dato, y después cítalo en la pestaña Editar de una persona.",
   "sources.empty_viewer": "Cuando los editores de la familia anoten de dónde viene un dato, las fuentes aparecerán aquí.",
   "sources.members_only_title": "Las fuentes son para la familia",
-  "sources.members_only": "Un enlace compartido no muestra las fuentes de la familia. Pide una cuenta para verlas.",
+  "sources.members_only": "Un enlace para compartir no muestra las fuentes de la familia. Pide una cuenta para verlas.",
   "sources.filter": "Buscar una fuente",
   "sources.count": { one: "{count} fuente", other: "{count} fuentes" },
   "sources.cited_by": { one: "Citada para {count} dato", other: "Citada para {count} datos" },

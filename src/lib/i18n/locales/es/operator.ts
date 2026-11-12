@@ -226,4 +226,5 @@ export default {
   "request.full": "Hay demasiadas solicitudes esperando respuesta en este momento, así que este formulario está cerrado por ahora. Inténtalo de nuevo dentro de unos días.",
   "privacyreq.full": "Hay demasiadas solicitudes esperando respuesta en este momento, así que este formulario está cerrado por ahora.",
   "privacyreq.full_write": "Aun así puedes escribir al operador:",
+  "operator.err.needs_totp": "Esa cuenta tiene contraseña pero no códigos en dos pasos. Primero tiene que activarlos; después se le puede hacer operador.",
 } satisfies Strings<typeof en, "es">;

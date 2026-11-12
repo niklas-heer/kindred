@@ -119,4 +119,11 @@ export default {
   "pw.reset_link_for": "Enlace de restablecimiento para {name}, hasta las {time}",
   "pw.audit_methods": "Cambió las formas de entrar",
   "pw.audit_reset_link": "Creó un enlace de restablecimiento de contraseña",
+  "pw.err.operator_password_totp": "Como operador, activa los códigos en dos pasos antes de poner una contraseña.",
+  "pw.operator_totp_first": "Como operador, activa primero los códigos en dos pasos; después podrás añadir una contraseña.",
+  "pw.recovery_renew": "Tus códigos de recuperación están guardados a la antigua. Crea unos nuevos y guarda esos.",
+  "pw.err.reset_no_password": "Esa cuenta no tiene contraseña, así que un enlace de restablecimiento no puede darle una. Su titular inicia sesión como siempre.",
+  "pw.err.reset_notice_method": "Inicia sesión con tu llave de acceso o con el inicio de sesión único para cerrar este aviso.",
+  "pw.reset_notice": "Un operador de este servidor restableció tu contraseña el {date}. Si no lo pediste, cambia tu contraseña ahora y avisa al operador.",
+  "pw.reset_notice_label": "La seguridad de tu cuenta",
 } satisfies Strings<typeof en, "es">;

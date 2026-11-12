@@ -51,7 +51,7 @@ export default {
   "campaign.card.open": "Abrir la Campaña",
   "campaign.card.play": "Jugar esta semana",
   "campaign.card.play_today": "Jugar el reinado de hoy",
-  "campaign.card.rank": "Eres el {rank} de {of} esta semana",
+  "campaign.card.rank": "Tu puesto esta semana: {rank} de {of}",
   "campaign.card.rank_shared": "Compartes el puesto {rank} de {of} esta semana",
   "campaign.card.today_begun": "El reinado de hoy está en marcha. Termínalo hoy para que cuente.",
   "campaign.card.today_done": "El reinado de hoy está jugado. El de mañana vuelve a contar.",

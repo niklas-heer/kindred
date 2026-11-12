@@ -93,4 +93,7 @@ export default {
   "oidc.enabled": "Ofrecerlo",
   "oidc.turn_off_warning": { one: "Desactivarlo cierra las sesiones que inició; {count} cuenta pierde esta forma de entrar hasta que se vuelva a activar.", other: "Desactivarlo cierra las sesiones que inició; {count} cuentas pierden esta forma de entrar hasta que se vuelva a activar." },
   "oidc.save": "Guardar el proveedor",
+  "oidc.err.signup_unverified": "Tu proveedor no confirmó tu dirección de correo, y este servidor revisa primero esos registros. Envía una solicitud, o usa un proveedor que lo confirme.",
+  "oidc.err.signup_failed": "No se pudo crear la familia: puede que su dirección ya esté ocupada o que el servidor no admita más familias nuevas por ahora. Revisa el formulario e inténtalo de nuevo.",
+  "oidc.err.signup_exists": "Ese inicio de sesión ya pertenece a una cuenta de Kindred. Inicia sesión con él primero y crea la familia desde allí.",
 } satisfies Strings<typeof en, "es">;
