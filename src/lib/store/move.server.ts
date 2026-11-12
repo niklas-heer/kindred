@@ -34,6 +34,8 @@ export const moveStep = z.discriminatedUnion('step', [
   z.object({
     step: z.literal('begin'),
     replace: z.boolean().optional(),
+    /** The server's terms accepted, for an import that makes a new family while the server has terms (`--accept-terms`). */
+    acceptTerms: z.boolean().optional(),
     schema: z.string().regex(MIGRATION),
     tables: z.record(z.string().regex(NAME), z.number().int().min(0).max(100_000_000)).refine((t) => Object.keys(t).length >= 1 && Object.keys(t).length <= 200, 'between 1 and 200 tables'),
   }),
@@ -49,7 +51,7 @@ export const moveStep = z.discriminatedUnion('step', [
 export type MoveStep = z.infer<typeof moveStep>;
 
 /** Who is importing, as the route found them: their account, whether they steward the family, whether they may make families. */
-export interface Importer { id: string; steward: boolean; mayCreate: () => Promise<boolean> }
+export interface Importer { id: string; operator: boolean; steward: boolean; mayCreate: () => Promise<boolean> }
 
 export class MoveError extends Error {
   constructor(message: string, readonly status = 409) {
@@ -83,8 +85,12 @@ async function notNew(tree: string, now: number): Promise<string | null> {
  * so the rules for making a family apply to an import as they do to Manage families.
  */
 async function mayMakeNewFamily(who: Importer): Promise<boolean> {
-  // PARENT: apply familyLimit + terms here
-  return who.mayCreate();
+  if (!(await who.mayCreate())) return false;
+  // Within the number of families an account may make (the terms are asked when the import begins).
+  const { familyLimit } = await import('../families.server.ts');
+  const limit = await familyLimit({ id: who.id, operator: who.operator ? 1 : 0 });
+  if (limit && limit.made >= limit.max) throw new MoveError(`You have made ${limit.made} families, as many as an account may make on this server.`, 403);
+  return true;
 }
 
 /** Who may do what: a new family, whoever may make families; a copy of a D1 family, its stewards. */
@@ -128,8 +134,12 @@ export async function move(tree: string, step: MoveStep, who: Importer, now = Da
     const tables = new Map(await t.schema());
     const unknown = Object.keys(step.tables).filter((name) => !tables.has(name));
     if (unknown.length) throw new MoveError(`The family's database has no table ${unknown.join(', ')}.`);
+    // A new family is made by this account: the server's terms, as when making one in Manage families (recorded now).
+    const { acceptance } = await import('../operator/terms.server.ts');
+    const terms = mode === 'new' ? await acceptance({ id: who.id, operator: who.operator ? 1 : 0 }, step.acceptTerms, 'family.create', tree, now) : [];
     const id = crypto.randomUUID();
     await accounts().batch([
+      ...terms,
       q('DELETE FROM family_import WHERE tree = ?', tree),
       q('INSERT INTO family_import (tree, id, user, mode, schema, expected, started_at) VALUES (?, ?, ?, ?, ?, ?, ?)', tree, id, who.id, mode, schema, JSON.stringify(step.tables), now),
     ]);

@@ -89,7 +89,7 @@ export const durableCases: Record<string, (expect: string[]) => Promise<void>> =
     await store.accounts().batch([
       q("INSERT INTO user (id, name, handle, created) VALUES ('u-imp', 'Imogen', 'h-imp', ?), ('u-op', 'Orla', 'h-op', ?), ('u-other', 'Otto', 'h-other', ?)", now, now, now),
     ]);
-    const imogen: Importer = { id: 'u-imp', steward: false, mayCreate: async () => true };
+    const imogen: Importer = { id: 'u-imp', operator: false, steward: false, mayCreate: async () => true };
     const fern = (tables: Record<string, number>) => ({ step: 'begin' as const, schema, tables });
 
     // A new family: staged, so neither listed nor served, until it is finished.
@@ -137,8 +137,8 @@ export const durableCases: Record<string, (expect: string[]) => Promise<void>> =
     await assert.rejects(move('heath', { step: 'rows', import: heath, table: 'meta', columns: ['key', 'value'], rows: [['name', 'x']] }, imogen), /a family on this server already/);
 
     // A family D1 still serves: copied by a steward only (an operator is not one), and D1 keeps serving it.
-    await assert.rejects(move('old', fern({ meta: 1 }), { id: 'u-op', steward: false, mayCreate: async () => true }), /Only a steward of old/);
-    const sten: Importer = { id: 'u-imp', steward: true, mayCreate: async () => false };
+    await assert.rejects(move('old', fern({ meta: 1 }), { id: 'u-op', operator: false, steward: false, mayCreate: async () => true }), /Only a steward of old/);
+    const sten: Importer = { id: 'u-imp', operator: false, steward: true, mayCreate: async () => false };
     const copy = await move('old', fern({ meta: 1 }), sten);
     assert.deepEqual([copy.mode, copy.serving], ['copy', false]);
     await move('old', { step: 'rows', import: String(copy.import), table: 'meta', columns: ['key', 'value'], rows: [['id', 'old']] }, sten);
@@ -150,6 +150,29 @@ export const durableCases: Record<string, (expect: string[]) => Promise<void>> =
     await assert.rejects(move('old', fern({ meta: 1 }), sten), /already holds a copy/);
     await store.dropTree('old');
     assert.ok(!(await registry()).some((r) => r.startsWith('old:')), 'deleting the family takes the copy too');
+  },
+
+  /** An import that makes a new family follows the rules of making one: the account's limit, and the server's terms. */
+  'an import that makes a family keeps the limit and the terms': async (files) => {
+    const schema = files.at(-1)!;
+    const now = Date.now();
+    await store.accounts().batch([q("INSERT INTO user (id, name, handle, created) VALUES ('u-lim', 'Lia', 'h-lim', ?), ('u-opr', 'Ossian', 'h-opr', ?)", now, now)]);
+    const set = (key: string, value: string) => q('INSERT INTO instance_setting (key, value, updated_at, updated_by) VALUES (?, ?, ?, NULL) ON CONFLICT(key) DO UPDATE SET value = excluded.value', key, value, now);
+    const lia: Importer = { id: 'u-lim', operator: false, steward: false, mayCreate: async () => true };
+    const begin = (extra: Partial<Extract<MoveStep, { step: 'begin' }>> = {}): MoveStep => ({ step: 'begin', schema, tables: { meta: 1 }, ...extra });
+
+    await store.accounts().batch([set('families_per_account', '0')]);
+    await assert.rejects(move('limited', begin({ acceptTerms: true }), lia), /as many as an account may make/);
+    await store.accounts().batch([set('families_per_account', '5'), set('terms', 'Be kind.')]);
+    await assert.rejects(move('limited', begin(), lia), (e: Error) => /terms/i.test(e.message));
+    const ok = await move('limited', begin({ acceptTerms: true }), lia);
+    assert.equal(ok.mode, 'new');
+    assert.equal((await store.accounts().get<{ n: number }>("SELECT count(*) AS n FROM terms_acceptance WHERE user = 'u-lim' AND family = 'limited'"))?.n, 1);
+    // An operator wrote the terms and is not asked, and has no limit.
+    const ossian: Importer = { id: 'u-opr', operator: true, steward: false, mayCreate: async () => true };
+    await store.accounts().batch([set('families_per_account', '0')]);
+    assert.equal((await move('opened', begin(), ossian)).mode, 'new');
+    await store.accounts().batch([q("DELETE FROM instance_setting WHERE key IN ('families_per_account', 'terms')")]);
   },
 
   /** A demo refuses every write, making and dropping a family included; reads still work. */

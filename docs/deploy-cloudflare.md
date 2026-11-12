@@ -426,7 +426,8 @@ How it is kept safe:
   this family's, publishes it. A run that stops part-way publishes nothing; run it again.
 - **Who.** A **new** family (an id the server does not have, with no members and no open invitation: a family waiting for the
   steward an operator invited is not free) may be imported by anyone who may make families, an operator included, who becomes
-  its steward when it is published. A family the server already serves from its Durable Object is never imported into; delete it
+  its steward when it is published. As when making a family in Manage families, it counts towards the account's limit of
+  families, and while the server has terms, `--accept-terms` accepts them (they are recorded; operators are not asked). A family the server already serves from its Durable Object is never imported into; delete it
   first if you mean to replace it. A family a `TREE_<ID>` D1 binding still serves may be **copied** into its object by one of its
   stewards only: an operator may not change a family's records ([hosting-many-families.md](hosting-many-families.md)).
 

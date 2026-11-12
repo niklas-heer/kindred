@@ -16,6 +16,7 @@
 //       A steward's backup (GET /api/backup/<tree>, scripts/backup-do.ts) restored as a new family, with the pictures from
 //       <folder> (default: media/<tree>/ beside the file), as from a Node install.
 //   --plan prints what would be sent and sends nothing; --replace empties a Durable Object that already holds a copy;
+//   --accept-terms accepts the server's terms, which a server that has them asks of whoever makes a new family;
 //   --env <name> picks a wrangler environment; --remote (the deployed D1 and R2) or local (default, the `local` state of
 //   `mise run dev:cf`).
 // The Worker writes the rows into a staged object that serves nothing, and publishes the family only when every table holds
@@ -43,10 +44,11 @@ const env = option('--env');
 const remote = flag('--remote');
 const plan = flag('--plan');
 const replace = flag('--replace');
+const acceptTerms = flag('--accept-terms');
 const session = process.env.KINDRED_SESSION?.trim();
 
 if (!tree || !/^[a-z0-9-]{1,64}$/.test(tree) || [from, fromD1, fromBackup].filter(Boolean).length !== 1 || (!plan && !url)) {
-  console.error('usage: KINDRED_SESSION=<cookie value> node scripts/import-to-do.ts <tree> --url <origin> (--from <file.db> | --from-d1 <database name> | --from-backup <file.json> [--media <folder>]) [--env <name>] [--remote] [--replace] [--plan]');
+  console.error('usage: KINDRED_SESSION=<cookie value> node scripts/import-to-do.ts <tree> --url <origin> (--from <file.db> | --from-d1 <database name> | --from-backup <file.json> [--media <folder>]) [--env <name>] [--remote] [--replace] [--accept-terms] [--plan]');
   process.exit(2);
 }
 if (!plan && !session) throw new Error('Set KINDRED_SESSION to the value of your kindred_session cookie on that site (docs/deploy-cloudflare.md).');
@@ -158,7 +160,7 @@ try {
   console.log(`${tree}: ${rows} rows in ${batches.length} requests under ${schema}${media.length ? `, ${media.length} pictures` : ''} → ${url ?? '(plan only)'}`);
   if (plan) throw new PlanOnly();
 
-  const begun = await send({ step: 'begin', replace, schema, tables: sent });
+  const begun = await send({ step: 'begin', replace, acceptTerms, schema, tables: sent });
   const importId = String(begun.import);
   for (const [i, b] of batches.entries()) {
     await send({ step: 'rows', import: importId, ...b });

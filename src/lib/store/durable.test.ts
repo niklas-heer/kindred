@@ -75,6 +75,8 @@ test('a dropped family is gone, unlisted, and can be made again empty', { timeou
 
 test('an import is staged, bound to its account, values only, and published only when complete', { timeout: 60_000 }, () => phase('a family is imported step by step, staged until it is complete', treeFiles));
 
+test('an import that makes a family keeps the account\'s limit and the server\'s terms', { timeout: 60_000 }, () => phase('an import that makes a family keeps the limit and the terms', treeFiles));
+
 test('a demo refuses to make, change or drop a Durable Object family', { timeout: 60_000 }, () => phase('a demo refuses to make, change or drop a family', treeFiles, { vars: { KINDRED_DEMO: '1' } }));
 
 test('changing KINDRED_JURISDICTION after the first family is refused', { timeout: 60_000 }, () => phase('a changed jurisdiction is refused', treeFiles, { vars: { KINDRED_JURISDICTION: 'eu' } }));
