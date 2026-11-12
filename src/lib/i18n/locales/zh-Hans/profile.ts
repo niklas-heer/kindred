@@ -3,4 +3,7 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/profile.ts";
 
 export default {
+  "profile.open": "完整资料",
+  "profile.openTitle": "打开{name}的完整资料",
+  "profile.enlarge": "放大查看{name}的照片",
 } satisfies Strings<typeof en, "zh-Hans">;
