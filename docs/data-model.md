@@ -194,6 +194,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0053_email.sql` | Optional email ([hosting-many-families.md](hosting-many-families.md#email)): `email_token` (a confirmation link or a sign-up code, and the sign-up's proof), `email_send` (the send log for the limits and the Health tab) and `email_optout` (unsubscribes). |
 | `0054_email_reset.sql` | `password_reset.via`: `operator` (every row from before) or `email` (a link the holder asked for, sent to their confirmed address). |
 | `0055_backup_restore_guards.sql` | What a restore may hand to whom ([hosting-many-families.md](hosting-many-families.md#backups)): `family_backup.stewards` (the family's stewards when it was backed up), `.family_created` (which family held the id then) and `.pinned_until` (the backup from before a restore over a family or a rollback, kept a week), and `family_claim` (an address being made or restored into, and a restore's source for copying pictures). |
+| `0056_email_fixes.sql` | `email_send.sender` and `.network` (keyed hashes of who asked for a confirmation link or an invitation, for their daily limits) and the `notice` category; `steward_notice.emailed` and `.pushed` (how many stewards a notice reached each way: the lifecycle deletes by itself only after its final notice reached one). |
 
 ### Tables
 
@@ -334,9 +335,11 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   token the form sends with the sign-up, UNIQUE) and `proved_at`, and has an hour more; `used_at` is set once, by the link's
   confirmation or in the batch that makes the signed-up account. Expired rows go when new ones are made.
 - **`email_send`** (0053): one row per email Kindred meant to send: `at`, `recipient` (an HMAC of the address under the server
-  secret, never the address), `category` (`verify`, `signup`, `reset`, `security`, `test`, `invitation`, `operator`, `family`,
-  `receipt`), `status` (`sending`, `sent`, `failed`, `skipped`) and the provider's short `error`. The limits per address and per
-  server are guards on its counts in the batch that adds a row. Rows older than 30 days are deleted as new ones come. No `tree`.
+  secret, never the address), `category` (`verify`, `signup`, `reset`, `security`, `notice`, `test`, `invitation`, `operator`,
+  `family`, `receipt`), `status` (`sending`, `sent`, `failed`, `skipped`) and the provider's short `error`; `sender` and `network`
+  (0056): keyed hashes of the account and network that caused it, for a confirmation link or an invitation, else NULL. The limits
+  per address, per account, per network and per server are guards on its counts in the batch that adds a row. Rows older than
+  30 days are deleted as new ones come. No `tree`.
 - **`email_optout`** (0053): `recipient` (the same hash) and `category` (`invitation`, `operator`, `family` or `receipt`): that
   address unsubscribed from that kind, and `at`. Security emails have no row to leave. No `tree`.
 - The email settings are rows of `instance_setting` named `mail_*` (provider, sender, reply-to, Mailgun's domain and region,
@@ -405,7 +408,8 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   lifecycle's, which the family's stewards may lift themselves; NULL for the operator's own.
 - **`steward_notice`** (0052): what a family's stewards were told in the app (`src/lib/notify/stewards.server.ts`): `tree`, `kind`
   (`lifecycle_warning`, `lifecycle_readonly`, `lifecycle_due`, `lifecycle_final`), `vars` (JSON of dates and numbers, never record
-  content) and `at`. **`steward_notice_dismissal`** (0052): a steward (`user`) put a kind of notice away for a family until
+  content) and `at`; `emailed` and `pushed` (0056): how many stewards it reached by email and by push (0 for rows from before).
+  **`steward_notice_dismissal`** (0052): a steward (`user`) put a kind of notice away for a family until
   `until`. Both deleted with the family.
 - **`signup_code`** (0043): a code an operator made that opens sign-up: `hash` (the code's SHA-256; the code is shown once),
   `label`, `uses_max`, `uses`, `expires` (NULL: never), `created`, `created_by` and `revoked_at`.

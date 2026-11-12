@@ -105,7 +105,8 @@ What happens, once a day (the `lifecycle` job):
    to download a copy (the bar links the Markdown archive, GEDCOM and the backup). Then:
    - *You confirm each deletion* (the default): it waits for you. **Delete…** asks for its address typed and your passkey.
    - *Automatically*: the stewards get a **final notice** at once, and the job deletes the family 30 days later unless a steward
-     turned it back on meanwhile.
+     turned it back on meanwhile. The final notice must reach a steward by email or by a push notification: a notice that stayed
+     in the app may never be read, so then the deletion waits for you instead, and the Families list says why.
 
 Each step waits its own time after the one before (six months between the warning and read-only, six more until it is due, with
 the defaults), so turning the lifecycle on for a family that has been quiet for years still warns first. A family you suspended or
@@ -243,7 +244,10 @@ is read-only, and while `KINDRED_AUTH_METHODS` is set it only shows what that se
 
 ### Email
 
-Kindred sends no email until you set it up on the console's **Email** tab (`src/lib/email/`). Choose how it sends:
+Kindred sends no email until you set it up on the console's **Email** tab (`src/lib/email/`). It needs `KINDRED_ORIGIN`, this
+server's public address ([self-host.md](self-host.md#settings)): every link in an email is built from it, never from the address
+a request names, which anyone can forge. Without it the tab says so and email cannot be turned on (a server on `localhost` may go
+without, for development). Choose how it sends:
 
 - **Resend**, **Postmark** or **Mailgun** (with its **EU** region, which keeps the messages in the EU): they speak HTTP, so they
   work on Node and on Cloudflare Workers alike. You need an account there, a sending domain it has verified, and its API key.
@@ -259,9 +263,11 @@ it while email is set up ([gdpr.md](gdpr.md#email)).
 
 What email makes possible, each only while it is on:
 
-- **Confirming an address.** *Your email* in the account menu sends a one-time link, good for 24 hours. The address becomes
-  the account's, confirmed, only when the link is opened and confirmed; moving away from a confirmed address needs a fresh
-  proof first. An address a steward typed into an invitation is never confirmed by that.
+- **Confirming an address.** *Your email* in the account menu sends a one-time link, good for 24 hours, after a fresh proof
+  (setting an address and changing it both need one). The address becomes the account's, confirmed, only when the link is
+  opened and confirmed while signed in to that same account: someone signed out, a guest or another account is asked to sign in
+  first. A confirmed address it had before is told of the change. An address a steward typed into an invitation is never
+  confirmed by that.
 - **Sign-up.** The sign-up form offers a six-digit code to the address typed (15 minutes, five tries). With the right code the
   address is confirmed, so the family starts at once even while *unverified sign-ups go to the waiting list*.
 - **A forgotten password.** *Forgot your password?* on the sign-in page asks for the account's confirmed address. Kindred
@@ -275,13 +281,18 @@ What email makes possible, each only while it is on:
   there to copy as well).
 - **Notices**: operators with a confirmed address about a new family request or data request (at most every ten minutes, and
   nothing of what was asked); the person who sent a data request gets a receipt with the date it must be answered by (nothing
-  of what they wrote); a family's stewards when you hand them a data request, and when a breach notice concerns their family.
+  of what they wrote; at most one a day to one address); a family's stewards when you hand them a data request, when a breach
+  notice concerns their family, and the lifecycle's warnings. A breach notice and the lifecycle's final notice cannot be
+  unsubscribed.
 
 Every email is in its recipient's language (their account's, else English; a receipt in the language the form was sent in),
 plain text with a simple HTML version: no images, no tracking, and no link but to this server. Every email that is not about
 an account's security carries a one-click unsubscribe for its kind (invitations, operator news, stewards' notices, receipts).
-Limits: a few emails an hour and a day to one address (codes and links fewer still), and the server's own ceiling an hour
-(**Emails an hour, at most**). Nothing is sent in a demo or during a steward's *View as*. The **Health** tab shows the last
+The only words a person chose that an email carries are names (an account's, a family's, the server's), cut to one line of
+80 characters, so nobody can make the server mail their text. Limits: a few emails an hour and a day to one address (codes and
+links fewer still); a few confirmation links (5) and invitations (20) a day from one account, and twice that from one network;
+and the server's own ceiling an hour (**Emails an hour, at most**), of which a fifth is kept for password resets and security
+notices, so a flood of other emails cannot hold those back. Nothing is sent in a demo or during a steward's *View as*. The **Health** tab shows the last
 day's sends and the latest failures with the provider's reason; the log keeps a keyed hash of each address, never the address
 or the text.
 

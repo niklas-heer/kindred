@@ -187,13 +187,15 @@ What is emailed, and to whom:
 | Security notices: password changed or reset, a new way in, two-step codes off | the account's **confirmed** address | no |
 | An invitation | the address a steward typed, when they choose to send it | yes |
 | A new family request or data request is waiting (nothing of its content) | operators with a confirmed address | yes |
-| A receipt for a data request, with its deadline (nothing the requester wrote) | the address typed into `/privacy-request` | yes |
-| A data request handed to the family; a breach notice | the family's stewards with a confirmed address | yes |
+| A receipt for a data request, with its deadline (nothing the requester wrote), at most one a day per address | the address typed into `/privacy-request` | yes |
+| A data request handed to the family; the lifecycle's warnings | the family's stewards with a confirmed address | yes |
+| A breach notice; the lifecycle's final notice before a deletion | the family's stewards with a confirmed address | no |
+| The account's address changed (without the new one) | the account's **previous** confirmed address | no |
 
 Apart from a code or link that confirms an address, the receipt for a data request is the only email to an address nobody
 confirmed, and it carries no text a stranger could fill in. Kindred keeps no copy of any email: `email_send` holds a keyed hash
-of the address, the kind of email, when, and whether it went out (30 days), and `email_optout` the hash and kind of each
-unsubscribe. Every email links only to this server and carries no tracking pixel; the providers' open and click tracking is
+of the address, the kind of email, when, whether it went out, and for a confirmation link or an invitation keyed hashes of the
+account and network that asked (30 days), and `email_optout` the hash and kind of each unsubscribe. Every email links only to this server and carries no tracking pixel; the providers' open and click tracking is
 switched off where their API allows it (Postmark, Mailgun). Nothing is sent in a demo or during a steward's *View as*.
 
 ## The operator's checklist
