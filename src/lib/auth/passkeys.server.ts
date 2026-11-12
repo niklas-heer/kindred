@@ -35,7 +35,7 @@ const invalid = (message: string) => new AuthError('invalid', message);
  * Passkeys exist only under the `kindred` method, and only while the operator offers them (methods.server.ts). Every ceremony
  * starts with options or finishes with `take`, and both check this.
  */
-async function needPasskeys() {
+export async function needPasskeys() {
   if (authMethod() !== 'kindred') throw invalid('auth.passkeys_off');
   await requireMethod('passkey');
 }
@@ -48,7 +48,7 @@ export function cleanName(name: unknown): string {
   return n;
 }
 
-async function creationOptions(request: Request, user: { name: string; handle: string; existing: { id: string; transports: string }[] }) {
+export async function creationOptions(request: Request, user: { name: string; handle: string; existing: { id: string; transports: string }[] }) {
   const { rpID } = relyingParty(request);
   return generateRegistrationOptions({
     rpName: RP_NAME,
@@ -65,7 +65,7 @@ async function creationOptions(request: Request, user: { name: string; handle: s
 }
 
 // A user handle chosen before the account exists, carried in the challenge row's `subject`.
-const newHandle = () => isoBase64URL.fromBuffer(crypto.getRandomValues(new Uint8Array(32)));
+export const newHandle = () => isoBase64URL.fromBuffer(crypto.getRandomValues(new Uint8Array(32)));
 
 // ---------- creating a passkey ----------
 
@@ -104,7 +104,7 @@ export async function addOptions(request: Request, user: UserRow) {
   return { options, challengeId: await saveChallenge({ challenge: options.challenge, purpose: 'add', subject: user.id }) };
 }
 
-async function verifyNew(request: Request, challenge: string, response: RegistrationResponseJSON) {
+export async function verifyNew(request: Request, challenge: string, response: RegistrationResponseJSON) {
   const { rpID, origin } = relyingParty(request);
   let result;
   try {
@@ -118,7 +118,7 @@ async function verifyNew(request: Request, challenge: string, response: Registra
   return { id: credential.id, publicKey: credential.publicKey, counter: credential.counter, transports: credential.transports ?? [], synced: credentialBackedUp };
 }
 
-const take = async (id: unknown, purpose: string) => {
+export const take = async (id: unknown, purpose: string) => {
   await needPasskeys();
   const c = typeof id === 'string' && id.length < 100 ? await takeChallenge(id) : undefined;
   if (!c || c.purpose !== purpose) throw invalid('That took too long. Please try again.');

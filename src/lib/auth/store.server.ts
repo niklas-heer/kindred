@@ -334,7 +334,7 @@ export const pendingInvitesFor = (email: string) =>
 
 // ---------- WebAuthn challenges ----------
 
-export async function saveChallenge(c: { challenge: string; purpose: 'setup' | 'invite' | 'add' | 'login' | 'confirm'; subject?: string; name?: string }): Promise<string> {
+export async function saveChallenge(c: { challenge: string; purpose: 'setup' | 'invite' | 'add' | 'login' | 'confirm' | 'signup'; subject?: string; name?: string }): Promise<string> {
   const id = randomToken(24);
   await accounts().batch([
     q('DELETE FROM challenge WHERE expires < ?', now()),

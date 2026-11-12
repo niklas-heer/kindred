@@ -7,8 +7,10 @@ import type { Locale } from '../i18n/languages.ts';
  *   operator  only an operator
  *   stewards  a steward of any family here, or an operator (the default: a self-hosted install works as it always has)
  *   requests  anyone may ask (/request); an operator approves, and only an operator makes one directly
+ *   signup    anyone may start a family themselves (/signup), within the server's limits; the request form stays open as the
+ *             way in when sign-up is full (src/lib/signup/). Refused unless the server is ready for it (readiness).
  */
-export const FAMILY_CREATION = ['operator', 'stewards', 'requests'] as const;
+export const FAMILY_CREATION = ['operator', 'stewards', 'requests', 'signup'] as const;
 export type FamilyCreation = (typeof FAMILY_CREATION)[number];
 export const DEFAULT_FAMILY_CREATION: FamilyCreation = 'stewards';
 
@@ -76,6 +78,9 @@ export interface LegalTexts {
   terms: string;
   reportContact: string;
 }
+
+/** The token the stand-in for Turnstile hands its form (KINDRED_TURNSTILE_FAKE=1, the browser journeys). */
+export const TURNSTILE_FAKE_TOKEN = 'kindred-fake-turnstile-pass';
 
 /** A setting that is a single web address is shown as a link to it rather than as text. */
 export const isUrl = (value: string) => /^https?:\/\/\S+$/i.test(value.trim());

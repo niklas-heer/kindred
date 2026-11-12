@@ -13,6 +13,8 @@ const ACTIONS = new Set([
   'setup-options', 'setup', 'invite-options', 'invite', 'signin-options', 'signin', 'add-options', 'add', 'confirm-options', 'confirm', 'signout',
   // Username and password (src/lib/auth/password.server.ts): each refuses unless the operator turned passwords on.
   'password-signin', 'password-second', 'password-setup', 'password-invite', 'password-recover', 'password-reset', 'proof-kinds', 'confirm-password',
+  // Sign-up for a new family (src/lib/operator/signup.server.ts), while the operator allows it.
+  'signup-options', 'signup',
 ]);
 
 export const Route = createFileRoute('/api/auth/$action')({
@@ -40,7 +42,8 @@ export const Route = createFileRoute('/api/auth/$action')({
           !allow(`auth:${ip}`, 40, 60_000) ||
           (action === 'setup-options' && (!allow(`setup:${ip}`, 5, 60_000) || !allow('setup:all', 20, 10 * 60_000))) ||
           ((action === 'invite-options' || action === 'password-invite') && !allow(`invite:${ip}`, 20, 10 * 60_000)) ||
-          (action === 'password-setup' && (!allow(`setup:${ip}`, 5, 60_000) || !allow('setup:all', 20, 10 * 60_000)));
+          (action === 'password-setup' && (!allow(`setup:${ip}`, 5, 60_000) || !allow('setup:all', 20, 10 * 60_000))) ||
+          (action === 'signup-options' && !allow(`signup:${ip}`, 10, 10 * 60_000));
         if (limited) return json({ error: 'Too many attempts. Please wait a minute and try again.' }, 429);
 
         const body = (await request.json().catch(() => null)) as Record<string, any> | null;
@@ -96,6 +99,13 @@ export const Route = createFileRoute('/api/auth/$action')({
             case 'confirm':
               await (await proof()).finishProof(request, await requireUser(), body.challengeId, body.response);
               return json({ ok: true });
+            // Starting a family on a server that takes sign-ups (src/lib/signup/): a new account, its passkey and the family.
+            case 'signup-options':
+              return json(await (await import('~/lib/signup/passkey.server')).signupOptions(request, body, ip, !!(await s.sessionOf(request))));
+            case 'signup': {
+              const { user, tree, credential } = await (await import('~/lib/signup/passkey.server')).finishSignup(request, body, ip);
+              return json({ ok: true, tree }, 200, await s.startSession(request, user, credential));
+            }
             case 'signout':
               return json({ ok: true }, 200, await s.endAllSessions(request));
             case 'password-signin': {

@@ -20,12 +20,13 @@ import { SignInTab } from './OperatorSignIn';
 import { DataRequestsTab, FamilyRequestsTab } from './OperatorRequests';
 import { StatisticsTab } from './OperatorStatistics';
 import { UpdatesTab } from './OperatorUpdates';
+import { HostingTab } from '~/components/signup/OperatorHosting';
 import { HealthTab } from './OperatorHealth';
 import { updateDotQuery } from '~/lib/operator/insight.functions';
 import '~/components/families/families.css';
 import './operator.css';
 
-export const OPERATOR_TABS = ['families', 'statistics', 'requests', 'data', 'settings', 'signin', 'policies', 'announcements', 'updates', 'health', 'operators', 'audit'] as const;
+export const OPERATOR_TABS = ['families', 'statistics', 'requests', 'data', 'settings', 'hosting', 'signin', 'policies', 'announcements', 'updates', 'health', 'operators', 'audit'] as const;
 export type OperatorTab = (typeof OPERATOR_TABS)[number];
 
 /** As the server suggests an id (suggestId in families.server.ts), so the field fills in while the name is typed. */
@@ -57,6 +58,7 @@ export function OperatorConsole({ tab, onTab }: { tab: OperatorTab; onTab: (tab:
               <Tab value="requests" badge={waiting || undefined}>{t('operator.tab_requests')}</Tab>
               <Tab value="data" badge={open || undefined}>{t('operator.tab_data')}</Tab>
               <Tab value="settings">{t('operator.tab_settings')}</Tab>
+              <Tab value="hosting">{t('signup.tab')}</Tab>
               <Tab value="signin">{t('pw.tab')}</Tab>
               <Tab value="updates" badge={update ? <><span aria-hidden>•</span><span className="sr-only">{t('ops.update_dot')}</span></> : undefined}>{t('ops.tab_updates')}</Tab>
               <Tab value="health">{t('update.tab_health')}</Tab>
@@ -75,6 +77,7 @@ export function OperatorConsole({ tab, onTab }: { tab: OperatorTab; onTab: (tab:
             <TabPanel value="policies"><PoliciesTab families={data.families} /></TabPanel>
             <TabPanel value="announcements"><AnnouncementsTab /></TabPanel>
             <TabPanel value="signin"><SignInTab /></TabPanel>
+            <TabPanel value="hosting"><HostingTab signupOn={data.settings.familyCreation === 'signup'} /></TabPanel>
             <TabPanel value="operators"><OperatorsTab operators={data.operators} /></TabPanel>
             <TabPanel value="audit"><AuditTab families={data.families} /></TabPanel>
           </Tabs>

@@ -90,9 +90,14 @@ const cleanEmail = (raw: string) => {
 
 export interface NewFamilyRequest { name: string; email: string; familyName: string; message: string; locale?: string }
 
-/** Someone asks for a family here. Only while the instance takes requests (`family_creation` = `requests`). */
+/**
+ * Someone asks for a family here. Only while the instance takes requests (`family_creation` = `requests`), or takes sign-ups:
+ * the waiting list is then where a sign-up goes when sign-up is full, and where unverified sign-ups wait when the operator
+ * chose that (src/lib/signup/).
+ */
 export async function submitFamilyRequest(input: NewFamilyRequest, g: FormGuards, now = Date.now()): Promise<{ email: string }> {
-  if ((await familyCreation()) !== 'requests') throw new AuthError('forbidden', 'operator.err_requests_closed');
+  const mode = await familyCreation();
+  if (mode !== 'requests' && mode !== 'signup') throw new AuthError('forbidden', 'operator.err_requests_closed');
   const name = line(input.name, 120), familyName = line(input.familyName, 80);
   if (!name || !familyName) throw invalid('operator.err_required');
   const email = cleanEmail(input.email);

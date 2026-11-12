@@ -244,6 +244,7 @@
     }
   },
   "sameAsEnglish": [
+    "signup.ready_turnstile",
     "gallery.album_count",
     "needed.stopEsc",
     "look.beard.vandyke",

@@ -53,6 +53,13 @@ export const setUpFirstSteward = (code: string, name: string, familyName: string
 export const acceptWithPasskey = (token: string, name: string, acceptTerms?: boolean) =>
   create('invite-options', 'invite', { token, name, acceptTerms }, { token, acceptTerms });
 
+/**
+ * Starts a family on a server that takes sign-ups (src/lib/signup/): checks the form, makes a passkey, and makes the account,
+ * the family and its steward. The same fields go with both steps; the server checks them both times. Returns the family's id.
+ */
+export const signUpWithPasskey = (form: Record<string, unknown>) =>
+  create<{ ok: boolean; tree: string }>('signup-options', 'signup', form, form);
+
 /** Confirms with one of the reader's passkeys, on this session, that it is them (see proof.server.ts). */
 async function provePasskey() {
   const { startAuthentication } = await import('@simplewebauthn/browser');

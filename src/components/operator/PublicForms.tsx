@@ -15,7 +15,7 @@ import { Turnstile } from './Turnstile';
 import './operator.css';
 
 /** The field a person never sees: off screen, out of the Tab order, unnamed to a screen reader. */
-function Honeypot({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+export function Honeypot({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const t = useT();
   return (
     <div className="hp-field" aria-hidden="true">
@@ -31,7 +31,7 @@ function Sent({ email, title }: { email: string; title: string }) {
   );
 }
 
-function Labelled({ label, hint, children }: { label: string; hint?: string; children: (id: string, hintId?: string) => ReactNode }) {
+export function Labelled({ label, hint, children }: { label: string; hint?: string; children: (id: string, hintId?: string) => ReactNode }) {
   const id = useId();
   return (
     <div className="field">
@@ -55,7 +55,8 @@ export function FamilyRequestForm() {
   });
   if (send.isSuccess) return <Sent email={send.data.email} title={t('request.sent_title')} />;
   if (!instance.data) return <AuthCard crest={<HeartHandshake size={44} />} title={t('request.title')}><Skeleton lines={4} /></AuthCard>;
-  if (instance.data.familyCreation !== 'requests') {
+  // Sign-up keeps the waiting list open: where people ask when sign-up is full (src/lib/signup/).
+  if (instance.data.familyCreation !== 'requests' && instance.data.familyCreation !== 'signup') {
     return <AuthCard crest={<HeartHandshake size={44} />} title={t('request.title')} lede={t('request.closed')}></AuthCard>;
   }
   // The waiting list is full (OPEN_REQUESTS_MAX): closed for now, until the operator answers some.

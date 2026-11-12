@@ -18,6 +18,7 @@ import { Route as PrivacyRequestRouteImport } from './routes/privacy-request'
 import { Route as RequestRouteImport } from './routes/request'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SigninRouteImport } from './routes/signin'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as UiRouteImport } from './routes/ui'
 import { Route as WhatsNewRouteImport } from './routes/whats-new'
 import { Route as TreeIndexRouteImport } from './routes/$tree/index'
@@ -113,6 +114,11 @@ const SetupRoute = SetupRouteImport.update({
 const SigninRoute = SigninRouteImport.update({
   id: '/signin',
   path: '/signin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UiRoute = UiRouteImport.update({
@@ -381,6 +387,7 @@ export interface FileRoutesByFullPath {
   '/request': typeof RequestRoute
   '/setup': typeof SetupRoute
   '/signin': typeof SigninRoute
+  '/signup': typeof SignupRoute
   '/ui': typeof UiRoute
   '/whats-new': typeof WhatsNewRoute
   '/$tree/access': typeof TreeAccessRoute
@@ -442,6 +449,7 @@ export interface FileRoutesByTo {
   '/request': typeof RequestRoute
   '/setup': typeof SetupRoute
   '/signin': typeof SigninRoute
+  '/signup': typeof SignupRoute
   '/ui': typeof UiRoute
   '/whats-new': typeof WhatsNewRoute
   '/$tree/access': typeof TreeAccessRoute
@@ -505,6 +513,7 @@ export interface FileRoutesById {
   '/request': typeof RequestRoute
   '/setup': typeof SetupRoute
   '/signin': typeof SigninRoute
+  '/signup': typeof SignupRoute
   '/ui': typeof UiRoute
   '/whats-new': typeof WhatsNewRoute
   '/$tree/access': typeof TreeAccessRoute
@@ -569,6 +578,7 @@ export interface FileRouteTypes {
     | '/request'
     | '/setup'
     | '/signin'
+    | '/signup'
     | '/ui'
     | '/whats-new'
     | '/$tree/access'
@@ -630,6 +640,7 @@ export interface FileRouteTypes {
     | '/request'
     | '/setup'
     | '/signin'
+    | '/signup'
     | '/ui'
     | '/whats-new'
     | '/$tree/access'
@@ -692,6 +703,7 @@ export interface FileRouteTypes {
     | '/request'
     | '/setup'
     | '/signin'
+    | '/signup'
     | '/ui'
     | '/whats-new'
     | '/$tree/access'
@@ -755,6 +767,7 @@ export interface RootRouteChildren {
   RequestRoute: typeof RequestRoute
   SetupRoute: typeof SetupRoute
   SigninRoute: typeof SigninRoute
+  SignupRoute: typeof SignupRoute
   UiRoute: typeof UiRoute
   WhatsNewRoute: typeof WhatsNewRoute
   ApiCspReportRoute: typeof ApiCspReportRoute
@@ -843,6 +856,13 @@ declare module '@tanstack/react-router' {
       path: '/signin'
       fullPath: '/signin'
       preLoaderRoute: typeof SigninRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ui': {
@@ -1279,6 +1299,7 @@ const rootRouteChildren: RootRouteChildren = {
   RequestRoute: RequestRoute,
   SetupRoute: SetupRoute,
   SigninRoute: SigninRoute,
+  SignupRoute: SignupRoute,
   UiRoute: UiRoute,
   WhatsNewRoute: WhatsNewRoute,
   ApiCspReportRoute: ApiCspReportRoute,

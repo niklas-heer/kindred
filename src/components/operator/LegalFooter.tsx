@@ -26,10 +26,11 @@ export function LegalFooter() {
   );
 }
 
-/** On the sign-in page, while this server takes requests for a family: where to ask for one. */
+/** On the sign-in page, while this server takes requests for a family (or sign-ups): where to ask for one, or start one. */
 export function RequestFamilyLink() {
   const t = useT();
   const { data } = useQuery(publicInstanceQuery);
+  if (data?.familyCreation === 'signup') return <p className="auth-alt">{t('request.no_family_yet')} <Link to="/signup">{t('signup.start_link')}</Link></p>;
   if (data?.familyCreation !== 'requests') return null;
   return <p className="auth-alt">{t('request.no_family_yet')} <Link to="/request">{t('request.ask_link')}</Link></p>;
 }

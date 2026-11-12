@@ -151,6 +151,8 @@ export async function updateSettings(op: UserRow, next: InstanceSettings): Promi
   const before = await instanceSettings();
   const changed = (Object.keys(next) as (keyof InstanceSettings)[]).filter((k) => JSON.stringify(next[k]) !== JSON.stringify(before[k]));
   if (!changed.length) return;
+  // Sign-up only on a server ready for it (src/lib/signup/): refused here, before anything is saved.
+  await (await import('../signup/signup.server.ts')).refuseUnreadySignup(next);
   await accounts().batch([...saveSettings(next, op.id), audit(actor(op), 'settings', null, { changed })]);
 }
 

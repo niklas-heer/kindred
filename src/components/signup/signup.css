@@ -1,0 +1,65 @@
+/* The landing page of a server that hosts families, sign-up, and the console's Hosting tab. In each of the app's themes:
+   the canvas, the cards and the accent come from the theme's own tokens. */
+.landing-page {
+  min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column;
+  background: var(--canvas-texture), var(--canvas);
+}
+.landing-top {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 14px 24px; max-width: 1080px; width: 100%; margin: 0 auto; box-sizing: border-box;
+}
+.landing-brand { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 600; font-size: 1.125rem; color: var(--text); }
+.landing-brand svg { color: var(--accent); }
+[data-theme='codex'] .landing-brand { font-variant: small-caps; letter-spacing: 0.04em; color: var(--accent); }
+.landing-top-actions { display: flex; align-items: center; gap: 8px; }
+
+.landing { flex: 1; width: 100%; max-width: 1080px; margin: 0 auto; padding: 24px 24px 48px; box-sizing: border-box; display: grid; gap: 32px; align-content: start; }
+.landing-hero { text-align: center; padding: clamp(24px, 7vw, 72px) 0 8px; display: grid; justify-items: center; gap: 12px; }
+.landing-kicker { margin: 0; font-family: var(--font-ui); font-size: 0.8125rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--subtle); }
+[data-theme='codex'] .landing-kicker { font-family: var(--font-display); text-transform: none; font-variant: small-caps; font-size: 1rem; letter-spacing: 0.08em; color: var(--muted); }
+.landing-hero h1 {
+  margin: 0; font-family: var(--font-display); font-weight: 600; line-height: 1.05; text-wrap: balance;
+  font-size: clamp(2.25rem, 7vw, 4rem); color: var(--text);
+}
+[data-theme='codex'] .landing-hero h1 { font-variant: small-caps; color: var(--accent); letter-spacing: 0.02em; }
+[data-theme='night'] .landing-hero h1 { font-weight: 500; }
+.landing-lede { margin: 0; max-width: 46ch; font-size: clamp(1.0625rem, 2.4vw, 1.25rem); line-height: 1.5; color: var(--muted); text-wrap: pretty; }
+.landing-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 10px; }
+.landing-go { min-height: 48px; padding-inline: 20px !important; font-size: 1.0625rem !important; gap: 8px !important; }
+.landing-note { margin: 0; max-width: 46ch; color: var(--muted); font-size: 0.9375rem; }
+.landing-demo { margin: 0; }
+.landing-demo a, .landing-fact a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+[data-theme='modern'] .landing-demo a, [data-theme='modern'] .landing-fact a { color: var(--text); }
+
+.landing-words { padding: 22px 26px; max-width: 720px; justify-self: center; width: 100%; box-sizing: border-box; }
+.landing-words h2 { margin: 0 0 8px; font-family: var(--font-display); font-weight: 600; font-size: 1.125rem; }
+[data-theme='codex'] .landing-words h2 { font-variant: small-caps; color: var(--accent); letter-spacing: 0.04em; }
+.landing-words p { margin: 0; white-space: pre-line; line-height: 1.55; overflow-wrap: anywhere; }
+
+.landing-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 14px; }
+.landing-fact { padding: 20px; display: grid; gap: 8px; align-content: start; }
+.landing-fact-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: var(--radius); background: var(--panel-2); color: var(--accent); }
+.landing-fact h2 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 1.0625rem; }
+[data-theme='codex'] .landing-fact h2 { font-variant: small-caps; letter-spacing: 0.03em; }
+.landing-fact p { margin: 0; color: var(--muted); line-height: 1.5; font-size: 0.9688rem; overflow-wrap: anywhere; }
+
+@media (max-width: 560px) {
+  .landing-top, .landing { padding-inline: 16px; }
+  .landing-actions { width: 100%; flex-direction: column; }
+  .landing-go { width: 100%; justify-content: center; }
+}
+
+/* Sign-up */
+.signup-code { align-items: end; margin-top: 14px; }
+.signup-code .field { flex: 1; min-width: 12ch; }
+
+/* The console's Hosting tab */
+.hosting-checklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.hosting-checklist li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; }
+.hosting-checklist li > span:last-child { display: grid; gap: 2px; }
+.hosting-checklist small { color: var(--muted); font-size: 0.875rem; line-height: 1.4; }
+.hosting-mark { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--border); }
+.hosting-checklist li.ok .hosting-mark { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 55%, transparent); }
+.hosting-checklist li.missing .hosting-mark { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 55%, transparent); }
+.hosting-checklist .hosting-required { color: var(--subtle); }
+.hosting-code-form { align-items: center; }

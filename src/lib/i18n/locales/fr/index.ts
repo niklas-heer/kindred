@@ -43,6 +43,7 @@ import responses from "./responses.ts";
 import setup from "./setup.ts";
 import share from "./share.ts";
 import shell from "./shell.ts";
+import signup from "./signup.ts";
 import sources from "./sources.ts";
 import statistics from "./statistics.ts";
 import today from "./today.ts";
@@ -98,6 +99,7 @@ export default {
   ...setup,
   ...share,
   ...shell,
+  ...signup,
   ...sources,
   ...statistics,
   ...today,

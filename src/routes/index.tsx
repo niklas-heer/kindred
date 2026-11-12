@@ -7,7 +7,9 @@ import { AccountMenu } from '~/components/AccountMenu';
 import { LanguagePicker } from '~/components/LanguagePicker';
 import { Arms } from '~/components/Heraldry';
 import { PageHeader, EmptyState, ErrorState, Skeleton } from '~/components/ui';
+import { Landing } from '~/components/signup/Landing';
 import { myFamiliesQuery, sessionQuery } from '~/lib/auth/functions';
+import { publicHostingQuery } from '~/lib/signup/signup.functions';
 import { useSession } from '~/lib/session';
 import '~/styles/home.css';
 
@@ -19,15 +21,24 @@ export const Route = createFileRoute('/')({
     if (!session.user) {
       if (session.guest) throw redirect({ to: '/$tree', params: { tree: session.guest.tree } });
       if (session.guestEnded) throw redirect({ to: '/share/$token', params: { token: 'left' } });
+      // A server that hosts families greets a stranger with its landing page (src/lib/signup/); one family's server, with sign-in.
+      if ((await context.queryClient.ensureQueryData(publicHostingQuery())).mode === 'hosting') return;
       throw redirect({ to: '/signin' });
     }
     const trees = await context.queryClient.ensureQueryData(myFamiliesQuery);
     const target = trees.find((t) => t.id === session.defaultTree) ?? (trees.length === 1 ? trees[0] : undefined);
     if (target && search.families !== 'all') throw redirect({ to: '/$tree', params: { tree: target.id } });
+    // Hosting: an account in no family yet goes where a family is made or asked for.
+    if (!trees.length && !session.demo && (await context.queryClient.ensureQueryData(publicHostingQuery())).mode === 'hosting') throw redirect({ to: '/families' });
   },
   component: Home,
 });
 function Home() {
+  const signedIn = !!useSession()?.user;
+  return signedIn ? <Families /> : <Landing />;
+}
+
+function Families() {
   const t = useT();
   const tLocale = t.locale;
   const tr = t;

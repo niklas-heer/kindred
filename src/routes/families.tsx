@@ -67,6 +67,12 @@ function Overview({ data }: { data: FamiliesOverview }) {
           </ul>
         )}
       </section>
+      {!data.mayCreate && data.familyCreation === 'signup' && (
+        <section aria-labelledby="families-new">
+          <h2 id="families-new" className="rule">{t('families.new')}</h2>
+          <p><Link to="/signup">{t('signup.start_link')}</Link></p>
+        </section>
+      )}
       {!data.mayCreate && data.familyCreation === 'requests' && (
         <section aria-labelledby="families-new">
           <h2 id="families-new" className="rule">{t('families.new')}</h2>

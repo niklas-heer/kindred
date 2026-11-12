@@ -42,7 +42,7 @@ export const FAMILY_ID_MAX = 40;
 export const RESERVED_IDS: ReadonlySet<string> = new Set([
   'api', 'setup', 'signin', 'signout', 'share', 'invite', 'join', 'ui', 'families', 'family-new', 'new', 'settings', 'admin',
   'assets', 'static', 'media', 'backups', 'seed', 'demo', 'help', 'about', 'login', 'logout', 'account', 'accounts', 'gazetteer',
-  'cdn-cgi', 'favicon', 'manifest', 'robots', 'sw', 'health', 'operator', 'request', 'privacy-request', 'legal', 'privacy', 'impressum', 'terms', 'whats-new', 'reset',
+  'cdn-cgi', 'favicon', 'manifest', 'robots', 'sw', 'health', 'operator', 'request', 'signup', 'privacy-request', 'legal', 'privacy', 'impressum', 'terms', 'whats-new', 'reset',
   ...NOT_TREES,
 ]);
 
@@ -142,9 +142,9 @@ export async function overview(user: UserRow, memberships: MembershipRow[]): Pro
  * An account's limit of families (`families_per_account`), and how many of the families still on the server it made. Null
  * for an operator, and when the instance sets no limit.
  */
-export async function familyLimit(user: Pick<UserRow, 'id' | 'operator'>): Promise<{ max: number; made: number } | null> {
+export async function familyLimit(user: Pick<UserRow, 'id' | 'operator'>, override?: number): Promise<{ max: number; made: number } | null> {
   if (user.operator === 1) return null;
-  const max = (await instanceSettings()).familiesPerAccount;
+  const max = override ?? (await instanceSettings()).familiesPerAccount;
   if (max === null) return null;
   const made = await accounts().get<{ n: number }>('SELECT count(*) AS n FROM family_admin WHERE created_by = ?', user.id);
   return { max, made: made?.n ?? 0 };
@@ -155,9 +155,9 @@ export async function familyLimit(user: Pick<UserRow, 'id' | 'operator'>): Promi
  * (or several staged imports finishing) cannot each pass the check made before it. `tree` itself is not counted: making
  * a half-made family again records it a second time. Empty for an operator and when the instance sets no limit.
  */
-export async function familyLimitGuard(user: Pick<UserRow, 'id' | 'operator'>, tree: string): Promise<Query[]> {
+export async function familyLimitGuard(user: Pick<UserRow, 'id' | 'operator'>, tree: string, override?: number): Promise<Query[]> {
   if (user.operator === 1) return [];
-  const max = (await instanceSettings()).familiesPerAccount;
+  const max = override ?? (await instanceSettings()).familiesPerAccount;
   if (max === null) return [];
   return [guard('(SELECT count(*) FROM family_admin WHERE created_by = ? AND tree <> ?) < ?', user.id, tree, max)];
 }
@@ -196,10 +196,24 @@ export async function forgetInAccounts(tree: string): Promise<Query[]> {
  * With `member: false` (the operator console, src/lib/operator/operator.server.ts) nobody becomes a member: the family waits,
  * with no members, for the person its steward invitation is for. While that invitation is open nobody can "finish" the
  * family as their own.
+ *
+ * Sign-up (src/lib/signup/signup.server.ts) brings the rest of its step to the last batch: `before` (the new account, its
+ * passkey, and the guards of the sign-up limits), `after` (the sign-up's own rows), `limit` (its families per account, instead
+ * of the instance's) and `refused` (the reader's sentence when a guard of that batch stops it).
  */
+export interface CreateOptions {
+  member?: boolean;
+  invitedName?: string | null;
+  acceptedTerms?: boolean;
+  before?: Query[];
+  after?: Query[];
+  limit?: number;
+  refused?: () => Promise<Error>;
+}
+
 export async function createFamily(
   user: UserRow, input: NewFamily,
-  { member = true, invitedName = null, acceptedTerms }: { member?: boolean; invitedName?: string | null; acceptedTerms?: boolean } = {},
+  { member = true, invitedName = null, acceptedTerms, before = [], after = [], limit: limitOverride, refused }: CreateOptions = {},
 ): Promise<string> {
   const id = input.id.trim();
   const problem = idProblem(id);
@@ -210,9 +224,9 @@ export async function createFamily(
   let limited: Query[] = [];
   const overLimit = (max: number) => new AuthError('forbidden', translate('en', 'families.err_limit', { max }));
   if (member) {
-    const limit = await familyLimit(user);
+    const limit = await familyLimit(user, limitOverride);
     if (limit && limit.made >= limit.max) throw overLimit(limit.max);
-    limited = await familyLimitGuard(user, id);
+    limited = await familyLimitGuard(user, id, limitOverride);
     accepted = await acceptance(user, acceptedTerms, 'family.create', id);
   }
 
@@ -264,14 +278,16 @@ export async function createFamily(
   const { defaultCapBytes: cap, familiesPerAccount } = await instanceSettings();
   try {
     await accounts().batch([
+      ...before,
       ...limited,
       ...(member ? [upsertMembership(user.id, id, 'steward')] : []),
       q(`INSERT INTO family_admin (tree, cap_bytes, created_at, created_by, invited_name) VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(tree) DO UPDATE SET created_by = excluded.created_by, invited_name = excluded.invited_name`, id, cap, Date.now(), user.id, invitedName),
       ...accepted,
+      ...after,
     ]);
   } catch (e) {
-    if (!limited.length || !isGuardError(e)) throw e;
+    if (!(limited.length || before.length || after.length) || !isGuardError(e)) throw e;
     // Refused over the limit: a database this request made is not left behind as a family waiting to be finished.
     // Only while nobody else has made it theirs meanwhile (a parallel request for the same id): no member, no administration
     // row, no open invitation. Otherwise it is theirs and stays.
@@ -281,7 +297,8 @@ export async function createFamily(
         id, id, id);
       if (!taken) await store.dropTree(id).catch(() => {});
     }
-    throw overLimit(familiesPerAccount ?? 0);
+    if (refused) throw await refused();
+    throw overLimit(limitOverride ?? familiesPerAccount ?? 0);
   }
   return id;
 }

@@ -57,10 +57,11 @@ export function SettingsTab({ settings, turnstile, pushKey }: { settings: Instan
         {FAMILY_CREATION.map((mode) => (
           <label key={mode} className="operator-radio">
             <input type="radio" name={`${ids}-creation`} value={mode} checked={draft.familyCreation === mode} onChange={() => { setStatus(null); setDraft({ ...draft, familyCreation: mode }); }} />
-            <span><b>{t(`operator.creation_${mode}` as Key)}</b><small>{t(`operator.creation_${mode}_hint` as Key)}</small></span>
+            <span><b>{t(mode === 'signup' ? 'signup.creation' : `operator.creation_${mode}` as Key)}</b><small>{t(mode === 'signup' ? 'signup.creation_hint' : `operator.creation_${mode}_hint` as Key)}</small></span>
           </label>
         ))}
       </fieldset>
+      {draft.familyCreation === 'signup' && settings.familyCreation !== 'signup' && <p className="families-hint" role="note">{t('signup.creation_ready')}</p>}
       {draft.familyCreation === 'requests' && !turnstile && <p className="operator-warning" role="note">{t('operator.turnstile_warning', { max: OPEN_REQUESTS_MAX })}</p>}
       <Field label={t('operator.families_per_account')} hint={t('operator.families_per_account_hint')}>
         {(id, hint) => <input id={id} aria-describedby={hint} className="input operator-narrow" type="number" min={0} max={FAMILIES_PER_ACCOUNT_MAX} step={1} inputMode="numeric" value={perAccount} placeholder={t('operator.no_limit')} onChange={(e) => { setStatus(null); setPerAccount(e.target.value); }} />}
@@ -167,6 +168,9 @@ const ACTIONS: Record<string, Key> = {
   'announcement.end': 'policy.audit_ann_end',
   'signin.methods': 'pw.audit_methods',
   'signin.reset_link': 'pw.audit_reset_link',
+  'hosting.settings': 'signup.audit_settings',
+  'signup_code.create': 'signup.audit_code_create',
+  'signup_code.revoke': 'signup.audit_code_revoke',
 };
 
 export function AuditTab({ families }: { families: OperatorFamily[] }) {
