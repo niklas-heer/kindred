@@ -343,6 +343,9 @@ const OPEN = new Set([
   'fetchVerification',
   // An email's one-click unsubscribe (src/lib/email/): its HMAC-signed token names the address and category; no family.
   'unsubscribeMail',
+  // The public email forms (src/lib/email/): a code for the sign-up form while sign-up is open, checking it, and "Forgot your
+  // password?". Each is counted per address and network and reads no family (email.test.ts holds their rules).
+  'sendSignupCode', 'checkSignupCode', 'requestResetEmail',
   // A family's lifecycle bar (src/lib/lifecycle/): null for anyone who is not a member, a guest included.
   'fetchFamilyLifecycle',
   'fetchPublicHosting', 'signupWaitlist',

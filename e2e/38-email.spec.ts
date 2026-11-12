@@ -67,6 +67,8 @@ test('email: the console, a test email, confirming an address, an invitation by 
     await expect(health.getByText('No failures.')).toBeVisible();
 
     // ---------- confirming the steward's address ----------
+    // Setting an address needs a fresh proof too; the link is confirmed in this browser, signed in to the account it is for.
+    prove();
     await page.goto(`/${tree}`);
     await settled(page);
     await page.locator('.acct-trigger').click();

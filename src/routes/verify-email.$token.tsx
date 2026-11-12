@@ -1,8 +1,9 @@
 // Confirming an email address (src/lib/email/verify.server.ts): the link from "Your email" in the account menu. Opening the
-// page changes nothing (a mail program's link checker may fetch it); pressing Confirm makes the address the account's,
-// verified, once. The token is a secret: sent only by POST, never as a Referer.
+// page changes nothing (a mail program's link checker may fetch it); pressing Confirm, signed in to the account that asked for
+// the link, makes the address the account's, verified, once. Someone signed out (a guest too) is asked to sign in first, and
+// another account to sign in to the right one. The token is a secret: sent only by POST, never as a Referer.
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { MailCheck, MailX } from 'lucide-react';
+import { LogIn, MailCheck, MailX } from 'lucide-react';
 import { useState } from 'react';
 import { AuthCard, AuthError } from '~/components/AuthCard';
 import { confirmEmail, fetchVerification } from '~/lib/email/email.functions';
@@ -34,6 +35,16 @@ function VerifyEmail() {
     return (
       <AuthCard crest={<MailX size={44} />} kicker="Kindred" title={t('email.verify_gone_title')} lede={t('email.verify_gone')}>
         <Link className="btn primary auth-go" to="/">{t('email.to_kindred')}</Link>
+      </AuthCard>
+    );
+  }
+  if (info.who !== 'mine') {
+    const signedOut = info.who === 'signed-out';
+    return (
+      <AuthCard crest={<LogIn size={44} />} kicker="Kindred" title={t('email.verify_signin_title')} lede={t(signedOut ? 'email.verify_signin' : 'email.verify_other')}>
+        {signedOut
+          ? <Link className="btn primary auth-go" to="/signin" search={{ next: `/verify-email/${token}` }}><LogIn size={19} aria-hidden /> {t('email.verify_signin_go')}</Link>
+          : <Link className="btn primary auth-go" to="/">{t('email.to_kindred')}</Link>}
       </AuthCard>
     );
   }

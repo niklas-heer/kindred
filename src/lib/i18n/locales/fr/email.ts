@@ -9,6 +9,8 @@ export default {
   "email.mail.sent_by": "Cet e-mail a été envoyé par {server} ({address}).",
   "email.mail.security_footer": "Nous envoyons un e-mail comme celui-ci chaque fois que les façons d’accéder à ton compte changent. Il ne peut pas être désactivé.",
   "email.mail.unsubscribe_q": "Tu ne veux plus recevoir ce genre d’e-mails ?",
+  "email.mail.notice_footer": "Nous envoyons un e-mail comme celui-ci quand il arrive quelque chose d’important à une famille dont tu as la garde. Il ne peut pas être désactivé.",
+  "email.mail.unsubscribe_q": "Tu ne veux plus recevoir ce genre d’e-mails ?",
   "email.mail.unsubscribe": "Se désabonner",
   "email.mail.ignore": "Si tu n’as rien demandé, tu peux ignorer cet e-mail.",
   "email.mail.not_you": "Si ce n’était pas toi, connecte-toi, change ton mot de passe maintenant et préviens l’exploitant de ce serveur.",
@@ -31,6 +33,7 @@ export default {
   "email.mail.sec_password_added": "Un mot de passe a été ajouté à ton compte le {date}.",
   "email.mail.sec_sso_added": "L’authentification unique avec {provider} a été liée à ton compte le {date}.",
   "email.mail.sec_totp_off": "Les codes à deux facteurs ont été désactivés pour ton compte le {date}.",
+  "email.mail.sec_email_changed": "L’adresse e-mail de ton compte a été changée le {date}. Cette adresse ne reçoit plus les e-mails du compte.",
   "email.mail.invite_subject": "{inviter} t’invite dans {family}",
   "email.mail.invite_body": "{inviter} t’invite dans l’arbre généalogique {family} sur {server}. L’invitation est valable jusqu’au {date}.",
   "email.mail.invite_action": "Ouvrir l’invitation",
@@ -58,6 +61,9 @@ export default {
   "email.state_on": "Envoi actif",
   "email.state_off": "Désactivé",
   "email.state_incomplete": "Pas encore d’envoi : il faut une adresse d’expéditeur et une clé.",
+  "email.state_incomplete": "Pas encore d’envoi : il faut une adresse d’expéditeur et une clé.",
+  "email.origin_is": "Les liens des e-mails commencent par {origin}.",
+  "email.origin_missing": "Définis KINDRED_ORIGIN avec l’adresse de ce serveur (par exemple https://kindred.example.org) avant d’activer l’e-mail. Les liens des e-mails en sont tirés, jamais de l’adresse qu’indique un navigateur.",
   "email.provider": "Mode d’envoi",
   "email.provider_off": "Désactivé",
   "email.provider_resend": "Resend",
@@ -122,6 +128,11 @@ export default {
   "email.verify_done": "{email} est maintenant l’adresse confirmée de ton compte.",
   "email.verify_gone_title": "Ce lien ne fonctionne plus",
   "email.verify_gone": "Il a déjà servi, ou plus de 24 heures se sont écoulées. Demande-en un nouveau sous « Ton e-mail » dans le menu du compte.",
+  "email.verify_gone": "Il a déjà servi, ou plus de 24 heures se sont écoulées. Demande-en un nouveau sous « Ton e-mail » dans le menu du compte.",
+  "email.verify_signin_title": "Connecte-toi pour confirmer ton adresse",
+  "email.verify_signin": "Connecte-toi au compte qui a demandé ce lien ; tu reviens ensuite ici pour la confirmer.",
+  "email.verify_other": "Ce navigateur est connecté à un autre compte. Déconnecte-toi, connecte-toi au compte qui a demandé ce lien et ouvre-le à nouveau.",
+  "email.verify_signin_go": "Se connecter",
   "email.to_kindred": "Aller à Kindred",
 
   // ---------- sign-up ----------
@@ -172,6 +183,8 @@ export default {
   "email.err.invite": "Cette invitation ne peut pas être envoyée par e-mail.",
   "email.err.method": "La connexion propre à Kindred est désactivée sur ce serveur.",
   "email.err.failed": "L’e-mail n’a pas pu être envoyé. Réessaie plus tard.",
+  "email.err.origin": "Définis d’abord KINDRED_ORIGIN avec l’adresse de ce serveur : les liens des e-mails en sont tirés.",
+  "email.err.other_account": "Ce lien est destiné à un autre compte. Connecte-toi à ce compte et ouvre-le à nouveau.",
 
   "gdpr.sub_email": "envoi d’e-mails",
 } satisfies Strings<typeof en, "fr">;

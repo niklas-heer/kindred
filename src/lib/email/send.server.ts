@@ -3,9 +3,13 @@
 // - sends nothing while nothing may be written (a demo, a steward's "View as" preview: ../read-only.ts), and nothing while the
 //   operator has not set email up (settings.server.ts);
 // - sends nothing in a category its recipient unsubscribed from (security emails have no category to leave);
-// - holds the limits in the database, in the batch that records the send (`email_send`, accounts migration 0053): a few emails
-//   an hour and a day to one address, the server's emails an hour (the operator's setting), and a category's own gap (the
-//   operators hear of new requests at most every ten minutes), so no number of processes or isolates gets past them;
+// - sends nothing while no origin for its links is trusted (origin.ts: KINDRED_ORIGIN, never the request's Host);
+// - holds the limits in the database, in the batch that records the send (`email_send`, accounts migrations 0053 and 0056): a few
+//   emails an hour and a day to one address, a few confirmation links and invitations a day from one account and from one
+//   network (`SENDER_LIMITS`), the server's emails an hour (the operator's setting) with a reserve only password resets and
+//   security emails may use, and a category's own gap (the operators hear of new requests at most every ten minutes), so no
+//   number of processes or isolates gets past them;
+// - carries nothing a reader wrote but a name (an account's, a family's), cut to one short line (`mailName`);
 // - writes the email in the recipient's language, as plain text and simple HTML (render.ts), with the footer, and for a
 //   category one may leave the one-click unsubscribe (List-Unsubscribe and List-Unsubscribe-Post, RFC 8058, and a link);
 // - records whether it went out, and the provider's error when not (the Health tab shows these; never the message).
@@ -21,8 +25,11 @@ import { guard, isGuardError, q, store } from '../store/index.ts';
 import { checkedMessage, MailError, type MailMessage, type Mailer } from './mailer.ts';
 import { renderMail, type MailContent } from './render.ts';
 import { configuredMailer, fakeMailOn, mailConfig, type MailConfig } from './settings.server.ts';
+import { mailOrigin } from './origin.ts';
 import { isMailAddress, isOptionalCategory, type MailCategory, type OptionalCategory } from './shared.ts';
 import { writeOutbox } from '#mail/smtp';
+
+export { mailOrigin };
 
 const accounts = () => store.accounts();
 const HOUR = 3_600_000;
@@ -35,11 +42,34 @@ export const RECIPIENT_PER_DAY = 20;
 /** Codes and links (a sign-up code, a confirmation link, a reset link) to one address in an hour. */
 export const CODES_PER_HOUR = 3;
 const CODE_CATEGORIES: MailCategory[] = ['verify', 'signup', 'reset'];
+/**
+ * Emails one account, and one network, may cause in a day to addresses nobody proved yet: confirmation links (each to a new
+ * address) and invitations. Counted in the send's own batch, so Kindred cannot be made to send mail for someone.
+ */
+export const SENDER_LIMITS = {
+  verify: { account: 5, network: 10 },
+  invitation: { account: 20, network: 40 },
+} as const satisfies Partial<Record<MailCategory, { account: number; network: number }>>;
+/** The categories that may use the reserve of the server's hourly emails: a password reset and the security emails. */
+const RESERVED_FOR: MailCategory[] = ['reset', 'security', 'notice'];
+/** The part of the server's hourly emails only RESERVED_FOR may use: a fifth, at least one (none when the ceiling is one). */
+export const reserveOf = (perHour: number) => (perHour <= 1 ? 0 : Math.max(1, Math.ceil(perHour / 5)));
+
+/** The longest name (an account's, a family's, the server's) an email carries. */
+export const MAIL_NAME_MAX = 80;
+/** A name as an email carries it: one line, spaces collapsed, at most MAIL_NAME_MAX characters, so it cannot carry a message. */
+export function mailName(name: string): string {
+  const line = name.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const chars = [...line];
+  return chars.length <= MAIL_NAME_MAX ? line : `${chars.slice(0, MAIL_NAME_MAX - 1).join('').trimEnd()}…`;
+}
 
 const b64u = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
 /** The address as the tables keep it: an HMAC under the server secret, so a copied database names nobody. */
 export const recipientHash = async (address: string) => b64u(await serverHmac('mail-recipient', new TextEncoder().encode(address.trim().toLowerCase())));
+/** Who caused an email (an account's id, a network's address) as the tables keep it: a keyed hash too. */
+const senderHash = async (kind: 'user' | 'network', value: string) => b64u(await serverHmac('mail-sender', new TextEncoder().encode(`${kind}:${value}`)));
 
 // ---------- which mailer ----------
 
@@ -74,8 +104,8 @@ export async function activeMailer(): Promise<{ mailer: Mailer; config: MailConf
   return fakeMailOn() ? { mailer: fakeMailer, config: ready.config } : ready;
 }
 
-/** Whether this server sends email now. */
-export const emailOn = async () => !!(await activeMailer());
+/** Whether this server sends email now: a mailer, and an origin for links it trusts (KINDRED_ORIGIN, or a local server's). */
+export const emailOn = async (request?: Request) => !!(await activeMailer()) && !!mailOrigin(request ?? (await currentRequest()));
 
 // ---------- unsubscribing ----------
 
@@ -100,14 +130,7 @@ export const optedOut = async (recipient: string, category: MailCategory) =>
 /** The server as an email names it: the operator's name for it, else "Kindred". */
 export async function serverName(): Promise<string> {
   const row = await accounts().get<{ value: string }>("SELECT value FROM instance_setting WHERE key = 'instance_name'");
-  return row?.value.trim() || 'Kindred';
-}
-
-/** The origin an email's links start with: KINDRED_ORIGIN, else the request's own (a job without either sends no link). */
-export function mailOrigin(request?: Request): string | undefined {
-  const configured = process.env.KINDRED_ORIGIN?.trim();
-  if (configured) return new URL(configured).origin;
-  return request ? new URL(request.url).origin : undefined;
+  return mailName(row?.value ?? '') || 'Kindred';
 }
 
 /** The request being answered, when there is one (a server function's): its origin is the server's own. */
@@ -139,8 +162,10 @@ export interface Outgoing {
   category: MailCategory;
   /** Writes the email; `t` translates into the recipient's language. */
   body: (t: (key: Key, vars?: Vars) => string, ctx: { server: string; origin: string }) => Body | Promise<Body>;
-  /** The request it answers, for the origin of its links when KINDRED_ORIGIN is not set. */
+  /** The request it answers: a local server's origin for its links when KINDRED_ORIGIN is not set (origin.ts). */
   request?: Request;
+  /** Who caused it, for SENDER_LIMITS: the signed-in account and the network the request came from. */
+  from?: { user?: string; network?: string };
   /** At most one email of this category to this address in this time. */
   gapMs?: number;
 }
@@ -155,17 +180,25 @@ export async function sendMail(o: Outgoing, now = Date.now()): Promise<{ result:
     if (!active) return { result: 'off' };
     const to = o.to.trim();
     const origin = mailOrigin(o.request ?? (await currentRequest()));
-    if (!isMailAddress(to) || !origin) return { result: 'invalid' };
+    // No trusted origin, no email: every email carries the server's address, and most a link.
+    if (!origin) return { result: 'off' };
+    if (!isMailAddress(to)) return { result: 'invalid' };
     const recipient = await recipientHash(to);
     if (await optedOut(recipient, o.category)) {
       await accounts().run("INSERT INTO email_send (at, recipient, category, status) VALUES (?, ?, ?, 'skipped')", now, recipient, o.category);
       return { result: 'unsubscribed' };
     }
     const counted = `status <> 'skipped'`;
+    const perSender = SENDER_LIMITS[o.category as keyof typeof SENDER_LIMITS];
+    const sender = o.from?.user ? await senderHash('user', o.from.user) : null;
+    const network = o.from?.network ? await senderHash('network', o.from.network) : null;
+    const ceiling = RESERVED_FOR.includes(o.category) ? active.config.perHour : active.config.perHour - reserveOf(active.config.perHour);
     const limits = [
       guard(`(SELECT count(*) FROM email_send WHERE recipient = ? AND at > ? AND ${counted}) < ?`, recipient, now - HOUR, RECIPIENT_PER_HOUR),
       guard(`(SELECT count(*) FROM email_send WHERE recipient = ? AND at > ? AND ${counted}) < ?`, recipient, now - DAY, RECIPIENT_PER_DAY),
-      guard(`(SELECT count(*) FROM email_send WHERE at > ? AND ${counted}) < ?`, now - HOUR, active.config.perHour),
+      guard(`(SELECT count(*) FROM email_send WHERE at > ? AND ${counted}) < ?`, now - HOUR, ceiling),
+      ...(perSender && sender ? [guard(`(SELECT count(*) FROM email_send WHERE sender = ? AND category = ? AND at > ? AND ${counted}) < ?`, sender, o.category, now - DAY, perSender.account)] : []),
+      ...(perSender && network ? [guard(`(SELECT count(*) FROM email_send WHERE network = ? AND category = ? AND at > ? AND ${counted}) < ?`, network, o.category, now - DAY, perSender.network)] : []),
       ...(CODE_CATEGORIES.includes(o.category)
         ? [guard(`(SELECT count(*) FROM email_send WHERE recipient = ? AND at > ? AND category IN ('verify', 'signup', 'reset') AND ${counted}) < ?`, recipient, now - HOUR, CODES_PER_HOUR)]
         : []),
@@ -176,7 +209,7 @@ export async function sendMail(o: Outgoing, now = Date.now()): Promise<{ result:
       const results = await accounts().batch([
         q('DELETE FROM email_send WHERE at < ?', now - KEEP_MS),
         ...limits,
-        q("INSERT INTO email_send (at, recipient, category, status) VALUES (?, ?, ?, 'sending') RETURNING id", now, recipient, o.category),
+        q("INSERT INTO email_send (at, recipient, category, status, sender, network) VALUES (?, ?, ?, 'sending', ?, ?) RETURNING id", now, recipient, o.category, sender, network),
       ]);
       id = (results.at(-1)!.rows as { id: number }[])[0]!.id;
     } catch (e) {
@@ -191,7 +224,10 @@ export async function sendMail(o: Outgoing, now = Date.now()): Promise<{ result:
     const optional = isOptionalCategory(o.category) ? o.category : null;
     const content: MailContent = {
       ...body, locale: o.locale, greeting: body.greeting ?? t('email.mail.greeting_plain'),
-      footer: [...(optional ? [] : o.category === 'security' ? [t('email.mail.security_footer')] : []), t('email.mail.sent_by', { server, address: new URL(origin).host })],
+      footer: [
+        ...(o.category === 'security' ? [t('email.mail.security_footer')] : o.category === 'notice' ? [t('email.mail.notice_footer')] : []),
+        t('email.mail.sent_by', { server, address: new URL(origin).host }),
+      ],
       ...(optional ? { unsubscribe: { question: t('email.mail.unsubscribe_q'), label: t('email.mail.unsubscribe'), url: await unsubscribeUrl(origin, to, optional) } } : {}),
     };
     const rendered = renderMail(content, origin);

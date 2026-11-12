@@ -18,7 +18,7 @@ const PROVIDER_NAME: Record<MailProvider, Key> = {
   off: 'email.provider_off', resend: 'email.provider_resend', postmark: 'email.provider_postmark', mailgun: 'email.provider_mailgun', smtp: 'email.provider_smtp',
 };
 
-type Draft = Omit<MailSettingsView, 'secret' | 'smtpAvailable' | 'on'> & { secret: string; removeSecret: boolean };
+type Draft = Omit<MailSettingsView, 'secret' | 'smtpAvailable' | 'on' | 'origin'> & { secret: string; removeSecret: boolean };
 const draftOf = (v: MailSettingsView): Draft => ({ ...v, secret: '', removeSecret: false });
 
 export function EmailTab() {
@@ -61,6 +61,7 @@ function EmailForm({ view }: { view: MailSettingsView }) {
         <p role="status" className="signin-state" data-state={view.on ? 'enabled' : 'unavailable'}>
           {view.on ? t('email.state_on') : view.provider === 'off' ? t('email.state_off') : t('email.state_incomplete')}
         </p>
+        {view.origin ? <p className="auth-hint">{t('email.origin_is', { origin: view.origin })}</p> : <Notice>{t('email.origin_missing')}</Notice>}
         <form className="acc-form" onSubmit={(e) => { e.preventDefault(); setError(null); save.mutate(); }} aria-labelledby="mail-title">
           <label className="field">
             <span>{t('email.provider')}</span>
@@ -132,7 +133,7 @@ function EmailForm({ view }: { view: MailSettingsView }) {
           </>}
           {error && <p className="acct-error" role="alert">{error}</p>}
           <div className="families-row">
-            <button className="btn primary" disabled={save.isPending}>{save.isPending ? t('email.saving') : t('email.save')}</button>
+            <button className="btn primary" disabled={save.isPending || (!off && !view.origin)}>{save.isPending ? t('email.saving') : t('email.save')}</button>
             {save.isSuccess && <span className="acct-ok" role="status"><Check size={15} aria-hidden /> {t('email.saved')}</span>}
           </div>
         </form>

@@ -15,10 +15,11 @@ export const SMTP_SECURITY = ['tls', 'starttls'] as const;
 export type SmtpSecurity = (typeof SMTP_SECURITY)[number];
 
 /**
- * What an email is about. The security ones (a code, a link, a notice about the account's ways in) cannot be unsubscribed
- * from; the others carry a one-click unsubscribe for their category.
+ * What an email is about. The security ones (a code, a link, a notice about the account's ways in, and a `notice` a family's
+ * stewards must get: a data breach, the final notice before the lifecycle deletes the family) cannot be unsubscribed from; the
+ * others carry a one-click unsubscribe for their category.
  */
-export const SECURITY_CATEGORIES = ['verify', 'signup', 'reset', 'security', 'test'] as const;
+export const SECURITY_CATEGORIES = ['verify', 'signup', 'reset', 'security', 'notice', 'test'] as const;
 export const OPTIONAL_CATEGORIES = ['invitation', 'operator', 'family', 'receipt'] as const;
 export type SecurityCategory = (typeof SECURITY_CATEGORIES)[number];
 export type OptionalCategory = (typeof OPTIONAL_CATEGORIES)[number];
@@ -56,8 +57,10 @@ export interface MailSettingsView {
   secret: 'none' | 'stored' | 'env';
   /** Whether SMTP can work here (Node, not Workers). */
   smtpAvailable: boolean;
-  /** Whether the server sends now: a provider, a sender and a key. */
+  /** Whether the server sends now: a provider, a sender, a key, and an origin for links. */
   on: boolean;
+  /** The origin every link in an email starts with (KINDRED_ORIGIN), or null while it is not set: email cannot be turned on. */
+  origin: string | null;
 }
 
 /** What the console sends to save: the key is undefined to keep the stored one, '' to remove it. */

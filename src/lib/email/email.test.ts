@@ -243,26 +243,30 @@ test('a confirmation link works once, before it runs out, and only then changes 
   assert.equal((await store.userById(ada.id))!.email, 'old@example.org', 'nothing changes before the link is opened');
   assert.equal(sent[0]!.to, 'ada.new@example.org');
   const token = linkIn(sent[0]!, '/verify-email/')!;
-  assert.deepEqual(await verify.verificationInfo(token), { ok: true, email: 'ada.new@example.org' });
-  await verify.redeemVerification(token);
+  assert.deepEqual(await verify.verificationInfo(token, ada.id), { ok: true, email: 'ada.new@example.org', who: 'mine' });
+  await verify.redeemVerification(token, ada.id);
   const after = (await store.userById(ada.id))!;
   assert.equal(after.email, 'ada.new@example.org');
   assert.equal(after.email_verified, 1);
-  await assert.rejects(verify.redeemVerification(token), /email\.verify_gone/, 'single use');
+  await assert.rejects(verify.redeemVerification(token, ada.id), /email\.verify_gone/, 'single use');
 
   // Expired.
   await verify.startVerification(req(), after, 'third@example.org', async () => {});
   const late = linkIn(sent.at(-1)!, '/verify-email/')!;
   await store.accounts().run("UPDATE email_token SET expires = 1 WHERE purpose = 'verify' AND used_at IS NULL");
-  await assert.rejects(verify.redeemVerification(late), /email\.verify_gone/);
+  await assert.rejects(verify.redeemVerification(late, ada.id), /email\.verify_gone/);
 });
 
-test('moving away from a verified address needs a fresh proof; an address another account has cannot be taken', async () => {
+test('setting or changing an address needs a fresh proof; an address another account has cannot be taken', async () => {
   const ada = await account('Ada Example', { email: 'ada@example.org', verified: true });
-  await assert.rejects(verify.startVerification(req(), ada, 'other@example.org', async () => { throw new Error('proof needed'); }), /proof needed/);
+  const needed = async () => { throw new Error('proof needed'); };
+  await assert.rejects(verify.startVerification(req(), ada, 'other@example.org', needed), /proof needed/);
+  const eve = await account('Eve Example');
+  await assert.rejects(verify.startVerification(req(), eve, 'eve@example.org', needed), /proof needed/, 'setting the first address needs one too');
+  assert.equal(sent.length, 0);
   await account('Ben Example', { email: 'ben@example.org', verified: true });
   await verify.startVerification(req(), ada, 'ben@example.org', async () => {});
-  await assert.rejects(verify.redeemVerification(linkIn(sent.at(-1)!, '/verify-email/')), /email\.err\.taken/);
+  await assert.rejects(verify.redeemVerification(linkIn(sent.at(-1)!, '/verify-email/'), ada.id), /email\.err\.taken/);
   assert.equal((await store.userById(ada.id))!.email, 'ada@example.org');
 });
 
@@ -391,4 +395,116 @@ test('operators hear of a new request at most every ten minutes; a receipt carri
   assert.equal(receipt.to, 'someone@example.org');
   assert.match(receipt.text, /28\. Februar 2026/, 'in the requester’s language, with the deadline');
   assert.ok(receipt.headers['List-Unsubscribe']);
+});
+
+// ---------- round eight: the origin, who sends, the reserve, the account a link is for ----------
+
+test('without KINDRED_ORIGIN no link is built from the request’s Host: email is off, and the Email tab refuses to turn it on', async () => {
+  await account('Ada Example', { email: 'ada@example.org', verified: true, username: 'ada' });
+  delete process.env.KINDRED_ORIGIN;
+  try {
+    const poisoned = new Request('https://evil.example/api/x');
+    assert.equal(send.mailOrigin(poisoned), undefined, 'a Host header names no origin');
+    assert.equal(send.mailOrigin(), undefined, 'nor does a job');
+    assert.equal(send.mailOrigin(new Request('http://localhost:4653/api/x')), 'http://localhost:4653', 'a local server (tests, development) may');
+    assert.equal(await send.emailOn(poisoned), false);
+    assert.equal((await send.sendMail({ to: 'ada@example.org', locale: 'en', category: 'security', request: poisoned, body: (t) => ({ subject: 'x', paragraphs: [t('email.mail.test_body')] }) })).result, 'off');
+    await assert.rejects(requestPasswordReset(poisoned, 'ada@example.org', ip), /email\.err\.off/, 'no reset link to a poisoned origin');
+    await assert.rejects(verify.sendSignupCode(poisoned, 'new@example.org', 'en', async () => false), /email\.err\.off/);
+    await send.settleSends();
+    assert.equal(sent.length, 0);
+    const input = {
+      provider: 'resend', fromName: '', fromAddress: 'kindred@mail.example.org', replyTo: '', mailgunDomain: '', mailgunRegion: 'eu',
+      smtpHost: '', smtpPort: 587, smtpSecurity: 'starttls', smtpUser: '', perHour: 300, secret: 'k',
+    } as const;
+    await assert.rejects(settings.mailSettingsWrites(input, 'op'), /email\.err\.origin/);
+    assert.ok(await settings.mailSettingsWrites({ ...input, provider: 'off' }, 'op'), 'turning it off is always allowed');
+    assert.equal((await settings.mailSettingsView({})).origin, null, 'the tab says why');
+  } finally {
+    process.env.KINDRED_ORIGIN = SITE;
+  }
+  assert.equal((await settings.mailSettingsView({})).origin, SITE);
+});
+
+test('one account and one network send a few confirmation links and invitations a day', async () => {
+  const L = send.SENDER_LIMITS;
+  const from = (user: string, network: string, category: 'verify' | 'invitation', i: number) =>
+    send.sendMail({ to: `${user}-${i}@example.org`, locale: 'en', category, from: { user, network }, body: (t) => ({ subject: 'x', paragraphs: [t('email.mail.test_body')] }) });
+  for (let i = 0; i < L.verify.account; i++) assert.equal((await from('u1', '192.0.2.1', 'verify', i)).result, 'sent');
+  assert.equal((await from('u1', '192.0.2.2', 'verify', 99)).result, 'throttled', 'the account’s links for today are used up, from any network');
+  assert.equal((await from('u1', '192.0.2.2', 'invitation', 0)).result, 'sent', 'invitations count apart');
+  for (let i = L.verify.account; i < L.verify.network; i++) assert.equal((await from(`u${i}`, '192.0.2.1', 'verify', i)).result, 'sent');
+  assert.equal((await from('u-new', '192.0.2.1', 'verify', 0)).result, 'throttled', 'the network’s links for today are used up, for any account');
+  assert.equal((await from('u-new', '192.0.2.3', 'verify', 0)).result, 'sent');
+  const rows = await store.accounts().all<{ sender: string | null; network: string | null }>('SELECT sender, network FROM email_send WHERE sender IS NOT NULL');
+  assert.ok(rows.length && rows.every((r) => r.sender!.length === 43 && r.network!.length === 43 && !r.network!.includes('192')), 'kept as keyed hashes');
+
+  // Through the account menu: the server function's account and network are counted.
+  sent = [];
+  const ada = await account('Ada Example');
+  for (let i = 0; i < L.verify.account; i++) await verify.startVerification(req(), ada, `ada${i}@example.org`, async () => {}, '198.51.100.7');
+  await assert.rejects(verify.startVerification(req(), ada, 'ada-late@example.org', async () => {}, '198.51.100.8'), /email\.err\.throttled/);
+  assert.equal(sent.length, L.verify.account);
+});
+
+test('part of the server’s hourly emails is kept for password resets and security notices', async () => {
+  await store.accounts().run("INSERT INTO instance_setting (key, value, updated_at) VALUES ('mail_per_hour', '10', 0)");
+  const reserve = send.reserveOf(10);
+  assert.ok(reserve >= 1 && reserve < 10);
+  for (let i = 0; i < 10 - reserve; i++) assert.equal((await plain(`p${i}@example.org`, 'family')).result, 'sent');
+  assert.equal((await plain('late@example.org', 'invitation')).result, 'throttled', 'other emails stop short of the reserve');
+  assert.equal((await plain('r@example.org', 'reset')).result, 'sent', 'a reset link still goes');
+  assert.equal((await plain('s@example.org', 'security')).result, 'sent', 'and a security notice');
+});
+
+test('names in an email are one short line: an account’s name cannot carry a message', async () => {
+  const long = `Ada ${'Buy cheap things at example dot com '.repeat(20)}`;
+  const ada = await account(long, { email: 'ada@example.org', verified: true });
+  const { invite, token } = await store.createInvite({ tree: 'testfield', role: 'viewer', email: 'cy@example.org', createdBy: ada.id });
+  assert.equal(await notify.emailInvitation(req(), invite, token, `${long}\nSecond line`, `The ${'Long '.repeat(60)}Family`, 'en', { user: ada.id, network: ip }), 'sent');
+  const m = sent[0]!;
+  assert.ok(!m.text.includes('Buy cheap things at example dot com '.repeat(3)), 'the name is cut');
+  assert.ok(!m.text.includes('Second line'), 'one line');
+  assert.ok(m.subject.length <= 2 * send.MAIL_NAME_MAX + 40, `a short subject (${m.subject.length})`);
+  assert.equal(send.mailName('  Ada\r\n  Example  '), 'Ada Example');
+  assert.equal(send.mailName('x'.repeat(200)).length, send.MAIL_NAME_MAX);
+});
+
+test('a confirmation link is redeemed only by the account it was made for, signed in; the old address hears of the change', async () => {
+  const ada = await account('Ada Example', { email: 'old@example.org', verified: true });
+  const ben = await account('Ben Example');
+  await verify.startVerification(req(), ada, 'new@example.org', async () => {});
+  const token = linkIn(sent.at(-1)!, '/verify-email/')!;
+  assert.deepEqual(await verify.verificationInfo(token, null), { ok: true, email: 'new@example.org', who: 'signed-out' });
+  assert.deepEqual(await verify.verificationInfo(token, ben.id), { ok: true, email: 'new@example.org', who: 'other' });
+  assert.deepEqual(await verify.verificationInfo(token, ada.id), { ok: true, email: 'new@example.org', who: 'mine' });
+  await assert.rejects(verify.redeemVerification(token, ben.id), /email\.err\.other_account/, 'another account is refused');
+  assert.equal((await store.userById(ben.id))!.email, null);
+  sent = [];
+  await verify.redeemVerification(token, ada.id);
+  await send.settleSends();
+  const notice = sent.find((m) => m.to === 'old@example.org');
+  assert.ok(notice, 'the old verified address is told');
+  assert.match(notice.text, /email address of your account was changed/);
+  assert.ok(!notice.text.includes('new@example.org'), 'without naming the new one');
+});
+
+test('a data request’s receipt goes to one address at most once a day', async () => {
+  for (let i = 0; i < 3; i++) notify.emailDataReceipt('someone@example.org', Date.UTC(2026, 0, 31), Date.UTC(2026, 1, 28), 'en');
+  await send.settleSends();
+  assert.equal(sent.filter((m) => m.to === 'someone@example.org').length, 1);
+});
+
+test('a breach notice and the lifecycle’s final notice are notices that cannot be unsubscribed; the stewards’ email reports what it delivered', async () => {
+  const ada = await account('Ada Example', { email: 'ada@example.org', verified: true });
+  await store.accounts().batch([store.upsertMembership(ada.id, 'testfield', 'steward')]);
+  notify.emailBreachNotice(['testfield'], 'Our backup disk was stolen.');
+  await send.settleSends();
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0]!.headers['List-Unsubscribe'], undefined, 'no unsubscribe on a breach notice');
+  const r = await send.recipientHash('ada@example.org');
+  await store.accounts().run("INSERT INTO email_optout (recipient, category, at) VALUES (?, 'family', 0)", r);
+  const delivered = await notify.mailStewards('testfield', (t) => ({ subject: 'Final', paragraphs: [t('email.mail.test_body')] }), { category: 'notice' });
+  assert.equal(delivered, 1, 'an unsubscribe from family notices does not stop a final notice');
+  assert.equal(await notify.mailStewards('testfield', (t) => ({ subject: 'News', paragraphs: [t('email.mail.test_body')] }), { category: 'family' }), 0);
 });

@@ -8,6 +8,7 @@ export const en = {
   "email.mail.greeting_plain": "Hello,",
   "email.mail.sent_by": "This email was sent by {server} ({address}).",
   "email.mail.security_footer": "We send an email like this whenever the ways into your account change. It cannot be turned off.",
+  "email.mail.notice_footer": "We send an email like this when something important happens to a family you look after. It cannot be turned off.",
   "email.mail.unsubscribe_q": "Don’t want emails like this any more?",
   "email.mail.unsubscribe": "Unsubscribe",
   "email.mail.ignore": "If you didn’t ask for this, you can ignore this email.",
@@ -31,6 +32,7 @@ export const en = {
   "email.mail.sec_password_added": "A password was added to your account on {date}.",
   "email.mail.sec_sso_added": "Single sign-on with {provider} was linked to your account on {date}.",
   "email.mail.sec_totp_off": "Two-step codes were turned off for your account on {date}.",
+  "email.mail.sec_email_changed": "The email address of your account was changed on {date}. This address no longer gets the account’s emails.",
   "email.mail.invite_subject": "{inviter} invites you to {family}",
   "email.mail.invite_body": "{inviter} invites you to the family tree {family} on {server}. The invitation works until {date}.",
   "email.mail.invite_action": "Open the invitation",
@@ -58,6 +60,8 @@ export const en = {
   "email.state_on": "Sending",
   "email.state_off": "Off",
   "email.state_incomplete": "Not sending yet: a sender address and a key are needed.",
+  "email.origin_is": "Links in emails start with {origin}.",
+  "email.origin_missing": "Set KINDRED_ORIGIN to this server’s address (for example https://kindred.example.org) before turning email on. Links in emails are built from it, never from the address a browser names.",
   "email.provider": "How to send",
   "email.provider_off": "Off",
   "email.provider_resend": "Resend",
@@ -122,6 +126,10 @@ export const en = {
   "email.verify_done": "{email} is now the confirmed address of your account.",
   "email.verify_gone_title": "This link no longer works",
   "email.verify_gone": "It was used already, or more than 24 hours have passed. Ask for a new one under “Your email” in the account menu.",
+  "email.verify_signin_title": "Sign in to confirm your address",
+  "email.verify_signin": "Sign in to the account that asked for this link; then you come back here to confirm it.",
+  "email.verify_other": "This browser is signed in to another account. Sign out, sign in to the account that asked for this link, and open it again.",
+  "email.verify_signin_go": "Sign in",
   "email.to_kindred": "Go to Kindred",
 
   // ---------- sign-up ----------
@@ -172,6 +180,8 @@ export const en = {
   "email.err.invite": "That invitation can’t be sent by email.",
   "email.err.method": "Kindred’s own sign-in is off on this server.",
   "email.err.failed": "The email could not be sent. Try again later.",
+  "email.err.origin": "Set KINDRED_ORIGIN to this server’s address first: links in emails are built from it.",
+  "email.err.other_account": "This link is for another account. Sign in to that account and open it again.",
 
   "gdpr.sub_email": "sending email",
 };

@@ -10,6 +10,7 @@ import {
   isMailAddress, isMailProvider, MAILGUN_REGIONS, PER_HOUR_DEFAULT, PER_HOUR_MAX, SMTP_SECURITY,
   type MailgunRegion, type MailProvider, type MailSettingsInput, type MailSettingsView, type SmtpSecurity,
 } from './shared.ts';
+import { mailOrigin } from './origin.ts';
 import { smtpAvailable, smtpMailer } from '#mail/smtp';
 
 const accounts = () => store.accounts();
@@ -99,17 +100,21 @@ export async function configuredMailer(env: Env = process.env, fetchImpl: Fetch 
   return { mailer, config: c };
 }
 
-/** What the console shows: every setting but the key, which it only knows is there. */
-export async function mailSettingsView(env: Env = process.env): Promise<MailSettingsView> {
+/** What the console shows: every setting but the key, which it only knows is there, and the origin links start with. */
+export async function mailSettingsView(env: Env = process.env, request?: Request): Promise<MailSettingsView> {
   const c = await mailConfig();
   const fromEnv = c.provider !== 'off' && !!envValue(env, secretEnvName(c.provider));
   const secret = await secretOf(c, env);
   const { sealed: _sealed, ...rest } = c;
-  return { ...rest, secret: fromEnv ? 'env' : c.sealed ? 'stored' : 'none', smtpAvailable, on: complete(c, secret) };
+  const origin = mailOrigin(request) ?? null;
+  return { ...rest, secret: fromEnv ? 'env' : c.sealed ? 'stored' : 'none', smtpAvailable, on: complete(c, secret) && !!origin, origin };
 }
 
-/** Checks the console's input; throws the key of the first problem. Returns the statements that store it. */
-export async function mailSettingsWrites(input: MailSettingsInput, by: string, at = Date.now()): Promise<Query[]> {
+/**
+ * Checks the console's input; throws the key of the first problem. Returns the statements that store it. Turning email on needs
+ * an origin for its links (`origin`: KINDRED_ORIGIN, or a local server's; origin.ts); turning it off never does.
+ */
+export async function mailSettingsWrites(input: MailSettingsInput, by: string, at = Date.now(), origin = mailOrigin()): Promise<Query[]> {
   const before = await mailConfig();
   const next = {
     provider: input.provider, fromName: oneLine(input.fromName, 80), fromAddress: input.fromAddress.trim(), replyTo: input.replyTo.trim(),
@@ -117,6 +122,7 @@ export async function mailSettingsWrites(input: MailSettingsInput, by: string, a
     smtpPort: input.smtpPort, smtpSecurity: input.smtpSecurity, smtpUser: oneLine(input.smtpUser, 200), perHour: input.perHour,
   };
   if (next.provider !== 'off') {
+    if (!origin) throw new Error('email.err.origin');
     if (!isMailAddress(next.fromAddress)) throw new Error('email.err.from');
     if (next.replyTo && !isMailAddress(next.replyTo)) throw new Error('email.err.address');
     if (next.provider === 'mailgun' && !MAIL_DOMAIN.test(next.mailgunDomain)) throw new Error('email.err.domain');

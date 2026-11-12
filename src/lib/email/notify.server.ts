@@ -2,13 +2,17 @@
 //
 // - security notices, to the account's VERIFIED address only, always while email is on (they cannot be unsubscribed): a
 //   password changed or reset (with a link sent by email, a recovery code, or an operator's link), a new way in (a passkey, a
-//   password, single sign-on), two-step codes turned off;
-// - an invitation, when its steward asks (the address they typed; the link is still theirs to copy);
+//   password, single sign-on), two-step codes turned off, and to the OLD verified address when the account's address changed;
+// - an invitation, when its steward asks (the address they typed; the link is still theirs to copy), a few a day per account
+//   and network (send.server.ts, SENDER_LIMITS);
 // - the operators (verified addresses), about a new family request or data request, at most every ten minutes each;
 // - a data request's receipt with its deadline, to the address typed into the form: the only email to an address nobody
-//   verified besides a code, and it carries nothing the requester wrote (no name, no message) so it cannot carry spam;
-// - a family's stewards (verified addresses), when the operator hands them a data request, and for a breach notice.
+//   verified besides a code, at most one a day to one address, and it carries nothing the requester wrote (no name, no
+//   message) so it cannot carry spam;
+// - a family's stewards (verified addresses), when the operator hands them a data request, and for a breach notice (a
+//   `notice`, which cannot be unsubscribed, as the lifecycle's final notice: src/lib/notify/stewards.server.ts).
 //
+// The only words a reader chose that an email carries are names (an account's, a family's), cut to one short line (mailName).
 // Every one goes through sendMail (send.server.ts): nothing in a demo or a preview, the limits, the unsubscribe, the language.
 // None waits for the provider: they are sent after the answer (`sendLater`) and never fail what caused them.
 import type { Locale } from '../i18n/languages.ts';
@@ -16,7 +20,7 @@ import { isLocale } from '../i18n/types.ts';
 import { accounts, userById, type InviteRow } from '../auth/store.server.ts';
 import { hashToken, safeEqual } from '../auth/tokens.server.ts';
 import { AuthError } from '../auth/errors.ts';
-import { mailDate, mailDay, sendLater, sendMail, type Body, type SendResult } from './send.server.ts';
+import { mailDate, mailDay, mailName, sendLater, sendMail, type Body, type SendResult } from './send.server.ts';
 import type { MailCategory } from './shared.ts';
 import type { Key } from '../i18n/dictionary.ts';
 import type { Vars } from '../i18n/types.ts';
@@ -25,40 +29,52 @@ const localeOf = (l: unknown): Locale => (isLocale(l) ? l : 'en');
 
 // ---------- security ----------
 
-export type SecurityKind = 'password_changed' | 'password_reset' | 'recovery_reset' | 'operator_reset' | 'passkey_added' | 'password_added' | 'sso_added' | 'totp_off';
+export type SecurityKind = 'password_changed' | 'password_reset' | 'recovery_reset' | 'operator_reset' | 'passkey_added' | 'password_added' | 'sso_added' | 'totp_off' | 'email_changed';
 
 const SECURITY_KEY: Record<SecurityKind, Key> = {
   password_changed: 'email.mail.sec_password_changed', password_reset: 'email.mail.sec_password_reset', recovery_reset: 'email.mail.sec_recovery_reset',
   operator_reset: 'email.mail.sec_operator_reset', passkey_added: 'email.mail.sec_passkey_added', password_added: 'email.mail.sec_password_added',
-  sso_added: 'email.mail.sec_sso_added', totp_off: 'email.mail.sec_totp_off',
+  sso_added: 'email.mail.sec_sso_added', totp_off: 'email.mail.sec_totp_off', email_changed: 'email.mail.sec_email_changed',
 };
+
+type Holder = { name: string; locale: string | null };
 
 /** Tells the account's holder about a change to its ways in, at its verified address. Sent later; never throws. */
 export function securityNotice(user: string, kind: SecurityKind, request?: Request, vars: { provider?: string } = {}, at = Date.now()): void {
   sendLater(async () => {
     const u = await userById(user);
     if (!u?.email || u.email_verified !== 1) return;
-    await sendMail({
-      to: u.email, locale: localeOf(u.locale), category: 'security', request,
-      body: (t, { server }) => ({
-        subject: t('email.mail.security_subject', { server }), greeting: t('email.mail.greeting', { name: u.name }),
-        paragraphs: [t(SECURITY_KEY[kind], { date: mailDate(at, localeOf(u.locale)), provider: vars.provider ?? '' }), t('email.mail.not_you')],
-      }),
-    });
+    await securityMail(u.email, u, kind, request, vars, at);
   });
 }
+
+/** The same notice to an address the account had (its old verified address, after a change). Sent later; never throws. */
+export function securityNoticeTo(address: string, holder: Holder, kind: SecurityKind, request?: Request, at = Date.now()): void {
+  sendLater(() => securityMail(address, holder, kind, request, {}, at));
+}
+
+const securityMail = (to: string, u: Holder, kind: SecurityKind, request: Request | undefined, vars: { provider?: string }, at: number) => sendMail({
+  to, locale: localeOf(u.locale), category: 'security', request,
+  body: (t, { server }) => ({
+    subject: t('email.mail.security_subject', { server }), greeting: t('email.mail.greeting', { name: mailName(u.name) }),
+    paragraphs: [t(SECURITY_KEY[kind], { date: mailDate(at, localeOf(u.locale)), provider: mailName(vars.provider ?? '') }), t('email.mail.not_you')],
+  }),
+});
 
 // ---------- invitations ----------
 
 /**
  * Sends an invitation to the address its steward typed, with the link they hold (`token`, checked against the invitation's
- * hash: only who made or renewed the link has it). The steward's and the family's names are theirs, and escaped.
+ * hash: only who made or renewed the link has it). The steward's and the family's names are theirs: one short line each, and
+ * escaped. `from` is the steward's account and network, counted against SENDER_LIMITS.
  */
-export async function emailInvitation(request: Request, invite: InviteRow, token: string, inviter: string, family: string, locale: Locale): Promise<SendResult> {
+export async function emailInvitation(request: Request, invite: InviteRow, token: string, inviterName: string, familyName: string, locale: Locale, from?: { user: string; network?: string }): Promise<SendResult> {
+  const inviter = mailName(inviterName);
+  const family = mailName(familyName);
   if (!invite.email || invite.used_at || invite.revoked_at || invite.expires <= Date.now()) throw new AuthError('invalid', 'email.err.invite');
   if (!(await safeEqual(await hashToken('invite', token), invite.hash))) throw new AuthError('invalid', 'email.err.invite');
   const { result } = await sendMail({
-    to: invite.email, locale, category: 'invitation', request,
+    to: invite.email, locale, category: 'invitation', request, from,
     body: (t, { server, origin }) => ({
       subject: t('email.mail.invite_subject', { inviter, family }),
       paragraphs: [t('email.mail.invite_body', { inviter, family, server, date: mailDay(invite.expires, locale) }), t('email.mail.invite_unknown', { inviter })],
@@ -81,7 +97,7 @@ export function emailOperators(kind: 'family' | 'data', request?: Request): void
       await sendMail({
         to: op.email, locale: localeOf(op.locale), category: 'operator', request, gapMs: OPERATOR_EMAIL_GAP_MS,
         body: (t, { server, origin }) => ({
-          subject: t('email.mail.operator_subject', { server }), greeting: t('email.mail.greeting', { name: op.name }),
+          subject: t('email.mail.operator_subject', { server }), greeting: t('email.mail.greeting', { name: mailName(op.name) }),
           paragraphs: [t(kind === 'family' ? 'email.mail.operator_family' : 'email.mail.operator_data')],
           action: { label: t('email.mail.operator_action'), url: `${origin}/operator?tab=${kind === 'family' ? 'requests' : 'data'}` },
         }),
@@ -92,10 +108,13 @@ export function emailOperators(kind: 'family' | 'data', request?: Request): void
 
 // ---------- the requester ----------
 
+/** The shortest time between two receipts to one address: a form sent again and again sends one email a day. */
+export const RECEIPT_GAP_MS = 24 * 60 * 60_000;
+
 /** The receipt for a data request: when it came, and the date it must be answered by. Nothing the requester wrote. */
 export function emailDataReceipt(to: string, created: number, deadline: number, locale: Locale, request?: Request): void {
   sendLater(() => sendMail({
-    to, locale, category: 'receipt', request,
+    to, locale, category: 'receipt', request, gapMs: RECEIPT_GAP_MS,
     body: (t, { server }) => ({
       subject: t('email.mail.receipt_subject'),
       paragraphs: [t('email.mail.receipt_body', { server, date: mailDay(created, locale), deadline: mailDay(deadline, locale) }), t('email.mail.receipt_ignore')],
@@ -105,24 +124,33 @@ export function emailDataReceipt(to: string, created: number, deadline: number, 
 
 // ---------- a family's stewards ----------
 
+type StewardWrite = (t: (key: Key, vars?: Vars) => string, ctx: { server: string; origin: string; family: string; locale: Locale }) => Body;
+type StewardOptions = { request?: Request; category?: MailCategory };
+
 /**
- * Emails each steward of `tree` with a verified address, in their language. `write` gets the family's name. Exported for other
- * features (a family's lifecycle warnings plug in here); `category` 'family' carries the unsubscribe.
+ * Emails each steward of `tree` with a verified address, in their language, and returns to how many it went out. `write` gets
+ * the family's name. `category` 'family' (the default) carries the unsubscribe; 'notice' is for what they must get.
  */
-export function emailStewards(tree: string, write: (t: (key: Key, vars?: Vars) => string, ctx: { server: string; origin: string; family: string; locale: Locale }) => Body, opts: { request?: Request; category?: MailCategory } = {}): void {
-  sendLater(async () => {
-    const stewards = await accounts().all<{ email: string; name: string; locale: string | null }>(
-      "SELECT u.email, u.name, u.locale FROM membership m JOIN user u ON u.id = m.user WHERE m.tree = ? AND m.role = 'steward' AND u.email_verified = 1 AND u.email IS NOT NULL", tree);
-    if (!stewards.length) return;
-    const family = await familyName(tree);
-    for (const s of stewards) {
-      const locale = localeOf(s.locale);
-      await sendMail({
-        to: s.email, locale, category: opts.category ?? 'family', request: opts.request,
-        body: (t, ctx) => ({ greeting: t('email.mail.greeting', { name: s.name }), ...write(t, { ...ctx, family, locale }) }),
-      });
-    }
-  });
+export async function mailStewards(tree: string, write: StewardWrite, opts: StewardOptions = {}): Promise<number> {
+  const stewards = await accounts().all<{ email: string; name: string; locale: string | null }>(
+    "SELECT u.email, u.name, u.locale FROM membership m JOIN user u ON u.id = m.user WHERE m.tree = ? AND m.role = 'steward' AND u.email_verified = 1 AND u.email IS NOT NULL", tree);
+  if (!stewards.length) return 0;
+  const family = mailName(await familyName(tree));
+  let delivered = 0;
+  for (const s of stewards) {
+    const locale = localeOf(s.locale);
+    const { result } = await sendMail({
+      to: s.email, locale, category: opts.category ?? 'family', request: opts.request,
+      body: (t, ctx) => ({ greeting: t('email.mail.greeting', { name: mailName(s.name) }), ...write(t, { ...ctx, family, locale }) }),
+    });
+    if (result === 'sent') delivered++;
+  }
+  return delivered;
+}
+
+/** mailStewards after the answer: for a request that should not wait for the provider. Never throws. */
+export function emailStewards(tree: string, write: StewardWrite, opts: StewardOptions = {}): void {
+  sendLater(() => mailStewards(tree, write, opts));
 }
 
 async function familyName(tree: string): Promise<string> {
@@ -142,7 +170,10 @@ export const emailStewardsDataRequest = (tree: string, deadline: number, request
     action: { label: t('email.mail.steward_data_action'), url: `${origin}/${tree}/access` },
   }), { request });
 
-/** A breach notice for the stewards of the families it affects (every family when `families` is null), with its text. */
+/**
+ * A breach notice for the stewards of the families it affects (every family when `families` is null), with its text: the
+ * operator's own words, which the law asks for. A `notice`: it cannot be unsubscribed.
+ */
 export function emailBreachNotice(families: string[] | null, notice: string, request?: Request): void {
   sendLater(async () => {
     const trees = families ?? (await accounts().all<{ tree: string }>("SELECT DISTINCT tree FROM membership WHERE role = 'steward'")).map((r) => r.tree);
@@ -151,6 +182,6 @@ export function emailBreachNotice(families: string[] | null, notice: string, req
     paragraphs: [t('email.mail.breach_body', { server, family })],
     quote: notice,
     action: { label: t('email.mail.breach_action'), url: `${origin}/${tree}` },
-    }), { request });
+    }), { request, category: 'notice' });
   });
 }

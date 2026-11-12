@@ -8,6 +8,7 @@ export default {
   "email.mail.greeting_plain": "Hallo,",
   "email.mail.sent_by": "Diese E-Mail wurde von {server} ({address}) verschickt.",
   "email.mail.security_footer": "Eine solche E-Mail schicken wir immer, wenn sich die Zugänge zu deinem Konto ändern. Sie lässt sich nicht abschalten.",
+  "email.mail.notice_footer": "Eine solche E-Mail schicken wir, wenn mit einer Familie, die du verwaltest, etwas Wichtiges geschieht. Sie lässt sich nicht abschalten.",
   "email.mail.unsubscribe_q": "Du möchtest solche E-Mails nicht mehr bekommen?",
   "email.mail.unsubscribe": "Abbestellen",
   "email.mail.ignore": "Wenn du das nicht angefordert hast, kannst du diese E-Mail ignorieren.",
@@ -31,6 +32,7 @@ export default {
   "email.mail.sec_password_added": "Am {date} wurde ein Passwort zu deinem Konto hinzugefügt.",
   "email.mail.sec_sso_added": "Am {date} wurde Single Sign-on über {provider} mit deinem Konto verknüpft.",
   "email.mail.sec_totp_off": "Am {date} wurden die Bestätigungscodes für dein Konto ausgeschaltet.",
+  "email.mail.sec_email_changed": "Die E-Mail-Adresse deines Kontos wurde am {date} geändert. An diese Adresse gehen keine E-Mails des Kontos mehr.",
   "email.mail.invite_subject": "{inviter} lädt dich zu {family} ein",
   "email.mail.invite_body": "{inviter} lädt dich in den Stammbaum {family} auf {server} ein. Die Einladung gilt bis {date}.",
   "email.mail.invite_action": "Einladung öffnen",
@@ -58,6 +60,8 @@ export default {
   "email.state_on": "Sendet",
   "email.state_off": "Aus",
   "email.state_incomplete": "Sendet noch nicht: Es fehlen eine Absenderadresse und ein Schlüssel.",
+  "email.origin_is": "Links in E-Mails beginnen mit {origin}.",
+  "email.origin_missing": "Setze KINDRED_ORIGIN auf die Adresse dieses Servers (zum Beispiel https://kindred.example.org), bevor du E-Mail einschaltest. Links in E-Mails entstehen daraus, nie aus der Adresse, die ein Browser nennt.",
   "email.provider": "Versandart",
   "email.provider_off": "Aus",
   "email.provider_resend": "Resend",
@@ -122,6 +126,10 @@ export default {
   "email.verify_done": "{email} ist jetzt die bestätigte Adresse deines Kontos.",
   "email.verify_gone_title": "Dieser Link funktioniert nicht mehr",
   "email.verify_gone": "Er wurde schon benutzt, oder es sind mehr als 24 Stunden vergangen. Fordere unter „Deine E-Mail“ im Kontomenü einen neuen an.",
+  "email.verify_signin_title": "Melde dich an, um deine Adresse zu bestätigen",
+  "email.verify_signin": "Melde dich bei dem Konto an, das diesen Link angefordert hat; danach kommst du hierher zurück und bestätigst sie.",
+  "email.verify_other": "Dieser Browser ist mit einem anderen Konto angemeldet. Melde dich ab, melde dich bei dem Konto an, das diesen Link angefordert hat, und öffne ihn noch einmal.",
+  "email.verify_signin_go": "Anmelden",
   "email.to_kindred": "Zu Kindred",
 
   // ---------- sign-up ----------
@@ -172,6 +180,8 @@ export default {
   "email.err.invite": "Diese Einladung kann nicht per E-Mail gesendet werden.",
   "email.err.method": "Die Anmeldung von Kindred selbst ist auf diesem Server aus.",
   "email.err.failed": "Die E-Mail konnte nicht gesendet werden. Versuche es später noch einmal.",
+  "email.err.origin": "Setze zuerst KINDRED_ORIGIN auf die Adresse dieses Servers: Links in E-Mails entstehen daraus.",
+  "email.err.other_account": "Dieser Link gehört zu einem anderen Konto. Melde dich bei diesem Konto an und öffne ihn noch einmal.",
 
   "gdpr.sub_email": "E-Mail-Versand",
 } satisfies Strings<typeof en, "de">;

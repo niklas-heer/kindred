@@ -8,6 +8,7 @@ export default {
   "email.mail.greeting_plain": "Hallo,",
   "email.mail.sent_by": "Deze e-mail is verstuurd door {server} ({address}).",
   "email.mail.security_footer": "Zo’n e-mail sturen we altijd als de manieren om in je account te komen veranderen. Je kunt hem niet uitzetten.",
+  "email.mail.notice_footer": "Zo’n e-mail sturen we als er iets belangrijks gebeurt met een familie die je beheert. Je kunt hem niet uitzetten.",
   "email.mail.unsubscribe_q": "Wil je dit soort e-mails niet meer ontvangen?",
   "email.mail.unsubscribe": "Afmelden",
   "email.mail.ignore": "Heb je hier niet om gevraagd? Dan kun je deze e-mail negeren.",
@@ -31,6 +32,7 @@ export default {
   "email.mail.sec_password_added": "Op {date} is een wachtwoord aan je account toegevoegd.",
   "email.mail.sec_sso_added": "Op {date} is single sign-on met {provider} aan je account gekoppeld.",
   "email.mail.sec_totp_off": "Op {date} zijn de tweestapscodes voor je account uitgezet.",
+  "email.mail.sec_email_changed": "Het e-mailadres van je account is op {date} gewijzigd. Dit adres krijgt de e-mails van het account niet meer.",
   "email.mail.invite_subject": "{inviter} nodigt je uit voor {family}",
   "email.mail.invite_body": "{inviter} nodigt je uit voor de stamboom {family} op {server}. De uitnodiging werkt tot {date}.",
   "email.mail.invite_action": "Open de uitnodiging",
@@ -58,6 +60,8 @@ export default {
   "email.state_on": "Verstuurt",
   "email.state_off": "Uit",
   "email.state_incomplete": "Verstuurt nog niet: er zijn een afzenderadres en een sleutel nodig.",
+  "email.origin_is": "Links in e-mails beginnen met {origin}.",
+  "email.origin_missing": "Zet KINDRED_ORIGIN op het adres van deze server (bijvoorbeeld https://kindred.example.org) voordat je e-mail aanzet. Links in e-mails worden daaruit gemaakt, nooit uit het adres dat een browser noemt.",
   "email.provider": "Hoe versturen",
   "email.provider_off": "Uit",
   "email.provider_resend": "Resend",
@@ -122,6 +126,10 @@ export default {
   "email.verify_done": "{email} is nu het bevestigde adres van je account.",
   "email.verify_gone_title": "Deze link werkt niet meer",
   "email.verify_gone": "Hij is al gebruikt, of er zijn meer dan 24 uur voorbij. Vraag een nieuwe aan onder “Je e-mail” in het accountmenu.",
+  "email.verify_signin_title": "Log in om je adres te bevestigen",
+  "email.verify_signin": "Log in bij het account dat om deze link vroeg; daarna kom je hier terug om het te bevestigen.",
+  "email.verify_other": "Deze browser is ingelogd met een ander account. Log uit, log in bij het account dat om deze link vroeg en open hem opnieuw.",
+  "email.verify_signin_go": "Inloggen",
   "email.to_kindred": "Naar Kindred",
 
   // ---------- sign-up ----------
@@ -172,6 +180,8 @@ export default {
   "email.err.invite": "Die uitnodiging kan niet per e-mail worden verstuurd.",
   "email.err.method": "Het eigen inloggen van Kindred staat uit op deze server.",
   "email.err.failed": "De e-mail kon niet worden verstuurd. Probeer het later opnieuw.",
+  "email.err.origin": "Zet eerst KINDRED_ORIGIN op het adres van deze server: links in e-mails worden daaruit gemaakt.",
+  "email.err.other_account": "Deze link is voor een ander account. Log in bij dat account en open hem opnieuw.",
 
   "gdpr.sub_email": "e-mailverzending",
 } satisfies Strings<typeof en, "nl">;

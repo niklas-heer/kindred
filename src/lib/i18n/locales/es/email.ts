@@ -8,6 +8,7 @@ export default {
   "email.mail.greeting_plain": "Hola:",
   "email.mail.sent_by": "Este correo lo envió {server} ({address}).",
   "email.mail.security_footer": "Enviamos un correo así siempre que cambian las formas de entrar en tu cuenta. No se puede desactivar.",
+  "email.mail.notice_footer": "Enviamos un correo así cuando pasa algo importante en una familia de la que eres responsable. No se puede desactivar.",
   "email.mail.unsubscribe_q": "¿No quieres recibir más correos como este?",
   "email.mail.unsubscribe": "Darme de baja",
   "email.mail.ignore": "Si no lo pediste tú, puedes ignorar este correo.",
@@ -31,6 +32,7 @@ export default {
   "email.mail.sec_password_added": "El {date} se añadió una contraseña a tu cuenta.",
   "email.mail.sec_sso_added": "El {date} se vinculó el inicio de sesión único con {provider} a tu cuenta.",
   "email.mail.sec_totp_off": "El {date} se desactivaron los códigos en dos pasos de tu cuenta.",
+  "email.mail.sec_email_changed": "La dirección de correo de tu cuenta se cambió el {date}. Esta dirección ya no recibe los correos de la cuenta.",
   "email.mail.invite_subject": "{inviter} te invita a {family}",
   "email.mail.invite_body": "{inviter} te invita al árbol genealógico {family} en {server}. La invitación sirve hasta el {date}.",
   "email.mail.invite_action": "Abrir la invitación",
@@ -58,6 +60,8 @@ export default {
   "email.state_on": "Enviando",
   "email.state_off": "Desactivado",
   "email.state_incomplete": "Aún no envía: hacen falta una dirección de remitente y una clave.",
+  "email.origin_is": "Los enlaces de los correos empiezan por {origin}.",
+  "email.origin_missing": "Define KINDRED_ORIGIN con la dirección de este servidor (por ejemplo https://kindred.example.org) antes de activar el correo. Los enlaces de los correos se construyen a partir de ella, nunca de la dirección que indica un navegador.",
   "email.provider": "Cómo enviar",
   "email.provider_off": "Desactivado",
   "email.provider_resend": "Resend",
@@ -122,6 +126,10 @@ export default {
   "email.verify_done": "{email} es ahora la dirección confirmada de tu cuenta.",
   "email.verify_gone_title": "Este enlace ya no funciona",
   "email.verify_gone": "Ya se usó, o han pasado más de 24 horas. Pide uno nuevo en “Tu correo”, en el menú de la cuenta.",
+  "email.verify_signin_title": "Inicia sesión para confirmar tu dirección",
+  "email.verify_signin": "Inicia sesión en la cuenta que pidió este enlace; después vuelves aquí para confirmarla.",
+  "email.verify_other": "Este navegador tiene abierta la sesión de otra cuenta. Cierra la sesión, inicia sesión en la cuenta que pidió este enlace y vuelve a abrirlo.",
+  "email.verify_signin_go": "Iniciar sesión",
   "email.to_kindred": "Ir a Kindred",
 
   // ---------- sign-up ----------
@@ -172,6 +180,8 @@ export default {
   "email.err.invite": "Esa invitación no se puede enviar por correo.",
   "email.err.method": "El inicio de sesión propio de Kindred está desactivado en este servidor.",
   "email.err.failed": "No se pudo enviar el correo. Inténtalo de nuevo más tarde.",
+  "email.err.origin": "Primero define KINDRED_ORIGIN con la dirección de este servidor: los enlaces de los correos se construyen a partir de ella.",
+  "email.err.other_account": "Este enlace es para otra cuenta. Inicia sesión en esa cuenta y vuelve a abrirlo.",
 
   "gdpr.sub_email": "envío de correo",
 } satisfies Strings<typeof en, "es">;

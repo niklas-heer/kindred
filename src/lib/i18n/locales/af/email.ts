@@ -8,6 +8,7 @@ export default {
   "email.mail.greeting_plain": "Hallo,",
   "email.mail.sent_by": "Hierdie e-pos is deur {server} ({address}) gestuur.",
   "email.mail.security_footer": "Ons stuur so ’n e-pos wanneer die maniere om by jou rekening in te kom verander. Dit kan nie afgeskakel word nie.",
+  "email.mail.notice_footer": "Ons stuur so ’n e-pos wanneer iets belangriks gebeur met ’n familie waarvoor jy sorg. Dit kan nie afgeskakel word nie.",
   "email.mail.unsubscribe_q": "Wil jy nie meer sulke e-posse kry nie?",
   "email.mail.unsubscribe": "Teken uit",
   "email.mail.ignore": "As jy nie hiervoor gevra het nie, kan jy hierdie e-pos ignoreer.",
@@ -31,6 +32,7 @@ export default {
   "email.mail.sec_password_added": "’n Wagwoord is op {date} by jou rekening gevoeg.",
   "email.mail.sec_sso_added": "Enkelaanmelding met {provider} is op {date} aan jou rekening gekoppel.",
   "email.mail.sec_totp_off": "Bevestigingskodes is op {date} vir jou rekening afgeskakel.",
+  "email.mail.sec_email_changed": "Die e-posadres van jou rekening is op {date} verander. Hierdie adres kry nie meer die rekening se e-posse nie.",
   "email.mail.invite_subject": "{inviter} nooi jou na {family}",
   "email.mail.invite_body": "{inviter} nooi jou na die stamboom {family} op {server}. Die uitnodiging werk tot {date}.",
   "email.mail.invite_action": "Maak die uitnodiging oop",
@@ -58,6 +60,8 @@ export default {
   "email.state_on": "Stuur",
   "email.state_off": "Af",
   "email.state_incomplete": "Stuur nog nie: ’n afsenderadres en ’n sleutel word benodig.",
+  "email.origin_is": "Skakels in e-posse begin met {origin}.",
+  "email.origin_missing": "Stel KINDRED_ORIGIN op hierdie bediener se adres (byvoorbeeld https://kindred.example.org) voordat jy e-pos aanskakel. Skakels in e-posse word daaruit gebou, nooit uit die adres wat ’n blaaier noem nie.",
   "email.provider": "Hoe om te stuur",
   "email.provider_off": "Af",
   "email.provider_resend": "Resend",
@@ -122,6 +126,10 @@ export default {
   "email.verify_done": "{email} is nou die bevestigde adres van jou rekening.",
   "email.verify_gone_title": "Hierdie skakel werk nie meer nie",
   "email.verify_gone": "Dit is reeds gebruik, of meer as 24 uur het verloop. Vra vir ’n nuwe een onder “Jou e-pos” in die rekeningkieslys.",
+  "email.verify_signin_title": "Meld aan om jou adres te bevestig",
+  "email.verify_signin": "Meld aan by die rekening wat hierdie skakel gevra het; dan kom jy hierheen terug om dit te bevestig.",
+  "email.verify_other": "Hierdie blaaier is by ’n ander rekening aangemeld. Meld af, meld aan by die rekening wat hierdie skakel gevra het, en maak dit weer oop.",
+  "email.verify_signin_go": "Meld aan",
   "email.to_kindred": "Gaan na Kindred",
 
   // ---------- sign-up ----------
@@ -172,6 +180,8 @@ export default {
   "email.err.invite": "Daardie uitnodiging kan nie per e-pos gestuur word nie.",
   "email.err.method": "Kindred se eie aanmelding is af op hierdie bediener.",
   "email.err.failed": "Die e-pos kon nie gestuur word nie. Probeer later weer.",
+  "email.err.origin": "Stel eers KINDRED_ORIGIN op hierdie bediener se adres: skakels in e-posse word daaruit gebou.",
+  "email.err.other_account": "Hierdie skakel is vir ’n ander rekening. Meld by daardie rekening aan en maak dit weer oop.",
 
   "gdpr.sub_email": "e-pos stuur",
 } satisfies Strings<typeof en, "af">;
