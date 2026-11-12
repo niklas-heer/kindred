@@ -35,6 +35,7 @@ import * as heraldryArea from "./areas/heraldry.ts";
 import * as historyArea from "./areas/history.ts";
 import * as housesArea from "./areas/houses.ts";
 import * as joinArea from "./areas/join.ts";
+import * as lifecycleArea from "./areas/lifecycle.ts";
 import * as neededArea from "./areas/needed.ts";
 import * as occupationsArea from "./areas/occupations.ts";
 import * as operatorArea from "./areas/operator.ts";
@@ -111,6 +112,7 @@ export const AREAS = [
   accessArea,
   shareArea,
   joinArea,
+  lifecycleArea,
   setupArea,
   remindersArea,
   researchArea,

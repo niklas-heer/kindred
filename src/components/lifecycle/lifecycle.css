@@ -1,0 +1,21 @@
+/* The lifecycle of quiet families (LifecycleNotice.tsx, OperatorLifecycle.tsx). The stewards' warning sits at the bottom of the
+   page as the breach notice does, in the accent's colour: a reminder, not an error. */
+.lifecycle-notice {
+  position: fixed; z-index: 40; left: 12px; right: 12px; bottom: 12px; margin: 0 auto; max-width: 640px;
+  display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius, 8px);
+  background: var(--panel, var(--bg)); color: var(--text); border: 1px solid var(--accent); box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
+}
+.lifecycle-notice > svg { color: var(--accent); flex: none; margin-top: 2px; }
+.lifecycle-notice > div { flex: 1; min-width: 0; }
+.lifecycle-notice p { margin: 2px 0 4px; overflow-wrap: anywhere; }
+.lifecycle-copies { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-weight: 400; }
+.lifecycle-copies a { display: inline-flex; align-items: center; gap: 4px; color: inherit; }
+/* Inside the suspended bar (accent background): the sentence, then a steward's button and downloads. */
+.lifecycle-bar { display: grid; gap: 6px; justify-items: center; }
+.lifecycle-bar p { margin: 0; }
+.lifecycle-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 14px; }
+.lifecycle-actions .btn { padding: 2px 10px; min-height: 0; }
+/* The console's section. */
+.lifecycle-periods { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 10px 16px; }
+.lifecycle-steps { margin: 6px 0 0; padding-left: 1.2em; }
+.lifecycle-steps li { margin: 2px 0; }

@@ -28,6 +28,7 @@ import heraldry from "./heraldry.ts";
 import history from "./history.ts";
 import houses from "./houses.ts";
 import join from "./join.ts";
+import lifecycle from "./lifecycle.ts";
 import needed from "./needed.ts";
 import occupations from "./occupations.ts";
 import oidc from "./oidc.ts";
@@ -90,6 +91,7 @@ export default {
   ...history,
   ...houses,
   ...join,
+  ...lifecycle,
   ...needed,
   ...occupations,
   ...oidc,

@@ -7,6 +7,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { StatementOfReasons } from '~/components/gdpr/StatusReason';
+import { LifecycleBar, useLifecycleReadOnly } from '~/components/lifecycle/LifecycleNotice';
 import { DoorClosed, PauseCircle } from 'lucide-react';
 import { useT } from '~/lib/i18n';
 import { publicInstanceQuery } from '~/lib/operator/operator.functions';
@@ -25,13 +26,15 @@ function Contact({ withAddress, without }: { withAddress: 'operator.suspended_co
 
 export function SuspendedBar({ tree }: { tree?: string }) {
   const t = useT();
+  // Made read-only by the lifecycle of quiet families, not by the operator: its own words, and a steward may lift it.
+  const lifecycle = useLifecycleReadOnly(tree);
   return (
     <div className="suspended-bar" role="status">
       <PauseCircle size={15} aria-hidden />
-      <div>
+      {lifecycle && tree ? <LifecycleBar tree={tree} data={lifecycle} /> : <div>
         <p>{t('operator.suspended_banner')} <Contact withAddress="operator.suspended_contact" without="operator.suspended_no_contact" /></p>
         {tree && <StatementOfReasons tree={tree} />}
-      </div>
+      </div>}
     </div>
   );
 }

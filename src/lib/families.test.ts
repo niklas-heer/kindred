@@ -238,6 +238,9 @@ test('deleting a family removes its database, its files and every accounts row t
       st.q('INSERT INTO subject_restriction (tree, person, since) VALUES (?, ?, ?)', tree, `${s}person`, T),
       st.q("INSERT INTO subject_action (tree, kind, at) VALUES (?, 'restrict', ?)", tree, T),
       st.q('INSERT INTO family_left (user, tree, left_at) VALUES (?, ?, ?)', VIEWER.id, tree, T),
+      st.q("INSERT INTO family_lifecycle (tree, stage, quiet_since, warned_at) VALUES (?, 'warned', ?, ?)", tree, T, T),
+      st.q("INSERT INTO steward_notice (tree, kind, vars, at) VALUES (?, 'lifecycle_warning', '{}', ?)", tree, T),
+      st.q("INSERT INTO steward_notice_dismissal (user, tree, kind, until) VALUES (?, ?, 'lifecycle_warning', ?)", STEWARD.id, tree, T),
     ]);
   }
   // Someone who asked to join A and is not yet approved: their pending account goes with the request.

@@ -77,8 +77,10 @@ export async function effective(tree: string, key: PolicyKey, choice: { steward?
  * The operator's and the family's levels only, for a caller that has already shown the server can do it (a push sender
  * holding the VAPID keys it was given). Everything else asks `effective` or `allowed`.
  */
-export async function familyAllows(tree: string, key: FeatureKey): Promise<boolean> {
-  return decideFeature({ ...(await factsFor(tree, key)), deployment: true }).allowed;
+export async function familyAllows(tree: string, key: FeatureKey, { evenSuspended = false }: { evenSuspended?: boolean } = {}): Promise<boolean> {
+  const facts = await factsFor(tree, key);
+  // The server telling a read-only family's stewards about it (src/lib/notify/stewards.server.ts) is not the family using push.
+  return decideFeature({ ...facts, ...(evenSuspended && facts.status === 'suspended' ? { status: 'active' as const } : {}), deployment: true }).allowed;
 }
 
 /** Shorthand for a feature that is simply on or off for the family. */

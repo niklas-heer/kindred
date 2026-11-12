@@ -3,6 +3,7 @@
 import { aiTasksJob } from './ai-tasks.ts';
 import { archiveJob } from './archive.ts';
 import { joinJob } from './join.ts';
+import { lifecycleJob } from './lifecycle.ts';
 import { feedJob } from './feed.ts';
 import { historyJob } from './history.ts';
 import { instanceStatsJob } from './instance-stats.ts';
@@ -31,6 +32,7 @@ export const DAILY_JOBS: readonly DailyJob[] = [
   instanceStatsJob,
   updateCheckJob,
   retentionJob,
+  lifecycleJob,
 ];
 
 /**

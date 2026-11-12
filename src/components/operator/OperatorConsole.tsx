@@ -24,6 +24,7 @@ import { HostingTab } from '~/components/signup/OperatorHosting';
 import { HealthTab } from './OperatorHealth';
 import { PrivacyTab } from '~/components/gdpr/OperatorPrivacy';
 import { StatusReasonDialog } from '~/components/gdpr/StatusReason';
+import { LifecycleSection } from '~/components/lifecycle/OperatorLifecycle';
 import { updateDotQuery } from '~/lib/operator/insight.functions';
 import '~/components/families/families.css';
 import './operator.css';
@@ -124,6 +125,7 @@ function FamiliesTab({ data }: { data: Data }) {
           {data.families.map((f) => <FamilyRow key={f.id} family={f} now={data.now} total={data.families.length} />)}
         </ul>
       </section>
+      <LifecycleSection />
     </div>
   );
 }

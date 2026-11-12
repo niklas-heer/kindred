@@ -222,6 +222,8 @@ onChangeCommitted(async (tree) => {
   allowedChange.delete(request);
   // Awaited, so a Worker does not end the request before it is written.
   await (await import('../stats/store.server')).countChange(tree, change.user, change.role, change.action);
+  // A member's write is activity, as a visit is (the lifecycle of quiet families, src/lib/lifecycle/).
+  await (await import('../history.server')).noteVisit(change.user, tree).catch(() => {});
 });
 
 /**

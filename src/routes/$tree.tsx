@@ -19,6 +19,7 @@ import { ViewAsBar, ViewAsHost } from '~/components/viewas/ViewAs';
 import { ClosedFamilyPage, SuspendedBar } from '~/components/operator/SuspendedBar';
 import { ReleaseCard } from '~/components/releases/ReleaseCard';
 import { BreachNotice } from '~/components/gdpr/BreachNotice';
+import { LifecycleWarning } from '~/components/lifecycle/LifecycleNotice';
 import { JoinInvite } from '~/components/join/JoinInvite';
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import { FeedbackHost, openFeedback } from '~/components/feedback/FeedbackHost';
@@ -181,6 +182,7 @@ function TreeLayout() {
       <a href="#main" className="skip-link" onClick={(e) => { e.preventDefault(); document.getElementById('main')?.focus(); }}>{t('shell.skip')}</a>
       {suspended && <SuspendedBar tree={tree} />}
       <BreachNotice tree={tree} />
+      <LifecycleWarning tree={tree} />
       <ViewAsBar tree={tree} familyName={previewed} />
       <header className="topbar topbar-stacked" ref={topbar} data-tour="topbar">
         <Link to={multiple ? "/" : "/$tree"} params={{ tree }} search={multiple ? { families: "all" } : {}} className="brand" title={multiple ? t("shell.all_families") : t("shell.family_tree")}>

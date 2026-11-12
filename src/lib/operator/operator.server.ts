@@ -115,9 +115,11 @@ export async function setFamilyStatus(op: UserRow, tree: string, status: FamilyS
   if (status !== 'active' && (!reason || !statement?.ground)) throw invalid('gdpr.err.reason_needed');
   const kept = status === 'active' ? { reason: null, ground: null } : { reason, ground: statement!.ground };
   await accounts().batch([
-    q(`INSERT INTO family_admin (tree, status, closed, status_reason, status_ground, status_at) VALUES (?, ?, ?, ?, ?, ?)
+    q(`INSERT INTO family_admin (tree, status, closed, status_reason, status_ground, status_at, status_by) VALUES (?, ?, ?, ?, ?, ?, NULL)
        ON CONFLICT(tree) DO UPDATE SET status = excluded.status, closed = excluded.closed, status_reason = excluded.status_reason,
-       status_ground = excluded.status_ground, status_at = excluded.status_at`, tree, stored, closed, kept.reason, kept.ground, now),
+       status_ground = excluded.status_ground, status_at = excluded.status_at, status_by = NULL`, tree, stored, closed, kept.reason, kept.ground, now),
+    // The operator's decision replaces the lifecycle's (src/lib/lifecycle/); letting the family be used again is activity.
+    ...(await import('../lifecycle/lifecycle.server.ts')).operatorStatusWrites(tree, status === 'active', now),
     // A closed family's guests leave now, not when their visit would have ended.
     ...(closed ? [q('DELETE FROM share_session WHERE link IN (SELECT id FROM share_link WHERE tree = ?)', tree)] : []),
     audit(actor(op), STATUS_ACTION[status], tree, kept.ground ? { ground: kept.ground, reason: kept.reason } : undefined),
