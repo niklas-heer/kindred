@@ -249,10 +249,12 @@
     }
   },
   "sameAsEnglish": [
+    "accountmenu.version",
     "edit.no",
     "families.export_markdown",
     "feedback.key_mod",
     "fields.cancelAdd",
+    "invite.invitation",
     "look.beard.vandyke",
     "oidc.kind_authentik",
     "oidc.kind_entra",
