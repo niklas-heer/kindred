@@ -7,7 +7,15 @@ moving to before you upgrade ([docs/self-host.md](docs/self-host.md), "Upgrading
 
 ## [Unreleased]
 
-Changes on `main` since 2.4.0. They are not in a release yet.
+Changes on `main` since 2.4.1. They are not in a release yet.
+
+## [2.4.1] - 2026-11-12
+
+The Docker image of 2.4.0 did not build. No database changes; nothing changes for Cloudflare installs.
+
+### Fixed
+- The Docker image builds again: it carries `docs/processing-agreement.md`, which the processing-agreement page renders.
+- The CI checks carry `.github/workflows/update.yml`, which the update workflow's own test reads.
 
 ## [2.4.0] - 2026-11-12
 
@@ -478,7 +486,8 @@ on Node 26 with SQLite or on Cloudflare Workers with D1 and R2.
 Read the [release notes](docs/releases/v2.0.0.md) for the full list and for moving from v1 (also
 [docs/migration-plan.md](docs/migration-plan.md)). Cloudflare Access installs must set `KINDRED_AUTH=cloudflare-access` before deploying.
 
-[Unreleased]: https://github.com/niklas-heer/kindred/compare/v2.4.0...HEAD
+[Unreleased]: https://github.com/niklas-heer/kindred/compare/v2.4.1...HEAD
+[2.4.1]: https://github.com/niklas-heer/kindred/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/niklas-heer/kindred/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/niklas-heer/kindred/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/niklas-heer/kindred/compare/v2.1.0...v2.2.0
