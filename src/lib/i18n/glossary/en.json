@@ -49,7 +49,7 @@
       "match": "\\boperators?\\b"
     },
     "house": {
-      "meaning": "A line of the family under one surname, with its own arms and head (as in 'the House of Hofmann'). Never a building.",
+      "meaning": "A line of the family under one surname, with its own arms and head (as in 'the House of Lindqvist'). Never a building.",
       "match": "\\bhouses?\\b"
     },
     "head of the house": {

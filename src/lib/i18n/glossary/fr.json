@@ -76,7 +76,7 @@
       ]
     },
     "house": {
-      "use": "maison (la Maison Hofmann), jamais un bâtiment",
+      "use": "maison (la Maison Lindqvist), jamais un bâtiment",
       "accept": [
         "maison"
       ]
