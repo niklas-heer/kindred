@@ -135,7 +135,7 @@ export async function completeSignup(who: NewAccount, form: CleanForm, network: 
   if (who.kind === 'passkey' || who.kind === 'new') {
     // A verified email becomes the account's (if nobody has it); an unverified one never does.
     const email = verified && !(await userByEmail(form.email)) ? form.email : null;
-    const made = newUser(who.name, email, who.kind === 'passkey' ? who.handle : undefined, who.locale);
+    const made = newUser(who.name, email, who.kind === 'passkey' ? who.handle : undefined, who.locale, verified);
     user = made.user;
     before.push(made.insert, ...(who.kind === 'passkey' ? [insertCredential({ ...who.credential, user: user.id })] : who.writes(user.id)));
   } else {

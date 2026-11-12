@@ -21,7 +21,8 @@ export async function claimFirstSteward(email: string, code: string, rawName: un
   await checkCanMakeFamily();
   const trees = (await families()).map((t) => t.id);
   const made = trees.length ? null : await makeFirstFamily(familyName);
-  const { user, insert } = newUser(name, email, undefined, locale);
+  // `email` is the identity Access just verified.
+  const { user, insert } = newUser(name, email, undefined, locale, true);
   try {
     await accounts().batch([noUsersYet(), insert, ...(made ? [made] : trees).map((t) => upsertMembership(user.id, t, 'steward'))]);
   } catch (e) {
@@ -44,7 +45,7 @@ export async function joinWithInvite(email: string, token: string, rawName: unkn
     if (!fresh || !usable(fresh)) throw gone();
     const existing = await userByEmail(email);
     if (existing) return { writes: [...useInvite(fresh, existing.id), ...(await inviteAcceptance(fresh, existing, acceptTerms))], result: existing.id, refused: inviteUsed };
-    const { user, insert } = newUser(name, email, undefined, locale);
+    const { user, insert } = newUser(name, email, undefined, locale, true);
     return { writes: [insert, ...useInvite(fresh, user.id), ...(await inviteAcceptance(fresh, user, acceptTerms))], result: user.id, refused: inviteUsed };
   });
 }

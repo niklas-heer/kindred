@@ -188,7 +188,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0047_updates_health.sql` | The console's Update button and Health tab ([hosting-many-families.md](hosting-many-families.md), "Updates" and "Health"): `update_github` (the install's repository and sealed GitHub token, and the last update's run), `job_run` (each daily job's last run) and `family_schema` (the schema each family last reported). |
 | `0048_signin_fixes.sql` | Fixes to the ways in: `password_reset.seen_at` (the holder dismissed the notice of a used reset link), `signin_daily` (sign-ins per day and way in, for the statistics) and `oidc_flow` made again with the purpose `signup`. |
 | `0049_lasting_counts.sql` | Counts that outlive what they count, and bookkeeping for complete erasure ([gdpr.md](gdpr.md), [ai.md](ai.md#operator-funded-ai)): `ai_operator_family_month` (replaces `ai_operator_spend`, kept by the family's id when a family is deleted; rows copied), `ai_operator_overage`, `signup_tally` (rows copied from `signup`), `family_left`, `subject_action.pending` and `job_run.code`. |
-| `0050_round_seven_fixes.sql` | `user.retiring`: the pseudonym an unused account's writing gets, claimed by the retention job before it changes anything ([gdpr.md](gdpr.md#retention)). |
+| `0050_round_seven_fixes.sql` | `user.email_verified` (whether the address was verified, for `trust_email`) and `user.retiring`: the pseudonym an unused account's writing gets, claimed by the retention job before it changes anything ([gdpr.md](gdpr.md#retention)). |
 
 ### Tables
 
@@ -254,6 +254,10 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 - **`user.operator`** (0034): 1 for an operator of the server, an instance role apart from every family's
   ([roles-and-privacy.md](roles-and-privacy.md#the-operator)). The migration makes the earliest account one; afterwards a new
   account is one only when it is the server's first (`newUser`). The last operator cannot step down.
+- **`user.email_verified`** (0050): 1 when the account's address was verified: by Cloudflare Access, or by a sign-on provider
+  whose ID token said `email_verified` for that same address (taking an invitation, signing up, signing in, adding the provider).
+  0 for an address a steward typed into an invitation. A provider with `trust_email` finds only a verified address. The migration
+  verifies the addresses a linked identity already vouched for; an Access account is verified at its next visit.
 - **`user.retiring`** (0050): set while the retention job retires an unused account: the `former-…` pseudonym its writing gets,
   claimed in one batch guarded by the retention rule (which also ends the account's sessions) before anything of the account
   changes. While set, no session of the account is a way in, none is made, and a visit does not update `last_seen`. A run that
@@ -291,7 +295,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   `/api/auth/oidc/<id>/callback`, never changed), `kind` (`google`, `entra`, `authentik`, `keycloak`, `generic`: only presets and
   help), `label` (the button), `issuer` (compared exactly; fixed once saved), `client_id`, `secret_sealed` (AES-GCM under a key
   from `KINDRED_SECRET` and the provider; NULL for a public client), `scopes` (space-separated, `openid` first), `trust_email`
-  (0/1, off by default: a verified email the provider vouches for may find an account), `enabled`, and a cache of the discovery
+  (0/1, off by default: a verified email the provider vouches for may find an account whose `user.email_verified` is 1), `enabled`, and a cache of the discovery
   document (`discovery`, `discovered_at`, a day) and the signing keys (`jwks`, `jwks_at`, a day; fetched again for an unknown key
   id, at most once a minute). Not a family's: no `tree`.
 - **`oidc_identity`** (0046): an account's identity at a provider: `(provider, subject)` is the key (the provider's `sub`), so

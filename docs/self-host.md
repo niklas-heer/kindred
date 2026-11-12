@@ -181,8 +181,11 @@ provider (an outgoing HTTPS request); plain `http://` is accepted only for a pro
 **Accounts.** A sign-in finds the account by the provider's own account ID (`sub`) and nothing else:
 
 - **Nobody is found by email**, unless you tick *Trust this provider's verified emails* for that provider (off by default) and the
-  provider says the email is verified (`email_verified`). Then the account with that email is found and the provider is added to
-  it. Only do that for a provider you run or fully trust.
+  provider says the email is verified (`email_verified`), **and the account's own address was verified**: by Cloudflare Access,
+  or by a sign-on provider that vouched for that same address (an invitation, a sign-up, a sign-in or adding the provider). Then
+  the account with that email is found and the provider is added to it. An address a steward typed into an invitation is not
+  verified, so whoever controls that address at a provider cannot take over the account it was typed into. Only tick it for a
+  provider you run or fully trust.
 - **New people** join with single sign-on through an invitation link ("Join with …" on the invitation page), which makes their
   account and adds them to the family, as a passkey or a password would. An unknown account at the provider is told to sign in
   another way or use their invitation; it never gets an account by itself.

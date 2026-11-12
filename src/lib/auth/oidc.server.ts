@@ -362,15 +362,23 @@ async function sessionFor(request: Request, user: string, p: ProviderRow, proved
   return startSession(request, user, null, proved, 'oidc', p.id);
 }
 
+/** The provider vouched for an address: when it is the account's own, the account's address is verified from now on. */
+async function vouch(user: string, c: IdTokenClaims): Promise<void> {
+  if (!emailVerified(c)) return;
+  await accounts().run('UPDATE user SET email_verified = 1 WHERE id = ? AND email_verified = 0 AND lower(email) = lower(?)', user, c.email!);
+}
+
 const insertIdentity = (p: ProviderRow, sub: string, user: string, facts: { email: string | null; verified: number }) =>
   q('INSERT INTO oidc_identity (provider, subject, user, email, email_verified, created, last_used) VALUES (?, ?, ?, ?, ?, ?, ?)', p.id, sub, user, facts.email, facts.verified, now(), now());
 
 async function signIn(request: Request, p: ProviderRow, c: IdTokenClaims, identity: IdentityRow | undefined, proved: boolean, flow: FlowRow): Promise<CallbackResult> {
   let user = identity?.user;
-  // The one way an email finds an account: the operator trusts this provider's emails, and it says this one is verified.
+  // The one way an email finds an account: the operator trusts this provider's emails, it says this one is verified, and the
+  // account's own address was verified too (accounts migration 0050). An address a steward typed into an invitation is not:
+  // whoever controls it at a provider must not take over the account it was typed into (pre-hijacking).
   if (!user && p.trust_email && emailVerified(c)) {
     const byEmail = await userByEmail(c.email!);
-    if (byEmail) {
+    if (byEmail?.email_verified) {
       try {
         await accounts().batch([insertIdentity(p, c.sub, byEmail.id, identityFacts(c))]);
       } catch (e) {
@@ -381,6 +389,7 @@ async function signIn(request: Request, p: ProviderRow, c: IdTokenClaims, identi
     }
   }
   if (!user) throw new OidcFail('no_account');
+  await vouch(user, c);
   return { location: safeNext(flow.next ?? '/'), cookies: [await sessionFor(request, user, p, proved)] };
 }
 
@@ -399,7 +408,9 @@ async function takeInvite(request: Request, p: ProviderRow, c: IdTokenClaims, id
       // Neither is proof of anything: the account is found by (provider, sub) from now on.
       const email = [fresh.email, facts.verified ? facts.email : null].find((e): e is string => !!e);
       const free = email && !(await userByEmail(email)) ? email : null;
-      const { user, insert } = newUser(cleanName(data.name), free, undefined, guestChoice(request));
+      // Verified only when the provider vouched for that very address, never for the invitation's typed one alone.
+      const vouched = !!free && facts.verified === 1 && !!facts.email && free.toLowerCase() === facts.email.toLowerCase();
+      const { user, insert } = newUser(cleanName(data.name), free, undefined, guestChoice(request), vouched);
       const terms = await inviteAcceptance(fresh, user, data.acceptTerms === true);
       return { writes: [insert, insertIdentity(p, c.sub, user.id, facts), ...useInvite(fresh, user.id), ...terms], result: { user: user.id, tree: fresh.tree }, refused: inviteUsed };
     });
@@ -479,6 +490,7 @@ async function link(request: Request, p: ProviderRow, c: IdTokenClaims, identity
       throw new OidcFail(winner && winner.user !== user.id ? 'linked_elsewhere' : 'already_linked');
     }
   }
+  await vouch(user.id, c);
   return { location: withParam(flow.next ?? '/', 'oidc', 'linked'), cookies: [] };
 }
 

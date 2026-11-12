@@ -70,3 +70,14 @@ test('a later Access identity is not the steward and makes no second family', as
   assert.equal(await store.userCount(), 1);
   assert.deepEqual((await families()).map((f) => f.id), ['family']);
 });
+
+test('an address Access verified is the account’s verified address, also for an account an invitation made first', async () => {
+  const anna = await store.userByEmail('anna@example.org');
+  assert.equal(anna?.email_verified, 1, 'made by an Access sign-in');
+  // An account whose address a steward typed (unverified), then signing in through Access with it.
+  const typed = store.newUser('Cleo Typed', 'cleo@example.org');
+  await store.accounts().batch([typed.insert]);
+  assert.equal((await store.userById(typed.user.id))?.email_verified, 0);
+  assert.equal((await signIn('cleo@example.org')).user?.id, typed.user.id);
+  assert.equal((await store.userById(typed.user.id))?.email_verified, 1);
+});

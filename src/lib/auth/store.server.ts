@@ -51,6 +51,8 @@ export interface UserRow {
   operator?: number;
   /** The name a password sign-in types (accounts migration 0040), lower case; null without a password. */
   username?: string | null;
+  /** 1 when the address was verified by Cloudflare Access or a sign-on provider (accounts migration 0050); never for a typed one. */
+  email_verified?: number;
   /** Set while the retention job retires the account (accounts migration 0050): no way in then. */
   retiring?: string | null;
 }
@@ -66,10 +68,12 @@ export const userByUsername = (username: string) => accounts().get<UserRow>('SEL
  * A new account and the statement that stores it. `locale` is the language the reader picked before they had an account
  * (session.server.ts, guestChoice), so the account keeps it from its first visit on.
  */
-export function newUser(name: string, email: string | null, handle = randomToken(32), locale: Locale | null = null): { user: UserRow; insert: Query } {
-  const user: UserRow = { id: crypto.randomUUID(), name, email, handle, created: now(), last_seen: now(), locale };
+export function newUser(name: string, email: string | null, handle = randomToken(32), locale: Locale | null = null, verified = false): { user: UserRow; insert: Query } {
+  // `verified`: Cloudflare Access or a sign-on provider vouched for this address. Never for one a steward typed into an invitation.
+  const emailVerified = verified && !!email ? 1 : 0;
+  const user: UserRow = { id: crypto.randomUUID(), name, email, handle, created: now(), last_seen: now(), locale, email_verified: emailVerified };
   // The server's first account is its operator (docs/hosting-many-families.md): decided by the database, in the same statement.
-  return { user, insert: q('INSERT INTO user (id, name, email, handle, created, last_seen, locale, operator) SELECT ?, ?, ?, ?, ?, ?, ?, NOT EXISTS (SELECT 1 FROM user)', user.id, user.name, user.email, user.handle, user.created, user.last_seen, user.locale) };
+  return { user, insert: q('INSERT INTO user (id, name, email, handle, created, last_seen, locale, email_verified, operator) SELECT ?, ?, ?, ?, ?, ?, ?, ?, NOT EXISTS (SELECT 1 FROM user)', user.id, user.name, user.email, user.handle, user.created, user.last_seen, user.locale, emailVerified) };
 }
 
 /** Guards that nobody has an account yet: what makes the first account the only first steward. */

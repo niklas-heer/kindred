@@ -242,13 +242,13 @@ async function accessSession(request: Request, verifiedEmail: (r: Request) => Pr
     const pending = await pendingInvitesFor(email);
     const writes: Query[] = [];
     if (!u && (await userCount()) === 0 && !setupCodeRequired()) {
-      const made = newUser(nameFromEmail(email), email);
+      const made = newUser(nameFromEmail(email), email, undefined, null, true);
       u = made.user;
       writes.push(noUsersYet(), made.insert, ...trees.map((tree) => upsertMembership(made.user.id, tree.id, 'steward')));
     }
     if (!u && !pending.length) return { writes: [], result: undefined };
     if (!u) {
-      const made = newUser(nameFromEmail(email), email);
+      const made = newUser(nameFromEmail(email), email, undefined, null, true);
       u = made.user;
       writes.push(made.insert);
     }
@@ -258,6 +258,8 @@ async function accessSession(request: Request, verifiedEmail: (r: Request) => Pr
   if (!user) return { user: null, via: null, uninvitedEmail: email };
   // On Cloudflare: an account exists, so where the Durable Objects are kept is recorded (once per isolate; src/lib/store/cf.ts).
   await store.markPlace?.();
+  // Access verified this address: an account made from an invitation's typed address is verified now (accounts migration 0050).
+  if (!user.email_verified) await store.accounts().run('UPDATE user SET email_verified = 1 WHERE id = ? AND email = ?', user.id, email);
   await touchUser(user.id, user.last_seen);
   return { user, via: 'access' };
 }

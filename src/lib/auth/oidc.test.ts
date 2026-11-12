@@ -123,8 +123,8 @@ after(async () => {
 const provider = (patch: Partial<Parameters<typeof o.saveProvider>[0]> = {}) =>
   o.saveProvider({ id: 'example', kind: 'generic', label: 'Example ID', issuer: ISSUER, clientId: CLIENT, secret: SECRET, scopes: 'openid email profile', trustEmail: false, enabled: true, ...patch }, noAudit);
 
-async function account(name: string, o2: { operator?: boolean; email?: string; passkey?: boolean } = {}) {
-  const made = store.newUser(name, o2.email ?? null);
+async function account(name: string, o2: { operator?: boolean; email?: string; passkey?: boolean; verified?: boolean } = {}) {
+  const made = store.newUser(name, o2.email ?? null, undefined, null, o2.verified);
   await store.accounts().batch([
     made.insert, store.q('UPDATE user SET operator = ? WHERE id = ?', o2.operator ? 1 : 0, made.user.id),
     ...(o2.passkey ? [store.insertCredential({ id: `pk-${made.user.id}`, user: made.user.id, publicKey: new Uint8Array([1]), counter: 0, transports: [], device: 'Mac', synced: false })] : []),
@@ -404,6 +404,11 @@ test('an email finds an account only with trust_email on and email_verified true
   await provider({ trustEmail: true, secret: undefined });
   assert.equal(await tryIt({ email: 'ada@example.org', email_verified: false }), '/signin?oidc_error=no_account');
   assert.equal(await tryIt({ email: 'ada@example.org' }), '/signin?oidc_error=no_account');
+  // Pre-hijacking: Ada's address came from an invitation a steward typed, which nobody verified. Someone who controls that
+  // address at the provider must not take over her account through it.
+  assert.equal(await tryIt({ email: 'ada@example.org', email_verified: true }), '/signin?oidc_error=no_account', 'an unverified address on the account finds nothing');
+  assert.equal(await store.accounts().get('SELECT 1 FROM oidc_identity'), undefined);
+  await store.accounts().run('UPDATE user SET email_verified = 1 WHERE id = ?', ada.id);
   assert.equal(await tryIt({ email: 'ada@example.org', email_verified: true }), '/');
   assert.equal((await store.accounts().get<{ user: string }>('SELECT user FROM oidc_identity'))?.user, ada.id);
   assert.equal(await o.verifiedEmailOf(ada.id), 'ada@example.org', 'the signup lane’s verified email');
@@ -422,6 +427,7 @@ test('an invitation taken with single sign-on: a new account in the family; the 
   const cleo = await store.userById(id!.user);
   assert.equal(cleo?.name, 'Cleo Example');
   assert.equal(cleo?.email, 'cleo@example.org');
+  assert.equal(cleo?.email_verified, 1, 'the provider vouched for the address the account got');
   assert.equal((await store.accounts().get<{ role: string }>('SELECT role FROM membership WHERE user = ? AND tree = ?', cleo!.id, 'family-one'))?.role, 'editor');
   assert.deepEqual((await sessionsOf(cleo!.id)).map((s) => s.method), ['oidc']);
 
@@ -430,6 +436,26 @@ test('an invitation taken with single sign-on: a new account in the family; the 
   const p2 = await start(b2, { purpose: 'invite', token: again.token, name: 'Cleo Again' });
   assert.equal((await callback(b2, p2.get('state'), authorize(p2, { sub: 'cleo' }))).location, '/signin?oidc_error=account_exists');
   await assert.rejects(start(new Browser(), { purpose: 'invite', token, name: 'Late Example' }), /oidc\.err\.invite_gone/, 'the first invitation is used');
+});
+
+test('an invitation’s typed address is not verified until a provider vouches for that very address', async () => {
+  await provider();
+  const steward = await account('Steward Example');
+  const { token } = await store.createInvite({ tree: 'family-one', role: 'viewer', email: 'dora@example.org', createdBy: steward.id });
+  const b = new Browser();
+  const p = await start(b, { purpose: 'invite', token, name: 'Dora Example' });
+  await callback(b, p.get('state'), authorize(p, { sub: 'dora', email: 'someone.else@example.org', email_verified: true }));
+  const dora = await store.userById((await identityOf('dora'))!.user);
+  assert.equal(dora?.email, 'dora@example.org');
+  assert.equal(dora?.email_verified, 0, 'the steward typed it; the provider vouched for another');
+  // A sign-in where her provider vouches for her own address verifies it.
+  const b2 = new Browser();
+  const p2 = await start(b2, { purpose: 'signin' });
+  assert.equal((await callback(b2, p2.get('state'), authorize(p2, { sub: 'dora', email: 'dora@example.org', email_verified: false }))).location, '/');
+  assert.equal((await store.userById(dora!.id))?.email_verified, 0, 'not while the provider does not vouch for it');
+  const p3 = await start(b2, { purpose: 'signin' });
+  await callback(b2, p3.get('state'), authorize(p3, { sub: 'dora', email: 'dora@example.org', email_verified: true }));
+  assert.equal((await store.userById(dora!.id))?.email_verified, 1);
 });
 
 test('a fresh proof by single sign-on: max_age=0 and prompt=login; an old auth_time does not count', async () => {
