@@ -11,6 +11,7 @@ import { createRootRouteWithContext, HeadContent, Outlet, Scripts } from '@tanst
 import type { ReactNode } from 'react';
 import appCss from '~/styles/app.css?url';
 import { DemoBanner } from '~/components/families/DemoBanner';
+import { ProofHost } from '~/components/signin/ProofHost';
 import '~/components/art.css';
 
 // Apply the saved theme before first paint, so codex never flashes as paper, and keep the browser's
@@ -62,7 +63,7 @@ function Shell({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <I18nProvider initialLocale={locale ?? 'en'} offered={offered} account={localeAccount} saveRemote={localeAccount ? (next) => setMyLocale({ data: { locale: next } }) : undefined}>{demo && <DemoBanner />}<div id="app">{children}</div></I18nProvider>
+        <I18nProvider initialLocale={locale ?? 'en'} offered={offered} account={localeAccount} saveRemote={localeAccount ? (next) => setMyLocale({ data: { locale: next } }) : undefined}>{demo && <DemoBanner />}<div id="app">{children}</div><ProofHost /></I18nProvider>
         <Scripts />
       </body>
     </html>

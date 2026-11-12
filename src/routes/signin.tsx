@@ -9,6 +9,8 @@ import { RequestFamilyLink } from '~/components/operator/LegalFooter';
 import { forgetLocalIdentity, passkeysSupported, safeNext, signInWithPasskey } from '~/lib/auth/client';
 import { sessionQuery } from '~/lib/auth/functions';
 import { useIsClient } from '~/components/ui';
+import { useSignInMethods } from '~/components/signin/PasswordFields';
+import { PasswordSignIn } from '~/components/signin/PasswordSignIn';
 
 export const Route = createFileRoute('/signin')({
   validateSearch: (s: Record<string, unknown>): { next?: string } => (typeof s.next === 'string' ? { next: s.next } : {}),
@@ -42,9 +44,13 @@ function AccessSignIn({ uninvited, logout }: { uninvited?: string; logout?: stri
   );
 }
 
+/** Kindred's own sign-in: a passkey, a username and password, or both, as the server's operator chose. */
 function PasskeySignIn() {
   const t = useT();
   const { next } = Route.useSearch();
+  const methods = useSignInMethods();
+  const passkeys = methods.includes('passkey');
+  const passwords = methods.includes('password');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const client = useIsClient();
@@ -71,15 +77,19 @@ function PasskeySignIn() {
       title={t("signin.welcome_back")}
       lede={t("signin.sign_in_to_see_your_family_s_tree_stories_and_birthdays")}
     >
+      {passkeys && <>
       <div className="auth-form">
         <AuthError>{error}</AuthError>
         {!supported && <AuthError>{t("signin.this_browser_can_t_use_passkeys_try_the_newest_safari_chrome_edge_or_firefox_or_your_phone")}</AuthError>}
-        <button className="btn primary auth-go" onClick={go} disabled={busy || !supported} data-autofocus>
+        <button className={`btn ${passwords ? '' : 'primary '}auth-go`} onClick={go} disabled={busy || !supported} data-autofocus>
           <KeyRound size={19} /> {busy ? t("signin.waiting_for_your_device") : t("signin.sign_in_with_a_passkey")}
         </button>
       </div>
       <p className="auth-device-hint"><b>{t("signin.use_a_passkey_from_another_device")}</b><br />{t("signin.in_the_passkey_prompt_choose_another_device_or_a_phone_then_scan_the_qr_code_you_can_also_choose_1password_or_your_password_manager")}</p>
-      <PasskeyExplainer />
+      </>}
+      {passkeys && passwords && <p className="pw-or">{t('pw.or')}</p>}
+      {passwords && <PasswordSignIn next={next} />}
+      {passkeys && <PasskeyExplainer />}
       <RequestFamilyLink />
     </AuthCard>
   );

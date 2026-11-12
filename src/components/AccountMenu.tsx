@@ -15,6 +15,8 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { addPasskey, forgetLocalIdentity, passkeysSupported, signOutRequest, withFreshProof } from '~/lib/auth/client';
 import { appCommit, appVersion, releaseUrl } from '~/lib/version';
 import { myPasskeysQuery, removeMyPasskey, renameMe, signOutElsewhere, type Passkey } from '~/lib/auth/functions';
+import { mySignInQuery } from '~/lib/auth/signin.functions';
+import { MySignIn } from './signin/MySignIn';
 import { fetchRemindersAvailable } from '~/lib/reminders.functions';
 import { newsCountQuery } from '~/lib/history.functions';
 import '~/components/history/history.css';
@@ -334,6 +336,10 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
   // Passkeys exist only under Kindred's own sign-in. Behind Cloudflare Access this dialog is just the name.
   const passkeysOn = session?.auth !== 'cloudflare-access';
   const keys = useQuery({ ...myPasskeysQuery, enabled: open && passkeysOn });
+  // The other ways in (a password): the last passkey may go while a password the server accepts remains.
+  const ways = useQuery({ ...mySignInQuery, enabled: open && passkeysOn });
+  const passwordWay = !!ways.data?.password && !!ways.data.methods.includes('password');
+  const passkeysOffered = ways.data ? ways.data.methods.includes('passkey') : true;
   const [name, setName] = useState(session?.user?.name ?? '');
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<Passkey | null>(null);
@@ -399,8 +405,8 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
                 <button
                   className="btn ghost icon acct-key-remove"
                   aria-label={t('account.removeKey', {device:k.device ?? t('accountmenu.this_device')})}
-                  title={list.length <= 1 ? t("accountmenu.your_only_passkey_add_another_first") : t("accountmenu.remove")}
-                  disabled={list.length <= 1}
+                  title={list.length <= 1 && !passwordWay ? t("accountmenu.your_only_passkey_add_another_first") : t("accountmenu.remove")}
+                  disabled={list.length <= 1 && !passwordWay}
                   onClick={() => setConfirm(k)}
                 >
                   <Trash2 size={16} />
@@ -409,12 +415,13 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
             ))}
           </ul>
         )}
-        {passkeysSupported() && (
+        {passkeysSupported() && passkeysOffered && (
           <button className="btn acct-add" onClick={() => { setError(null); add.mutate(); }} disabled={add.isPending}>
             <Plus size={16} /> {add.isPending ? t("accountmenu.waiting_for_your_device") : t("accountmenu.add_a_passkey_on_this_device")}
           </button>
         )}
         {add.isSuccess && <p className="acct-ok" role="status"><Check size={15} /> {t("accountmenu.passkey_added")}</p>}
+        <MySignIn open={open} />
         <h3 className="acct-h">{t("accountmenu.other_sign_ins")}</h3>
         <p className="acct-help">{t("accountmenu.sign_out_everywhere_else_help")}</p>
         <p className="acct-help">{t("proof.hint")}</p>

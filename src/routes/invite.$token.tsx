@@ -9,7 +9,9 @@ import { Arms } from '~/components/Heraldry';
 import { ROLE_ICON } from '~/components/RoleIcon';
 import { useIsClient } from '~/components/ui';
 import { graphQuery } from '~/lib/api';
-import { acceptWithPasskey, forgetLocalIdentity, passkeysSupported, signOutRequest } from '~/lib/auth/client';
+import { acceptWithPasskey, acceptWithPassword, forgetLocalIdentity, passkeysSupported, signOutRequest } from '~/lib/auth/client';
+import { firstWay, NewPasswordFields, newPasswordReady, useSignInMethods, WayPicker, type NewWay } from '~/components/signin/PasswordFields';
+import { errorText } from '~/lib/errortext';
 import { acceptInvite, fetchInvite, joinWithAccess, sessionQuery, setMyPerson } from '~/lib/auth/functions';
 import { TermsCheck } from '~/components/operator/TermsCheck';
 import { BROWSING } from '~/lib/family';
@@ -47,10 +49,16 @@ function Invite() {
   // A steward's invitation, on a server whose operator wrote terms: "I accept the terms" first (the server refuses without).
   const [accepted, setAccepted] = useState(false);
   const client = useIsClient();
-  const supported = !client || passkeysSupported();
   const fam = info.family;
   const session = useSession();
   const access = session?.auth === 'cloudflare-access';
+  const methods = useSignInMethods();
+  const [chosenWay, setWay] = useState<NewWay | null>(null);
+  const way = chosenWay ?? firstWay(methods);
+  const byPassword = !access && way === 'password' && methods.includes('password');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const supported = byPassword || !client || passkeysSupported();
 
   // The family's own theme, unless the reader chose one.
   useEffect(() => {
@@ -105,11 +113,12 @@ function Invite() {
     try {
       const acceptTerms = info.terms ? accepted : undefined;
       if (access) await joinWithAccess({ data: { token, name, acceptTerms } });
+      else if (byPassword) await acceptWithPassword({ token, name, username, password, acceptTerms });
       else await acceptWithPasskey(token, name, acceptTerms);
       forgetLocalIdentity();
       setStep('who');
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("invitetoken.that_didn_t_work_please_try_again"));
+      setError(err instanceof Error ? errorText(err, t.locale) : t("invitetoken.that_didn_t_work_please_try_again"));
     } finally {
       setBusy(false);
     }
@@ -162,11 +171,15 @@ function Invite() {
               <span>{t("invitetoken.what_should_the_family_call_you")}</span>
               <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required maxLength={60} placeholder={t("invitetoken.your_name")} />
             </label>
+            {!access && <WayPicker methods={methods} value={way} onChange={setWay} />}
+            {byPassword && <NewPasswordFields username={username} onUsername={setUsername} password={password} onPassword={setPassword} />}
             {info.terms && <TermsCheck checked={accepted} onChange={setAccepted} />}
             <AuthError>{error}</AuthError>
             {!access && !supported && <AuthError>{t("invitetoken.this_browser_can_t_use_passkeys_open_the_link_in_the_newest_safari_chrome_edge_or_firefox_or_on_your_phone")}</AuthError>}
-            <button className="btn primary auth-go" disabled={busy || (!access && !supported) || !name.trim() || (!!info.terms && !accepted)}>
-              {access ? t('auth.join_as', { email: session?.uninvitedEmail ?? '' }) : <><KeyRound size={19} /> {busy ? t("invitetoken.waiting_for_your_device") : t("invitetoken.create_your_passkey")}</>}
+            <button className="btn primary auth-go" disabled={busy || (!access && !supported) || !name.trim() || (!!info.terms && !accepted) || (byPassword && !newPasswordReady(username, password))}>
+              {access ? t('auth.join_as', { email: session?.uninvitedEmail ?? '' })
+                : byPassword ? <><KeyRound size={19} /> {busy ? t('pw.saving') : t('pw.create_account')}</>
+                : <><KeyRound size={19} /> {busy ? t("invitetoken.waiting_for_your_device") : t("invitetoken.create_your_passkey")}</>}
             </button>
           </form>
           {!access && <>
@@ -174,7 +187,7 @@ function Invite() {
               <span>{t("invitetoken.already_use_kindred")}</span>
               <Link className="auth-link" to="/signin" search={{ next: `/invite/${token}` }}>{t("invitetoken.sign_in_first")}</Link>
             </div>
-            <PasskeyExplainer creating />
+            {!byPassword && <PasskeyExplainer creating />}
           </>}
         </>
       )}

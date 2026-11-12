@@ -4,7 +4,8 @@ import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import { Crown, KeyRound, TriangleAlert, UserPlus } from 'lucide-react';
 import { useState } from 'react';
 import { AuthCard, AuthError, NoAccessIdentity, PasskeyExplainer } from '~/components/AuthCard';
-import { forgetLocalIdentity, passkeysSupported, setUpFirstSteward } from '~/lib/auth/client';
+import { forgetLocalIdentity, passkeysSupported, setUpFirstSteward, setUpWithPassword } from '~/lib/auth/client';
+import { firstWay, NewPasswordFields, newPasswordReady, useSignInMethods, WayPicker, type NewWay } from '~/components/signin/PasswordFields';
 import { sessionQuery, setupWithAccess } from '~/lib/auth/functions';
 import { splitName } from '~/lib/auth/name';
 import { chooseMe } from '~/lib/family';
@@ -45,7 +46,13 @@ function Setup() {
   const [made, setMade] = useState<MadeFamily | null>(null);
   const client = useIsClient();
   const access = session?.auth === 'cloudflare-access';
-  const supported = access || !client || passkeysSupported();
+  const methods = useSignInMethods();
+  const [chosenWay, setWay] = useState<NewWay | null>(null);
+  const way = chosenWay ?? firstWay(methods);
+  const byPassword = !access && way === 'password' && methods.includes('password');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const supported = access || byPassword || !client || passkeysSupported();
 
   if (made) return <FirstRunStep {...made} />;
 
@@ -72,7 +79,9 @@ function Setup() {
     setBusy(true);
     setError(null);
     try {
-      const result = access ? await setupWithAccess({ data: { code, name, familyName } }) : await setUpFirstSteward(code, name, familyName);
+      const result = access ? await setupWithAccess({ data: { code, name, familyName } })
+        : byPassword ? await setUpWithPassword({ code, name, familyName, username, password })
+        : await setUpFirstSteward(code, name, familyName);
       forgetLocalIdentity();
       if (result.tree) {
         setMade({ tree: result.tree, family: familyName.trim() || t('setup.family_default'), steward: name.trim() });
@@ -125,14 +134,18 @@ function Setup() {
           <span>{t("setup.your_name")}</span>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required maxLength={60} placeholder={t("setup.as_the_family_calls_you")} />
         </label>
+        {!access && <WayPicker methods={methods} value={way} onChange={setWay} />}
+        {byPassword && <NewPasswordFields username={username} onUsername={setUsername} password={password} onPassword={setPassword} />}
         <AuthError>{error}</AuthError>
         {!supported && <AuthError>{t("setup.this_browser_can_t_use_passkeys_try_the_newest_safari_chrome_edge_or_firefox")}</AuthError>}
-        <button className="btn primary auth-go" disabled={busy || !supported || (session?.setupCodeRequired && !code.trim()) || !name.trim() || (session?.needsFamily && !familyName.trim())}>
-          {access ? <><Crown size={19} /> {t('auth.setup_access_button')}</> : <><KeyRound size={19} /> {busy ? t("setup.waiting_for_your_device") : t("setup.create_your_passkey")}</>}
+        <button className="btn primary auth-go" disabled={busy || !supported || (session?.setupCodeRequired && !code.trim()) || !name.trim() || (session?.needsFamily && !familyName.trim()) || (byPassword && !newPasswordReady(username, password))}>
+          {access ? <><Crown size={19} /> {t('auth.setup_access_button')}</>
+            : byPassword ? <><KeyRound size={19} /> {busy ? t('pw.saving') : t('pw.create_account')}</>
+            : <><KeyRound size={19} /> {busy ? t("setup.waiting_for_your_device") : t("setup.create_your_passkey")}</>}
         </button>
       </form>
-      {!access && <p className="auth-device-hint">{t("setup.save_your_passkey_in_1password_icloud_keychain_google_password_manager_or_a_security_key")}</p>}
-      {!access && <PasskeyExplainer creating />}
+      {!access && !byPassword && <p className="auth-device-hint">{t("setup.save_your_passkey_in_1password_icloud_keychain_google_password_manager_or_a_security_key")}</p>}
+      {!access && !byPassword && <PasskeyExplainer creating />}
     </AuthCard>
   );
 }

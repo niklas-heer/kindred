@@ -1,4 +1,4 @@
-// The browser's side of passkeys (see passkeys.server.ts and routes/api/auth/$action.ts).
+// The browser's side of passkeys and passwords (see passkeys.server.ts, password.server.ts and routes/api/auth/$action.ts).
 import { JOURNAL_PREFIX } from '../fields/journal-key.ts';
 import type { PublicKeyCredentialCreationOptionsJSON, PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser';
 
@@ -54,7 +54,7 @@ export const acceptWithPasskey = (token: string, name: string, acceptTerms?: boo
   create('invite-options', 'invite', { token, name, acceptTerms }, { token, acceptTerms });
 
 /** Confirms with one of the reader's passkeys, on this session, that it is them (see proof.server.ts). */
-async function proveItsYou() {
+async function provePasskey() {
   const { startAuthentication } = await import('@simplewebauthn/browser');
   const { options, challengeId } = await post<{ options: PublicKeyCredentialRequestOptionsJSON; challengeId: string }>('confirm-options');
   let response;
@@ -64,6 +64,30 @@ async function proveItsYou() {
     throw friendly(e);
   }
   await post('confirm', { challengeId, response });
+}
+
+// ---------- the proof by password ----------
+
+/** What the password prompt (ProofHost) is asked for; it resolves once the server accepted the proof, rejects when cancelled. */
+export interface PasswordProofAsk { totp: boolean; resolve: () => void; reject: (e: Error) => void }
+const proofListeners = new Set<(ask: PasswordProofAsk) => void>();
+/** The prompt registers here (one is mounted at the root of the app). */
+export const onPasswordProof = (fn: (ask: PasswordProofAsk) => void) => { proofListeners.add(fn); return () => { proofListeners.delete(fn); }; };
+/** Sends the password (and the two-step code) as this session's proof. */
+export const confirmPassword = (body: { password: string; code?: string; recovery?: string }) => post('confirm-password', body);
+
+function provePassword(totp: boolean): Promise<void> {
+  const [listen] = proofListeners;
+  if (!listen) return Promise.reject(new Error('pw.err.no_proof'));
+  return new Promise((resolve, reject) => listen({ totp, resolve, reject }));
+}
+
+/** Confirms it is the reader: with a passkey when they have one this device can use, else with their password. */
+async function proveItsYou() {
+  const kinds = await post<{ passkey: boolean; password: boolean; totp: boolean }>('proof-kinds');
+  if (kinds.passkey && (passkeysSupported() || !kinds.password)) return provePasskey();
+  if (kinds.password) return provePassword(kinds.totp);
+  throw new Error('pw.err.no_proof');
 }
 
 /** The English of the server's "confirm it's you first" refusal (errors.ts, needsProof), for a server function's error. */
@@ -101,6 +125,23 @@ export async function signInWithPasskey() {
 }
 
 export const signOutRequest = () => post('signout');
+
+// ---------- username and password ----------
+
+/** A password sign-in: done (`ok`), or a ticket for the two-step code. A wrong one throws the server's key. */
+export const signInWithPassword = (body: { username: string; password: string; turnstile?: string }) =>
+  post<{ ok?: true; step?: 'code'; ticket?: string }>('password-signin', body);
+/** The two-step code (or a recovery code) for a ticket. */
+export const finishPasswordSignIn = (body: { ticket: string; code?: string; recovery?: string }) => post('password-second', body);
+/** A forgotten password, reset with a recovery code (and the two-step code, when the account has them); signs in. */
+export const recoverPassword = (body: { username: string; recovery: string; code?: string; password: string }) => post('password-recover', body);
+/** An operator's reset link: a new password (and a username, if the account had none); signs in. */
+export const resetPassword = (body: { token: string; username?: string; password: string; code?: string }) => post('password-reset', body);
+/** The first steward with a password. Returns the family made for a new server. */
+export const setUpWithPassword = (body: { code: string; name: string; familyName: string; username: string; password: string }) =>
+  post<{ ok: boolean; tree: string | null }>('password-setup', body);
+/** An invitation taken with a new password account. */
+export const acceptWithPassword = (body: { token: string; name: string; username: string; password: string; acceptTerms?: boolean }) => post('password-invite', body);
 
 /** Forgets per-reader state in this browser (who you are in each family), so the next reader starts fresh. */
 export function forgetLocalIdentity() {

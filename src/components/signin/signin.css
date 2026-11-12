@@ -1,0 +1,15 @@
+/* Username and password forms (src/components/signin/). */
+.pw-fixed { margin: 0; color: var(--ink-soft, inherit); }
+.pw-problem { color: var(--danger, #a33); }
+.pw-or { display: flex; align-items: center; gap: 0.75rem; margin: 1rem 0; color: var(--ink-faint, #888); font-size: 0.85rem; }
+.pw-or::before, .pw-or::after { content: ''; flex: 1; border-top: 1px solid var(--rule, #ccc); }
+.pw-links { display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center; margin-top: 0.75rem; }
+.pw-codes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem 1rem; padding: 0.75rem 1rem; margin: 0.5rem 0; list-style: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.95rem; border: 1px dashed var(--rule, #ccc); border-radius: 8px; }
+.pw-secret { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; user-select: all; }
+.signin-methods { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin: 1rem 0; }
+.signin-method { display: grid; gap: 0.5rem; padding: 1rem; border: 1px solid var(--rule, #ccc); border-radius: 10px; }
+.signin-method h3 { margin: 0; display: flex; align-items: center; gap: 0.5rem; }
+.signin-state { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.signin-state[data-state='enabled'] { color: var(--ok, #2a7a3a); }
+.signin-state[data-state='unavailable'] { color: var(--ink-faint, #888); }

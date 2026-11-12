@@ -162,6 +162,8 @@ const ACTIONS: Record<string, Key> = {
   'ai.operator_key_removed': 'policy.audit_key_removed',
   'announcement.create': 'policy.audit_ann_create',
   'announcement.end': 'policy.audit_ann_end',
+  'signin.methods': 'pw.audit_methods',
+  'signin.reset_link': 'pw.audit_reset_link',
 };
 
 export function AuditTab({ families }: { families: OperatorFamily[] }) {

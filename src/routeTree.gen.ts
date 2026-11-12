@@ -43,6 +43,7 @@ import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiPresenceRouteImport } from './routes/api/presence'
 import { Route as ApiStatsRouteImport } from './routes/api/stats'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
+import { Route as ResetTokenRouteImport } from './routes/reset.$token'
 import { Route as ShareTokenRouteImport } from './routes/share.$token'
 import { Route as UiCharacterRouteImport } from './routes/ui_.character'
 import { Route as TreeHouseHouseRouteImport } from './routes/$tree/house.$house'
@@ -239,6 +240,11 @@ const InviteTokenRoute = InviteTokenRouteImport.update({
   path: '/invite/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResetTokenRoute = ResetTokenRouteImport.update({
+  id: '/reset/$token',
+  path: '/reset/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShareTokenRoute = ShareTokenRouteImport.update({
   id: '/share/$token',
   path: '/share/$token',
@@ -399,6 +405,7 @@ export interface FileRoutesByFullPath {
   '/api/presence': typeof ApiPresenceRoute
   '/api/stats': typeof ApiStatsRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/reset/$token': typeof ResetTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/ui/character': typeof UiCharacterRoute
   '/$tree/': typeof TreeIndexRoute
@@ -459,6 +466,7 @@ export interface FileRoutesByTo {
   '/api/presence': typeof ApiPresenceRoute
   '/api/stats': typeof ApiStatsRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/reset/$token': typeof ResetTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/ui/character': typeof UiCharacterRoute
   '/$tree': typeof TreeIndexRoute
@@ -521,6 +529,7 @@ export interface FileRoutesById {
   '/api/presence': typeof ApiPresenceRoute
   '/api/stats': typeof ApiStatsRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/reset/$token': typeof ResetTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/ui_/character': typeof UiCharacterRoute
   '/$tree/': typeof TreeIndexRoute
@@ -584,6 +593,7 @@ export interface FileRouteTypes {
     | '/api/presence'
     | '/api/stats'
     | '/invite/$token'
+    | '/reset/$token'
     | '/share/$token'
     | '/ui/character'
     | '/$tree/'
@@ -644,6 +654,7 @@ export interface FileRouteTypes {
     | '/api/presence'
     | '/api/stats'
     | '/invite/$token'
+    | '/reset/$token'
     | '/share/$token'
     | '/ui/character'
     | '/$tree'
@@ -705,6 +716,7 @@ export interface FileRouteTypes {
     | '/api/presence'
     | '/api/stats'
     | '/invite/$token'
+    | '/reset/$token'
     | '/share/$token'
     | '/ui_/character'
     | '/$tree/'
@@ -750,6 +762,7 @@ export interface RootRouteChildren {
   ApiPresenceRoute: typeof ApiPresenceRoute
   ApiStatsRoute: typeof ApiStatsRoute
   InviteTokenRoute: typeof InviteTokenRoute
+  ResetTokenRoute: typeof ResetTokenRoute
   ShareTokenRoute: typeof ShareTokenRoute
   UiCharacterRoute: typeof UiCharacterRoute
   ApiAiChatTreeRoute: typeof ApiAiChatTreeRoute
@@ -1005,6 +1018,13 @@ declare module '@tanstack/react-router' {
       path: '/invite/$token'
       fullPath: '/invite/$token'
       preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset/$token': {
+      id: '/reset/$token'
+      path: '/reset/$token'
+      fullPath: '/reset/$token'
+      preLoaderRoute: typeof ResetTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/share/$token': {
@@ -1266,6 +1286,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPresenceRoute: ApiPresenceRoute,
   ApiStatsRoute: ApiStatsRoute,
   InviteTokenRoute: InviteTokenRoute,
+  ResetTokenRoute: ResetTokenRoute,
   ShareTokenRoute: ShareTokenRoute,
   UiCharacterRoute: UiCharacterRoute,
   ApiAiChatTreeRoute: ApiAiChatTreeRoute,

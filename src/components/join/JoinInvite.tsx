@@ -9,7 +9,9 @@ import { Portrait } from '~/components/Portrait';
 import { Dialog } from '~/components/ui/Dialog';
 import { forgetLocalIdentity, passkeysSupported, signInWithPasskey } from '~/lib/auth/client';
 import { askToJoin, browserContext, onOpenJoin, openJoin } from '~/lib/auth/join-client';
-import { fetchJoinPreview, joinStateQuery } from '~/lib/auth/join.functions';
+import { fetchJoinPreview, joinStateQuery, sendJoinWithPassword } from '~/lib/auth/join.functions';
+import { Link } from '@tanstack/react-router';
+import { firstWay, NewPasswordFields, newPasswordReady, useSignInMethods, WayPicker, type NewWay } from '~/components/signin/PasswordFields';
 import type { Usage } from '~/lib/auth/join-rules';
 import { errorText } from '~/lib/errortext';
 import { BROWSING, useFamily } from '~/lib/family';
@@ -77,6 +79,7 @@ export function JoinInvite({ tree }: { tree: string }) {
 /** A steward said yes: the passkey made with the request signs the new member in. */
 function Approved({ tree }: { tree: string }) {
   const t = useT();
+  const methods = useSignInMethods();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const go = async () => {
@@ -100,7 +103,9 @@ function Approved({ tree }: { tree: string }) {
         <p>{t('join.approved_text')}</p>
         {error && <p className="acc-error" role="alert">{error}</p>}
         <div className="join-card-actions">
-          <button className="btn primary" onClick={() => void go()} disabled={busy}><KeyRound size={16} /> {busy ? t('join.signing_in') : t('join.sign_in')}</button>
+          {methods.includes('passkey') && <button className="btn primary" onClick={() => void go()} disabled={busy}><KeyRound size={16} /> {busy ? t('join.signing_in') : t('join.sign_in')}</button>}
+          {/* An account that asked with a username and password signs in on the sign-in page. */}
+          {methods.includes('password') && <Link className="btn" to="/signin" search={{ next: `/${tree}` }}>{t('pw.sign_in_with_password')}</Link>}
         </div>
       </div>
     </aside>
@@ -119,6 +124,11 @@ function JoinDialog({ open, tree, onClose }: { open: boolean; tree: string; onCl
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [supported, setSupported] = useState(true);
+  const methods = useSignInMethods();
+  const [chosenWay, setWay] = useState<NewWay | null>(null);
+  const byPassword = (chosenWay ?? firstWay(methods)) === 'password' && methods.includes('password');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const preview = useQuery({ queryKey: ['join-preview', tree], queryFn: () => fetchJoinPreview({ data: { tree } }), enabled: open, staleTime: 0 });
   const ctx = open ? browserContext() : { timeZone: '', language: '' };
   const nameId = useId();
@@ -132,7 +142,9 @@ function JoinDialog({ open, tree, onClose }: { open: boolean; tree: string; onCl
     setBusy(true);
     setError(null);
     try {
-      await askToJoin({ tree, name: name.trim(), person: person === BROWSING ? null : person, message });
+      const form = { tree, name: name.trim(), person: person === BROWSING ? null : person, message };
+      if (byPassword) await sendJoinWithPassword({ data: { ...form, ...browserContext(), username, password } });
+      else await askToJoin(form);
       await qc.invalidateQueries({ queryKey: ['join', tree] });
       onClose();
     } catch (err) {
@@ -146,7 +158,7 @@ function JoinDialog({ open, tree, onClose }: { open: boolean; tree: string; onCl
       footer={
         <>
           <button className="btn" type="button" onClick={onClose}>{t('common.cancel')}</button>
-          <button className="btn primary" form="join-form" disabled={busy || !supported || choosing || !name.trim()}><KeyRound size={16} /> {busy ? t('join.sending') : t('join.send')}</button>
+          <button className="btn primary" form="join-form" disabled={busy || (!supported && !byPassword) || choosing || !name.trim() || (byPassword && !newPasswordReady(username, password))}><KeyRound size={16} /> {busy ? t('join.sending') : t('join.send')}</button>
         </>
       }
     >
@@ -190,9 +202,11 @@ function JoinDialog({ open, tree, onClose }: { open: boolean; tree: string; onCl
           )}
           <p className="acc-hint">{t('join.measured_note')}</p>
         </section>
-        {!supported && <p className="acc-error" role="alert">{t('join.err_no_passkeys')}</p>}
+        <WayPicker methods={methods} value={chosenWay ?? firstWay(methods)} onChange={setWay} />
+        {byPassword && <NewPasswordFields username={username} onUsername={setUsername} password={password} onPassword={setPassword} />}
+        {!supported && !byPassword && <p className="acc-error" role="alert">{t('join.err_no_passkeys')}</p>}
         {error && <p className="acc-error" role="alert">{error}</p>}
-        <p className="acc-hint">{t('join.passkey_note')}</p>
+        <p className="acc-hint">{byPassword ? t('pw.join_note') : t('join.passkey_note')}</p>
       </div>
     </Dialog>
   );
