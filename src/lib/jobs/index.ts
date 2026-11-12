@@ -12,6 +12,7 @@ import { retentionJob } from './retention.ts';
 import { statsJob } from './stats.ts';
 import { storageJob } from './storage.ts';
 import { updateCheckJob } from './update-check.ts';
+import { failureCode } from './failure.ts';
 import type { DailyJob, JobContext } from './types.ts';
 
 export type { DailyJob, JobContext } from './types.ts';
@@ -32,8 +33,11 @@ export const DAILY_JOBS: readonly DailyJob[] = [
   retentionJob,
 ];
 
-/** How a job's run ended, for the operator's Health tab (src/lib/operator/health.server.ts). */
-export interface JobRun { job: string; startedAt: number; finishedAt: number; error: string | null }
+/**
+ * How a job's run ended, for the operator's Health tab (src/lib/operator/health.server.ts): the error's message as thrown (the
+ * recorder sanitises it before storing, ./failure.ts) and its operational code.
+ */
+export interface JobRun { job: string; startedAt: number; finishedAt: number; error: string | null; code?: string | null }
 
 /**
  * Runs each job with the context, its log lines marked with the job's name. A job that throws is logged and skipped:
@@ -44,12 +48,14 @@ export async function runDailyJobs(ctx: JobContext, jobs: readonly DailyJob[] = 
     const log = (message: string) => ctx.log(`${job.name}: ${message}`);
     const startedAt = Date.now();
     let error: string | null = null;
+    let code: string | null = null;
     try {
       await job.run({ ...ctx, log });
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
+      code = failureCode(e);
       log(`failed: ${error}`);
     }
-    await record?.({ job: job.name, startedAt, finishedAt: Date.now(), error });
+    await record?.({ job: job.name, startedAt, finishedAt: Date.now(), error, code });
   }
 }

@@ -59,6 +59,8 @@ export default {
   "update.health_never": "Noch kein täglicher Lauf aufgezeichnet. Auf Cloudflare laufen die Aufgaben um 06:00 UTC, unter Node einmal am Tag, solange der Server läuft.",
   "update.health_job_ok": "Gelaufen am {date}",
   "update.health_job_failed": "Fehlgeschlagen am {date}",
+  "update.health_ai": "KI auf Kosten des Betreibers",
+  "update.health_ai_overage": { one: "Diesen Monat hat {count} Aufruf der KI, die du bezahlst, {amount} mehr gekostet als für ihn reserviert war. Gebucht wurde die Reservierung, die Budgets haben also gehalten; die Differenz steht auf der Rechnung deines Anbieters.", other: "Diesen Monat haben {count} Aufrufe der KI, die du bezahlst, {amount} mehr gekostet als für sie reserviert war. Gebucht wurde jeweils die Reservierung, die Budgets haben also gehalten; die Differenz steht auf der Rechnung deines Anbieters." },
   "update.health_job_last_ok": "Zuletzt ohne Fehler: {date}",
   "update.health_job_never_ok": "Noch nie ohne Fehler gelaufen",
   "update.health_families": "Datenbanken der Familien",

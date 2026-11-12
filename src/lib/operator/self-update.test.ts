@@ -293,10 +293,32 @@ test('the job runner records how each daily job ended', async () => {
     { name: 'archive', run: async () => { throw new Error('no archive for ashgrove'); } },
   ], health.recordJobRun);
   const rows = await acc().all<{ job: string; ok: number; error: string | null; last_ok_at: number | null }>('SELECT job, ok, error, last_ok_at FROM job_run ORDER BY job');
-  assert.deepEqual(rows.map((r) => [r.job, r.ok, r.error]), [['archive', 0, 'no archive for ashgrove'], ['reminders', 1, null]]);
+  assert.deepEqual(rows.map((r) => [r.job, r.ok, r.error]), [['archive', 0, 'no archive for ashgrove'], ['reminders', 1, null]], 'no family of that id here, so nothing to hide');
   assert.equal(rows[0]!.last_ok_at, null);
   assert.ok(rows[1]!.last_ok_at);
   assert.ok(seen.includes('archive: failed: no archive for ashgrove'), 'still logged');
+});
+
+test('a failed job is stored as a code and a message with no family, address or quoted text in it', async () => {
+  await store.ensureTree('ashgrove');
+  const ctx = { trees: ['ashgrove'], now: new Date(NOW), env: () => undefined, log: () => {} };
+  const network = Object.assign(new TypeError('fetch failed'), { cause: new Error('getaddrinfo ENOTFOUND api.github.com') });
+  await jobs.runDailyJobs(ctx, [
+    { name: 'archive', run: async () => { throw new Error('ashgrove: could not write "Greta Ashgrove, born 1931" for orla@example.org to https://api.github.com/repos/orla-example/archive/contents/x?ref=main'); } },
+    { name: 'feed', run: async () => { throw network; } },
+    { name: 'stats', run: async () => { throw Object.assign(new Error('the family’s database is busy'), { code: 'SQLITE_BUSY' }); } },
+  ], health.recordJobRun);
+  const rows = await acc().all<{ job: string; code: string | null; error: string | null }>("SELECT job, code, error FROM job_run WHERE job IN ('archive', 'feed', 'stats') ORDER BY job");
+  const archive = rows.find((r) => r.job === 'archive')!;
+  for (const leak of ['ashgrove', 'Greta', '1931', 'orla@example.org', '/repos/orla-example', 'ref=main']) assert.ok(!archive.error!.includes(leak), `${leak} is not stored: ${archive.error}`);
+  assert.match(archive.error!, /could not write/);
+  assert.match(archive.error!, /https:\/\/api\.github\.com/, 'the service it reached stays');
+  assert.equal(archive.code, 'error');
+  assert.equal(rows.find((r) => r.job === 'feed')!.code, 'network');
+  assert.equal(rows.find((r) => r.job === 'stats')!.code, 'database');
+  const h = await health.readHealth({ archive: false });
+  assert.equal(h.jobs.find((j) => j.job === 'feed')!.code, 'network');
+  await acc().run("DELETE FROM job_run WHERE job IN ('feed', 'stats')");
 });
 
 test('a family reports its schema when opened, and the Health tab reads it without opening any', async () => {

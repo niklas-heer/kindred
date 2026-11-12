@@ -5,8 +5,13 @@ export interface JobHealth {
   job: string;
   startedAt: number;
   finishedAt: number;
-  /** Whether its last run ended without failing, the short reason when it failed, and when it last did not fail. */
+  /**
+   * Whether its last run ended without failing; when it failed, its operational code (`network`, `timeout`, `database`,
+   * `config`, an error's own code, else `error`) and a sanitised message (no family, address or quoted text); and when it last
+   * did not fail.
+   */
   ok: boolean;
+  code: string | null;
   error: string | null;
   lastOkAt: number | null;
 }
@@ -37,5 +42,7 @@ export interface Health {
   };
   /** The nightly archive is this install's automatic backup when configured. */
   backup: { configured: boolean; lastOkAt: number | null; failing: boolean };
+  /** Operator-funded AI calls the provider billed above their reservation this UTC month (booked at the reservation); null for none. */
+  aiOverage: { month: string; calls: number; micros: number } | null;
   check: { enabled: boolean; checkedAt: number | null; latest: string | null; error: string | null; updateAvailable: boolean };
 }

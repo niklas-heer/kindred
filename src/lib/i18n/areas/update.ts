@@ -57,6 +57,8 @@ export const en = {
   "update.health_never": "No daily run is recorded yet. On Cloudflare the jobs run at 06:00 UTC; on Node, once a day while the server runs.",
   "update.health_job_ok": "Ran {date}",
   "update.health_job_failed": "Failed {date}",
+  "update.health_ai": "Operator-funded AI",
+  "update.health_ai_overage": { one: "This month, {count} call to the AI you pay for cost {amount} more than was reserved for it. It was booked at its reservation, so the budgets held; the difference is on your provider’s bill.", other: "This month, {count} calls to the AI you pay for cost {amount} more than was reserved for them. Each was booked at its reservation, so the budgets held; the difference is on your provider’s bill." },
   "update.health_job_last_ok": "Last without failing: {date}",
   "update.health_job_never_ok": "Has not run without failing yet",
   "update.health_families": "Families’ databases",

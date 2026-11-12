@@ -42,7 +42,7 @@ export function HealthTab({ onWorkers }: { onWorkers: boolean }) {
                 {j.ok ? <span>{t('update.health_job_ok', { date: when(j.finishedAt) })}</span> : (
                   <>
                     <span className="families-error"><AlertTriangle size={13} aria-hidden /> {t('update.health_job_failed', { date: when(j.finishedAt) })}</span>
-                    {j.error && <> <span className="muted">({j.error})</span></>}{' '}
+                    {(j.code || j.error) && <> <span className="muted">(<code>{j.code ?? 'error'}</code>{j.error && <>: {j.error}</>})</span></>}{' '}
                     <span className="muted">{j.lastOkAt ? t('update.health_job_last_ok', { date: when(j.lastOkAt) }) : t('update.health_job_never_ok')}</span>
                   </>
                 )}
@@ -51,6 +51,18 @@ export function HealthTab({ onWorkers }: { onWorkers: boolean }) {
           </ul>
         )}
       </section>
+
+      {data.aiOverage && (
+        <section aria-labelledby="health-ai" className="ops-section">
+          <h2 id="health-ai" className="rule">{t('update.health_ai')}</h2>
+          <Notice icon={<AlertTriangle size={15} aria-hidden />}>
+            {t('update.health_ai_overage', {
+              count: data.aiOverage.calls,
+              amount: new Intl.NumberFormat(t.locale, { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(data.aiOverage.micros / 1_000_000),
+            })}
+          </Notice>
+        </section>
+      )}
 
       <section aria-labelledby="health-families" className="ops-section">
         <h2 id="health-families" className="rule">{t('update.health_families')}</h2>

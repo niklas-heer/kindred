@@ -59,6 +59,8 @@ export default {
   "update.health_never": "Nog geen daaglikse lopie is aangeteken nie. Op Cloudflare loop die take om 06:00 UTC; op Node een keer per dag terwyl die bediener loop.",
   "update.health_job_ok": "Het op {date} geloop",
   "update.health_job_failed": "Het op {date} misluk",
+  "update.health_ai": "KI op die operateur se koste",
+  "update.health_ai_overage": { one: "Hierdie maand het {count} oproep na die KI waarvoor jy betaal {amount} meer gekos as wat daarvoor gereserveer is. Dit is teen die reservering geboek, so die begrotings het gehou; die verskil is op jou verskaffer se rekening.", other: "Hierdie maand het {count} oproepe na die KI waarvoor jy betaal {amount} meer gekos as wat daarvoor gereserveer is. Elkeen is teen sy reservering geboek, so die begrotings het gehou; die verskil is op jou verskaffer se rekening." },
   "update.health_job_last_ok": "Laas sonder om te misluk: {date}",
   "update.health_job_never_ok": "Het nog nie sonder om te misluk geloop nie",
   "update.health_families": "Die families se databasisse",

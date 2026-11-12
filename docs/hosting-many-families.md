@@ -337,9 +337,14 @@ is ever updated by itself.
 How the server is doing, read from the accounts database only (no family is opened):
 
 - **Running:** the version and the commit.
-- **Daily jobs:** when the daily run last started, and each job's last run: when it finished, whether it failed and why (the
-  details are in the server's log), and when it last ran without failing. The runner records each job in `job_run`. A job that
-  works per family (the nightly archive) fails when any family failed, after all have run.
+- **Daily jobs:** when the daily run last started, and each job's last run: when it finished, whether it failed and why, and
+  when it last ran without failing. The runner records each job in `job_run`. Why is an operational code (`network`, `timeout`,
+  `database`, `config`, an error's own code, or `error`) and the error's message with anything that could name a family or a
+  person taken out (email addresses, a URL's path, quoted text, long numbers, family ids); the whole message is in the server's
+  log. A job that works per family (the nightly archive) fails when any family failed, after all have run.
+- **Operator-funded AI:** shown only when, this month, a provider billed a call more than was reserved for it: how many calls
+  and the difference. Each was booked at its reservation, so the budgets held; the difference is on the provider's bill
+  ([ai.md](ai.md#operator-funded-ai)).
 - **Families' databases:** a family brings its schema up to date when it is opened (on Node when the process first opens its file,
   in a Durable Object the first time it is used after a deploy) and then reports the newest migration it has (`family_schema`).
   The tab names the families whose migration **failed**, with the reason, and those **behind** the newest schema any family
