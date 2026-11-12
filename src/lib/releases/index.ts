@@ -30,7 +30,17 @@ const h = (title: Key, text: Key, audience: Audience = 'everyone'): Highlight =>
 /** Newest first. A release with no highlights yet is skipped everywhere. */
 export const RELEASES: readonly Release[] = [
   // Filled in by the release: 3 to 8 highlights.
-  { version: '2.4.0', date: null, highlights: [] },
+  {
+    version: '2.4.0', date: '2026-11-13',
+    highlights: [
+      h('ops.r240.languages_title', 'ops.r240.languages_text'),
+      h('ops.r240.signin_title', 'ops.r240.signin_text'),
+      h('ops.r240.data_title', 'ops.r240.data_text'),
+      h('ops.r240.requests_title', 'ops.r240.requests_text', 'stewards'),
+      h('ops.r240.hosting_title', 'ops.r240.hosting_text', 'operators'),
+      h('ops.r240.health_title', 'ops.r240.health_text', 'operators'),
+    ],
+  },
   {
     version: '2.3.0', date: '2026-11-12',
     highlights: [
