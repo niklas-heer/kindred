@@ -186,6 +186,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0045_breach.sql` | The operator's breach register: `breach` and `breach_family`. |
 | `0046_oidc.sql` | Single sign-on with OpenID Connect: `auth_provider` (the operator's providers), `oidc_identity` (an account's identity at a provider, by `sub`), `oidc_flow` (a sign-in in flight: state, nonce and PKCE verifier) and `session.provider`. |
 | `0047_updates_health.sql` | The console's Update button and Health tab ([hosting-many-families.md](hosting-many-families.md), "Updates" and "Health"): `update_github` (the install's repository and sealed GitHub token, and the last update's run), `job_run` (each daily job's last run) and `family_schema` (the schema each family last reported). |
+| `0049_lasting_counts.sql` | Counts that outlive what they count, and bookkeeping for complete erasure ([gdpr.md](gdpr.md), [ai.md](ai.md#operator-funded-ai)): `ai_operator_family_month` (replaces `ai_operator_spend`, kept by the family's id when a family is deleted; rows copied), `ai_operator_overage`, `signup_tally` (rows copied from `signup`), `family_left`, `subject_action.pending` and `job_run.code`. |
 
 ### Tables
 
@@ -318,15 +319,22 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 - **`signup`** (0043): one row per sign-up that made a family: `user` (foreign key, deleted with the account, since the row holds
   their `name` and contact `email`), `family` (an id, deliberately not a `tree` column, so the day's count outlives the family),
   `verified` (whether a sign-in provider verified the email; 0 for every passkey sign-up), `age_confirmed` ("I am 16 or older"),
-  `code` (the `signup_code` used), `network` (a 4-character hash, never the address) and `created`. The limits per day and per
-  network count these rows inside the batch that adds one.
+  `code` (the `signup_code` used), `network` (a 4-character hash, never the address) and `created`. Until 0049 the limits per day
+  and per network counted these rows, so deleting an account lowered them; they count `signup_tally` now.
+- **`signup_tally`** (0049): one row per sign-up with only its `id`, `network` hash and `created`: no account and no family, so
+  deleting either keeps the count. The limits per day and per network count these rows inside the batch that adds one; that
+  batch removes rows older than two days.
+- **`family_left`** (0049): an account that left a family or was removed from it: `user`, `tree`, `left_at`. Deleting the account
+  visits these families too, to give what it wrote there a pseudonym ([gdpr.md](gdpr.md)). Deleted with the account and with
+  the family.
 - **`signup_code`** (0043): a code an operator made that opens sign-up: `hash` (the code's SHA-256; the code is shown once),
   `label`, `uses_max`, `uses`, `expires` (NULL: never), `created`, `created_by` and `revoked_at`.
 - **`subject_restriction`** (0044): a person in a family whose processing is restricted on a request (GDPR Art. 18): `tree`,
   `person`, `since`, `restricted_by`, `request`. While it exists the person's edits are refused. Deleted with the family, or when
   the person is erased.
 - **`subject_action`** (0044): one row per erasure, restriction or lifting a steward did: `tree`, `kind`, `at`, `done_by`,
-  `request`, and `counts` (JSON: rows removed or rewritten per place). Never a name. Deleted with the family.
+  `request`, and `counts` (JSON: rows removed or rewritten per place). Never a name. Deleted with the family. `pending` (0049):
+  the person's id while an erasure is unfinished, NULL once both databases are done; a retry finds it and finishes.
 - **`breach`** and **`breach_family`** (0045): the operator's breach register ([gdpr.md](gdpr.md#when-something-goes-wrong)):
   what happened, when the operator became aware (`aware_at`, the start of the 72-hour clock), the risk, when the authority and
   the people were told, the reasons for a late notification, a `notice` for the affected families' stewards until
@@ -387,9 +395,13 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   a family withheld under `families`), `value` (JSON, unused so far). Deleted with the family.
 - **`operator_ai_provider`** (0042): the operator's own key per provider, sealed like a family's (`ai_provider`) under the
   reserved id `*operator`, with its last four characters.
-- **`ai_operator_spend`** (0042): micro-dollars of operator-funded AI per family (`tree`) per UTC month. **`ai_operator_month`**:
-  the same for all families together (no `tree`: it outlives a deleted family, so the ceiling holds). **`ai_operator_booking`**:
+- **`ai_operator_spend`** (0042): micro-dollars of operator-funded AI per family (`tree`) per UTC month; unused since 0049, which
+  copied it to **`ai_operator_family_month`** (`family`, `month`, `micros`): the same, by the family's id in a column not named
+  `tree`, so deleting a family keeps it and a family made again under the id does not start at 0. **`ai_operator_month`**: the
+  same for all families together (no `tree`: it outlives a deleted family, so the ceiling holds). **`ai_operator_booking`**:
   one row per operator-funded call, its reservation until it is settled once (`settled_at`); settled rows go after two days.
+  **`ai_operator_overage`** (0049): what a provider billed above a call's reservation (`family`, `month`, `micros`, `at`); the
+  settlement books the reservation and keeps the rest here for the Health tab.
 - **`announcement`** (0042): a banner from the operator: `title`, `body` (plain text), `audience` (`stewards`, `everyone`),
   `starts_at`, `ends_at` (null: until ended), `created_at`, `created_by`.
 - **`update_github`** (0047): one row (`id` 1) for a copy made by the Deploy to Cloudflare button: its `repo` (`owner/name`) and
@@ -397,7 +409,9 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   `set_by`, and the last update the console started: `run_tag`, `run_started_at`, GitHub's `run_id`, `run_url`, `run_status`,
   `run_conclusion` and `run_polled_at`.
 - **`job_run`** (0047): one row per daily job (`job`): `started_at`, `finished_at`, `ok` (0 when it failed), `error` (a short
-  reason) and `last_ok_at`. Written by the job runner.
+  reason; from 0049 sanitised: no email address, URL path, quoted text, long number or family id) and `last_ok_at`. Written by the
+  job runner. `code` (0049): the failure's operational code (`network`, `timeout`, `database`, `config`, an error's own code, or
+  `error`).
 - **`family_schema`** (0047): per family (`tree`), the newest family migration it reported having (`migration`), the `error` of a
   failed one, and `reported_at`; written by the storage drivers when they open a family. Deleted with the family.
 - **`membership`**: a user's role in a family (`viewer`, `contributor`, `editor`, `steward`), and who they are in that
