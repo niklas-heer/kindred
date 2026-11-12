@@ -14,7 +14,11 @@ The operator runs the server. It is a role of the server, not of a family, and i
   cannot step down.
 - Being an operator does not make you a member of anything. A family's tree, people, stories, pictures, research and history are
   closed to you exactly as to any stranger, unless a steward of that family invites you. In law (the EU's GDPR) the families are
-  the controllers of what they write and you are their processor; Kindred is built so that the processor cannot read it in the app.
+  the controllers of what they write and you are their processor; Kindred is built so that the processor cannot read it in the app,
+  with one path you should know about: a **reset link** (below) sets a new password on someone's account, so whoever holds the
+  link can sign in as them and read what they can. Kindred makes that visible rather than impossible: the link works only on an
+  account that already has a password, is in the audit log, ends the account's sessions, and the holder sees "An operator
+  reset your password on …" at their next sign-in by a passkey or single sign-on.
 - The full role, with what each family role can do, is in [roles-and-privacy.md](roles-and-privacy.md#the-operator).
 
 ## The operator console
@@ -176,9 +180,11 @@ is read-only, and while `KINDRED_AUTH_METHODS` is set it only shows what that se
   On a hosting server, single sign-on gives people a way back in without email, and it is the only way in that verifies an email
   address (the provider's `email_verified`).
 - **A reset link** (in the same tab): type someone's username or email, optionally tick "also turn off their two-step codes"
-  (a lost phone), and hand them the link yourself. It works once, for an hour, sets a new password (and a username, if the
-  account had none) and signs out their other sessions. It needs your fresh proof, goes into the log, and adds nobody to any family
-  or role. Only operators can make one; stewards cannot reset anyone. Make sure it is really them before you hand it over.
+  (a lost phone), and hand them the link yourself. It works once, for an hour, only for an account that already has a password
+  (it never gives an account its first one), sets a new password and signs out every session of the account. The holder sees a
+  lasting notice of it at their next sign-in by another way in. It needs your fresh proof, goes into the log, and adds nobody to
+  any family or role. Only operators can make one; stewards cannot reset anyone. Make sure it is really them before you hand it
+  over.
 
 ### Policies
 

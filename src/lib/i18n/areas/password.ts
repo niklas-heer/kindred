@@ -125,4 +125,8 @@ export const en = {
   "pw.err.operator_password_totp": "As an operator, turn on two-step codes before you set a password.",
   "pw.operator_totp_first": "As an operator, turn on two-step codes first; then you can add a password.",
   "pw.recovery_renew": "Your recovery codes are stored the old way. Make new ones and keep those instead.",
+  "pw.err.reset_no_password": "That account has no password, so a reset link cannot give it one. Its owner signs in the way they always have.",
+  "pw.err.reset_notice_method": "Sign in with your passkey or single sign-on to dismiss this notice.",
+  "pw.reset_notice": "An operator of this server reset your password on {date}. If you did not ask for that, change your password now and tell the operator.",
+  "pw.reset_notice_label": "Your account’s security",
 } as const;

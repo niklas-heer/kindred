@@ -133,8 +133,9 @@ Any combination works. A fresh install and an upgrade offer passkeys only, so up
   Turning them on gives ten one-use **recovery codes**, stored under a hash keyed from `KINDRED_SECRET`.
 - **Forgotten passwords**: there is no email. A recovery code (with the app's code, when two-step codes are on) sets a new password
   from the sign-in page; a passkey on the account still signs in; or an operator makes a **one-hour reset link** in the console's
-  Sign-in tab (it needs their fresh proof, is in the audit log, may also turn two-step codes off for a lost phone, and changes
-  nothing but the password). Stewards cannot reset anyone.
+  Sign-in tab (it needs their fresh proof, is in the audit log, may also turn two-step codes off for a lost phone, works only on
+  an account that already has a password, changes nothing but the password, ends the account's sessions, and leaves the
+  holder a notice at their next sign-in by another way in). Stewards cannot reset anyone.
 - **Linking ways in**: a signed-in account adds a password, a passkey or a single sign-on provider from "Your name & passkeys",
   after confirming it is them. Two-step codes are set up by scanning a QR code (or typing the key).
   A way in is never added by matching an email address. An account always keeps one way in the server accepts.

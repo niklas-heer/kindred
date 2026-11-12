@@ -186,6 +186,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0045_breach.sql` | The operator's breach register: `breach` and `breach_family`. |
 | `0046_oidc.sql` | Single sign-on with OpenID Connect: `auth_provider` (the operator's providers), `oidc_identity` (an account's identity at a provider, by `sub`), `oidc_flow` (a sign-in in flight: state, nonce and PKCE verifier) and `session.provider`. |
 | `0047_updates_health.sql` | The console's Update button and Health tab ([hosting-many-families.md](hosting-many-families.md), "Updates" and "Health"): `update_github` (the install's repository and sealed GitHub token, and the last update's run), `job_run` (each daily job's last run) and `family_schema` (the schema each family last reported). |
+| `0048_signin_fixes.sql` | Fixes to the ways in: `password_reset.seen_at` (the holder dismissed the notice of a used reset link), `signin_daily` (sign-ins per day and way in, for the statistics) and `oidc_flow` made again with the purpose `signup`. |
 | `0049_lasting_counts.sql` | Counts that outlive what they count, and bookkeeping for complete erasure ([gdpr.md](gdpr.md), [ai.md](ai.md#operator-funded-ai)): `ai_operator_family_month` (replaces `ai_operator_spend`, kept by the family's id when a family is deleted; rows copied), `ai_operator_overage`, `signup_tally` (rows copied from `signup`), `family_left`, `subject_action.pending` and `job_run.code`. |
 
 ### Tables
@@ -277,7 +278,10 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   `tries` (five wrong codes end it) and `expires` (five minutes). Deleting it is the check that starts the session.
 - **`password_reset`** (0041): an operator's reset link: the hash of its token, the account, `created_by` (the operator, no foreign
   key), `expires` (an hour), `used_at` (once: guarded in the batch that sets the password) and `clear_totp` (1: the link also
-  turns two-step codes off). A new link for the account replaces an unused one. Goes with the account.
+  turns two-step codes off). A new link for the account replaces an unused one. `seen_at` (0048): when the holder dismissed the
+  notice that the link was used; a used link's row stays until then. Goes with the account.
+- **`signin_daily`** (0048): `day` (UTC, `YYYY-MM-DD`), `method` (`passkey`, `password`, `oidc`) and `count`: one added by every
+  new session (`createSession`), in the same batch. Aggregates only, for the operator's statistics; names nobody.
 - **`auth_provider`** (0046): a single sign-on provider the operator added: `id` (the slug in the redirect URI
   `/api/auth/oidc/<id>/callback`, never changed), `kind` (`google`, `entra`, `authentik`, `keycloak`, `generic`: only presets and
   help), `label` (the button), `issuer` (compared exactly; fixed once saved), `client_id`, `secret_sealed` (AES-GCM under a key
@@ -289,9 +293,9 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   one identity belongs to one account; `UNIQUE (user, provider)` keeps one per provider per account. `email` and `email_verified`
   as the last sign-in said: `email_verified = 1` is the account's **verified email** (`verifiedEmailOf` in
   `src/lib/auth/oidc.server.ts`), which nothing else gives. Goes with the account or the provider.
-- **`oidc_flow`** (0046): a sign-in in flight, ten minutes: the hash of its `state`, `provider`, `purpose` (`signin`, `invite`,
-  `link`, `proof`), the hash of the browser's flow cookie, `nonce`, the PKCE `verifier`, `subject` (the account and session for
-  `link` and `proof`), `next` (a same-site path) and `data` (an invitation's id, name and terms). The callback deletes its row
+- **`oidc_flow`** (0046, made again in 0048): a sign-in in flight, ten minutes: the hash of its `state`, `provider`, `purpose`
+  (`signin`, `invite`, `link`, `proof`, and `signup` from 0048), the hash of the browser's flow cookie, `nonce`, the PKCE `verifier`, `subject` (the account and session for
+  `link` and `proof`), `next` (a same-site path) and `data` (an invitation's id, name and terms, or a sign-up's form). The callback deletes its row
   first: a state works once. Not in any backup worth keeping; old rows go with the next flow.
 - **`session.provider`** (0046): the provider that started a session whose `method` is `oidc`; turning that provider off or
   removing it deletes those sessions.

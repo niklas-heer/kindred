@@ -404,3 +404,39 @@ test('recovery codes are stored under the server’s keyed hash, not a plain SHA
   assert.equal(await totp.consumeRecoveryCode(user.id, 'oldco-de234'), true);
   assert.equal(await totp.consumeRecoveryCode(user.id, 'OLDCO-DE234'), false);
 });
+
+// ---------- council round 7: an operator's reset link cannot take over an account quietly ----------
+
+test('a reset link is refused for an account that has no password (it would add one: a takeover)', async () => {
+  const made = store.newUser('Cy Passkey', null);
+  await store.accounts().batch([made.insert, store.q("UPDATE user SET email = 'cy@example.org' WHERE id = ?", made.user.id)]);
+  const { resetLinkFor } = await import('../operator/signin.server.ts');
+  const op = (await account('Olu Operator', 'olu'));
+  await assert.rejects(resetLinkFor(op, 'cy@example.org', false), /pw\.err\.reset_no_password/);
+  assert.equal(await store.accounts().get('SELECT 1 FROM password_reset'), undefined);
+  // A link made before this rule cannot add a password either.
+  const { token, writes } = await pw.makeResetLink(made.user.id, op.id, false);
+  await store.accounts().batch(writes);
+  await assert.rejects(pw.redeemResetLink(req(), { token, username: 'cy.new', password: 'a reset evening light' }, at), /pw\.err\.reset_gone/);
+  assert.equal(await pw.passwordOf(made.user.id), undefined);
+});
+
+test('a used reset link leaves a lasting notice for the holder’s next sign-in by another way, and ends every other session', async () => {
+  const ada = await account('Ada Example', 'ada');
+  const passkeySession = (await store.createSession(ada.id, 'k-ada', false, 'passkey')).token;
+  const { token, writes } = await pw.makeResetLink(ada.id, 'operator-id', false);
+  await store.accounts().batch(writes);
+  await pw.redeemResetLink(req(), { token, password: 'a reset evening light' }, at);
+  assert.equal(await store.sessionByToken(passkeySession), undefined, 'the other sessions end');
+  assert.equal(await pw.resetNoticeOf(ada.id, 'password'), null, 'whoever used the link (a password session) sees no notice to dismiss');
+  await assert.rejects(pw.dismissResetNotice(ada.id, 'password'), /pw\.err\.reset_notice_method/);
+  const notice = await pw.resetNoticeOf(ada.id, 'passkey');
+  assert.ok(notice && notice.at > 0, 'the holder signing in with a passkey sees when the operator reset the password');
+  // Another link later does not wipe the notice while it is unseen.
+  await store.accounts().batch((await pw.makeResetLink(ada.id, 'operator-id', false)).writes);
+  await store.accounts().run('UPDATE password_reset SET expires = 1 WHERE used_at IS NOT NULL');
+  await store.accounts().batch((await pw.makeResetLink(ada.id, 'operator-id', false)).writes);
+  assert.ok(await pw.resetNoticeOf(ada.id, 'passkey'), 'still there until dismissed');
+  await pw.dismissResetNotice(ada.id, 'passkey');
+  assert.equal(await pw.resetNoticeOf(ada.id, 'oidc'), null);
+});

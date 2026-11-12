@@ -288,7 +288,8 @@ export async function makeResetLink(user: string, by: string, clearTotp: boolean
   return {
     token, expires: t + RESET_MS,
     writes: [
-      q('DELETE FROM password_reset WHERE expires < ? OR (user = ? AND used_at IS NULL)', t, user),
+      // A used link stays until its notice is seen (resetNoticeOf); an unused one goes when it runs out or is replaced.
+      q('DELETE FROM password_reset WHERE (expires < ? AND (used_at IS NULL OR seen_at IS NOT NULL)) OR (user = ? AND used_at IS NULL)', t, user),
       q('INSERT INTO password_reset (hash, user, created, created_by, expires, clear_totp) VALUES (?, ?, ?, ?, ?, ?)', await hashToken('reset', token), user, t, by, t + RESET_MS, clearTotp ? 1 : 0),
     ],
   };
@@ -304,22 +305,24 @@ export async function resetLinkByToken(token: string): Promise<ResetLinkRow | un
 export async function resetLinkInfo(token: string): Promise<{ ok: false } | { ok: true; name: string; username: string | null; needsCode: boolean }> {
   const link = await resetLinkByToken(token);
   const user = link && (await userById(link.user));
-  if (!link || !user) return { ok: false };
+  if (!link || !user || !user.username || !(await passwordOf(user.id))) return { ok: false };
   return { ok: true, name: user.name, username: user.username ?? null, needsCode: !link.clear_totp && (await totpOn(user.id)) };
 }
 
 /**
- * Uses an operator's link: sets the password (and a username, when the account had none), turns two-step codes off when the
- * operator said so, and ends every session of the account. Using the link is the batch's first statement and its check, so a
- * link works once. It adds the account to no family and changes no role.
+ * Uses an operator's link: sets a new password for an account that has one, turns two-step codes off when the operator said
+ * so, and ends every session of the account. Using the link is the batch's first statement and its check, so a link works
+ * once. It never gives an account its first password (that would let whoever holds the link take over an account that signs
+ * in another way), adds the account to no family and changes no role. The holder sees a notice at their next sign-in by
+ * another way in (resetNoticeOf).
  */
 export async function redeemResetLink(request: Request, input: { token?: unknown; username?: unknown; password?: unknown; code?: unknown }, a: Attempt): Promise<{ user: string }> {
   await passwordAllowed(request);
   const gone = invalid('pw.err.reset_gone');
   const link = typeof input.token === 'string' ? await resetLinkByToken(input.token) : undefined;
   const user = link && (await userById(link.user));
-  if (!link || !user) throw gone;
-  const username = user.username ?? cleanUsername(input.username);
+  if (!link || !user || !user.username || !(await passwordOf(user.id))) throw gone;
+  const username = user.username;
   const password = checkNewPassword(input.password, username);
   if (!link.clear_totp && (await totpOn(user.id))) {
     await admit(await attemptKeys(username, a.ip), a, undefined);
@@ -330,6 +333,7 @@ export async function redeemResetLink(request: Request, input: { token?: unknown
     await accounts().batch([
       q('UPDATE password_reset SET used_at = ? WHERE hash = ? AND used_at IS NULL AND expires > ?', t, link.hash, t),
       guard('EXISTS (SELECT 1 FROM password_reset WHERE hash = ? AND used_at = ?)', link.hash, t),
+      guard('EXISTS (SELECT 1 FROM password WHERE user = ?)', user.id),
       ...(await passwordWrites(user.id, username, password)),
       ...(link.clear_totp ? [removeTotp(user.id)] : []),
       q('DELETE FROM session WHERE user = ?', user.id),
@@ -339,4 +343,20 @@ export async function redeemResetLink(request: Request, input: { token?: unknown
     rethrowTaken(e);
   }
   return { user: user.id };
+}
+
+/**
+ * The notice that an operator's reset link was used on this account: when, until it is dismissed. Shown only to a session
+ * another way in started (a passkey, a provider), so whoever used the link with the new password cannot hide it from the holder.
+ */
+export async function resetNoticeOf(user: string, method: string | null | undefined): Promise<{ at: number } | null> {
+  if (method === 'password') return null;
+  const row = await accounts().get<{ at: number | null }>('SELECT max(used_at) AS at FROM password_reset WHERE user = ? AND used_at IS NOT NULL AND seen_at IS NULL', user);
+  return row?.at ? { at: row.at } : null;
+}
+
+/** Dismisses the notice, from a session another way in started. */
+export async function dismissResetNotice(user: string, method: string | null | undefined): Promise<void> {
+  if (method === 'password') throw invalid('pw.err.reset_notice_method');
+  await accounts().run('UPDATE password_reset SET seen_at = ? WHERE user = ? AND used_at IS NOT NULL AND seen_at IS NULL', now(), user);
 }

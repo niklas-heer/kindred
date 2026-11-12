@@ -127,4 +127,8 @@ export default {
   "pw.err.operator_password_totp": "Als Betreiber des Servers schaltest du zuerst Bestätigungscodes ein, bevor du ein Passwort festlegst.",
   "pw.operator_totp_first": "Als Betreiber des Servers schaltest du zuerst Bestätigungscodes ein; danach kannst du ein Passwort hinzufügen.",
   "pw.recovery_renew": "Deine Wiederherstellungscodes sind noch auf die alte Art gespeichert. Erstelle neue und bewahre stattdessen diese auf.",
+  "pw.err.reset_no_password": "Dieses Konto hat kein Passwort, und ein Link zum Zurücksetzen kann ihm keines geben. Die Person meldet sich an wie bisher.",
+  "pw.err.reset_notice_method": "Melde dich mit deinem Passkey oder per Single Sign-on an, um diesen Hinweis auszublenden.",
+  "pw.reset_notice": "Jemand, der diesen Server betreibt, hat am {date} dein Passwort zurückgesetzt. Wenn du das nicht wolltest, ändere jetzt dein Passwort und sag es der Person.",
+  "pw.reset_notice_label": "Sicherheit deines Kontos",
 } satisfies Strings<typeof en, "de">;

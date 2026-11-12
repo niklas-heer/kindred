@@ -1,5 +1,6 @@
 import { I18nProvider, loadLocale, translate, type Locale } from '~/lib/i18n';
 import { AnnouncementBanner } from '~/components/operator/AnnouncementBanner';
+import { ResetNotice } from '~/components/signin/ResetNotice';
 import { requestLocale } from '~/lib/i18n/request';
 import { sessionQuery, setMyLocale } from '~/lib/auth/functions';
 import '@fontsource-variable/cinzel';
@@ -50,9 +51,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   component: Root,
 });
 
-/** Every page, and the operator's announcements over it for a signed-in reader. */
+/** Every page, and the operator's announcements over it for a signed-in reader (and the notice of a reset password). */
 function Root() {
-  return <><Outlet /><AnnouncementBanner /></>;
+  return <><Outlet /><AnnouncementBanner /><ResetNotice /></>;
 }
 
 function Shell({ children }: { children: ReactNode }) {

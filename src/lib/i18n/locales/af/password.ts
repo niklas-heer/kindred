@@ -127,4 +127,8 @@ export default {
   "pw.err.operator_password_totp": "As operateur skakel jy eers bevestigingskodes aan voordat jy ’n wagwoord stel.",
   "pw.operator_totp_first": "As operateur skakel jy eers bevestigingskodes aan; daarna kan jy ’n wagwoord byvoeg.",
   "pw.recovery_renew": "Jou herstelkodes is nog op die ou manier gestoor. Maak nuwes en hou eerder dié.",
+  "pw.err.reset_no_password": "Daardie rekening het geen wagwoord nie, en ’n herstelskakel kan dit nie een gee nie. Die eienaar meld aan soos altyd.",
+  "pw.err.reset_notice_method": "Meld aan met jou passkey of enkelaanmelding om hierdie kennisgewing weg te steek.",
+  "pw.reset_notice": "’n Operateur van hierdie bediener het jou wagwoord op {date} herstel. As jy nie daarvoor gevra het nie, verander nou jou wagwoord en sê vir die operateur.",
+  "pw.reset_notice_label": "Jou rekening se sekuriteit",
 } satisfies Strings<typeof en, "af">;

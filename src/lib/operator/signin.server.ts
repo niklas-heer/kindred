@@ -5,7 +5,7 @@
 import { AuthError } from '../auth/errors.ts';
 import { previewMethods, saveMethods, signInSettings, type MethodChange } from '../auth/methods.server.ts';
 import { normalizeUsername, type SignInMethod, type SignInSettings } from '../auth/methods.ts';
-import { makeResetLink } from '../auth/password.server.ts';
+import { makeResetLink, passwordOf } from '../auth/password.server.ts';
 import { deleteProvider, listProviders, saveProvider, type ProviderInput } from '../auth/oidc.server.ts';
 import { accounts, type UserRow } from '../auth/store.server.ts';
 import { audit } from './settings.server.ts';
@@ -22,7 +22,9 @@ export function setSignInMethods(op: UserRow, methods: SignInMethod[]): Promise<
 
 /**
  * A one-hour link that lets the account with this username or email set a new password (and, with `clearTotp`, turns its
- * two-step codes off, for a lost phone). It never adds anyone to a family. The token is shown to the operator once.
+ * two-step codes off, for a lost phone). Only for an account that has a password: a link never gives an account its first
+ * one. It never adds anyone to a family. The token is shown to the operator once; using it ends the account's sessions and
+ * leaves the holder a notice.
  */
 export async function resetLinkFor(op: UserRow, who: string, clearTotp: boolean): Promise<{ token: string; expires: number; name: string }> {
   const typed = who.trim();
@@ -30,6 +32,7 @@ export async function resetLinkFor(op: UserRow, who: string, clearTotp: boolean)
     ? await accounts().get<{ id: string; name: string }>('SELECT id, name FROM user WHERE email = ?', typed)
     : await accounts().get<{ id: string; name: string }>('SELECT id, name FROM user WHERE username = ?', normalizeUsername(typed));
   if (!target) throw new AuthError('invalid', 'pw.err.no_account');
+  if (!(await passwordOf(target.id))) throw new AuthError('invalid', 'pw.err.reset_no_password');
   const { token, expires, writes } = await makeResetLink(target.id, op.id, clearTotp);
   await accounts().batch([...writes, audit(actor(op), 'signin.reset_link', null, { account: target.id, name: target.name, clearTotp })]);
   return { token, expires, name: target.name };
