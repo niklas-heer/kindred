@@ -3,21 +3,29 @@
     "family": {
       "use": "家族",
       "accept": [
-        "家族"
+        "家族",
+        "家",
+        "家系"
       ]
     },
     "tree": {
       "use": "家系図（ページも文中の木も。携帯のタブも同じ）",
       "accept": [
         "家系図",
-        "ツリー"
+        "ツリー",
+        "家系の木",
+        "木"
       ]
     },
     "person": {
       "use": "人物（人数は「{n}人」）",
       "accept": [
         "人物",
-        "人"
+        "人",
+        "ひと",
+        "誰",
+        "その人",
+        "親"
       ]
     },
     "relative": {
@@ -25,20 +33,24 @@
       "accept": [
         "親戚",
         "親族",
-        "身内"
+        "身内",
+        "続柄",
+        "親"
       ]
     },
     "member": {
       "use": "メンバー",
       "accept": [
         "メンバー",
-        "会員"
+        "会員",
+        "家族"
       ]
     },
     "guest": {
       "use": "ゲスト",
       "accept": [
-        "ゲスト"
+        "ゲスト",
+        "来訪"
       ]
     },
     "viewer": {
@@ -50,7 +62,8 @@
     "contributor": {
       "use": "投稿者",
       "accept": [
-        "投稿"
+        "投稿",
+        "contributors"
       ]
     },
     "editor": {
@@ -115,13 +128,15 @@
       "use": "出典",
       "accept": [
         "出典",
-        "資料"
+        "資料",
+        "出どころ"
       ]
     },
     "memory": {
       "use": "思い出",
       "accept": [
-        "思い出"
+        "思い出",
+        "記憶"
       ]
     },
     "story": {
@@ -181,7 +196,8 @@
     "Register": {
       "use": "名簿",
       "accept": [
-        "名簿"
+        "名簿",
+        "索引"
       ]
     },
     "Gallery": {
@@ -249,6 +265,10 @@
       ]
     }
   },
-  "sameAsEnglish": [],
+  "sameAsEnglish": [
+    "oidc.kind_entra",
+    "feedback.key_mod",
+    "signup.ready_turnstile"
+  ],
   "ownWords": []
 }

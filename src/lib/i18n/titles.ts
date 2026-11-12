@@ -19,6 +19,20 @@ export const TITLE_WORDS: Record<string, Partial<Record<Exclude<Locale, "en">, s
   Access: { de: "Zugang", af: "Toegang", es: "Acceso", "pt-BR": "Acesso" },
   Statistics: { de: "Statistik", af: "Statistiek", es: "Estadísticas", "pt-BR": "Estatísticas" },
   Tree: { de: "Stammbaum", af: "Stamboom", es: "Árbol genealógico", "pt-BR": "Árvore genealógica" },
+  "Sign in": { de: "Anmelden", af: "Meld aan", ja: "サインイン", "zh-Hans": "登录" },
+  "Set up": { de: "Einrichten", af: "Stel op", ja: "設定", "zh-Hans": "设置" },
+  Invitation: { de: "Einladung", af: "Uitnodiging", ja: "招待", "zh-Hans": "邀请" },
+  Almanac: { de: "Kalender", af: "Almanak", ja: "暦", "zh-Hans": "年历" },
+  Contacts: { de: "Kontakte", af: "Kontakte", ja: "連絡先", "zh-Hans": "联系人" },
+  Register: { de: "Verzeichnis", af: "Register", ja: "名簿", "zh-Hans": "名册" },
+  Houses: { de: "Häuser", af: "Huise", ja: "家系", "zh-Hans": "支系" },
+  Needed: { de: "Fehlende Angaben", af: "Inligting nodig", ja: "不足", "zh-Hans": "待补" },
+  "Information needed": { de: "Fehlende Angaben", af: "Inligting nodig", ja: "足りない情報", "zh-Hans": "待补充信息" },
+  Chronicle: { de: "Chronik", af: "Kroniek", ja: "年代記", "zh-Hans": "编年史" },
+  Gallery: { de: "Galerie", af: "Galery", ja: "ギャラリー", "zh-Hans": "相册" },
+  Access: { de: "Zugang", af: "Toegang", ja: "アクセス", "zh-Hans": "访问权限" },
+  Statistics: { de: "Statistik", af: "Statistiek", ja: "統計", "zh-Hans": "统计" },
+  Tree: { de: "Stammbaum", af: "Stamboom", ja: "家系図", "zh-Hans": "家谱" },
 };
 
 /** The English word a title part stands for, whichever language it is written in. */

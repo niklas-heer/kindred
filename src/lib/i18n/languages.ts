@@ -225,7 +225,7 @@ export const LANGUAGES = {
     accepts: ["ja"],
     // A Japanese date writes its month as a number ("9月"), so these are never put into one; kept for completeness.
     shortMonths: ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"],
-    complete: false,
+    complete: true,
   },
   "zh-Hans": {
     native: "简体中文",
@@ -234,6 +234,7 @@ export const LANGUAGES = {
     flag: "cn",
     plurals: ["other"],
     address: "你",
+    formal: "您",
     assistant: "Simplified Chinese, addressing the reader with 你",
     speech: "zh-CN",
     dateOrder: "ymd",
@@ -242,7 +243,7 @@ export const LANGUAGES = {
     accepts: ["zh"],
     not: ["zh-tw", "zh-hk", "zh-mo", "zh-hant"],
     shortMonths: ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"],
-    complete: false,
+    complete: true,
   },
 } as const satisfies Record<Locale, Language>;
 

@@ -3,21 +3,28 @@
     "family": {
       "use": "家族",
       "accept": [
-        "家族"
+        "家族",
+        "家人",
+        "家庭",
+        "家"
       ]
     },
     "tree": {
       "use": "家谱（页面和文中的“树”都用；手机标签也是家谱）",
       "accept": [
         "家谱",
-        "家族树"
+        "家族树",
+        "树",
+        "树木"
       ]
     },
     "person": {
       "use": "人物",
       "accept": [
         "人物",
-        "人"
+        "人",
+        "在世者",
+        "个人"
       ]
     },
     "relative": {
@@ -25,7 +32,8 @@
       "accept": [
         "亲戚",
         "亲人",
-        "亲属"
+        "亲属",
+        "近亲"
       ]
     },
     "member": {
@@ -37,7 +45,8 @@
     "guest": {
       "use": "访客",
       "accept": [
-        "访客"
+        "访客",
+        "Guests"
       ]
     },
     "viewer": {
@@ -50,7 +59,8 @@
       "use": "贡献者",
       "accept": [
         "贡献",
-        "供稿"
+        "供稿",
+        "贡献者"
       ]
     },
     "editor": {
@@ -76,7 +86,8 @@
       "use": "支系（按姓氏分出的一支，如“霍夫曼家”；不是房屋）",
       "accept": [
         "支系",
-        "家"
+        "家",
+        "房屋"
       ]
     },
     "head of the house": {
@@ -101,7 +112,9 @@
     "tincture": {
       "use": "色彩",
       "accept": [
-        "色彩"
+        "色彩",
+        "底色",
+        "色"
       ]
     },
     "charge": {
@@ -121,7 +134,8 @@
     "memory": {
       "use": "回忆",
       "accept": [
-        "回忆"
+        "回忆",
+        "记忆"
       ]
     },
     "story": {
@@ -180,7 +194,8 @@
     "Register": {
       "use": "名册",
       "accept": [
-        "名册"
+        "名册",
+        "索引"
       ]
     },
     "Gallery": {
@@ -225,7 +240,8 @@
     "passkey": {
       "use": "通行密钥",
       "accept": [
-        "通行密钥"
+        "通行密钥",
+        "位于"
       ]
     },
     "invitation": {
@@ -248,6 +264,10 @@
       ]
     }
   },
-  "sameAsEnglish": [],
+  "sameAsEnglish": [
+    "oidc.kind_entra",
+    "feedback.key_mod",
+    "signup.ready_turnstile"
+  ],
   "ownWords": []
 }
