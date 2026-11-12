@@ -243,7 +243,8 @@
     }
   },
   "sameAsEnglish": [
-    "feedback.key_mod"
+    "feedback.key_mod",
+    "shell.themeCodex"
   ],
   "ownWords": [
     "a",
