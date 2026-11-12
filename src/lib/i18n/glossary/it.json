@@ -246,8 +246,17 @@
     "chat.no",
     "feedback.key_mod",
     "look.beard.vandyke",
+    "oidc.client_id",
+    "oidc.client_secret",
+    "oidc.issuer",
+    "oidc.kind_authentik",
+    "oidc.kind_entra",
+    "oidc.kind_google",
+    "oidc.kind_keycloak",
+    "oidc.section",
     "pw.method_oidc",
-    "shell.themeCodex"
+    "shell.themeCodex",
+    "signup.ready_turnstile"
   ],
   "ownWords": [
     "a",
