@@ -235,6 +235,9 @@ const ANSWERS_A_GUEST = new Set([
   'fetchReleaseReader', 'fetchReleaseCard', 'fetchUpdateDot',
   // The operator's announcements: an empty list for anyone without an account (policy.test.ts); they read no family.
   'fetchMyAnnouncements',
+  // The hosting landing page and sign-up's state (src/lib/signup/): the server's name, contact, limits and whether sign-up is
+  // open; no family, no count, no account (signup.test.ts).
+  'fetchPublicHosting',
 ]);
 
 /** Asks every server function as a guest, once about the child and once about her research, and returns what answered. */

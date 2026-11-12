@@ -333,6 +333,10 @@ const OPEN = new Set([
   'fetchReleaseReader', 'fetchReleaseCard', 'fetchUpdateDot',
   // The operator's announcements: nothing for anyone without an account, a guest included (src/lib/operator/policy.test.ts).
   'fetchMyAnnouncements',
+  // The hosting landing page and sign-up's state (src/lib/signup/): the server's name, contact, limits and whether sign-up is
+  // open; no family, no count, no account (signup.test.ts). The sign-up form's waiting-list step is a public form like
+  // sendFamilyRequest: it adds a request to the waiting list and reads no family.
+  'fetchPublicHosting', 'signupWaitlist',
 ]);
 /** Everything a handler might read before its guard, so a failure can only be the guard's. */
 const DATA = { tree: TREE, id: 'ada', person: 'ada', personId: 'ada', key: 'k', house: 'h', mediaKey: 'gallery/x.jpg', locale: 'en', format: 'gedcom', name: 'x', text: 'x', user: STEWARD, role: 'viewer', confirm: true, token: 'x', endpoint: 'https://x/y', opKey: 'abcdefgh', people: [], links: [], places: [], items: [], photos: [], title: 'x', body: 'x', project: 'p1' };
