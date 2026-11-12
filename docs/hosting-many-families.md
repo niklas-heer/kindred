@@ -42,7 +42,9 @@ Actions:
   be its first steward. Kindred makes the family with **no members** (you are not added) and a link that works once, for two
   weeks, and makes whoever opens it the family's steward. **Kindred sends no email**: copy the link and send it yourself. While
   nobody has joined, **New invitation link** makes another (the old one stops working), and nobody else can claim the empty
-  family as theirs.
+  family as theirs, by making it or by importing into it. Only the invitation you made with the family can be renewed here, and
+  only while the family has no members: once someone has joined, its stewards invite people themselves, and an invitation a
+  steward made (for a co-steward, say) is never renewed by an operator. See [Invitations](#invitations).
 - **How it may be used**: **In use**, **Read-only** or **Closed** (each change is in the log).
   - *Read-only* (suspended): its members and its share-link guests read everything; members see a bar that says the server's
     operator suspended it and how to reach you (the contact email in Settings) to ask why or to have it deleted. Every change is
@@ -157,8 +159,11 @@ in the accounts database, before the file is written:
   is used of how much, and to remove something or ask the server's operator for more room. Nothing is stored.
 - Deleting a file frees its room at once.
 - A family's stewards see what it uses (and its cap) on the Families page.
-- **Recount** in the console rebuilds a family's count from its storage. The daily run recounts a few families a day that were
-  never counted (on a server upgraded with files already stored) or not for a month, so the count does not drift.
+- **Recount** in the console rebuilds a family's count from its storage: one listing of the family's files with the sizes the
+  storage reports (no file is opened, none of the family's records is read), so a file that no record names any more still
+  counts, as it still costs. An upload that has reserved its room and is still being written keeps its count. The daily run
+  recounts a few families a day that were never counted (on a server upgraded with files already stored) or not for a month,
+  so the count does not drift.
 - Lowering a cap below what a family uses deletes nothing; new uploads are refused until there is room.
 
 ## Cloudflare Turnstile
@@ -168,6 +173,26 @@ Set `KINDRED_TURNSTILE_SITE_KEY` and `KINDRED_TURNSTILE_SECRET` (both, or neithe
 Cloudflare's script only on those forms and only then (the page's Content-Security-Policy allows `challenges.cloudflare.com` only
 while the keys are set); the server asks Cloudflare whether each form's token is good and refuses it otherwise. Settings:
 [self-host.md](self-host.md#settings), [deploy-cloudflare.md](deploy-cloudflare.md).
+
+## Invitations
+
+An invitation link is all it takes to join: whoever opens it while it is open joins in the role it names. With Kindred's own
+sign-in, the email address on an invitation is not checked. A new account made from the link gets that address if nobody has
+it yet, and someone already signed in can accept the link with their own account (`acceptInvite`, `finishInvite` in
+`src/lib/auth/`). Behind Cloudflare Access, an invitation for an address is accepted on its own when someone signs in there with
+that address, and a link opened by any other Access identity works too. So send a link only to the person it is for, revoke one
+you no longer need, and treat a renewed link like a key: that is why an operator may renew only the first-steward invitation
+they made, and only while nobody has joined.
+
+## Moving or importing families
+
+`scripts/import-to-do.ts` brings a family into its Durable Object on Cloudflare
+([deploy-cloudflare.md](deploy-cloudflare.md#moving-a-family-into-a-durable-object)). Being an operator gives no more right
+there than anyone else has: a **new** family may be imported by anyone who may make families (an operator included), who
+becomes its steward; a family that exists here, has members, or waits for an invited steward is never imported into; and
+copying a family a D1 binding serves is for its stewards. The rows travel as data, never as SQL, into a staged object that
+serves nothing until the import is complete, so an import can neither read a family's records nor change a family that is in
+use.
 
 ## What the operator can and cannot see
 
