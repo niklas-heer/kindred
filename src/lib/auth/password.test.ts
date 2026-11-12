@@ -383,3 +383,24 @@ test('“username taken” counts against the network, so names cannot be listed
   await assert.rejects(pw.requireFreeUsername('a-free-name', ip), /pw\.err\.throttled/, 'the network has used its tries');
   await pw.requireFreeUsername('a-free-name', '192.0.2.77');
 });
+
+test('recovery codes are stored under the server’s keyed hash, not a plain SHA-256; codes stored the old way still work once', async () => {
+  const { user, codes } = await withTotp('Ada Example', 'ada');
+  const { hashToken } = await import('./tokens.server.ts');
+  const plain = await hashToken('recovery', `${user.id}:${codes[0].replace('-', '')}`);
+  const stored = await store.accounts().all<{ hash: string }>('SELECT hash FROM recovery_code WHERE user = ?', user.id);
+  assert.equal(stored.length, 10);
+  assert.ok(stored.every((r) => r.hash !== plain && r.hash.startsWith('h1:')), 'a copied database alone cannot be guessed against');
+  process.env.KINDRED_SECRET = 'another-secret';
+  try {
+    assert.equal(await totp.consumeRecoveryCode(user.id, codes[0]), false, 'the key comes from KINDRED_SECRET');
+  } finally {
+    process.env.KINDRED_SECRET = 'password-test-secret';
+  }
+  assert.equal(await totp.consumeRecoveryCode(user.id, codes[0]), true);
+  // A code stored before this change: the plain hash keeps working, once, and the account is asked to make new codes.
+  await store.accounts().run('INSERT INTO recovery_code (user, hash, created) VALUES (?, ?, 0)', user.id, await hashToken('recovery', `${user.id}:OLDCODE234`));
+  assert.equal(await totp.recoveryNeedsRenewal(user.id), true);
+  assert.equal(await totp.consumeRecoveryCode(user.id, 'oldco-de234'), true);
+  assert.equal(await totp.consumeRecoveryCode(user.id, 'OLDCO-DE234'), false);
+});

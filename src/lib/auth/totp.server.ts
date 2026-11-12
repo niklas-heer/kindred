@@ -4,8 +4,10 @@
 // The secret is sealed with the server secret (./seal.server.ts) and bound to the account. A code is accepted for the step
 // before, the step now and the step after (a phone's clock a little off), and only for a step later than the last one used:
 // the update that records the step is the check, in one statement, so the same code cannot sign in twice, even from two
-// requests at once. Recovery codes are random (50 bits), so a plain hash is enough; using one is one statement too.
-import { seal, unseal } from './seal.server.ts';
+// requests at once. Recovery codes are random (50 bits) and stored under the same keyed hash as the passwords' pepper (an HMAC
+// keyed from KINDRED_SECRET, `h1:`), so a copied database alone cannot be guessed against; using one is one statement too.
+// Codes stored before that (a plain SHA-256, no prefix) still work, once each, and the account is asked to make new ones.
+import { seal, serverHmac, unseal } from './seal.server.ts';
 import { accounts, now, q } from './store.server.ts';
 import type { Query } from '../store/index.ts';
 import { hashToken, safeEqual } from './tokens.server.ts';
@@ -118,7 +120,10 @@ const newCode = () => {
   return `${c.slice(0, 5)}-${c.slice(5)}`;
 };
 const normalizeCode = (typed: string) => typed.toUpperCase().replace(/[^A-Z2-7]/g, '');
-const codeHash = (user: string, typed: string) => hashToken('recovery', `${user}:${normalizeCode(typed)}`);
+const b64u = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const codeHash = async (user: string, typed: string) => `h1:${b64u(await serverHmac('recovery-code', new TextEncoder().encode(`${user}:${normalizeCode(typed)}`)))}`;
+/** How codes were stored before the keyed hash: still accepted, so nobody holding one is locked out. */
+const legacyHash = (user: string, typed: string) => hashToken('recovery', `${user}:${normalizeCode(typed)}`);
 
 /** Ten new codes for `user`, replacing any left: the statements, and the codes to show once. */
 export async function newRecoveryCodes(user: string): Promise<{ codes: string[]; writes: Query[] }> {
@@ -136,9 +141,15 @@ export async function newRecoveryCodes(user: string): Promise<{ codes: string[];
 /** Uses one recovery code of `user`: true once, false for a wrong, used or malformed code. One statement, so a code works once. */
 export async function consumeRecoveryCode(user: string, typed: string): Promise<boolean> {
   if (normalizeCode(typed).length !== 10) return false;
-  const r = await accounts().run('UPDATE recovery_code SET used_at = ? WHERE user = ? AND hash = ? AND used_at IS NULL', now(), user, await codeHash(user, typed));
+  const [hash, legacy] = await Promise.all([codeHash(user, typed), legacyHash(user, typed)]);
+  // A code is stored one way or the other, so at most one row matches.
+  const r = await accounts().run('UPDATE recovery_code SET used_at = ? WHERE user = ? AND hash IN (?, ?) AND used_at IS NULL', now(), user, hash, legacy);
   return r.changes === 1;
 }
+
+/** Whether the account still has unused codes stored the old way (a plain hash): the account menu asks for new ones. */
+export const recoveryNeedsRenewal = async (user: string) =>
+  !!(await accounts().get("SELECT 1 FROM recovery_code WHERE user = ? AND used_at IS NULL AND hash NOT LIKE 'h1:%'", user));
 
 /** How many unused recovery codes `user` has. */
 export const recoveryLeft = async (user: string) =>
