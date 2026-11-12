@@ -36,6 +36,18 @@ const invalid = (key: Parameters<typeof translate>[1], vars?: Record<string, str
 
 /** What replaces an erased person's full name in text that stays. */
 export const REDACTED = '[—]';
+
+/** The characters an id is made of: a match of a person's id must not run on into one of these (`i1` is not in `i10`). */
+const ID_CHAR = 'A-Za-z0-9_-';
+/**
+ * SQL that holds when `col` contains the id `id` as a whole token (alone, or between characters an id cannot have: `/`, `>`,
+ * `"`, a space), and its parameters. GLOB, as SQLite and D1 both have it; the id's own GLOB characters are escaped.
+ */
+export function hasId(col: string, id: string): { sql: string; params: string[] } {
+  const g = id.replace(/[*?[]/g, (c) => `[${c}]`);
+  const edge = `[^${ID_CHAR}]`;
+  return { sql: `(${col} = ? OR ${col} GLOB ? OR ${col} GLOB ? OR ${col} GLOB ?)`, params: [id, `${g}${edge}*`, `*${edge}${g}`, `*${edge}${g}${edge}*`] };
+}
 /** Columns that point at a person by id. */
 const PERSON_REF = new Set(['person', 'child', 'parent', 'a', 'b', 'head', 'heir', 'author_person', 'about']);
 /** Never searched or rewritten: secrets, files' bytes, and hashes. */
@@ -96,12 +108,16 @@ export interface Trace { db: 'family' | 'accounts'; table: string; how: 'link' |
 export async function traces(tree: string, who: { id: string; names: string[] }): Promise<Trace[]> {
   const d = db(tree);
   const out: Trace[] = [];
-  const terms = [who.id, ...who.names];
-  const mention = (c: string) => `(${terms.map(() => `instr(${ident(c)}, ?) > 0`).join(' OR ')})`;
+  // A column mentions them when it holds their id as a whole token, or one of their full names. The terms are bound once, in a
+  // one-row table `kx` joined to the table counted, so a table with many text columns stays under D1's 100 parameters.
+  const id = hasId('c', who.id).params;
+  const kx = `WITH kx AS (SELECT ? AS kx_id, ? AS kx_a, ? AS kx_b, ? AS kx_c${who.names.map((_, i) => `, ? AS kx_n${i}`).join('')})`;
+  const kxParams = [...id, ...who.names];
+  const mention = (c: string) => `(${[`${ident(c)} = kx.kx_id`, ...['a', 'b', 'c'].map((x) => `${ident(c)} GLOB kx.kx_${x}`), ...who.names.map((_, i) => `instr(${ident(c)}, kx.kx_n${i}) > 0`)].join(' OR ')})`;
+  const any = (cols: string[]) => ({ sql: cols.map(mention).join(' OR '), params: kxParams });
   for (const t of await tablesOf(d)) {
     if (t.name === 'history') {
-      const h = await d.get<{ n: number }>(`SELECT count(*) AS n FROM history WHERE person = ? OR record = ? OR instr(record, ?) > 0 OR ${['person_name', 'label', 'fields'].map(mention).join(' OR ')}`,
-        who.id, who.id, who.id, ...terms, ...terms, ...terms);
+      const h = await d.get<{ n: number }>(`${kx} SELECT count(*) AS n FROM history, kx WHERE person = kx.kx_id OR ${any(['record', 'person_name', 'label', 'fields']).sql}`, ...kxParams);
       if (h?.n) out.push({ db: 'family', table: 'history', how: 'history', rows: h.n });
       continue;
     }
@@ -112,14 +128,16 @@ export async function traces(tree: string, who: { id: string; names: string[] })
     }
     const texts = t.columns.filter((c) => isText(c) && !PERSON_REF.has(c.name) && !SKIP_COLUMN.test(c.name));
     if (texts.length) {
-      const n = await d.get<{ n: number }>(`SELECT count(*) AS n FROM ${ident(t.name)} WHERE ${texts.map((c) => mention(c.name)).join(' OR ')}`, ...texts.flatMap(() => terms));
+      const m = any(texts.map((c) => c.name));
+      const n = await d.get<{ n: number }>(`${kx} SELECT count(*) AS n FROM ${ident(t.name)}, kx WHERE ${m.sql}`, ...m.params);
       if (n?.n) out.push({ db: 'family', table: t.name, how: 'text', rows: n.n });
     }
   }
   for (const t of await familyTables()) {
     const texts = t.columns.filter((c) => isText(c) && c.name !== 'tree' && !SKIP_COLUMN.test(c.name));
     if (!texts.length) continue;
-    const n = await accounts().get<{ n: number }>(`SELECT count(*) AS n FROM ${ident(t.name)} WHERE tree = ? AND (${texts.map((c) => mention(c.name)).join(' OR ')})`, tree, ...texts.flatMap(() => terms));
+    const m = any(texts.map((c) => c.name));
+    const n = await accounts().get<{ n: number }>(`${kx} SELECT count(*) AS n FROM ${ident(t.name)}, kx WHERE tree = ? AND (${m.sql})`, ...m.params, tree);
     if (n?.n) out.push({ db: 'accounts', table: t.name, how: t.name.startsWith('ai_') ? 'conversation' : 'text', rows: n.n });
   }
   return out;
@@ -216,20 +234,24 @@ export interface ErasureResult { counts: Record<string, number>; files: number }
 /** The statements that replace a person's names (and drop their id) in every text column of `tables`, but key columns. */
 function scrubText(tables: Table[], who: { id: string; names: string[] }, where = '', whereParams: (string | number)[] = []): Query[] {
   const out: Query[] = [];
-  const terms = [who.id, ...who.names];
   for (const t of tables) {
     for (const c of t.columns) {
       if (!isText(c) || c.name === 'tree' || SKIP_COLUMN.test(c.name)) continue;
       const col = ident(c.name);
+      // The id only as a whole token: an imported `i1` does not match `i10`.
+      const id = hasId(col, who.id);
       // A key column cannot be rewritten without colliding: a row keyed by the id goes instead.
       if (c.key) {
-        out.push(q(`DELETE FROM ${ident(t.name)} WHERE instr(${col}, ?) > 0${where}`, who.id, ...whereParams));
+        out.push(q(`DELETE FROM ${ident(t.name)} WHERE ${id.sql}${where}`, ...id.params, ...whereParams));
         continue;
       }
+      // Only rows that name them are rewritten. Within such a row the id is replaced wherever it occurs, so a row that names
+      // both `i1` and `i10` loses the start of `i10` too; that is the one case left, and it is rare (docs/gdpr.md).
       let expr = `replace(${col}, ?, ?)`;
       const params: string[] = [who.id, REDACTED];
       for (const n of who.names) { expr = `replace(${expr}, ?, ?)`; params.push(n, REDACTED); }
-      out.push(q(`UPDATE ${ident(t.name)} SET ${col} = ${expr} WHERE (${terms.map(() => `instr(${col}, ?) > 0`).join(' OR ')})${where}`, ...params, ...terms, ...whereParams));
+      const names = who.names.map(() => `instr(${col}, ?) > 0`);
+      out.push(q(`UPDATE ${ident(t.name)} SET ${col} = ${expr} WHERE (${[id.sql, ...names].join(' OR ')})${where}`, ...params, ...id.params, ...who.names, ...whereParams));
     }
   }
   return out;
@@ -269,10 +291,13 @@ export async function erasePerson(tree: string, person: string, by: string, requ
 
   // (1) The accounts database: whole conversations that named them (by any message or by their title), then the rest of the
   // family's rows; and the record, pending, once however often this step runs.
-  const terms = [who.id, ...who.names];
-  const named = (c: string) => `(${terms.map(() => `instr(${c}, ?) > 0`).join(' OR ')})`;
+  const named = (c: string) => {
+    const id = hasId(c, who.id);
+    return { sql: `(${[id.sql, ...who.names.map(() => `instr(${c}, ?) > 0`)].join(' OR ')})`, params: [...id.params, ...who.names] };
+  };
+  const body = named('body'), title = named('title');
   const convRows = await accounts().all<{ conv: string }>(
-    `SELECT conv FROM ai_chat WHERE tree = ? AND ${named('body')} UNION SELECT conv FROM ai_thread WHERE tree = ? AND ${named('title')}`, tree, ...terms, tree, ...terms);
+    `SELECT conv FROM ai_chat WHERE tree = ? AND ${body.sql} UNION SELECT conv FROM ai_thread WHERE tree = ? AND ${title.sql}`, tree, ...body.params, tree, ...title.params);
   const convs = JSON.stringify(convRows.map((r) => r.conv));
   const inConvs = 'conv IN (SELECT value FROM json_each(?))';
   const famTables = (await familyTables()).filter((t) => accountsFound.has(t.name) && !['ai_chat', 'ai_thread', 'ai_conversation'].includes(t.name));
@@ -284,7 +309,7 @@ export async function erasePerson(tree: string, person: string, by: string, requ
     q(`DELETE FROM ai_conversation WHERE tree = ? AND ${inConvs}`, tree, convs),
     q('UPDATE guest_visitor SET people = json_remove(people, ?) WHERE tree = ? AND json_valid(people) AND json_type(people, ?) IS NOT NULL', `$."${person}"`, tree, `$."${person}"`),
     q('UPDATE join_request SET person = NULL WHERE tree = ? AND person = ?', tree, person),
-    q('DELETE FROM presence WHERE tree = ? AND (focus = ? OR instr(route, ?) > 0)', tree, person, person),
+    q(`DELETE FROM presence WHERE tree = ? AND (focus = ? OR ${hasId('route', person).sql})`, tree, person, ...hasId('route', person).params),
     q('DELETE FROM subject_restriction WHERE tree = ? AND person = ?', tree, person),
     ...scrubText(famTables, who, ' AND tree = ?', [tree]),
     q(`INSERT INTO subject_action (tree, kind, at, done_by, request, counts, pending) SELECT ?, 'erase', ?, ?, ?, ?, ?
@@ -307,7 +332,7 @@ export async function erasePerson(tree: string, person: string, by: string, requ
       ...base.writes,
       q('SELECT key, thumb FROM media WHERE key IN (SELECT value FROM json_each(?))', pictures),
       q('DELETE FROM media WHERE key IN (SELECT value FROM json_each(?))', pictures),
-      q("DELETE FROM history WHERE person = ? OR record = ? OR instr(record, ?) > 0", person, person, person),
+      q(`DELETE FROM history WHERE person = ? OR ${hasId('record', person).sql}`, person, ...hasId('record', person).params),
       ...scrubText(tables, who),
     ];
     return {

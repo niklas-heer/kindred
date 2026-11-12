@@ -409,6 +409,26 @@ test('an erasure that failed between the two databases is finished by trying aga
   await assert.rejects(subject.erasePerson(tree, 'nobody_zzzzzz', ROSA.id), /no longer in the family/);
 });
 
+test('erasing an imported short id leaves the ids that merely start with it alone', async () => {
+  const tree = 'ashgrove';
+  const d = dbs.db(tree);
+  await d.batch([
+    dbs.q("INSERT INTO person (id, given, surname, living) VALUES ('i1', 'Una', 'Short', 1), ('i10', 'Tess', 'Longer', 1), ('i11', 'Ned', 'Longer', 1)"),
+    dbs.q("INSERT INTO parent (child, parent) VALUES ('i11', 'i10')"),
+    dbs.q("INSERT INTO history (at, account, name, kind, record, person, person_name, label, action) VALUES ('2026-01-01', ?, 'Rosa', 'person', 'i10', 'i10', 'Tess Longer', 'Tess Longer', 'added'), ('2026-01-01', ?, 'Rosa', 'link', 'i11>i10', 'i11', 'Ned Longer', NULL, 'added'), ('2026-01-01', ?, 'Rosa', 'person', 'i1', 'i1', 'Una Short', 'Una Short', 'added')", ROSA.id, ROSA.id, ROSA.id),
+    dbs.q("INSERT INTO op (key, fn, result, at, user) VALUES ('op-i10', 'savePersonEdit', '{\"id\":\"i10\"}', '2026-01-01', ?)", ROSA.id),
+  ]);
+  await run("INSERT INTO presence (tree, account, tab, route, focus, seen) VALUES (?, ?, 't-i10', '/ashgrove/person/i10', 'i10', ?)", tree, ROSA.id, T);
+  const report = await subject.subjectReport(tree, 'i1');
+  assert.ok(!report.traces.some((t) => t.table === 'parent'), 'Tess’s link to Ned is not counted as Una’s');
+  await subject.erasePerson(tree, 'i1', ROSA.id);
+  assert.equal(await d.get("SELECT 1 FROM person WHERE id = 'i1'"), undefined);
+  assert.equal((await d.get<{ n: number }>("SELECT count(*) AS n FROM history WHERE record IN ('i10', 'i11>i10')"))!.n, 2, 'Tess’s and Ned’s history stays');
+  assert.ok(await d.get("SELECT 1 FROM op WHERE key = 'op-i10'"), 'a retry key about Tess stays');
+  assert.ok(await one("SELECT 1 FROM presence WHERE tab = 't-i10'"), 'someone looking at Tess’s page is not affected');
+  assert.equal((await d.get<{ n: number }>("SELECT count(*) AS n FROM history WHERE record = 'i1'"))!.n, 0);
+});
+
 test('a member\'s own person is not erased, and a restricted person cannot be changed until it is lifted', async () => {
   const tree = 'brackwell';
   const d = dbs.db(tree);
