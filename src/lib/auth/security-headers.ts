@@ -45,18 +45,23 @@ export function newCspNonce(): string {
  *   connect-src 'self'          a page can talk only to its own server, so injected markup could not send data elsewhere;
  *                               the AI providers are called by the server, never by the page
  *   frame-src 'self'            the research viewer shows a stored PDF in a frame
+ *   challenges.cloudflare.com   script and frame, only with KINDRED_TURNSTILE_SITE_KEY and _SECRET: Turnstile's check on the
+ *                               public request forms
  *   worker-src 'self'           the service worker (public/sw.js) for reminders
  */
-export function contentSecurityPolicy(nonce: string): string {
+export function contentSecurityPolicy(nonce: string, turnstile = !!(process.env.KINDRED_TURNSTILE_SITE_KEY?.trim() && process.env.KINDRED_TURNSTILE_SECRET?.trim())): string {
+  // Cloudflare Turnstile on the public request forms (src/components/operator/Turnstile.tsx), only when the server has its keys:
+  // its script, and the frame it draws the check in.
+  const cf = turnstile ? ' https://challenges.cloudflare.com' : '';
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'`,
+    `script-src 'self' 'nonce-${nonce}'${cf}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
     "connect-src 'self'",
     "media-src 'self' blob:",
-    "frame-src 'self'",
+    `frame-src 'self'${cf}`,
     "worker-src 'self'",
     "manifest-src 'self'",
     "object-src 'none'",

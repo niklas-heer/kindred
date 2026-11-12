@@ -1,12 +1,14 @@
 import { translateMessage, useT } from '~/lib/i18n';
-// The frame for /signin, /setup and /invite: one card on the canvas, a crest above it, and a plain
-// explanation of passkeys for relatives who have never used one. The language picker sits in the card's corner.
+// The frame for /signin, /setup, /invite, the share link and the public request forms: one card on the canvas, a crest above
+// it, and a plain explanation of passkeys for relatives who have never used one. The language picker sits in the card's
+// corner, and the legal footer under it (shown only when the server's operator filled the legal texts in).
 import { AlertCircle, Fingerprint, KeyRound, ShieldQuestion, Smartphone } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { LanguagePicker } from './LanguagePicker';
+import { LegalFooter } from './operator/LegalFooter';
 import '~/styles/auth.css';
 
-export function AuthCard({ crest, kicker, title, lede, children, wide }: { crest: ReactNode; kicker?: ReactNode; title: ReactNode; lede?: ReactNode; children: ReactNode; wide?: boolean }) {
+export function AuthCard({ crest, kicker, title, lede, children, wide, footer = true }: { crest: ReactNode; kicker?: ReactNode; title: ReactNode; lede?: ReactNode; children?: ReactNode; wide?: boolean; footer?: boolean }) {
   return (
     <main className="auth-page">
       <section className={`auth-card ui-card${wide ? ' wide' : ''}`} aria-labelledby="auth-title">
@@ -17,6 +19,7 @@ export function AuthCard({ crest, kicker, title, lede, children, wide }: { crest
         {lede && <p className="auth-lede">{lede}</p>}
         {children}
       </section>
+      {footer && <LegalFooter />}
     </main>
   );
 }

@@ -1,0 +1,56 @@
+/* The operator console (src/routes/operator.tsx), the public request forms, the legal page and its footer, and the banner of
+   a suspended family. Built on the Families page's classes (families.css). */
+.operator { max-width: 980px; }
+.operator-tabs { flex-wrap: wrap; }
+.operator-panel { display: grid; gap: 20px; padding-top: 16px; }
+.operator-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.operator-facts { display: grid; gap: 8px 16px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 0; }
+.operator-fact { display: grid; gap: 2px; min-width: 0; }
+.operator-fact dt { font-size: var(--fs-1, 0.75rem); color: var(--subtle); text-transform: uppercase; letter-spacing: 0.04em; }
+.operator-fact dd { margin: 0; display: grid; gap: 4px; }
+.operator-meter { display: block; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; max-width: 160px; }
+.operator-meter > span { display: block; height: 100%; background: var(--accent); }
+.operator-meter > span[data-full] { background: var(--danger); }
+.operator-chip { font-size: var(--fs-1, 0.75rem); color: var(--danger); border-color: currentColor; }
+.operator-stewards { display: grid; gap: 6px; }
+.operator-stewards ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+.operator-stewards p { margin: 0; }
+.operator-stewards a, .operator-data a, .operator-compact a { overflow-wrap: anywhere; }
+.operator-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.operator-inline .input { width: 12ch; }
+.operator-inline input[type='email'] { width: min(320px, 70vw); }
+.operator-link { display: grid; gap: 6px; }
+.operator-link-input { flex: 1 1 280px; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-2, 0.8125rem); }
+.operator-message { margin: 0; padding: 8px 12px; border-left: 3px solid var(--border); white-space: pre-wrap; overflow-wrap: anywhere; }
+.operator-soon { color: var(--accent); margin: 0; font-weight: 600; }
+.operator-compact { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.operator-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.operator-fieldset { border: 1px solid var(--border); border-radius: var(--radius, 8px); padding: 12px 14px; margin: 0; display: grid; gap: 10px; min-width: 0; }
+.operator-fieldset legend { padding: 0 6px; font-weight: 600; }
+.operator-radio { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.operator-radio input { margin-top: 4px; flex: none; }
+.operator-radio span { display: grid; gap: 2px; }
+.operator-radio small { color: var(--subtle); line-height: 1.4; }
+.operator-text { min-height: 80px; height: auto; resize: vertical; padding: 8px 10px; line-height: 1.45; font: inherit; }
+.operator-table-wrap { overflow-x: auto; }
+.operator-table { width: 100%; border-collapse: collapse; font-size: var(--fs-2, 0.8125rem); }
+.operator-table th, .operator-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.operator-table th { font-weight: 600; color: var(--subtle); }
+
+/* The field a person never sees on the public forms (a bot fills it). Off screen rather than display:none, which bots skip. */
+.hp-field { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+.turnstile { min-height: 65px; }
+
+.legal-footer { margin: 16px auto 0; max-width: 560px; text-align: center; font-size: var(--fs-2, 0.8125rem); }
+.legal-footer nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; }
+.legal-footer a { color: var(--subtle); text-decoration: underline; text-underline-offset: 3px; }
+.legal { display: grid; gap: 18px; }
+.legal-section h2 { margin: 0 0 6px; font-size: var(--fs-5, 1.125rem); }
+.legal-section p { margin: 0; overflow-wrap: anywhere; }
+.legal-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+
+/* A family its operator suspended: read-only for its members (src/routes/$tree.tsx). */
+.suspended-bar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 6px var(--gutter, 16px); background: var(--accent); color: var(--accent-text); font-size: var(--fs-2, 0.8125rem); font-weight: 600; text-align: center; }
+.suspended-bar p { margin: 0; }
+.shell.shell-suspended { grid-template-rows: auto auto minmax(0, 1fr) auto; }
+.shell.shell-suspended.shell-viewas { grid-template-rows: auto auto auto minmax(0, 1fr) auto; }

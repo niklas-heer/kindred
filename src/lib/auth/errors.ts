@@ -20,6 +20,10 @@ export const needsProof = () => new AuthError('reauth', 'Confirm it’s you with
 export const signedOut = () => new AuthError('signed-out', 'Please sign in to continue.');
 export const notMember = () => new AuthError('not-member', 'You don’t have access to this family.');
 // The text is one fixed English sentence, so the client can translate it (see translateMessage).
+/** Only an operator of this server may do that (src/lib/operator/). One fixed English sentence, translated by the browser. */
+export const notOperator = () => new AuthError('forbidden', 'Only an operator of this server can do that.');
+/** The family is suspended by the server's operator: its members can read it but change nothing. */
+export const suspended = () => new AuthError('forbidden', 'This family is suspended by the server’s operator: you can read it, but nothing can be changed.');
 export const forbidden = (_action: Action, _needed: Role) => new AuthError('forbidden', 'You don’t have permission for that. Ask a steward for access.');
 
 /** The kind of an error that came back from a server function, if it was an auth error. */

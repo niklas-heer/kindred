@@ -5,8 +5,10 @@ import { translateMessage, formatDate, relativeTime, useT, type Locale } from '~
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { graphQuery } from '~/lib/api';
-import { Activity, ArrowLeftRight, BarChart3, Bell, Check, Compass, Eye, Fingerprint, Info, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus, Gamepad2, Landmark, History, Printer } from 'lucide-react';
+import { Activity, ArrowLeftRight, BarChart3, Bell, Check, Compass, Eye, Fingerprint, Info, KeyRound, LayoutGrid, LogOut, Plus, ShieldCheck, Sparkles, Trash2, Users, Volume2, VolumeX, Inbox, MessageSquarePlus, Gamepad2, Landmark, History, Printer, Scale, ServerCog } from 'lucide-react';
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
+import { publicInstanceQuery } from '~/lib/operator/operator.functions';
+import { anyLegal } from '~/lib/operator/shared';
 import '~/components/assistant/ai-tasks.css';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { addPasskey, forgetLocalIdentity, passkeysSupported, signOutRequest, withFreshProof } from '~/lib/auth/client';
@@ -85,6 +87,8 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
   const [reminders, setReminders] = useState(false);
   // Reminders are offered only when this server has its VAPID keys (docs/self-host.md, "Reminders").
   const remindersOn = useQuery({ queryKey: ['reminders', 'available'], queryFn: () => fetchRemindersAvailable(), staleTime: 5 * 60_000 });
+  // The server's legal texts, when its operator wrote any: a link to them (src/routes/legal.tsx).
+  const instance = useQuery({ ...publicInstanceQuery, enabled: open });
   // The quiet badge: what waits for a steward, on the Access page and in AI activity (zero for everyone else).
   const attention = useQuery({ ...aiAttentionQuery(tree ?? ''), enabled: !!tree && !!m && can(m.role, 'manage-access') });
   // Changes in the family this member has not been shown yet: a dot beside History (history.functions.ts).
@@ -245,9 +249,14 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
                 <Link role="menuitem" className="acct-item" to="/" search={{ families: 'all' }} onClick={() => setOpen(false)}>
                   <LayoutGrid size={17} /> {t('accountmenu.all_families')} </Link>
               )}
-              {!demo && (!!preview || session?.memberships.some((x) => x.role === 'steward')) && (
+              {!demo && (!!preview || !!signedIn.operator || session?.memberships.some((x) => x.role === 'steward')) && (
                 <Link role="menuitem" className="acct-item" to="/families" onClick={() => setOpen(false)}>
                   <Landmark size={17} /> {t('families.menu')} </Link>
+              )}
+              {/* The operator console: an instance role, never a family's (docs/hosting-many-families.md). */}
+              {!demo && signedIn.operator && (
+                <Link role="menuitem" className="acct-item" to="/operator" onClick={() => setOpen(false)}>
+                  <ServerCog size={17} /> {t('operator.menu')} </Link>
               )}
               {!demo && (
               <button role="menuitem" className="acct-item" onClick={() => void signOut(session?.accessLogout, !!preview)}>
@@ -284,6 +293,10 @@ export function AccountMenu({ familyName }: { familyName?: string }) {
             </div>
             <button role="menuitem" className="acct-item acct-about" onClick={() => { setOpen(false); setAbout(true); }}>
               <Info size={17} /> {t('accountmenu.about')} </button>
+            {instance.data && anyLegal(instance.data.legal) && (
+              <Link role="menuitem" className="acct-item" to="/legal" onClick={() => setOpen(false)}>
+                <Scale size={17} /> {t('legal.title')} </Link>
+            )}
             {appVersion() && (
               <a className="acct-version" role="menuitem" href={releaseUrl(appVersion()!)} target="_blank" rel="noopener noreferrer" title={t('accountmenu.releaseNotes')}>
                 {t('accountmenu.version', { version: appVersion()! })}{appCommit() && <span> · {appCommit()}</span>}

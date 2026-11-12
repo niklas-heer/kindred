@@ -18,7 +18,7 @@ import { CHANGE_OF_ACTION } from '../stats/shared';
 import { onChangeCommitted } from '../db.server';
 import { onActor, type Actor } from '../history.server';
 import { can, needs, type Action, type Role } from '../roles';
-import { forbidden, notMember, signedOut, type AuthError } from './errors';
+import { forbidden, notMember, notOperator, signedOut, suspended, type AuthError } from './errors';
 import { getSession, type Session } from './session.server';
 import { membershipsOf, type MembershipRow, type UserRow } from './store.server';
 import { demoRefused, isDemo } from '../demo';
@@ -69,13 +69,23 @@ const shared = globalThis as unknown as { __kindredPreviewing?: WeakMap<Request,
 const previewing = (shared.__kindredPreviewing ??= new WeakMap<Request, ViewAs>());
 const previewChange = (shared.__kindredPreviewChange ??= new WeakSet<Request>());
 
+// The requests that reached a suspended family (docs/hosting-many-families.md): read-only from that check on, like a preview.
+const shared2 = globalThis as unknown as { __kindredSuspendedRequests?: WeakSet<Request> };
+const suspendedRequests = (shared2.__kindredSuspendedRequests ??= new WeakSet<Request>());
+
 // The one place that says a request may not write: asked by the store, `once`, the media store and the AI adapters.
 onRequestReadOnly(() => {
   let request: Request;
   try { request = getRequest(); } catch { return undefined; } // outside a request: a job, a script
   const viewAs = previewing.get(request);
-  return viewAs && !previewChange.has(request) ? viewAsRefused(viewAs) : undefined;
+  if (viewAs && !previewChange.has(request)) return viewAsRefused(viewAs);
+  return suspendedRequests.has(request) ? suspended() : undefined;
 });
+
+/** A member's check of a family the operator suspended makes the rest of the request read-only. */
+function noteSuspended(m: MembershipRow | undefined): void {
+  if (m?.suspended) suspendedRequests.add(getRequest());
+}
 
 /** The request's preview, if the session has one (after `currentSession`). */
 export const previewOf = (): ViewAs | undefined => previewing.get(getRequest());
@@ -131,6 +141,7 @@ export async function requireMember(tree: string): Promise<Member> {
   const signedIn = await requireUser();
   const m = await membership(signedIn.id, tree);
   if (!m) throw fail(notMember());
+  noteSuspended(m);
   const user = readerAccount(await currentSession(), tree) ?? signedIn;
   actorsOf(getRequest()).set(tree, { account: user.id, name: user.name });
   return { user, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed };
@@ -164,6 +175,7 @@ export async function requireReader(tree: string): Promise<Reader> {
   const session = await currentSession();
   const { user, guest } = session;
   const m = user && (await membership(user.id, tree));
+  noteSuspended(m || undefined);
   if (user && m) return { user: readerAccount(session, tree) ?? user, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed, guest: false, protectLiving: false };
   // A visit that does not say is protected: only a link that has the setting off shows the living in full.
   if (guest?.tree === tree) return { user: null, role: 'viewer', person: null, personConfirmed: false, guest: true, protectLiving: guest.protectLiving !== false };
@@ -177,6 +189,8 @@ export async function requireCan(tree: string, action: Action): Promise<Member> 
   // and the store refuses every change anyway (src/lib/store/index.ts).
   if (isDemo() && action !== 'view') throw fail(demoRefused());
   if (!can(m.role, action)) throw fail(forbidden(action, needs(action)));
+  // A suspended family is read-only for its members: anything beyond reading is refused here, before any work.
+  if (action !== 'view' && suspendedRequests.has(getRequest())) throw fail(suspended());
   if (CHANGE_OF_ACTION[action]) {
     const request = getRequest();
     if (!allowedChange.has(request)) allowedChange.set(request, { tree, user: m.user.id, role: m.role, action });
@@ -196,3 +210,15 @@ onChangeCommitted(async (tree) => {
   // Awaited, so a Worker does not end the request before it is written.
   await (await import('../stats/store.server')).countChange(tree, change.user, change.role, change.action);
 });
+
+/**
+ * The signed-in reader, who must be an operator of this server (docs/hosting-many-families.md): 401 when signed out, 403
+ * otherwise. Being an operator is an instance role, never a family's: it passes no family check above, and nothing here makes
+ * it one. Always the real account, also during a "View as" preview (which keeps the request read-only anyway); never in a demo.
+ */
+export async function requireOperator(): Promise<UserRow> {
+  const session = await currentSession();
+  if (!session.user) throw fail(signedOut());
+  if (isDemo() || session.via === 'demo' || session.user.operator !== 1) throw fail(notOperator());
+  return session.user;
+}

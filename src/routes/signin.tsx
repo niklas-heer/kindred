@@ -5,6 +5,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router';
 import { KeyRound, LogOut } from 'lucide-react';
 import { useState } from 'react';
 import { AuthCard, AuthError, NoAccessIdentity, PasskeyExplainer } from '~/components/AuthCard';
+import { RequestFamilyLink } from '~/components/operator/LegalFooter';
 import { forgetLocalIdentity, passkeysSupported, safeNext, signInWithPasskey } from '~/lib/auth/client';
 import { sessionQuery } from '~/lib/auth/functions';
 import { useIsClient } from '~/components/ui';
@@ -79,6 +80,7 @@ function PasskeySignIn() {
       </div>
       <p className="auth-device-hint"><b>{t("signin.use_a_passkey_from_another_device")}</b><br />{t("signin.in_the_passkey_prompt_choose_another_device_or_a_phone_then_scan_the_qr_code_you_can_also_choose_1password_or_your_password_manager")}</p>
       <PasskeyExplainer />
+      <RequestFamilyLink />
     </AuthCard>
   );
 }

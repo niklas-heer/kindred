@@ -8,6 +8,7 @@ import { historyJob } from './history.ts';
 import { recipesJob } from './recipes.ts';
 import { remindersJob } from './reminders.ts';
 import { statsJob } from './stats.ts';
+import { storageJob } from './storage.ts';
 import type { DailyJob, JobContext } from './types.ts';
 
 export type { DailyJob, JobContext } from './types.ts';
@@ -22,6 +23,7 @@ export const DAILY_JOBS: readonly DailyJob[] = [
   historyJob,
   feedJob,
   recipesJob,
+  storageJob,
 ];
 
 /**

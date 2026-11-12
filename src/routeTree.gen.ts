@@ -12,6 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TreeRouteImport } from './routes/$tree'
 import { Route as FamiliesRouteImport } from './routes/families'
+import { Route as LegalRouteImport } from './routes/legal'
+import { Route as OperatorRouteImport } from './routes/operator'
+import { Route as PrivacyRequestRouteImport } from './routes/privacy-request'
+import { Route as RequestRouteImport } from './routes/request'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SigninRouteImport } from './routes/signin'
 import { Route as UiRouteImport } from './routes/ui'
@@ -76,6 +80,26 @@ const TreeRoute = TreeRouteImport.update({
 const FamiliesRoute = FamiliesRouteImport.update({
   id: '/families',
   path: '/families',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalRoute = LegalRouteImport.update({
+  id: '/legal',
+  path: '/legal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperatorRoute = OperatorRouteImport.update({
+  id: '/operator',
+  path: '/operator',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRequestRoute = PrivacyRequestRouteImport.update({
+  id: '/privacy-request',
+  path: '/privacy-request',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RequestRoute = RequestRouteImport.update({
+  id: '/request',
+  path: '/request',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SetupRoute = SetupRouteImport.update({
@@ -333,6 +357,10 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$tree': typeof TreeRouteWithChildren
   '/families': typeof FamiliesRoute
+  '/legal': typeof LegalRoute
+  '/operator': typeof OperatorRoute
+  '/privacy-request': typeof PrivacyRequestRoute
+  '/request': typeof RequestRoute
   '/setup': typeof SetupRoute
   '/signin': typeof SigninRoute
   '/ui': typeof UiRoute
@@ -387,6 +415,10 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/families': typeof FamiliesRoute
+  '/legal': typeof LegalRoute
+  '/operator': typeof OperatorRoute
+  '/privacy-request': typeof PrivacyRequestRoute
+  '/request': typeof RequestRoute
   '/setup': typeof SetupRoute
   '/signin': typeof SigninRoute
   '/ui': typeof UiRoute
@@ -443,6 +475,10 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$tree': typeof TreeRouteWithChildren
   '/families': typeof FamiliesRoute
+  '/legal': typeof LegalRoute
+  '/operator': typeof OperatorRoute
+  '/privacy-request': typeof PrivacyRequestRoute
+  '/request': typeof RequestRoute
   '/setup': typeof SetupRoute
   '/signin': typeof SigninRoute
   '/ui': typeof UiRoute
@@ -500,6 +536,10 @@ export interface FileRouteTypes {
     | '/'
     | '/$tree'
     | '/families'
+    | '/legal'
+    | '/operator'
+    | '/privacy-request'
+    | '/request'
     | '/setup'
     | '/signin'
     | '/ui'
@@ -554,6 +594,10 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/families'
+    | '/legal'
+    | '/operator'
+    | '/privacy-request'
+    | '/request'
     | '/setup'
     | '/signin'
     | '/ui'
@@ -609,6 +653,10 @@ export interface FileRouteTypes {
     | '/'
     | '/$tree'
     | '/families'
+    | '/legal'
+    | '/operator'
+    | '/privacy-request'
+    | '/request'
     | '/setup'
     | '/signin'
     | '/ui'
@@ -665,6 +713,10 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   TreeRoute: typeof TreeRouteWithChildren
   FamiliesRoute: typeof FamiliesRoute
+  LegalRoute: typeof LegalRoute
+  OperatorRoute: typeof OperatorRoute
+  PrivacyRequestRoute: typeof PrivacyRequestRoute
+  RequestRoute: typeof RequestRoute
   SetupRoute: typeof SetupRoute
   SigninRoute: typeof SigninRoute
   UiRoute: typeof UiRoute
@@ -710,6 +762,34 @@ declare module '@tanstack/react-router' {
       path: '/families'
       fullPath: '/families'
       preLoaderRoute: typeof FamiliesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal': {
+      id: '/legal'
+      path: '/legal'
+      fullPath: '/legal'
+      preLoaderRoute: typeof LegalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operator': {
+      id: '/operator'
+      path: '/operator'
+      fullPath: '/operator'
+      preLoaderRoute: typeof OperatorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy-request': {
+      id: '/privacy-request'
+      path: '/privacy-request'
+      fullPath: '/privacy-request'
+      preLoaderRoute: typeof PrivacyRequestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/request': {
+      id: '/request'
+      path: '/request'
+      fullPath: '/request'
+      preLoaderRoute: typeof RequestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/setup': {
@@ -1133,6 +1213,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   TreeRoute: TreeRouteWithChildren,
   FamiliesRoute: FamiliesRoute,
+  LegalRoute: LegalRoute,
+  OperatorRoute: OperatorRoute,
+  PrivacyRequestRoute: PrivacyRequestRoute,
+  RequestRoute: RequestRoute,
   SetupRoute: SetupRoute,
   SigninRoute: SigninRoute,
   UiRoute: UiRoute,

@@ -32,6 +32,7 @@ import * as historyArea from "./areas/history.ts";
 import * as housesArea from "./areas/houses.ts";
 import * as joinArea from "./areas/join.ts";
 import * as neededArea from "./areas/needed.ts";
+import * as operatorArea from "./areas/operator.ts";
 import * as panelArea from "./areas/panel.ts";
 import * as photosArea from "./areas/photos.ts";
 import * as portraitArea from "./areas/portrait.ts";
@@ -93,6 +94,7 @@ export const AREAS = [
   sourcesArea,
   campaignArea,
   familiesArea,
+  operatorArea,
   historyArea,
   responsesArea,
   feedArea,

@@ -14,6 +14,7 @@ import { withFreshProof } from '~/lib/auth/client';
 import { errorText } from '~/lib/errortext';
 import { createFamily, deleteFamily, editFamily, familiesQuery } from '~/lib/families.functions';
 import type { FamiliesOverview, FamilyAdminRow } from '~/lib/families.server';
+import { formatBytes } from '~/lib/operator/shared';
 import { translate, useT } from '~/lib/i18n';
 import '~/styles/home.css';
 import '~/components/families/families.css';
@@ -65,6 +66,12 @@ function Overview({ data }: { data: FamiliesOverview }) {
           </ul>
         )}
       </section>
+      {!data.mayCreate && data.familyCreation === 'requests' && (
+        <section aria-labelledby="families-new">
+          <h2 id="families-new" className="rule">{t('families.new')}</h2>
+          <p><Link to="/request">{t('request.ask_link')}</Link></p>
+        </section>
+      )}
       {data.mayCreate && (
         <section aria-labelledby="families-new">
           <h2 id="families-new" className="rule">{t('families.new')}</h2>
@@ -187,6 +194,13 @@ function FamilyCard({ family: f, total, isDefault }: { family: FamilyAdminRow; t
         <span className="families-id muted">/{f.id}</span>
       </h3>
       <p className="muted">{t('families.people', { count: f.people })}</p>
+      {f.suspended && <p className="families-error">{t('operator.suspended_banner')}</p>}
+      {f.storage && (
+        <p className="muted">
+          {f.storage.capBytes === null ? t('families.storage_used', { used: formatBytes(f.storage.usedBytes, t.locale) })
+            : t('families.storage_used_of', { used: formatBytes(f.storage.usedBytes, t.locale), cap: formatBytes(f.storage.capBytes, t.locale) })}
+        </p>
+      )}
       {f.steward ? (
         <>
           <EditFamily family={f} />

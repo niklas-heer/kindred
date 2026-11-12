@@ -10,6 +10,7 @@ import { fieldsVisibleTo, PLAIN_MEMBER, type Audience, type Visibility } from '.
 import { translate } from './i18n/dictionary.ts';
 import { LIVING_IDS, protectDetail, protectGraph } from './protect-living.ts';
 import { refuseReadOnly } from './read-only.ts';
+import { countedMedia } from './operator/storage.server.ts';
 import { added, change, checkHistory, currentActor, historyWrites, NOT_A_RECORD, type HistoryEntry } from './history.server.ts';
 
 export { guard, q, store, type Db, type Query } from './store/index.ts';
@@ -588,7 +589,11 @@ export function updateHouse(tree: string, id: string, patch: { name: string; mot
 
 // ---------- media ----------
 
-export const media = store.media;
+/**
+ * The media store for every upload and deletion: counted against the family's storage cap (src/lib/operator/storage.server.ts).
+ * Store files through this, never through `store.media` directly, or they escape the cap.
+ */
+export const media = countedMedia(store.media);
 
 const EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif' };
 /** A fresh media key for an upload: `photo/<uuid>.jpg`. */

@@ -225,6 +225,8 @@ const ANSWERS_A_GUEST = new Set([
   'fetchJoinState', 'fetchJoinPreview', 'joinOptions', 'sendJoinRequest',
   // Stopping a "View as" preview: always allowed, and it answers nothing but { ok: true } (view-as.test.ts).
   'stopViewAs',
+  // The server's public pages: its name, legal texts and request forms, which read no family (operator.test.ts).
+  'fetchPublicInstance', 'fetchLegal', 'sendFamilyRequest', 'sendDataRequest',
 ]);
 
 /** Asks every server function as a guest, once about the child and once about her research, and returns what answered. */

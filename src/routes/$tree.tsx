@@ -16,6 +16,7 @@ import { Tours } from '~/components/tour/Tours';
 import { openTours } from '~/components/tour/store';
 import { GuestChip } from '~/components/GuestChip';
 import { ViewAsBar, ViewAsHost } from '~/components/viewas/ViewAs';
+import { SuspendedBar } from '~/components/operator/SuspendedBar';
 import { JoinInvite } from '~/components/join/JoinInvite';
 import { aiAttentionQuery } from '~/lib/ai/background.functions';
 import { FeedbackHost, openFeedback } from '~/components/feedback/FeedbackHost';
@@ -133,6 +134,8 @@ function TreeLayout() {
   const guest = session?.guest?.tree === tree;
   // A steward's "View as" preview: its bar stays on every page, of this family and of any other they open meanwhile.
   const viewAs = session?.viewAs;
+  // The operator suspended this family: members read it, nothing can be changed (docs/hosting-many-families.md).
+  const suspended = !!session?.memberships.find((m) => m.tree === tree)?.suspended;
   const previewed = viewAs ? families.find((x) => x.id === viewAs.tree)?.name : undefined;
   useStatsBeacon(tree, guest);
   const topbar = useTopbarFit();
@@ -169,8 +172,9 @@ function TreeLayout() {
 
   return (
     <PresenceHost tree={tree}>
-    <div className={viewAs ? 'shell shell-viewas' : 'shell'}>
+    <div className={`shell${viewAs ? ' shell-viewas' : ''}${suspended ? ' shell-suspended' : ''}`}>
       <a href="#main" className="skip-link" onClick={(e) => { e.preventDefault(); document.getElementById('main')?.focus(); }}>{t('shell.skip')}</a>
+      {suspended && <SuspendedBar />}
       <ViewAsBar tree={tree} familyName={previewed} />
       <header className="topbar topbar-stacked" ref={topbar} data-tour="topbar">
         <Link to={multiple ? "/" : "/$tree"} params={{ tree }} search={multiple ? { families: "all" } : {}} className="brand" title={multiple ? t("shell.all_families") : t("shell.family_tree")}>

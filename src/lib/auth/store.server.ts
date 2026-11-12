@@ -44,7 +44,11 @@ const CHALLENGE_MS = 5 * 60_000;
 
 // ---------- users ----------
 
-export interface UserRow { id: string; name: string; email: string | null; handle: string; created: number; last_seen: number | null; locale: Locale | null }
+export interface UserRow {
+  id: string; name: string; email: string | null; handle: string; created: number; last_seen: number | null; locale: Locale | null;
+  /** 1 for an operator of this server (migration 0034, src/lib/operator/): an instance role, never a family's. */
+  operator?: number;
+}
 
 export const userCount = async () => (await accounts().get<{ n: number }>('SELECT count(*) AS n FROM user'))!.n;
 export const userById = (id: string) => accounts().get<UserRow>('SELECT * FROM user WHERE id = ?', id);
@@ -57,7 +61,8 @@ export const userByHandle = (handle: string) => accounts().get<UserRow>('SELECT 
  */
 export function newUser(name: string, email: string | null, handle = randomToken(32), locale: Locale | null = null): { user: UserRow; insert: Query } {
   const user: UserRow = { id: crypto.randomUUID(), name, email, handle, created: now(), last_seen: now(), locale };
-  return { user, insert: q('INSERT INTO user (id, name, email, handle, created, last_seen, locale) VALUES (?, ?, ?, ?, ?, ?, ?)', user.id, user.name, user.email, user.handle, user.created, user.last_seen, user.locale) };
+  // The server's first account is its operator (docs/hosting-many-families.md): decided by the database, in the same statement.
+  return { user, insert: q('INSERT INTO user (id, name, email, handle, created, last_seen, locale, operator) SELECT ?, ?, ?, ?, ?, ?, ?, NOT EXISTS (SELECT 1 FROM user)', user.id, user.name, user.email, user.handle, user.created, user.last_seen, user.locale) };
 }
 
 /** Guards that nobody has an account yet: what makes the first account the only first steward. */
@@ -122,7 +127,7 @@ export async function sessionWithUser(token: string): Promise<{ session: Session
   const [s, u, m] = (await accounts().readBatch([
     q('SELECT * FROM session WHERE hash = ? AND expires > ?', hash, t),
     q(`SELECT * FROM user WHERE id = (${live})`, hash, t),
-    q(`SELECT * FROM membership WHERE user = (${live}) ORDER BY created`, hash, t),
+    q(`SELECT ${MEMBERSHIP} WHERE m.user = (${live}) ORDER BY m.created`, hash, t),
   ])) as unknown as [SessionRow[], UserRow[], MembershipRow[]];
   const session = s[0], user = u[0];
   return session && user ? { session, user, memberships: m } : undefined;
@@ -174,10 +179,16 @@ export async function removeCredential(user: string, id: string): Promise<'remov
 
 // ---------- memberships ----------
 
-export interface MembershipRow { user: string; tree: string; role: Role; person: string | null; person_confirmed: number; created: number }
+export interface MembershipRow {
+  user: string; tree: string; role: Role; person: string | null; person_confirmed: number; created: number;
+  /** 1 while the operator has suspended the family (migration 0034, `family_admin`): it is read-only for its members. */
+  suspended?: number;
+}
 
-export const membershipsOf = (user: string) => accounts().all<MembershipRow>('SELECT * FROM membership WHERE user = ? ORDER BY created', user);
-export const membership = (user: string, tree: string) => accounts().get<MembershipRow>('SELECT * FROM membership WHERE user = ? AND tree = ?', user, tree);
+/** A membership's columns, with whether its family is suspended, read in the same statement (the guard needs it on every request). */
+const MEMBERSHIP = "m.*, EXISTS (SELECT 1 FROM family_admin f WHERE f.tree = m.tree AND f.status = 'suspended') AS suspended FROM membership m";
+export const membershipsOf = (user: string) => accounts().all<MembershipRow>(`SELECT ${MEMBERSHIP} WHERE m.user = ? ORDER BY m.created`, user);
+export const membership = (user: string, tree: string) => accounts().get<MembershipRow>(`SELECT ${MEMBERSHIP} WHERE m.user = ? AND m.tree = ?`, user, tree);
 
 const rank = (col: string) => `CASE ${col} WHEN 'viewer' THEN 0 WHEN 'contributor' THEN 1 WHEN 'editor' THEN 2 WHEN 'steward' THEN 3 END`;
 

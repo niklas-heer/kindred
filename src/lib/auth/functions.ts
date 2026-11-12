@@ -19,8 +19,10 @@ const store = () => import('./store.server');
 export interface SessionInfo {
   /** The installation's one sign-in method (KINDRED_AUTH). Decides which sign-in screens exist at all. */
   auth: 'kindred' | 'cloudflare-access';
-  user: { id: string; name: string; email: string | null; via: 'passkey' | 'access' | 'demo'; locale: (typeof LOCALES)[number] | null } | null;
-  memberships: { tree: string; role: Role; person: string | null; personConfirmed: boolean }[];
+  /** `operator`: an operator of this server (src/lib/operator/), which opens the operator console and nothing of any family. */
+  user: { id: string; name: string; email: string | null; via: 'passkey' | 'access' | 'demo'; locale: (typeof LOCALES)[number] | null; operator?: true } | null;
+  /** `suspended`: the operator suspended that family, so it is read-only for its members (a banner says so). */
+  memberships: { tree: string; role: Role; person: string | null; personConfirmed: boolean; suspended?: true }[];
   /** Nobody has an account yet: /setup creates the first steward. */
   needsSetup: boolean;
   /** Setup will make the server's first family, so it asks for that family's name. */
@@ -83,13 +85,13 @@ export const fetchSession = createServerFn({ method: 'GET' }).handler(async (): 
   // First-time setup is no business of the guest host, which is open to the internet.
   const needs = guestHost ? false : await setup.needsSetup(getRequest());
   const needsFamily = needs && !(await (await import('./trees.server')).families()).length;
-  const memberships = user ? (await myMemberships()).map((m) => ({ tree: m.tree, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed })) : [];
+  const memberships = user ? (await myMemberships()).map((m) => ({ tree: m.tree, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed, ...(m.suspended ? { suspended: true as const } : {}) })) : [];
   // A member of that family is simply a member: only someone who isn't gets the guest's view of it.
   const guestHere = guest && !memberships.some((m) => m.tree === guest.tree) ? guest : undefined;
   if (guestHere) memberships.push({ tree: guestHere.tree, role: 'viewer', person: null, personConfirmed: false });
   return {
     auth,
-    user: user && via ? { id: user.id, name: user.name, email: user.email, via, locale: user.locale } : null,
+    user: user && via ? { id: user.id, name: user.name, email: user.email, via, locale: user.locale, ...(user.operator === 1 ? { operator: true as const } : {}) } : null,
     memberships,
     needsSetup: needs,
     needsFamily,

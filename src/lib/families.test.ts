@@ -65,15 +65,16 @@ after(async () => {
 
 const g = globalThis as unknown as { __signedIn?: unknown; __request?: Request };
 const T = Date.now();
-const user = (id: string, created: number) => ({ id, name: id, email: null, handle: `h-${id}`, created, last_seen: null, locale: null });
-const FIRST = user('00000000-0000-4000-8000-000000000001', T - 1000);
+const user = (id: string, created: number, operator = 0) => ({ id, name: id, email: null, handle: `h-${id}`, created, last_seen: null, locale: null, operator });
+// The server's first account: its operator (migration 0034).
+const FIRST = user('00000000-0000-4000-8000-000000000001', T - 1000, 1);
 const STEWARD = user('00000000-0000-4000-8000-000000000002', T);
 const VIEWER = user('00000000-0000-4000-8000-000000000003', T + 1);
 const PENDING = '00000000-0000-4000-8000-000000000009';
 const sql = (s: string, ...p: (string | number | null)[]) => acc.accounts().run(s, ...p);
 
 before(async () => {
-  for (const u of [FIRST, STEWARD, VIEWER]) await sql('INSERT INTO user (id, name, handle, created) VALUES (?, ?, ?, ?)', u.id, u.name, u.handle, u.created);
+  for (const u of [FIRST, STEWARD, VIEWER]) await sql('INSERT INTO user (id, name, handle, created, operator) VALUES (?, ?, ?, ?, ?)', u.id, u.name, u.handle, u.created, u.operator);
   await dbs.provisionFamily('oakhaven', 'The Oakhavens');
   await acc.accounts().batch([acc.upsertMembership(STEWARD.id, 'oakhaven', 'steward'), acc.upsertMembership(VIEWER.id, 'oakhaven', 'viewer')]);
 });
@@ -113,9 +114,9 @@ test('the id suggested for a name', () => {
   assert.equal(fam.suggestId('Groß'), 'gross');
 });
 
-test('who may make a family: a steward of one here, or the first account; nobody else', async () => {
+test('who may make a family: a steward of one here, or an operator (the first account); nobody else', async () => {
   assert.equal(await fam.mayCreate(STEWARD, await memberships(STEWARD.id)), true);
-  assert.equal(await fam.mayCreate(FIRST, await memberships(FIRST.id)), true, 'the first account, even with no membership left');
+  assert.equal(await fam.mayCreate(FIRST, await memberships(FIRST.id)), true, 'the operator, even with no membership left');
   assert.equal(await fam.mayCreate(VIEWER, await memberships(VIEWER.id)), false);
   asUser(VIEWER);
   await assert.rejects(fns.createFamily({ data: { id: 'viewers-own', name: 'Mine', tagline: '', theme: 'codex' } }), /Only a steward/);
@@ -231,6 +232,8 @@ test('deleting a family removes its database, its files and every accounts row t
       st.q("INSERT INTO presence (tree, account, tab, route, seen) VALUES (?, ?, 'tab-00000001', 'tree', ?)", tree, STEWARD.id, T),
       st.q("INSERT INTO feedback (id, tree, kind, body, context, user, user_name, created_at, updated_at) VALUES (?, ?, 'bug', 'b', '{}', ?, 'n', ?, ?)", `${s}fb`, tree, STEWARD.id, T, T),
       st.q("INSERT INTO view_as (hash, user, tree, kind, role, created, last_used) VALUES (?, ?, ?, 'role', 'viewer', ?, ?)", `${s}view-as`, STEWARD.id, tree, T, T),
+      st.q('INSERT INTO family_admin (tree, cap_bytes) VALUES (?, 1000) ON CONFLICT(tree) DO UPDATE SET cap_bytes = excluded.cap_bytes', tree),
+      st.q('INSERT INTO media_usage (tree, key, bytes, at) VALUES (?, ?, 1, ?)', tree, `photo/${s}counted.jpg`, T),
     ]);
   }
   // Someone who asked to join A and is not yet approved: their pending account goes with the request.

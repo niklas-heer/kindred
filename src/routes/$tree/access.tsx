@@ -7,6 +7,7 @@ import { Portrait } from '~/components/Portrait';
 import { ShareLinkCard } from '~/components/ShareLinkCard';
 import { openViewAs, startPreview } from '~/components/viewas/ViewAs';
 import { JoinRequests } from '~/components/join/JoinRequests';
+import { FamilyDataRequests } from '~/components/operator/FamilyDataRequests';
 import { ROLE_ICON } from '~/components/RoleIcon';
 import { Dialog, EmptyState, ErrorState, Notice, PageHeader, Select, Skeleton } from '~/components/ui';
 import { accessQuery, answerPersonLink, createInvite, removeMember, renewInvite, revokeInvite, setMemberRole, type AccessInvite, type AccessMember } from '~/lib/auth/functions';
@@ -113,6 +114,8 @@ function AccessPage() {
         {error && <Notice onDismiss={() => setError(null)} className="acc-notice">{error}</Notice>}
         {/* Requests to join come first: someone is waiting for an answer. */}
         <JoinRequests tree={tree} />
+        {/* Data requests about this family (access, correction, deletion), sent through the server's operator. */}
+        <FamilyDataRequests tree={tree} />
 
         {access.isPending ? (
           <div className="ui-card" aria-busy="true" aria-label={t('acc.loadingMembers')}><Skeleton lines={4} /></div>

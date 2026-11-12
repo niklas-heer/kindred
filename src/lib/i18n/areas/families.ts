@@ -1,5 +1,7 @@
 // The Families page (making, changing and deleting a family) and the public demo (its bar, its visitor, its refusal).
 export const en = {
+  "families.storage_used": "Pictures and documents: {used}",
+  "families.storage_used_of": "Pictures and documents: {used} of {cap}",
   "demo.banner": "This is a demo with an invented family. Nothing you change is saved.",
   "demo.banner_link": "Kindred on GitHub",
   "demo.banner_label": "Demo",
@@ -67,6 +69,8 @@ export const en = {
 } as const;
 
 export const de = {
+  "families.storage_used": "Bilder und Dokumente: {used}",
+  "families.storage_used_of": "Bilder und Dokumente: {used} von {cap}",
   "demo.banner": "Das ist eine Demo mit einer erfundenen Familie. Was du änderst, wird nicht gespeichert.",
   "demo.banner_link": "Kindred auf GitHub",
   "demo.banner_label": "Demo",
@@ -134,6 +138,8 @@ export const de = {
 } as const;
 
 export const af = {
+  "families.storage_used": "Prente en dokumente: {used}",
+  "families.storage_used_of": "Prente en dokumente: {used} van {cap}",
   "demo.banner": "Dit is 'n demo met 'n versinde familie. Niks wat jy verander, word gestoor nie.",
   "demo.banner_link": "Kindred op GitHub",
   "demo.banner_label": "Demo",

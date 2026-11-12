@@ -168,6 +168,8 @@ file is the record. `scripts/import-to-do.ts` moves a family from a Node file or
 | `0029_post_push.sql` | `push_subscription.posts` and `posts_sent_at`, for the push about a new post in the family feed ([feed.md](feed.md)). |
 | `0032_presence.sql` | `presence`: who of the family is here right now ([roles-and-privacy.md](roles-and-privacy.md#here-now)). |
 | `0033_family_store.sql` | `family_store`: the families made as Durable Objects on Cloudflare ([Where a family lives](#where-a-family-lives)). |
+| `0034_operator.sql` | The operator ([hosting-many-families.md](hosting-many-families.md)): `user.operator` (the earliest account becomes one), `instance_setting`, `operator_audit`, `family_admin` and `media_usage`. |
+| `0035_requests.sql` | `family_request` (the waiting list) and `data_request` (access, correction, deletion). |
 
 ### Tables
 
@@ -222,6 +224,31 @@ file is the record. `scripts/import-to-do.ts` moves a family from a Node file or
   `last_seen`, `visits`, `active_seconds`, `sections` (JSON counts per section name from the statistics' fixed list) and `people`
   (JSON counts of the 20 people opened most). Deleted when the link is replaced or turned off, and 90 days after the last visit.
 - **`join_challenge`** (0024): a request's passkey ceremony in progress, with what the guest typed, for five minutes.
+- **`user.operator`** (0034): 1 for an operator of the server, an instance role apart from every family's
+  ([roles-and-privacy.md](roles-and-privacy.md#the-operator)). The migration makes the earliest account one; afterwards a new
+  account is one only when it is the server's first (`newUser`). The last operator cannot step down.
+- **`instance_setting`** (0034): the server's own settings, one row per `key` (`family_creation`, `instance_name`,
+  `contact_email`, `impressum`, `privacy`, `terms`, `report_contact`, `default_cap_bytes`) with its text `value`, and when and by
+  whom it last changed. A missing row is the default (`family_creation` is then `stewards`).
+- **`operator_audit`** (0034): one row per thing an operator did: `at`, `account` and `name` (no foreign key, so the row outlives
+  the account), `action` (`family.create`, `family.suspend`, `family.cap`, `family.delete`, `request.approve`, `settings`,
+  `operator.add`, …), `family` (an id; deliberately not a `tree` column, so deleting the family keeps the row) and `detail` (JSON,
+  never record content).
+- **`family_admin`** (0034): one row per family with administration: `status` (`active` or `suspended`, read with every
+  membership so the guard knows without another round trip), `cap_bytes` (NULL for none), `created_at` and `created_by`,
+  `invited_name` (whom the operator invited as its first steward) and `counted_at` (its storage's last recount). Deleted with the
+  family (`tree` column).
+- **`media_usage`** (0034): one row per file in a family's media storage, `tree`, `key`, `bytes`, `at`. Every upload reserves its
+  row in a batch whose guard refuses it over the family's cap, before the file is written; a deletion removes it. A family's usage
+  is the sum. The daily run recounts a few families a day that were never counted or not for a month (`recount` in
+  `src/lib/operator/storage.server.ts`), which also counts files from before 0034. Deleted with the family.
+- **`family_request`** (0035): someone asking for a family while `family_creation` is `requests`: `name`, `email`, `family_name`,
+  `message`, `locale`, `created`; `status` (`open`, `approved`, `declined`) with `decided_at`, `decided_by` and, once approved,
+  `family` (the id made; not a `tree` column, so the operator's record outlives the family). `network` is a 4-character hash of the
+  network it came from, for the limit of five a day; it names no address.
+- **`data_request`** (0035): an access, correction or deletion request (`kind`; or `other`): `name`, `email`, `family_text` (the
+  family as written) and `family` (its id, when that names one here; not a `tree` column, for the same reason), `message`,
+  `created`; `status` (`open`, `forwarded`, `done`) with `updated_at` and `updated_by`; `network` as above.
 - **`membership`**: a user's role in a family (`viewer`, `contributor`, `editor`, `steward`), and who they are in that
   family (a person id, or `-` for "just browsing"). `person_confirmed` (0014) is 1 once a steward has confirmed the link.
 - **`challenge`**: a passkey ceremony in progress (for setup, an invitation, adding a passkey, signing in, or confirming
@@ -310,7 +337,8 @@ These rules keep the data consistent without interactive transactions, which D1 
   the application cannot store, for example, a parent link to a person who does not exist.
 - **Pictures and research documents are in media storage.** The database holds only keys (`photo/<uuid>.jpg`, `gallery/<uuid>.jpg`, `research/<uuid>.pdf`). Node keeps
   them in `data/media/<id>/`, Cloudflare in R2 under `<id>/<key>`. A replaced picture is deleted after the change that
-  replaced it is written.
+  replaced it is written. Every file is stored and deleted through `media` in `src/lib/db.server.ts`, never `store.media` directly: it counts
+  the file against the family's storage cap (`media_usage`).
 - **A family's rows in the accounts database carry its id in a column named `tree`.** Deleting a family
   (`src/lib/families.server.ts`) removes every accounts row whose table has a `tree` column, found from the schema, so a
   table added later is included without a list to keep. A row that belongs to a family only through another row (a share

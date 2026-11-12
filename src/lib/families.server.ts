@@ -1,8 +1,9 @@
 // Managing the families of an install (the Families page, src/routes/families.tsx): making another one, changing its own
 // details, and deleting one with everything that belongs to it. The rules, as docs/self-host.md ("More than one family") gives them:
 //
-// - Who may make a family: a steward of any family on this server, or the server's first account. Who may change or delete one:
-//   a steward of that family. Deleting also needs the family's id typed, a fresh passkey proof (Kindred's own sign-in), and
+// - Who may make a family: an operator of this server always; a steward of any family on it while the instance's
+//   `family_creation` is `stewards` (the default; docs/hosting-many-families.md). Who may change or delete one: a steward of
+//   that family (and an operator, from the operator console). Deleting also needs the family's id typed, a fresh passkey proof (Kindred's own sign-in), and
 //   another family left on the server.
 // - An id is a URL segment and a database name: lower-case letters, digits and single dashes, starting with a letter, never one
 //   of the app's own first path segments (RESERVED_IDS).
@@ -22,6 +23,9 @@ import { accounts, upsertMembership, type MembershipRow, type UserRow } from './
 import { guard, NOT_TREES, onWorkers, q, store, type Query } from './store/index.ts';
 import { change, once, type OpKey } from './db.server.ts';
 import { translate } from './i18n/dictionary.ts';
+import { familyCreation, instanceSettings } from './operator/settings.server.ts';
+import { storageOf } from './operator/storage.server.ts';
+import type { FamilyCreation } from './operator/shared.ts';
 
 /** A new family's id: 2 to 40 characters, a letter first, single dashes between letters and digits. */
 export const NEW_FAMILY_ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
@@ -35,7 +39,7 @@ export const FAMILY_ID_MAX = 40;
 export const RESERVED_IDS: ReadonlySet<string> = new Set([
   'api', 'setup', 'signin', 'signout', 'share', 'invite', 'join', 'ui', 'families', 'family-new', 'new', 'settings', 'admin',
   'assets', 'static', 'media', 'backups', 'seed', 'demo', 'help', 'about', 'login', 'logout', 'account', 'accounts', 'gazetteer',
-  'cdn-cgi', 'favicon', 'manifest', 'robots', 'sw', 'health',
+  'cdn-cgi', 'favicon', 'manifest', 'robots', 'sw', 'health', 'operator', 'request', 'privacy-request', 'legal', 'privacy', 'impressum', 'terms',
   ...NOT_TREES,
 ]);
 
@@ -61,19 +65,23 @@ export function suggestId(name: string): string {
   return s.slice(0, FAMILY_ID_MAX).replace(/-+$/, '');
 }
 
-/** The server's first account: the one made at setup. */
-async function firstAccount(): Promise<string | undefined> {
-  return (await accounts().get<{ id: string }>('SELECT id FROM user ORDER BY created, rowid LIMIT 1'))?.id;
-}
-
-/** Whether `user` may make a family on this server: a steward of any family here, or the first account. */
-export async function mayCreate(user: UserRow, memberships: MembershipRow[]): Promise<boolean> {
+/**
+ * Whether `user` may make a family on this server, by the instance's `family_creation` (src/lib/operator/shared.ts): an
+ * operator always may; a steward of any family here may while it is `stewards` (the default); nobody else.
+ */
+export async function mayCreate(user: UserRow, memberships: MembershipRow[], mode?: FamilyCreation): Promise<boolean> {
+  if (user.operator === 1) return true;
+  if ((mode ?? (await familyCreation())) !== 'stewards') return false;
   const here = new Set((await families()).map((f) => f.id));
-  if (memberships.some((m) => m.role === 'steward' && here.has(m.tree))) return true;
-  return (await firstAccount()) === user.id;
+  return memberships.some((m) => m.role === 'steward' && here.has(m.tree));
 }
 
-export interface FamilyAdminRow { id: string; name: string; tagline: string; theme: FamilyTheme; people: number; steward: boolean }
+export interface FamilyAdminRow {
+  id: string; name: string; tagline: string; theme: FamilyTheme; people: number; steward: boolean;
+  /** For its stewards: the media storage it uses, and its cap when the operator set one. */
+  storage?: { usedBytes: number; capBytes: number | null };
+  suspended?: boolean;
+}
 export interface FamiliesOverview {
   /** The families the reader is a member of, with whether they steward each (they may change and delete those). */
   families: FamilyAdminRow[];
@@ -82,6 +90,8 @@ export interface FamiliesOverview {
   /** A new family needs a D1 database bound and a deploy first: Workers without the FAMILIES Durable Objects. */
   workers: boolean;
   mayCreate: boolean;
+  /** Who may make a family here (the instance's setting): with `requests`, the page points at the request form instead. */
+  familyCreation: FamilyCreation;
   /** How many families the server holds, for "the last family cannot be deleted". */
   total: number;
   /** KINDRED_DEFAULT_TREE, when set: that family cannot be deleted while the setting names it. */
@@ -92,16 +102,23 @@ export interface FamiliesOverview {
 export async function overview(user: UserRow, memberships: MembershipRow[]): Promise<FamiliesOverview> {
   const all = await families();
   const mine = new Map(memberships.map((m) => [m.tree, m.role]));
-  const may = await mayCreate(user, memberships);
+  const mode = await familyCreation();
+  const may = await mayCreate(user, memberships, mode);
   const made = new Set(all.map((f) => f.id));
+  const suspended = new Set(memberships.filter((m) => m.suspended).map((m) => m.tree));
+  const rows = all.filter((f) => mine.has(f.id)).map((f) => ({
+    id: f.id, name: f.name, tagline: f.tagline ?? '', theme: (f.theme === 'modern' ? 'modern' : 'codex') as FamilyTheme, people: f.people, steward: mine.get(f.id) === 'steward',
+    ...(suspended.has(f.id) ? { suspended: true } : {}),
+  })).sort((a, b) => a.name.localeCompare(b.name));
+  // What each family stores is for its stewards: they are the ones who make room when it is full.
+  const stored = await Promise.all(rows.map((f) => (f.steward ? storageOf(f.id) : undefined)));
   return {
-    families: all.filter((f) => mine.has(f.id)).map((f) => ({
-      id: f.id, name: f.name, tagline: f.tagline ?? '', theme: (f.theme === 'modern' ? 'modern' : 'codex') as FamilyTheme, people: f.people, steward: mine.get(f.id) === 'steward',
-    })).sort((a, b) => a.name.localeCompare(b.name)),
+    families: rows.map((f, i) => (stored[i] ? { ...f, storage: stored[i] } : f)),
     // Only someone who may make a family needs to know which databases wait for one.
     empty: may ? (await store.treeIds()).filter((id) => !made.has(id) && !NOT_TREES.has(id)).sort().map((id) => ({ id, binding: bindingOf(id) })) : [],
     workers: onWorkers && !store.canMakeTree(),
     mayCreate: may,
+    familyCreation: mode,
     total: all.length,
     defaultTree: process.env.KINDRED_DEFAULT_TREE?.trim() || undefined,
   };
@@ -137,8 +154,12 @@ async function forgetInAccounts(tree: string): Promise<Query[]> {
 /**
  * Makes a family, or finishes one a failed attempt left half-made, and makes `user` its steward. Returns its id.
  * `user` must be allowed (mayCreate): the server function checks that first.
+ *
+ * With `member: false` (the operator console, src/lib/operator/operator.server.ts) nobody becomes a member: the family waits,
+ * with no members, for the person its steward invitation is for. While that invitation is open nobody can "finish" the
+ * family as their own.
  */
-export async function createFamily(user: UserRow, input: NewFamily): Promise<string> {
+export async function createFamily(user: UserRow, input: NewFamily, { member = true, invitedName = null }: { member?: boolean; invitedName?: string | null } = {}): Promise<string> {
   const id = input.id.trim();
   const problem = idProblem(id);
   if (problem) throw problem;
@@ -162,8 +183,10 @@ export async function createFamily(user: UserRow, input: NewFamily): Promise<str
     const [[meta], [people]] = held;
     if (meta && meta.value !== id) throw invalid('families.err_other_family', { id });
     if (meta) {
-      const members = await accounts().get<{ n: number }>('SELECT count(*) AS n FROM membership WHERE tree = ?', id);
-      if ((people?.n ?? 0) > 0 || (members?.n ?? 0) > 0) throw invalid('families.err_exists', { id });
+      const members = await accounts().get<{ n: number; invited: number }>(
+        'SELECT count(*) AS n, (SELECT count(*) FROM invite WHERE tree = ? AND used_at IS NULL AND revoked_at IS NULL AND expires > ?) AS invited FROM membership WHERE tree = ?', id, Date.now(), id);
+      // An open invitation is the family's first steward on the way: the family is not half-made, it is waiting.
+      if ((people?.n ?? 0) > 0 || (members?.n ?? 0) > 0 || (members?.invited ?? 0) > 0) throw invalid('families.err_exists', { id });
       resume = true;
     } else if ((people?.n ?? 0) > 0) {
       // People without a family's details: not something Kindred made. It is never written over.
@@ -184,8 +207,14 @@ export async function createFamily(user: UserRow, input: NewFamily): Promise<str
     ...(['name', 'tagline', 'theme'] as const).map((k) => q('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', k, details[k])),
     q("INSERT INTO meta (key, value) VALUES ('focus', '') ON CONFLICT(key) DO NOTHING"),
   ]);
-  // 3. Its first steward. Without this step the family is half-made, and making it again finishes it.
-  await accounts().batch([upsertMembership(user.id, id, 'steward')]);
+  // 3. Its first steward, and its administration: when and by whom it was made, and the instance's default storage cap.
+  // Without this step the family is half-made, and making it again finishes it.
+  const cap = (await instanceSettings()).defaultCapBytes;
+  await accounts().batch([
+    ...(member ? [upsertMembership(user.id, id, 'steward')] : []),
+    q(`INSERT INTO family_admin (tree, cap_bytes, created_at, created_by, invited_name) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(tree) DO UPDATE SET created_by = excluded.created_by, invited_name = excluded.invited_name`, id, cap, Date.now(), user.id, invitedName),
+  ]);
   return id;
 }
 
