@@ -100,18 +100,31 @@ export interface MediaStore {
 /** What a driver provides. */
 export interface Driver {
   name: 'node' | 'cloudflare';
-  /** A family's database. Throws for an unknown tree. */
+  /**
+   * A family's database. Throws for an unknown tree, at once (Node, D1) or at its first query (a Durable Object that was
+   * never made answers "no tree <id>"; finding that out needs a round trip).
+   */
   tree(id: string): Db;
   /**
-   * A family's database, made if it does not exist yet, with the tree schema brought up to date. Node: a new
-   * data/<id>.db. Workers: the bound D1 database, which must already exist (`tree` says which binding is missing).
+   * Whether `ensureTree(id)` can make this family here: Node always; Workers when TREE_<ID> or FAMILIES is bound. Without
+   * an id: whether a family can be made without binding a database for it first (Node, or Workers with FAMILIES).
    */
-  ensureTree(id: string): Db;
-  /** The ids of every family database there is (some may still be empty). */
-  treeIds(): string[];
+  canMakeTree(id?: string): boolean;
+  /**
+   * A family's database, made if it does not exist yet, with the tree schema brought up to date. Node: a new data/<id>.db.
+   * Workers: the bound D1 database TREE_<ID>, which must already exist; without one, a Durable Object of FAMILIES, made here
+   * and recorded in the accounts database's `family_store`.
+   */
+  ensureTree(id: string): Promise<Db>;
+  /**
+   * The ids of every family database there is (some may still be empty). Node: data/*.db. Workers: the bound TREE_<ID>
+   * databases and the families recorded in `family_store`.
+   */
+  treeIds(): Promise<string[]>;
   /**
    * Removes a family's database (deleting the family). Node: closes and deletes data/<id>.db. Workers: a D1 database cannot be
-   * removed from inside the Worker, so it is emptied (`emptyDatabase`) and stays bound, ready to hold a family again.
+   * removed from inside the Worker, so it is emptied (`emptyDatabase`) and stays bound, ready to hold a family again; a Durable
+   * Object deletes everything it stores and leaves `family_store`.
    */
   dropTree(id: string): Promise<void>;
   /** The accounts database: people, passkeys, sessions, invitations, memberships. */

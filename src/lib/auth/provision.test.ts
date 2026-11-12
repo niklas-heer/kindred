@@ -34,9 +34,8 @@ test('the family name the steward types is one line of at most 80 characters; bl
 });
 
 test('a Cloudflare family whose binding is missing says how to add it, and Node never needs one', () => {
-  assert.equal(trees.missingBinding('family', [], false), null, 'Node makes the file itself');
-  assert.equal(trees.missingBinding('family', ['family'], true), null, 'a bound family can be made');
-  const problem = trees.missingBinding('my-family', ['family'], true);
+  assert.equal(trees.missingBinding('family', true), null, 'Node makes the file itself, and Workers a Durable Object or a bound database');
+  const problem = trees.missingBinding('my-family', false);
   assert.ok(problem instanceof AuthError);
   assert.match(problem.message, /TREE_MY_FAMILY/, 'names the binding to add');
   assert.match(problem.message, /docs\/deploy-cloudflare\.md/, 'points at the deploy guide');

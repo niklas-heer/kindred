@@ -9,6 +9,10 @@ import { onGuestHost } from './lib/auth/origin.ts';
 import { runJobs, workerSetting } from './lib/jobs/run.server.ts';
 import { demoProblem, isDemo } from './lib/demo.ts';
 
+// The Durable Object class that holds each family (and the accounts) on Workers (src/lib/store/durable.ts), exported from
+// the Worker's main module as Cloudflare requires. On Node `#store/durable` is an empty placeholder.
+export { FamilyStore } from '#store/durable';
+
 export default {
   // The TanStack Start request handler. The guest host answers only what a guest needs (src/lib/auth/guest-host.ts).
   fetch(request: Request, ...rest: unknown[]) {

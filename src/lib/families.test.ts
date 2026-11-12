@@ -164,14 +164,14 @@ test('a family left half-made (details, no people, no members) is finished by ma
 });
 
 test('a database file with people but no family details is not written over', async () => {
-  const d = st.store.ensureTree('strayfile');
+  const d = await st.store.ensureTree('strayfile');
   await d.run("INSERT INTO person (id, given) VALUES ('p1', 'Stray')");
   await rejectsWith(fam.createFamily(STEWARD, { id: 'strayfile', name: 'Mine now', tagline: '', theme: 'codex' }), 'families.err_not_empty', { id: 'strayfile' });
   assert.equal((await d.get<{ n: number }>('SELECT count(*) AS n FROM person'))?.n, 1);
 });
 
 test('an empty database waiting for a family is listed, and setting it up uses it', async () => {
-  st.store.ensureTree('waiting');
+  await st.store.ensureTree('waiting');
   asUser(STEWARD);
   assert.ok((await fns.fetchFamilies()).empty.some((e) => e.id === 'waiting' && e.binding === 'TREE_WAITING'));
   await fns.createFamily({ data: { id: 'waiting', name: 'The Waitings', tagline: '', theme: 'codex' } });
@@ -248,7 +248,7 @@ test('deleting a family removes its database, its files and every accounts row t
   assert.equal(existsSync(join(dir, `${A}.db-wal`)), false);
   assert.equal(existsSync(join(dir, 'media', A)), false, 'its files are gone');
   assert.equal(await trees.family(A), undefined);
-  assert.ok(!st.store.treeIds().includes(A));
+  assert.ok(!(await st.store.treeIds()).includes(A));
   const tables = (await acc.accounts().all<{ name: string; sql: string }>("SELECT name, sql FROM sqlite_master WHERE type = 'table'"))
     .filter((t) => /[(,]\s*tree\s+[A-Za-z]/i.test(t.sql)).map((t) => t.name);
   assert.ok(tables.includes('membership') && tables.includes('stats_daily') && tables.includes('join_request'), tables.join());
@@ -261,12 +261,12 @@ test('deleting a family removes its database, its files and every accounts row t
   assert.equal(await acc.accounts().get("SELECT 1 FROM credential WHERE id = 'pending-cred'"), undefined);
   assert.ok(await acc.userById(VIEWER.id), 'members keep their accounts');
 
-  // The other family keeps everything.
+  // The other family keeps everything. `family_store` lists only families in Durable Objects, so on Node it is empty.
   assert.ok(await trees.family(B));
   assert.ok(await st.store.media.get(B, 'photo/b.jpg'));
   for (const t of tables) {
     const n = (await acc.accounts().get<{ n: number }>(`SELECT count(*) AS n FROM "${t}" WHERE tree = ?`, B))?.n ?? 0;
-    assert.ok(n > 0 || ['ai_background', 'ai_background_spend', 'ai_background_task', 'ai_conversation', 'ai_chat_image', 'ai_portrait', 'ai_provider', 'ai_route', 'ai_spend', 'ai_task_giveup', 'ai_task_run', 'ai_usage', 'join_request', 'stats_member', 'stats_once', 'stats_setting'].includes(t), `${t} keeps ${B}'s rows`);
+    assert.ok(n > 0 || ['ai_background', 'ai_background_spend', 'ai_background_task', 'ai_conversation', 'ai_chat_image', 'ai_portrait', 'ai_provider', 'ai_route', 'ai_spend', 'ai_task_giveup', 'ai_task_run', 'ai_usage', 'family_store', 'join_request', 'stats_member', 'stats_once', 'stats_setting'].includes(t), `${t} keeps ${B}'s rows`);
   }
   assert.equal((await acc.accounts().get<{ n: number }>("SELECT count(*) AS n FROM share_session WHERE link = 'oakhaven-link'"))?.n, 1);
 });

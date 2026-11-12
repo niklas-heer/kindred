@@ -250,7 +250,12 @@ const driver: Driver = {
     return db;
   },
 
-  ensureTree(id) {
+  canMakeTree(id) {
+    return id === undefined || (TREE_ID.test(id) && !NOT_TREES.has(id));
+  },
+
+  // The file is the family: data/*.db lists them (treeIds), so nothing is recorded in `family_store` on Node.
+  async ensureTree(id) {
     if (!TREE_ID.test(id) || NOT_TREES.has(id)) throw new Error(`bad tree id ${id}`);
     const path = join(dataDir(), `${id}.db`);
     if (!trees.has(id) && !existsSync(path)) openSqlite(path, 'tree', { create: true }).close();
@@ -271,7 +276,7 @@ const driver: Driver = {
     for (const suffix of ['', '-wal', '-shm']) rmSync(path + suffix, { force: true });
   },
 
-  treeIds() {
+  async treeIds() {
     if (!existsSync(dataDir())) return [];
     return readdirSync(dataDir())
       .filter((f) => f.endsWith('.db'))

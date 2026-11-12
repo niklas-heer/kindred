@@ -1,22 +1,24 @@
 // Kindred on Cloudflare Workers: TanStack Start built by the Cloudflare Vite plugin (`vite build`),
-// deployed with `mise run deploy`. Locally, `mise run dev` keeps running on Node and SQLite;
-// `mise run dev:cf` runs this Worker in workerd with local D1 and R2 (the `local` environment below).
+// deployed with `mise run deploy` or the "Deploy to Cloudflare" button (docs/deploy-cloudflare.md, "One-click deploy").
+// Locally, `mise run dev` keeps running on Node and SQLite; `mise run dev:cf` runs this Worker in workerd with local D1,
+// R2 and Durable Objects (the `local` environment below).
 //
 // Bindings (src/lib/store/cf.ts):
-//   ACCOUNTS     D1: accounts, passkeys, sessions, invitations (migrations/accounts)
-//   TREE_<ID>    D1: one database per family; TREE_FAMILY serves /family (migrations/tree)
+//   FAMILIES     Durable Objects (class FamilyStore, SQLite storage): each family in its own object, made when a steward
+//                makes the family, and the accounts in one more. Nothing to create by hand, no limit on families.
 //   MEDIA        R2: portraits and other uploads, under <tree>/<key>
+//   TREE_<ID>    D1, optional: a family kept in a D1 database, as installs before Durable Objects did (still served from it)
+//   ACCOUNTS     D1, optional: the accounts in a D1 database, as installs before Durable Objects did
 //   GAZETTEER    D1, optional: GeoNames towns for assisted place entry, read-only (migrations/gazetteer)
 //
-// Before the first deploy (not done for you):
+// Before the first deploy (not done for you; the button does all of it):
 //   npx wrangler login
-//   npx wrangler d1 create kindred-accounts     → paste its database_id below
-//   npx wrangler d1 create kindred-family       → paste its database_id below
 //   npx wrangler r2 bucket create kindred-media
-//   mise run cf:migrate:remote                  → the schema
-//   node scripts/import-to-d1.ts family --remote    → a family you already run locally (data/family.db)
+//   npx wrangler secret put KINDRED_SECRET      → a long random key that seals the families' AI keys
 //   npx wrangler secret put KINDRED_SETUP_CODE  → a long code for /setup (or use KINDRED_AUTH=cloudflare-access)
-// Add a family: another TREE_<ID> database with migrations_dir migrations/tree, then migrate and import it.
+//   mise run deploy
+// Keep families in the EU: add "vars": { "KINDRED_JURISDICTION": "eu" } before the first deploy. It cannot be changed later.
+// An install with D1 databases keeps its d1_databases list: a bound family is served from D1, a new one becomes a Durable Object.
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"name": "kindred",
@@ -25,25 +27,29 @@
 	// nodejs_compat: process.env carries vars and secrets (KINDRED_ORIGIN, KINDRED_AUTH, CF_ACCESS_*, KINDRED_SETUP_CODE).
 	"compatibility_flags": ["nodejs_compat"],
 	"observability": { "enabled": true },
-	// A page reads D1 in several steps one after another; run the Worker near the databases, not near each reader.
+	// A page reads its database in several steps one after another; run the Worker near the databases, not near each reader.
 	"placement": { "mode": "smart" },
 	"upload_source_maps": true,
 	// The daily jobs (src/lib/jobs: Web Push reminders) run at 06:00 UTC: src/server.ts → scheduled.
 	"triggers": { "crons": ["0 6 * * *"] },
-	"d1_databases": [
-		{ "binding": "ACCOUNTS", "database_name": "kindred-accounts", "database_id": "REPLACE-WITH-D1-ID", "migrations_dir": "migrations/accounts" },
-		{ "binding": "TREE_FAMILY", "database_name": "kindred-family", "database_id": "REPLACE-WITH-D1-ID", "migrations_dir": "migrations/tree" },
-			// Optional: assisted place entry on Workers (docs/deploy-cloudflare.md, "Places on Workers"). Create the database,
-			// put its id below and uncomment the line, then `mise run cf:migrate:remote` and `mise run cf:gazetteer --remote`.
-			// { "binding": "GAZETTEER", "database_name": "kindred-gazetteer", "database_id": "REPLACE-WITH-D1-ID", "migrations_dir": "migrations/gazetteer" }
-	],
+	// The families and the accounts. The class is exported by src/server.ts; `new_sqlite_classes` gives it SQLite storage.
+	"durable_objects": { "bindings": [{ "name": "FAMILIES", "class_name": "FamilyStore" }] },
+	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["FamilyStore"] }],
+	// Optional: assisted place entry on Workers (docs/deploy-cloudflare.md, "Places on Workers"). Create the database, uncomment
+	// the lines, then `mise run cf:migrate:remote` and `mise run cf:gazetteer --remote`.
+	// "d1_databases": [
+	//   { "binding": "GAZETTEER", "database_name": "kindred-gazetteer", "database_id": "REPLACE-WITH-D1-ID", "migrations_dir": "migrations/gazetteer" }
+	// ],
 	"r2_buckets": [{ "binding": "MEDIA", "bucket_name": "kindred-media" }],
-	// Optional vars: KINDRED_ORIGIN (the public origin, if not the request's), KINDRED_DEFAULT_TREE,
+	// Optional vars: KINDRED_ORIGIN (the public origin, if not the request's), KINDRED_DEFAULT_TREE, KINDRED_JURISDICTION (eu),
 	// KINDRED_AUTH (kindred, the default, or cloudflare-access) with CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD. Locally in .dev.vars.
 
 	"env": {
-		// `mise run dev:cf`: the two test families in local-only D1 databases (never deployed).
+		// `mise run dev:cf`: the two test families in local-only D1 databases (never deployed), and the accounts in D1, as an
+		// install from before Durable Objects has them; a family made here becomes a local Durable Object.
 		"local": {
+			"durable_objects": { "bindings": [{ "name": "FAMILIES", "class_name": "FamilyStore" }] },
+			"migrations": [{ "tag": "v1", "new_sqlite_classes": ["FamilyStore"] }],
 			"d1_databases": [
 				{ "binding": "ACCOUNTS", "database_name": "kindred-local-accounts", "database_id": "local-accounts", "migrations_dir": "migrations/accounts" },
 				{ "binding": "TREE_MODERN", "database_name": "kindred-local-modern", "database_id": "local-modern", "migrations_dir": "migrations/tree" },

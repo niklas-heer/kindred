@@ -77,8 +77,9 @@ export interface FamilyAdminRow { id: string; name: string; tagline: string; the
 export interface FamiliesOverview {
   /** The families the reader is a member of, with whether they steward each (they may change and delete those). */
   families: FamilyAdminRow[];
-  /** Family databases on this server that hold no family yet: on Workers, the bound TREE_<ID> databases a family can be made in. */
+  /** Family databases on this server that hold no family yet: on Workers, the bound TREE_<ID> databases a family can be made in, or a Durable Object a failed attempt left. */
   empty: { id: string; binding: string }[];
+  /** A new family needs a D1 database bound and a deploy first: Workers without the FAMILIES Durable Objects. */
   workers: boolean;
   mayCreate: boolean;
   /** How many families the server holds, for "the last family cannot be deleted". */
@@ -98,8 +99,8 @@ export async function overview(user: UserRow, memberships: MembershipRow[]): Pro
       id: f.id, name: f.name, tagline: f.tagline ?? '', theme: (f.theme === 'modern' ? 'modern' : 'codex') as FamilyTheme, people: f.people, steward: mine.get(f.id) === 'steward',
     })).sort((a, b) => a.name.localeCompare(b.name)),
     // Only someone who may make a family needs to know which databases wait for one.
-    empty: may ? store.treeIds().filter((id) => !made.has(id) && !NOT_TREES.has(id)).sort().map((id) => ({ id, binding: bindingOf(id) })) : [],
-    workers: onWorkers,
+    empty: may ? (await store.treeIds()).filter((id) => !made.has(id) && !NOT_TREES.has(id)).sort().map((id) => ({ id, binding: bindingOf(id) })) : [],
+    workers: onWorkers && !store.canMakeTree(),
     mayCreate: may,
     total: all.length,
     defaultTree: process.env.KINDRED_DEFAULT_TREE?.trim() || undefined,
@@ -143,9 +144,9 @@ export async function createFamily(user: UserRow, input: NewFamily): Promise<str
   if (problem) throw problem;
   const details = cleanFamily(input);
 
-  const bound = store.treeIds().includes(id);
-  // Workers: the database must have been bound when the Worker was deployed (docs/deploy-cloudflare.md, "Another family").
-  if (onWorkers && !bound) throw invalid('families.err_no_binding', { id, binding: bindingOf(id) });
+  const bound = (await store.treeIds()).includes(id);
+  // Workers without Durable Objects: the database must have been bound when the Worker was deployed (docs/deploy-cloudflare.md, "Another family").
+  if (!bound && !store.canMakeTree(id)) throw invalid('families.err_no_binding', { id, binding: bindingOf(id) });
 
   let resume = false;
   if (bound) {
@@ -176,7 +177,7 @@ export async function createFamily(user: UserRow, input: NewFamily): Promise<str
     await store.media.deleteTree(id);
   }
   // 2. The family's details. On Node this makes data/<id>.db; on Workers the bound database must already exist.
-  const d = store.ensureTree(id);
+  const d = await store.ensureTree(id);
   await d.batch([
     guard("NOT EXISTS (SELECT 1 FROM meta WHERE key = 'id' AND value <> ?)", id),
     q("INSERT INTO meta (key, value) VALUES ('id', ?) ON CONFLICT(key) DO NOTHING", id),

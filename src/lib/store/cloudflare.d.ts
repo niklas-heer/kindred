@@ -29,3 +29,41 @@ interface R2Bucket {
   delete(key: string | string[]): Promise<void>;
   list(options?: { prefix?: string; cursor?: string; limit?: number }): Promise<{ objects: { key: string }[]; truncated: boolean; cursor?: string }>;
 }
+
+// Durable Objects with SQLite storage (./durable.ts).
+declare module 'cloudflare:workers' {
+  export abstract class DurableObject {
+    protected ctx: DurableObjectState;
+    protected env: unknown;
+    constructor(ctx: DurableObjectState, env: unknown);
+  }
+}
+interface SqlStorageCursor<T> {
+  toArray(): T[];
+  one(): T;
+}
+interface SqlStorage {
+  exec<T = Record<string, unknown>>(query: string, ...bindings: unknown[]): SqlStorageCursor<T>;
+}
+interface DurableObjectStorage {
+  sql: SqlStorage;
+  get<T>(key: string): Promise<T | undefined>;
+  put(key: string, value: unknown): Promise<void>;
+  deleteAll(): Promise<void>;
+  transactionSync<T>(work: () => T): T;
+}
+interface DurableObjectState {
+  storage: DurableObjectStorage;
+  blockConcurrencyWhile<T>(work: () => Promise<T>): Promise<T>;
+}
+interface DurableObjectId { toString(): string }
+interface DurableObjectNamespace<T = unknown> {
+  idFromName(name: string): DurableObjectId;
+  get(id: DurableObjectId): T;
+  jurisdiction(name: string): DurableObjectNamespace<T>;
+}
+
+declare module 'virtual:kindred/migrations' {
+  const migrations: Record<'tree' | 'accounts', { name: string; sql: string }[]>;
+  export default migrations;
+}

@@ -50,7 +50,7 @@ test('a file from before migrations is brought up to date, backed up, and its ph
   const got = (await store.media.get('old', p.key!))!;
   assert.equal(got.size, 4);
   assert.ok(readdirSync(join(dir, 'backups')).some((f) => f.startsWith('old-before-0001_initial')));
-  assert.deepEqual(store.treeIds(), ['old']);
+  assert.deepEqual(await store.treeIds(), ['old']);
   assert.equal((await s.listTrees())[0].people, 4);
 });
 

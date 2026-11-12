@@ -168,7 +168,7 @@ const nameFromEmail = (email: string) =>
  */
 export async function getSession(request: Request, verifiedEmail: (r: Request) => Promise<string | undefined> = accessEmail, listFamilies: () => Promise<{ id: string }[]> = families): Promise<Session> {
   // A demo has no accounts and no share links: every visitor is the same viewer of every family, whatever the request carries.
-  if (isDemo()) return demoSession();
+  if (isDemo()) return await demoSession();
   const guest = await guestOf(request);
   const method = authMethod();
   if (onGuestHost(request) || !method) return { user: null, via: null, guest };
@@ -179,9 +179,9 @@ export async function getSession(request: Request, verifiedEmail: (r: Request) =
  * A demo's visitor: an account that exists nowhere (no row, no session, no cookie), a viewer of every family on the server. The
  * guard treats them as a member, so the pages a viewer reads work; every write is refused by the store (src/lib/store/index.ts).
  */
-export function demoSession(): Session {
+export async function demoSession(): Promise<Session> {
   const user: UserRow = { id: DEMO_USER_ID, name: 'Demo visitor', email: null, handle: DEMO_USER_ID, created: 0, last_seen: now(), locale: null };
-  const memberships: MembershipRow[] = store.treeIds().filter((tree) => !NOT_TREES.has(tree)).map((tree) => ({ user: user.id, tree, role: 'viewer', person: null, person_confirmed: 0, created: 0 }));
+  const memberships: MembershipRow[] = (await store.treeIds()).filter((tree) => !NOT_TREES.has(tree)).map((tree) => ({ user: user.id, tree, role: 'viewer', person: null, person_confirmed: 0, created: 0 }));
   return { user, via: 'demo', memberships };
 }
 

@@ -199,7 +199,7 @@ test('in a demo, every write is refused where all writes pass: the store, once, 
   await assert.rejects(st.store.media.delete('aurel', 'photo/y.jpg'), isReadOnly);
   await assert.rejects(st.store.media.deleteTree('aurel'), isReadOnly);
   await assert.rejects(st.store.dropTree('aurel'), isReadOnly);
-  assert.throws(() => st.store.ensureTree('newcomer'), isReadOnly);
+  await assert.rejects(st.store.ensureTree('newcomer'), isReadOnly);
   // A read that a write would follow still reads.
   assert.equal((await dbs.db('aurel').get<{ given: string }>("SELECT given FROM person WHERE id = 'a1'"))?.given, 'Adah');
   assert.equal((await acc.accounts().readBatch([acc.q('SELECT count(*) AS n FROM user')]))[0][0].n, 1);

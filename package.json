@@ -7,6 +7,10 @@
     "#store/driver": {
       "workerd": "./src/lib/store/cf.ts",
       "default": "./src/lib/store/node.ts"
+    },
+    "#store/durable": {
+      "workerd": "./src/lib/store/durable.ts",
+      "default": "./src/lib/store/durable.node.ts"
     }
   },
   "scripts": {

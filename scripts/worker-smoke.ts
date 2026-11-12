@@ -18,11 +18,16 @@
 //   /<family>          200 HTML with the demo's bar, the same Content-Security-Policy and no-store, and no cookie set
 //   POST /api/auth/signin-options              refused with the demo's 403 (the store refuses the write it needs)
 //   POST /api/ai-chat/<family>                 no reply, even with a steward's session and the AI set up
+// Then the same build once more with no D1 database at all, as a new install (and the Deploy button) has it: the families
+// and the accounts in Durable Objects (src/lib/store/durable.ts), on an empty state folder:
+//   /api/health        200
+//   /                  a redirect to /setup: the accounts Durable Object made itself and migrated, and no family is listed
+//   /setup             200 HTML
 // Exit status 0 when every check passes; 1 otherwise, with the Worker's own log tail on stderr. WORKER_SMOKE_LOG=1 prints
 // that log tail even when everything passes.
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -268,7 +273,58 @@ async function main(): Promise<boolean> {
     if (failures.length || process.env.WORKER_SMOKE_LOG) console.error(`\nthe Worker's log (last part):\n${log.join('').slice(-3000)}`);
   }
   await demoChecks(config, 'modern');
+  await durableChecks(config);
   return failures.length === 0;
+}
+
+/** Waits until a dev server answers its health check, or throws with its log. */
+async function waitUp(child: ChildProcess, port: number, log: string[], what: string) {
+  const deadline = Date.now() + 90_000;
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) break;
+    if (await fetch(`http://127.0.0.1:${port}/api/health`).then((r) => r.status === 200, () => false)) return;
+    await sleep(500);
+  }
+  throw new Error(`${what} did not answer on port ${port}:\n${log.join('').slice(-3000)}`);
+}
+
+/** The same build with no D1 at all: the families and the accounts in Durable Objects, on empty state (a new install). */
+async function durableChecks(config: string) {
+  const durableConfig = join(built, 'server', 'wrangler.durable.json');
+  const c = JSON.parse(readFileSync(config, 'utf8')) as Record<string, unknown>;
+  delete c.d1_databases;
+  writeFileSync(durableConfig, JSON.stringify(c));
+  const durableState = join(work, 'durable-state');
+  const port = await freePort();
+  const log: string[] = [];
+  const child = spawn(process.execPath, [wranglerBin, 'dev', '-c', durableConfig, '--local', '--persist-to', durableState, '--ip', '127.0.0.1', '--port', String(port), '--log-level', 'info', '--var', 'KINDRED_AI_FAKE:1', '--var', `KINDRED_SECRET:${SMOKE_SECRET}`], {
+    cwd: work, env: childEnv(), detached: true, stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const collect = (chunk: Buffer) => log.push(chunk.toString());
+  child.stdout?.on('data', collect);
+  child.stderr?.on('data', collect);
+  const base = `http://127.0.0.1:${port}`;
+  const failedBefore = failures.length;
+  try {
+    await waitUp(child, port, log, 'the Durable Objects Worker');
+    const health = await fetch(`${base}/api/health`);
+    check(health.status === 200 && (await health.text()).trim() === 'ok', 'durable objects: /api/health answers 200 "ok"');
+    const home = await fetch(`${base}/`, { redirect: 'manual' });
+    await home.body?.cancel();
+    check([301, 302, 307, 308].includes(home.status) && (home.headers.get('location') ?? '').endsWith('/setup'), `durable objects: / redirects to /setup on a new install (got ${home.status} ${home.headers.get('location')})`);
+    const setup = await fetch(`${base}/setup`, { redirect: 'manual' });
+    const setupHtml = await setup.text();
+    check(setup.status === 200 && (setup.headers.get('content-type') ?? '').startsWith('text/html') && !/no ACCOUNTS database|no tree/i.test(setupHtml), `durable objects: /setup renders (got ${setup.status})`);
+  } catch (e) {
+    failures.push(e instanceof Error ? e.message : String(e));
+    console.error(e);
+  } finally {
+    await stop(child, port).catch((e: Error) => {
+      failures.push(e.message);
+      console.error(e.message);
+    });
+    if (failures.length > failedBefore || process.env.WORKER_SMOKE_LOG) console.error(`\nthe Durable Objects Worker's log (last part):\n${log.join('').slice(-3000)}`);
+  }
 }
 
 /** The same Worker as a public demo (KINDRED_DEMO=1), on the state the checks above left: a family, a steward and their AI. */

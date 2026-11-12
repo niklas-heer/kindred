@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import { precompress } from './server/compress.ts';
+import { migrationFilesOf, migrationsModule, MIGRATIONS_MODULE } from './src/lib/store/migrations-bundle.ts';
 import { areaFiles, browserTable, localeOfId, tableModule } from './src/lib/i18n/browser-tables.ts';
 
 /** The commit this build is made from: KINDRED_COMMIT (the Docker build has no .git), else git, else 'unknown'. Shown in a steward's feedback report. */
@@ -56,6 +57,20 @@ const i18nTables = (): Plugin => {
   };
 };
 
+/** The migration files, bundled for the Durable Objects that apply them to themselves (src/lib/store/durable.ts). */
+const migrations = (): Plugin => {
+  const root = fileURLToPath(new URL('./migrations/', import.meta.url));
+  return {
+    name: 'kindred:migrations',
+    resolveId: (source) => (source === MIGRATIONS_MODULE ? `\0${MIGRATIONS_MODULE}` : undefined),
+    load(id) {
+      if (id !== `\0${MIGRATIONS_MODULE}`) return;
+      for (const file of migrationFilesOf(root)) this.addWatchFile(file);
+      return migrationsModule(root);
+    },
+  };
+};
+
 export default defineConfig(({ command }) => {
   const workers = process.env.KINDRED_TARGET !== 'node' && (command === 'build' || !!process.env.CLOUDFLARE_ENV || process.env.KINDRED_TARGET === 'cloudflare');
   return {
@@ -75,6 +90,7 @@ export default defineConfig(({ command }) => {
       // KINDRED_WRANGLER_CONFIG builds against another Worker's configuration, such as the demo's (deploy/demo/wrangler.jsonc).
       ...(workers ? [cloudflare({ viteEnvironment: { name: 'ssr' }, inspectorPort: false, configPath: process.env.KINDRED_WRANGLER_CONFIG?.trim() || undefined })] : []),
       i18nTables(),
+      migrations(),
       tanstackStart(),
       viteReact(),
       ...(workers ? [] : [precompressClient()]),

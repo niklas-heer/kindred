@@ -4,12 +4,16 @@ Kindred keeps data in two kinds of database, with one set of migrations each:
 
 - **The accounts database**, one per installation: who people are, their passkeys and sessions, the families they
   belong to, invitations, and each family's AI settings and assistant conversations. `migrations/accounts/`. On Node it
-  is `data/accounts.db`; on Cloudflare it is the `ACCOUNTS` D1 binding.
+  is `data/accounts.db`; on Cloudflare it is one Durable Object of the `FAMILIES` namespace, or the `ACCOUNTS` D1 binding
+  where one is bound.
 - **A family database**, one per family: the people, their links, stories, places, pictures and houses. `migrations/tree/`.
-  On Node it is `data/<id>.db`; on Cloudflare it is the `TREE_<ID>` D1 binding.
+  On Node it is `data/<id>.db`; on Cloudflare it is the family's own Durable Object, or the `TREE_<ID>` D1 binding where one
+  is bound (see [Where a family lives](#where-a-family-lives)).
 
-Migrations are plain SQL files named `NNNN_name.sql`. They run in order, on Node when a file is opened and on D1 with
-`mise run cf:migrate` or `cf:migrate:remote`. Both use the same files and the same `d1_migrations` table. A file that
+Migrations are plain SQL files named `NNNN_name.sql`. They run in order: on Node when a file is opened, on D1 with
+`mise run cf:migrate` or `cf:migrate:remote`, and in a Durable Object by the object itself, when it is made and whenever it
+starts again after a deploy, before it answers anything (`src/lib/store/durable.ts`; the files are bundled into the Worker).
+All three use the same files and the same `d1_migrations` table. A file that
 has shipped is never edited: a change is a new file. A migration must run on SQLite and on D1, so it has no `PRAGMA`,
 no `BEGIN` and no `COMMIT`, and a new `NOT NULL` column has a default.
 
@@ -17,6 +21,21 @@ The schema is the sum of the files in the `migrations/` folders. On Node, `src/l
 when it opens a file and backs the file up first. A migration runs while the Worker that is still serving is on the old
 code (`mise run deploy` migrates before it deploys), so it must not break the release before it. There are three folders:
 `tree`, `accounts` and `gazetteer` (see the end).
+
+## Where a family lives
+
+| Where Kindred runs | A family | The accounts | How the families are listed (`store.treeIds()`) |
+| --- | --- | --- | --- |
+| Node | `data/<id>.db`, made by `ensureTree` | `data/accounts.db` | the `*.db` files in the data folder |
+| Cloudflare, Durable Objects (new installs) | its own SQLite Durable Object `tree:<id>` in `FAMILIES`, made by `ensureTree` | the Durable Object `accounts` | the rows of `family_store` (accounts migration 0033) |
+| Cloudflare, D1 (installs from before Durable Objects) | the D1 database bound as `TREE_<ID>`, which must exist before the family is made | the `ACCOUNTS` D1 database | the `TREE_<ID>` bindings |
+
+Both Cloudflare ways can be mixed: a family with a `TREE_<ID>` binding is served from D1, any other from its Durable Object,
+and the list is both together. A Durable Object holds up to 10 GB, in the EU when `KINDRED_JURISDICTION=eu` is set before the
+first family (it cannot be changed afterwards). Deleting a family deletes its Durable Object's storage and its `family_store`
+row; a D1 database is emptied instead, since a Worker cannot remove it. On Node nothing is recorded in `family_store`: the
+file is the record. `scripts/import-to-do.ts` moves a family from a Node file or a D1 database into a Durable Object
+([deploy-cloudflare.md](deploy-cloudflare.md#moving-a-family-into-a-durable-object)).
 
 ## The family database (`migrations/tree`)
 
@@ -148,9 +167,15 @@ code (`mise run deploy` migrates before it deploys), so it must not break the re
 | `0028_view_as.sql` | `view_as`: a steward's "View as" preview of one family ([roles-and-privacy.md](roles-and-privacy.md#view-as)). |
 | `0029_post_push.sql` | `push_subscription.posts` and `posts_sent_at`, for the push about a new post in the family feed ([feed.md](feed.md)). |
 | `0032_presence.sql` | `presence`: who of the family is here right now ([roles-and-privacy.md](roles-and-privacy.md#here-now)). |
+| `0033_family_store.sql` | `family_store`: the families made as Durable Objects on Cloudflare ([Where a family lives](#where-a-family-lives)). |
 
 ### Tables
 
+- **`family_store`** (0033): one row per family the Worker made in the `FAMILIES` Durable Object namespace (`tree`, the
+  family's id; `driver`, `durable-object`; `created_at`, ISO 8601 in UTC), written by `store.ensureTree` and deleted by
+  `store.dropTree`. A Worker cannot list Durable Objects, so this is how `store.treeIds()` finds them. Families in D1 or in a
+  Node file have no row. Only the store reads and writes it (`src/lib/store/cf.ts`); deleting a family also finds it by its
+  `tree` column.
 - **`view_as`** (0028): one "View as" preview, behind a random token in its own HttpOnly cookie; `hash` is the token's SHA-256, as for a session. `user` is the steward who started it and `session` the hash of the passkey session it belongs to (NULL under Cloudflare Access, which has no session row). `tree` is the family previewed; `kind` is `role` (with `role`: `viewer`, `contributor` or `editor`), `member` (with `member`, the account previewed) or `guest` (with `link`, the family's share link, or NULL for a plain guest with living people protected). `created` and `last_used` are milliseconds: a preview unused for an hour, or older than a day, is over. Deleted on Stop, on sign-out and with its session, when the steward is no longer a steward, the member leaves or the link goes, with the account (`ON DELETE CASCADE`) and with the family (its `tree` column).
 - **`family_visit`** (0026): one row per member and family: `last_seen` (when they last opened the family, milliseconds), `shown` (when "What's new" or the History page last showed them the news) and `since` (where "What's new" counts from). `visits` (0027) counts the visits, 1 during the first (0 for members who visited before it was counted). A visit ends after two hours without opening the family; when the next begins, `since` moves up to `shown` and never further, so news that came after they last looked is not skipped, and during a visit it stays put, so the page shows the same news however often it is opened. Goes with the account and when the member leaves the family.
 - **`presence`** (0032): one row per member's open browser tab in a family (`tree`, `account`, `tab`, a random id the tab
@@ -289,8 +314,8 @@ These rules keep the data consistent without interactive transactions, which D1 
 - **A family's rows in the accounts database carry its id in a column named `tree`.** Deleting a family
   (`src/lib/families.server.ts`) removes every accounts row whose table has a `tree` column, found from the schema, so a
   table added later is included without a list to keep. A row that belongs to a family only through another row (a share
-  session through its link, a running reply through its chat) is listed there by hand; add yours the same way. On Workers
-  the family database itself is emptied rather than removed (`emptyDatabase` in `src/lib/store/db.ts`): every table but
+  session through its link, a running reply through its chat) is listed there by hand; add yours the same way. A family in a
+  Durable Object loses all its storage. A D1 family database is emptied rather than removed (`emptyDatabase` in `src/lib/store/db.ts`): every table but
   `d1_migrations` and the tables a migration seeds with a starting row (`SEEDED_TABLES`, today `ancestry_rev`). A new
   migration that seeds a table with a row the app needs adds it there.
 - **A demo writes nothing.** With `KINDRED_DEMO=1` (`src/lib/demo.ts`) the storage layer hands out read-only databases and

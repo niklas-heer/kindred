@@ -14,7 +14,7 @@ if (!tree) {
   process.exit(2);
 }
 
-const families = store.treeIds();
+const families = await store.treeIds();
 if (!families.includes(tree)) {
   console.error(`no family "${tree}" here (families: ${families.join(', ') || 'none'})`);
   process.exit(1);

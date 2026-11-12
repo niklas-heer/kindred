@@ -51,9 +51,9 @@ if (!patched.has(driver)) {
   };
   driver.tree = (id) => guardedOf(tree.call(driver, id));
   // Making a family's database is a write.
-  driver.ensureTree = (id) => {
+  driver.ensureTree = async (id) => {
     check();
-    return guardedOf(ensureTree.call(driver, id));
+    return guardedOf(await ensureTree.call(driver, id));
   };
   driver.accounts = () => guardedOf(accounts.call(driver));
   driver.media.put = (...args) => refused() ?? put.apply(driver.media, args);

@@ -170,7 +170,8 @@ const monthDayOf = (d: Date) => `${String(d.getMonth() + 1).padStart(2, '0')}-${
 export async function listTrees(only?: Iterable<string>, protectLiving: ReadonlySet<string> = new Set(), today?: Date): Promise<(TreeMeta & { today?: TodayEvent[] })[]> {
   const monthDay = monthDayOf(new Date());
   const wanted = only && new Set(only);
-  const ids = wanted ? store.treeIds().filter((id) => wanted.has(id)) : store.treeIds();
+  const all = await store.treeIds();
+  const ids = wanted ? all.filter((id) => wanted.has(id)) : all;
   const trees = await Promise.all(
     ids.map(async (id): Promise<(TreeMeta & { today?: TodayEvent[] }) | null> => {
       // One round trip per family: its details, its size, its crest, today's birthdays and, if asked, the rest of today.
@@ -236,7 +237,7 @@ function todayFrom(peopleRows: any[], unionRows: any[], today: Date, protectLivi
  * this family is left as it is, and two setups that race both succeed. The schema comes from migrations/tree.
  */
 export async function provisionFamily(id: string, name: string, theme = 'codex'): Promise<'created' | 'exists'> {
-  const d = store.ensureTree(id);
+  const d = await store.ensureTree(id);
   const had = await d.get<{ value: string }>("SELECT value FROM meta WHERE key = 'id'");
   if (had) {
     if (had.value !== id) throw new Error(`That database holds the family "${had.value}", not "${id}".`);

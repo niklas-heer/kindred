@@ -2,7 +2,7 @@
 // a brand-new server makes for itself when setup creates its first account (docs/deploy-cloudflare.md, step 2).
 import { listTrees, provisionFamily } from '../db.server.ts';
 import { translate } from '../i18n/dictionary.ts';
-import { NOT_TREES, onWorkers, store, TREE_ID } from '../store/index.ts';
+import { NOT_TREES, store, TREE_ID } from '../store/index.ts';
 import { AuthError } from './errors.ts';
 
 /**
@@ -32,11 +32,12 @@ export function defaultTreeId(env: string | undefined = process.env.KINDRED_DEFA
 export const bindingOf = (id: string) => `TREE_${id.toUpperCase().replace(/-/g, '_')}`;
 
 /**
- * On Workers a family's database must be bound before it can be made: a missing binding is the operator's to add,
- * so the reader gets the steps rather than a crash. Null when the family can be made here.
+ * On Workers without Durable Objects a family's database must be bound before it can be made: a missing binding is the
+ * operator's to add, so the reader gets the steps rather than a crash. Null when the family can be made here
+ * (`store.canMakeTree`: Node, a bound D1 database, or the FAMILIES Durable Objects).
  */
-export function missingBinding(id: string, bound: string[], workers: boolean): AuthError | null {
-  if (!workers || bound.includes(id)) return null;
+export function missingBinding(id: string, canMake: boolean): AuthError | null {
+  if (canMake) return null;
   return new AuthError('invalid', translate('en', 'setup.err_no_binding', { id, binding: bindingOf(id) }));
 }
 
@@ -55,14 +56,14 @@ export function cleanFamilyName(raw: unknown): string {
 /** Before setup asks for a passkey: a server with no family yet must be able to make its first one. */
 export async function checkCanMakeFamily(): Promise<void> {
   if ((await families()).length) return;
-  const problem = missingBinding(defaultTreeId(), store.treeIds(), onWorkers);
+  const problem = missingBinding(defaultTreeId(), store.canMakeTree(defaultTreeId()));
   if (problem) throw problem;
 }
 
 /** Makes the server's first family, named `name` (see provisionFamily), and returns its id. */
 export async function makeFirstFamily(name: string): Promise<string> {
   const id = defaultTreeId();
-  const problem = missingBinding(id, store.treeIds(), onWorkers);
+  const problem = missingBinding(id, store.canMakeTree(id));
   if (problem) throw problem;
   try {
     await provisionFamily(id, name);

@@ -1,12 +1,17 @@
-// The Cloudflare driver: D1 for the families and the accounts, R2 for media. Bindings (wrangler.jsonc):
-//   ACCOUNTS       D1, the accounts database (migrations/accounts)
-//   TREE_<ID>      D1, one database per family (migrations/tree); TREE_FAMILY serves /family,
-//                  TREE_MY_FAMILY serves /my-family
+// The Cloudflare driver: each family in its own Durable Object or in a D1 database, the accounts in a Durable Object or
+// D1, R2 for media. Bindings (wrangler.jsonc):
+//   FAMILIES       Durable Objects (class FamilyStore, ./durable.ts, SQLite storage): one per family, made on demand
+//                  (`ensureTree`), and the accounts when no ACCOUNTS database is bound. The families made here are listed
+//                  in the accounts database's `family_store` table. KINDRED_JURISDICTION=eu keeps them all in the EU.
+//   TREE_<ID>      D1, optional: a family's database, as before Durable Objects (migrations/tree). A family with a binding
+//                  is served from it, whether or not FAMILIES is bound; TREE_FAMILY serves /family, TREE_MY_FAMILY /my-family.
+//   ACCOUNTS       D1, optional when FAMILIES is bound: the accounts database (migrations/accounts)
 //   MEDIA          R2, uploaded files under <tree>/<key>
 //   GAZETTEER      D1, optional: the GeoNames towns for assisted place entry, read-only (migrations/gazetteer,
 //                  loaded by `mise run cf:gazetteer`). Without it the place picker offers the family's own places.
 import { env, waitUntil } from 'cloudflare:workers';
-import { checkMediaKey, checkReads, checkStatement, emptyDatabase, NOT_TREES, TREE_ID, type Db, type Driver, type Param, type Query, type Result } from './db.ts';
+import { checkMediaKey, checkReads, checkStatement, emptyDatabase, NOT_TREES, q, TREE_ID, type Db, type Driver, type Param, type Query, type Result } from './db.ts';
+import { NOT_MADE, type StoreKind } from './durable.ts';
 
 const isD1 = (v: unknown): v is D1Database => !!v && typeof (v as D1Database).prepare === 'function' && typeof (v as D1Database).batch === 'function';
 
@@ -57,6 +62,128 @@ const db = (d1: D1Database) => {
   return w;
 };
 
+// ---------- Durable Objects ----------
+
+type Row = Record<string, unknown>;
+/** The FamilyStore's methods as RPC sees them (./durable.ts). */
+interface StoreStub {
+  create(kind: StoreKind): Promise<string[]>;
+  made(): Promise<StoreKind | null>;
+  drop(): Promise<void>;
+  all(sql: string, params: Param[]): Promise<Row[]>;
+  get(sql: string, params: Param[]): Promise<Row | undefined>;
+  run(sql: string, params: Param[]): Promise<Result>;
+  batch(queries: Query[]): Promise<Result[]>;
+  readBatch(queries: Query[]): Promise<Row[][]>;
+}
+
+/** The driver a family made here is recorded under in `family_store` (accounts migration 0033). */
+export const DURABLE = 'durable-object';
+/** Where Cloudflare may keep the Durable Objects. Only `eu` and `fedramp` exist; it must be chosen before the first family. */
+const JURISDICTIONS = new Set(['eu', 'fedramp']);
+
+/** The FAMILIES namespace, in KINDRED_JURISDICTION when set; undefined when it is not bound. */
+function namespace(): DurableObjectNamespace<StoreStub> | undefined {
+  const ns = env.FAMILIES as DurableObjectNamespace<StoreStub> | undefined;
+  if (!ns || typeof ns.idFromName !== 'function') return undefined;
+  const j = String((env as Record<string, unknown>).KINDRED_JURISDICTION ?? '').trim().toLowerCase();
+  if (!j) return ns;
+  if (!JURISDICTIONS.has(j)) throw new Error(`KINDRED_JURISDICTION must be eu, fedramp or empty, not "${j}"`);
+  try {
+    return ns.jurisdiction(j);
+  } catch (e) {
+    // Local workerd (mise run dev:cf, the tests) has no jurisdictions; everything is on this machine anyway.
+    if (/not implemented in workerd/i.test(e instanceof Error ? e.message : String(e))) return ns;
+    throw e;
+  }
+}
+
+/** The object that holds a family (`tree:<id>`) or the accounts (`accounts`). A stub belongs to one request, so each call makes its own. */
+const objectName = (tree: string | null) => (tree === null ? 'accounts' : `tree:${tree}`);
+function stub(name: string): StoreStub {
+  const ns = namespace();
+  if (!ns) throw new Error('No FAMILIES Durable Object namespace is bound; see wrangler.jsonc');
+  return ns.get(ns.idFromName(name));
+}
+
+/** The accounts object makes itself on first use; this isolate remembers that it has asked once. */
+let accountsMade = false;
+
+/**
+ * Where the Durable Objects were first made, kept in the MEDIA bucket (`.kindred/store.json`, never a family's key: those
+ * start with a tree id). The same name in another jurisdiction is another, empty object, so a changed KINDRED_JURISDICTION
+ * would hide every family and the accounts, and open /setup to whoever comes first. It is refused instead, before any object
+ * is reached. Checked once per isolate.
+ */
+const PLACE_KEY = '.kindred/store.json';
+let placeChecked = false;
+async function checkPlace() {
+  if (placeChecked) return;
+  const b = env.MEDIA as R2Bucket | undefined;
+  if (b) {
+    const here = String((env as Record<string, unknown>).KINDRED_JURISDICTION ?? '').trim().toLowerCase() || 'default';
+    const held = await b.get(PLACE_KEY);
+    if (held) {
+      const was = (JSON.parse(await new Response(held.body).text()) as { jurisdiction?: string }).jurisdiction ?? 'default';
+      if (was !== here) throw new Error(`The families were made with KINDRED_JURISDICTION=${was === 'default' ? '(empty)' : was}, and this Worker has ${here === 'default' ? '(empty)' : here}. A jurisdiction cannot be changed: set it back.`);
+    } else {
+      await b.put(PLACE_KEY, JSON.stringify({ jurisdiction: here, since: new Date().toISOString() }), { httpMetadata: { contentType: 'application/json' } });
+    }
+  }
+  placeChecked = true;
+}
+
+/**
+ * A database in a Durable Object, as a `Db`. A family that was never made answers "no tree <id>". The accounts object is
+ * made on first use (`create` is idempotent and cheap after the first time).
+ */
+function durableDb(tree: string | null): Db {
+  const name = objectName(tree);
+  const call = async <T>(work: (s: StoreStub) => Promise<T>): Promise<T> => {
+    await checkPlace();
+    const s = stub(name);
+    if (tree === null && !accountsMade) {
+      await s.create('accounts');
+      accountsMade = true;
+    }
+    try {
+      return await work(s);
+    } catch (e) {
+      if (e instanceof Error && e.message.includes(NOT_MADE)) throw new Error(`no tree ${tree}; make it first (store.ensureTree)`);
+      throw e;
+    }
+  };
+  return {
+    all: <R>(sql: string, ...params: Param[]) => call((s) => s.all(sql, params)) as Promise<R[]>,
+    get: <R>(sql: string, ...params: Param[]) => call((s) => s.get(sql, params)) as Promise<R | undefined>,
+    run: (sql: string, ...params: Param[]) => call((s) => s.run(sql, params)),
+    batch: (queries: Query[]) => call((s) => s.batch(queries.map((x) => ({ sql: x.sql, params: x.params })))),
+    readBatch: (queries: Query[]) => call((s) => s.readBatch(queries.map((x) => ({ sql: x.sql, params: x.params })))),
+  };
+}
+
+/** One `Db` per object name for this isolate, so the store's guard (./index.ts) wraps each once. */
+const durables = new Map<string, Db>();
+const durable = (tree: string | null) => {
+  const name = objectName(tree);
+  let d = durables.get(name);
+  if (!d) durables.set(name, (d = durableDb(tree)));
+  return d;
+};
+
+/** The families bound as D1 databases: TREE_<ID>. */
+const boundTrees = () =>
+  Object.keys(env)
+    .filter((k) => /^TREE_[A-Z0-9_]+$/.test(k) && isD1(env[k]))
+    .map((k) => k.slice(5).toLowerCase().replace(/_/g, '-'))
+    .filter((id) => TREE_ID.test(id) && !NOT_TREES.has(id));
+
+const checkId = (id: string) => {
+  if (!TREE_ID.test(id) || NOT_TREES.has(id)) throw new Error(`bad tree id ${id}`);
+};
+
+// ---------- R2 ----------
+
 const bucket = () => {
   const b = env.MEDIA as R2Bucket | undefined;
   if (!b) throw new Error('No MEDIA bucket is bound; see wrangler.jsonc');
@@ -66,34 +193,64 @@ const bucket = () => {
 const driver: Driver = {
   name: 'cloudflare',
 
+  // A bound D1 database wins, so an install from before Durable Objects keeps serving its families from D1 unchanged.
   tree(id) {
-    if (!TREE_ID.test(id) || NOT_TREES.has(id)) throw new Error(`bad tree id ${id}`);
+    checkId(id);
     const d1 = env[treeBinding(id)];
-    if (!isD1(d1)) throw new Error(`no tree ${id}; bind a D1 database as ${treeBinding(id)}`);
-    return db(d1);
+    if (isD1(d1)) return db(d1);
+    if (namespace()) return durable(id);
+    throw new Error(`no tree ${id}; bind a D1 database as ${treeBinding(id)}, or bind the FAMILIES Durable Objects`);
   },
 
-  // The binding must already exist (docs/deploy-cloudflare.md, step 2): nothing can be created here.
-  ensureTree(id) {
-    return driver.tree(id);
+  canMakeTree(id) {
+    if (id === undefined) return !!namespace();
+    return TREE_ID.test(id) && !NOT_TREES.has(id) && (isD1(env[treeBinding(id)]) || !!namespace());
   },
 
-  // A bound D1 database cannot be removed from inside the Worker: it is emptied, and stays bound for a family to come.
+  // A D1 database must already be bound (docs/deploy-cloudflare.md): nothing can be created there. A Durable Object is made
+  // here, its schema applied, and the family recorded in `family_store`, so treeIds lists it from now on.
+  async ensureTree(id) {
+    checkId(id);
+    if (isD1(env[treeBinding(id)]) || !namespace()) return driver.tree(id);
+    await checkPlace();
+    await stub(objectName(id)).create('tree');
+    await driver.accounts().run('INSERT INTO family_store (tree, driver, created_at) VALUES (?, ?, ?) ON CONFLICT(tree) DO NOTHING', id, DURABLE, new Date().toISOString());
+    return durable(id);
+  },
+
+  // A bound D1 database cannot be removed from inside the Worker: it is emptied, and stays bound for a family to come. A
+  // Durable Object deletes everything it stores, and the family leaves the registry.
   async dropTree(id) {
-    await emptyDatabase(driver.tree(id));
+    checkId(id);
+    if (isD1(env[treeBinding(id)]) || !namespace()) {
+      await emptyDatabase(driver.tree(id));
+      return;
+    }
+    await checkPlace();
+    await stub(objectName(id)).drop();
+    await driver.accounts().batch([q('DELETE FROM family_store WHERE tree = ?', id)]);
   },
 
-  treeIds() {
-    return Object.keys(env)
-      .filter((k) => /^TREE_[A-Z0-9_]+$/.test(k) && isD1(env[k]))
-      .map((k) => k.slice(5).toLowerCase().replace(/_/g, '-'))
-      .filter((id) => TREE_ID.test(id) && !NOT_TREES.has(id));
+  // The bound D1 families and the families made as Durable Objects. Before accounts migration 0033 there is no registry yet.
+  async treeIds() {
+    const bound = boundTrees();
+    if (!namespace()) return bound;
+    let made: string[];
+    try {
+      made = (await driver.accounts().all<{ tree: string }>('SELECT tree FROM family_store WHERE driver = ? ORDER BY tree', DURABLE)).map((r) => r.tree);
+    } catch (e) {
+      if (/no such table: family_store/i.test(e instanceof Error ? e.message : String(e))) return bound;
+      throw e;
+    }
+    return [...new Set([...bound, ...made])].filter((id) => TREE_ID.test(id) && !NOT_TREES.has(id));
   },
 
+  // ACCOUNTS (D1) when bound, as before Durable Objects; otherwise the accounts Durable Object, made on first use.
   accounts() {
     const d1 = env.ACCOUNTS;
-    if (!isD1(d1)) throw new Error('No ACCOUNTS database is bound; see wrangler.jsonc');
-    return db(d1);
+    if (isD1(d1)) return db(d1);
+    if (namespace()) return durable(null);
+    throw new Error('No ACCOUNTS database is bound, nor the FAMILIES Durable Objects; see wrangler.jsonc');
   },
 
   // Read-only: the gazetteer is only ever searched. A write through it is refused, never sent to D1.
