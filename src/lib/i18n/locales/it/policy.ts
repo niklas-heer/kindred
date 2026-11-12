@@ -8,6 +8,8 @@ export default {
   "policy.err.no_price": "Kindred non conosce il prezzo di questo modello, quindi l’IA di questo server non può usarlo. Scegli un modello con un prezzo noto.",
   "policy.err.operator_model": "Scegli il fornitore e il modello che l’IA di questo server usa.",
   "policy.err.operator_budget": "L’IA fornita da questo server ha esaurito il budget del mese. Riparte il 1º, in UTC.",
+  "policy.err.operator_paused": "L’IA fornita da questo server è in pausa per questa famiglia: una chiamata è costata più di quanto le era riservato. La riattiva il gestore del server.",
+  "policy.err.operator_unbounded": "L’IA fornita da questo server non cerca sul web e non guarda le immagini: il suo costo non si potrebbe sapere in anticipo. Chiedi senza immagine, oppure passa alla chiave IA della tua famiglia.",
   "policy.err.not_offered": "Questo server non offre la sua IA a questa famiglia.",
   "policy.err.announcement_title": "Un avviso ha bisogno di un titolo.",
   "policy.err.announcement_end": "Un avviso deve finire dopo il suo inizio.",

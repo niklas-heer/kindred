@@ -30,7 +30,7 @@ export default {
   "ai.dockMore": { one: "+{count} de plus", other: "+{count} de plus" },
   "ai.waitForReply": "En attente de la réponse. Ce que tu as écrit reste ici.",
   "ai.modelChoose": "Choisir le modèle de cette conversation",
-  "ai.modelFamily": "Modèle par défaut de la famille",
+  "ai.modelFamily": "Défaut de la famille",
   "ai.pickRecommended": "Recommandé",
   "ai.modelCost": "Le coût de ce modèle, de $ à $$$",
   "ai.modelFilter": "Trouver un modèle",

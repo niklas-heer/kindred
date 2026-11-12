@@ -226,4 +226,5 @@ export default {
   "request.full": "Trop de demandes attendent une réponse en ce moment, donc ce formulaire est fermé pour le moment. Réessaie dans quelques jours.",
   "privacyreq.full": "Trop de demandes attendent une réponse en ce moment, donc ce formulaire est fermé pour le moment.",
   "privacyreq.full_write": "Tu peux toujours écrire à l’exploitant :",
+  "operator.err.needs_totp": "Ce compte a un mot de passe mais pas de codes à deux facteurs. Il faut d’abord les activer sur ce compte ; ensuite, il pourra devenir exploitant.",
 } satisfies Strings<typeof en, "fr">;

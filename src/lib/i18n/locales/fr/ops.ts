@@ -84,7 +84,7 @@ export default {
   "ops.consent_hint": "Il n’envoie rien sur ce serveur ni sur ses familles : ni adresse, ni version, ni identifiant. Rien n’est demandé tant que tu n’as pas accepté.",
   "ops.consent_off": "La vérification est désactivée. Rien n’est demandé tant que tu ne l’actives pas.",
   "ops.consent_yes": "Vérifier une fois par jour",
-  "ops.consent_no": "Pas maintenant",
+  "ops.consent_no": "Plus tard",
   "ops.update_available": "Kindred {latest} est disponible. Ce serveur utilise la {version}.",
   "ops.up_to_date": "À jour, au {date}.",
   "ops.last_checked": "Dernière vérification le {date}.",
@@ -156,4 +156,6 @@ export default {
   "ops.r200.access_text": "Invite des proches comme lecteurs, contributeurs, éditeurs ou gardiens, ou partage un lien en lecture seule.",
   "ops.r200.ai_title": "Un assistant facultatif.",
   "ops.r200.ai_text": "Choisis un fournisseur et un budget mensuel ; rien ne change sans approbation.",
+  "ops.signins_password": "Connexions par mot de passe (30 jours)",
+  "ops.signins_oidc": "Connexions par authentification unique (30 jours)",
 } satisfies Strings<typeof en, "fr">;

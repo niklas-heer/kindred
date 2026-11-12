@@ -3,7 +3,7 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/portrait.ts";
 
 export default {
-  "character.make_from_photo": "Créer à partir d’une photo",
+  "character.make_from_photo": "Créer d’après une photo",
   "character.photo_pick": "Choisis l’une de ses photos. Le résultat se charge dans l’éditeur ; rien n’est enregistré tant que tu n’enregistres pas.",
   "character.no_photos": "Ajoute d’abord une photo de cette personne à la galerie.",
   "character.photo_loading": "J’examine la photo…",

@@ -143,7 +143,7 @@ export const LANGUAGES = {
     jobForms: "boulanger/boulangère",
     accepts: ["fr"],
     shortMonths: ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."],
-    complete: false, // TOP-UP: 20 keys added after the translation; set back to true then
+    complete: true,
   },
   it: {
     native: "Italiano",
@@ -160,7 +160,7 @@ export const LANGUAGES = {
     jobForms: "fornaio/fornaia",
     accepts: ["it"],
     shortMonths: ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"],
-    complete: false, // TOP-UP: 20 keys added after the translation; set back to true then
+    complete: true,
   },
   nl: {
     native: "Nederlands",

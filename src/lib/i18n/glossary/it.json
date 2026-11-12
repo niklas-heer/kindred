@@ -3,7 +3,8 @@
     "family": {
       "use": "famiglia, famiglie",
       "accept": [
-        "famigli"
+        "famigli",
+        "familiar"
       ]
     },
     "tree": {
@@ -40,7 +41,7 @@
       ]
     },
     "viewer": {
-      "use": "Lettura (il ruolo), lettore",
+      "use": "Lettore (il ruolo), lettore",
       "accept": [
         "lett",
         "leggere",
@@ -48,14 +49,14 @@
       ]
     },
     "contributor": {
-      "use": "Collaborazione (il ruolo), collaboratore",
+      "use": "Collaboratore (il ruolo), collaboratore",
       "accept": [
         "collabor",
         "contribu"
       ]
     },
     "editor": {
-      "use": "Redattore (il ruolo), chi può modificare",
+      "use": "Redattore (il ruolo), redattore",
       "accept": [
         "redattor",
         "modific"

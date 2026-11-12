@@ -38,7 +38,7 @@ export default {
   "date.err.future": "Cette date n’est pas encore arrivée.",
   "date.err.before": "Cela se situe avant {what} ({date}).",
   "date.err.invalid": "Ce n’est pas une vraie date.",
-  "common.appDescription": "Un arbre généalogique où l’on aime vivre.",
+  "common.appDescription": "Un arbre généalogique où il fait bon vivre.",
   "common.you": "toi",
   "life.born": "né(e) en {year}",
   "life.circa": "vers ",

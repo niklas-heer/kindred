@@ -3,7 +3,8 @@
     "family": {
       "use": "famille, familles",
       "accept": [
-        "famill"
+        "famill",
+        "famili"
       ]
     },
     "tree": {
@@ -41,28 +42,29 @@
       ]
     },
     "viewer": {
-      "use": "Lecture (le rôle), lecteur",
+      "use": "Lecteur (le rôle), lecteur",
       "accept": [
         "lect",
         "lire",
-        "lis"
+        "lis",
+        "lecteur"
       ]
     },
     "contributor": {
-      "use": "Contribution (le rôle), contributeur",
+      "use": "Contributeur (le rôle), contributeur",
       "accept": [
         "contribu"
       ]
     },
     "editor": {
-      "use": "Édition (le rôle), éditeur",
+      "use": "Éditeur (le rôle), éditeur",
       "accept": [
         "édit",
         "modif"
       ]
     },
     "steward": {
-      "use": "gardien de la famille (gardien), jamais « administrateur »",
+      "use": "gardien (le rôle : Gardien), jamais « administrateur »",
       "accept": [
         "gardien"
       ]

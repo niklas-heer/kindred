@@ -3,6 +3,7 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/houses.ts";
 
 export default {
+  "houses.story_about": "su {name}",
   "houses.allHouses": "Tutte le casate",
   "houses.armsOf": "Stemma di {name}",
   "houses.automatic": "Automatico: {name}",
@@ -124,6 +125,7 @@ export default {
   "houses.notFoundText": "Questa famiglia non ha una casata così. Potrebbe essere stata rinominata o rimossa.",
   "houses.notSet": "Non impostato",
   "houses.notable": "Membri illustri",
+  "houses.quote_of": "di {name}",
   "houses.onlySteward": "Solo un custode può cambiare lo stemma e la successione",
   "houses.openTree": "Apri l’albero",
   "houses.perGeneration": "Membri per generazione",

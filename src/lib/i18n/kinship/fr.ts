@@ -159,7 +159,9 @@ function renderFr(k: Kinship, view: KinshipView): FrKin {
         kin = reword(kin, (w) => w + rank);
       } else {
         kin = pick("cousin", "cousine");
+        // Second cousins are "issus de germains", third cousins "issus d’issus de germains", as French genealogists say.
         if (degree === 2) kin = one(kin.alts.map((n) => noun(`${n.word} ${n.g === "f" ? "issue" : "issu"} de germain`, n.g)));
+        else if (degree === 3) kin = one(kin.alts.map((n) => noun(`${n.word} ${n.g === "f" ? "issue" : "issu"} d’issu de germain`, n.g)));
         else if (degree > 2) kin = reword(kin, (w) => `${w} au ${degree}e degré`);
         if (removed) kin = reword(kin, (w) => `${w}, ${removed === 1 ? "une génération" : `${removed} générations`} d’écart`);
       }

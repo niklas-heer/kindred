@@ -127,7 +127,7 @@ export default {
   "photos.err.album_gone": "Quell’album non c’è più. Ricarica e riprova.",
   "photos.err.photo_gone": "Quella foto non c’è più. Ricarica per vedere la galleria.",
   "photos.err.photo_already_gone": "Quella foto non c’è già più.",
-  "photos.err.album_already_gone": "Quell’album non c’è già più.",
+  "photos.err.album_already_gone": "Quell’album non esiste più.",
   "photos.err.person_not_found": "Persona non trovata.",
   "photos.err.tag_gone": "Quel tag non c’è più. Ricarica per vedere la galleria.",
   "photos.err.tag_already_gone": "Quel tag non c’è già più.",

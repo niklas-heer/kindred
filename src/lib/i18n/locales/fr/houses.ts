@@ -3,6 +3,7 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/houses.ts";
 
 export default {
+  "houses.story_about": "à propos de {name}",
   "houses.allHouses": "Toutes les maisons",
   "houses.armsOf": "Armoiries de {name}",
   "houses.automatic": "Automatique : {name}",
@@ -36,7 +37,7 @@ export default {
   "houses.err.nothing_to_make": "Aucun des noms de famille choisis n’a de personnes sans maison.",
   "houses.err.not_person": "L’une de ces personnes n’est pas dans cette famille.",
   "houses.fromSurnames": "Par noms de famille",
-  "houses.createFromSurnames": "Créer des maisons à partir des noms de famille",
+  "houses.createFromSurnames": "Créer les maisons par nom de famille",
   "houses.surnamesTitle": "Maisons par noms de famille",
   "houses.surnamesText": "Une maison par nom de famille, avec les personnes qui portent ce nom et n’ont pas encore de maison. Les noms portés par deux personnes ou plus sont cochés au départ. Chaque maison commence avec un écu uni et peut être renommée ou redessinée.",
   "houses.surnamesNone": "Tout le monde dans cette famille appartient déjà à une maison.",
@@ -124,6 +125,7 @@ export default {
   "houses.notFoundText": "Cette famille n’a pas de telle maison. Elle a peut-être été renommée ou supprimée.",
   "houses.notSet": "Non défini",
   "houses.notable": "Membres notables",
+  "houses.quote_of": "de {name}",
   "houses.onlySteward": "Seul un gardien peut modifier les armoiries et la succession",
   "houses.openTree": "Ouvrir l’arbre",
   "houses.perGeneration": "Membres par génération",
@@ -218,7 +220,7 @@ export default {
   "houses.review.check": "Vérifier les armoiries",
   "houses.review.again": "Vérifier de nouveau",
   "houses.review.keep": "Ignorer : garder ces armoiries",
-  "houses.review.revise": "Suggérer de nouvelles armoiries d’après cela",
+  "houses.review.revise": "Proposer d’autres armoiries",
   "houses.review.kept": "Tu as gardé ces armoiries. Ceci revient si les armoiries ou les sens changent.",
   "houses.review.idea": "Une idée, si tu veux",
   "houses.review.ideas": "Voir des idées",

@@ -103,6 +103,9 @@ const GREAT = ["", "bis", "tris", "quadris"];
 const ancestor = (n: number, w: string) => (n < GREAT.length ? GREAT[n] + w : `${n}× bis${w}`);
 /** Pro-: "prozio", "pronipote"; further out "2× prozio". */
 const pro = (n: number, w: string) => (n <= 0 ? w : n === 1 ? `pro${w}` : `${n}× pro${w}`);
+/** A cousin's degree in words, as Italians say it ("di secondo grado"); further out "di 11º grado". */
+const ORD = ["", "primo", "secondo", "terzo", "quarto", "quinto", "sesto", "settimo", "ottavo", "nono", "decimo"];
+const grado = (n: number) => `di ${ORD[n] ?? `${n}º`} grado`;
 
 function renderIt(k: Kinship, view: KinshipView): ItKin {
   const words = (label: string) => IT_WORDS[label] && one(IT_WORDS[label].map(([w, g]) => noun(w, g, w === "compagno" || w === "compagna")));
@@ -156,10 +159,10 @@ function renderIt(k: Kinship, view: KinshipView): ItKin {
         // A parent's cousin is an uncle or aunt of the next degree, a cousin's child a nephew or niece of it; each
         // further generation adds pro-.
         kin = up > 0 ? pick("zio", "zia") : pick("nipote", "nipote");
-        kin = reword(kin, (w) => `${pro(removed - 1, w)} di ${degree + 1}º grado`);
+        kin = reword(kin, (w) => `${pro(removed - 1, w)} ${grado(degree + 1)}`);
       } else {
         kin = pick("cugino", "cugina");
-        if (degree > 1) kin = reword(kin, (w) => `${w} di ${degree}º grado`);
+        if (degree > 1) kin = reword(kin, (w) => `${w} ${grado(degree)}`);
         if (removed) kin = reword(kin, (w) => `${w}, ${removed === 1 ? "una generazione" : `${removed} generazioni`} di distanza`);
       }
       return cousin[1] ? half(kin) : kin;

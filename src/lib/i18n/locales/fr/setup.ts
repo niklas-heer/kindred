@@ -30,7 +30,7 @@ export default {
   "setup.family_ready_title": "{name} est prête",
   "setup.family_ready_lede": "Commence par toi. Une fois dans l’arbre, ajoute tes proches et invite la famille à te rejoindre.",
   "setup.add_me": "M’ajouter à la famille",
-  "setup.skip": "Pas maintenant",
+  "setup.skip": "Plus tard",
   "setup.family_add_failed": "Impossible de t’ajouter à la famille. Réessaie, ou passe cette étape.",
   "setup.err_no_binding": "Kindred n’a pas encore de base de données pour la famille « {id} ». Sur Cloudflare, lies-en une sous le nom {binding} (docs/deploy-cloudflare.md, étape 2), applique les migrations (étape 3), puis déploie de nouveau.",
   "setup.err_not_migrated": "La base de données de la famille « {id} » n’a pas encore de tables. Applique les migrations (docs/deploy-cloudflare.md, étape 3), puis réessaie.",

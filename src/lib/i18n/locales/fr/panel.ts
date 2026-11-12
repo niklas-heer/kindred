@@ -38,7 +38,7 @@ export default {
   "panel.how": "Comment ?",
   "panel.thisIsMe": "C’est moi",
   "panel.thisIsMeTitle": "Les liens de parenté seront exprimés par rapport à cette personne",
-  "panel.beThem": "Voir de son côté",
+  "panel.beThem": "Voir de son point de vue",
   "panel.beThemTitle": "Voir le lien de parenté de chacun du point de vue de cette personne",
   "panel.dateUnknown": "Date inconnue",
   "panel.age": "Âge",

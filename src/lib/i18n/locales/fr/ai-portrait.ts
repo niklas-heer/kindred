@@ -125,5 +125,5 @@ export default {
   "paint.styleHint": "Tous les portraits de cette famille ont ce style, pour qu’ils aillent bien ensemble. Il est envoyé au modèle d’images à chaque peinture. Le cadrage, la ressemblance et une légère retouche sont toujours conservés.",
   "paint.styleCount": "{n} caractères sur {max}",
   "paint.styleReset": "Rétablir par défaut",
-  "paint.styleSave": "Enregistrer le style de la famille",
+  "paint.styleSave": "Enregistrer le style familial",
 } satisfies Strings<typeof en, "fr">;

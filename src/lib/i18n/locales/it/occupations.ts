@@ -58,7 +58,7 @@ export default {
   "occupation.ship_captain": "Capitano di nave",
   "occupation.shipwright": "Carpentiere navale|Carpentiera navale",
   "occupation.welder": "Saldatore|Saldatrice",
-  "occupation.machinist": "Meccanico di macchine|Meccanica di macchine",
+  "occupation.machinist": "Operatore di macchine utensili|Operatrice di macchine utensili",
   "occupation.foundry_worker": "Fonditore|Fonditrice",
   "occupation.steelworker": "Siderurgico|Siderurgica",
   "occupation.factory_worker": "Operaio di fabbrica|Operaia di fabbrica",

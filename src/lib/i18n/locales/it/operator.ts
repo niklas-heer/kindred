@@ -133,7 +133,7 @@ export default {
   "operator.err_steward_name": "Indica la persona che sarà il suo primo custode.",
   "operator.err_no_invite": "Questa famiglia non ha nessun invito in attesa.",
   "operator.err_has_members": "Questa famiglia ora ha dei membri: i suoi custodi invitano da soli, e il suo invito non si può più rinnovare da qui.",
-  "operator.err_no_family": "Qui non c’è una famiglia così.",
+  "operator.err_no_family": "Questa famiglia qui non esiste.",
   "operator.err_no_account": "Qui non c’è nessun account con questa e-mail.",
   "operator.err_last_operator": "Il server ha bisogno di almeno un gestore.",
   "operator.err_request_gone": "A questa richiesta è già stata data una risposta.",
@@ -203,7 +203,7 @@ export default {
   "operator.turnstile_warning": "Chiunque può inviare questi moduli e nulla controlla i bot: Cloudflare Turnstile non è configurato (KINDRED_TURNSTILE_SITE_KEY e KINDRED_TURNSTILE_SECRET). Un’ondata si ferma a {max} richieste in attesa, ma allora anche le persone vere trovano il modulo chiuso.",
   "operator.list_full": "{max} richieste sono in attesa, quindi il modulo su /request dice che per ora è chiuso. Si riapre man mano che rispondi.",
   "operator.data_full": "{max} richieste di dati aspettano te, quindi il modulo su /privacy-request dice che per ora è chiuso. Si riapre man mano che le fai avanzare.",
-  "operator.show_older": "Mostra le più vecchie",
+  "operator.show_older": "Mostra le precedenti",
   "operator.device_title": "Questo dispositivo",
   "operator.push_label": "Avvisa questo dispositivo delle nuove richieste",
   "operator.push_hint": "Una notifica dice solo che una richiesta è in attesa, al massimo una volta ogni dieci minuti.",
@@ -226,4 +226,5 @@ export default {
   "request.full": "Troppe richieste aspettano una risposta in questo momento, quindi questo modulo per ora è chiuso. Riprova fra qualche giorno.",
   "privacyreq.full": "Troppe richieste aspettano una risposta in questo momento, quindi questo modulo per ora è chiuso.",
   "privacyreq.full_write": "Puoi comunque scrivere al gestore:",
+  "operator.err.needs_totp": "Questo account ha una password ma non i codici a due passaggi. Prima vanno attivati i codici, poi l’account può diventare gestore.",
 } satisfies Strings<typeof en, "it">;

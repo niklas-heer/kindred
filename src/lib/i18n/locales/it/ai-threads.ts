@@ -30,7 +30,7 @@ export default {
   "ai.dockMore": { one: "+{count} altra", other: "+{count} altre" },
   "ai.waitForReply": "In attesa della risposta. Quello che hai scritto resta qui.",
   "ai.modelChoose": "Scegli il modello di questa chat",
-  "ai.modelFamily": "Modello predefinito della famiglia",
+  "ai.modelFamily": "Predefinito della famiglia",
   "ai.pickRecommended": "Consigliato",
   "ai.modelCost": "Quanto costa questo modello, da $ a $$$",
   "ai.modelFilter": "Trova un modello",

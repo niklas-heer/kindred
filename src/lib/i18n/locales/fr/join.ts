@@ -6,7 +6,7 @@ export default {
   "join.invite_title": "Rejoindre la famille avec ton propre compte",
   "join.invite_text": "Avec un compte à toi, tu vois comment tu es lié à chacun, tu peux ajouter des souvenirs et des photos, recevoir des rappels d’anniversaire et jouer aux jeux de la famille.",
   "join.ask": "Demander à rejoindre",
-  "join.not_now": "Pas maintenant",
+  "join.not_now": "Plus tard",
   "join.chip_waiting": "En attente d’un gardien",
   "join.waiting_title": "En attente d’un gardien",
   "join.waiting_text": "Ta demande en tant que {name} est chez les gardiens de la famille. Continue à regarder en attendant ; elle reste ouverte jusqu’au {date}.",

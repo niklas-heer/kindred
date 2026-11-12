@@ -113,8 +113,8 @@ export default {
   "signup.ready_required": "Necessario per la registrazione",
   "signup.ready_hosting": "La modalità hosting",
   "signup.ready_hosting_how": "Scegli “Ospitare famiglie” qui sopra.",
-  "signup.ready_auth": "L’accesso proprio di Kindred",
-  "signup.ready_auth_how": "Dietro Cloudflare Access, è Access a decidere chi ha un account: la registrazione non può crearne.",
+  "signup.ready_auth": "Un modo per registrarsi",
+  "signup.ready_auth_how": "Un nuovo account ha bisogno di un modo di accesso offerto da questo server: passkey, password o single sign-on con un fornitore attivo. Dietro Cloudflare Access, è Access a decidere chi ha un account, quindi la registrazione non può crearne.",
   "signup.ready_turnstile": "Cloudflare Turnstile",
   "signup.ready_turnstile_how": "Imposta KINDRED_TURNSTILE_SITE_KEY e KINDRED_TURNSTILE_SECRET, poi riavvia o ripeti il deploy.",
   "signup.ready_impressum": "Note legali",
@@ -159,4 +159,6 @@ export default {
   "signup.audit_settings": "Impostazioni di hosting modificate",
   "signup.audit_code_create": "Creato un codice di registrazione",
   "signup.audit_code_revoke": "Ritirato un codice di registrazione",
+  "signup.password_button": "Crea il tuo account e la famiglia",
+  "signup.sso_skips_wait": "Oppure creala subito accedendo con un fornitore che conferma il tuo indirizzo e-mail:",
 } satisfies Strings<typeof en, "it">;
