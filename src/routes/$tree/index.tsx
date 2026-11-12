@@ -246,7 +246,8 @@ function TreePage() {
   // Who else has someone selected right now (live presence): their card gets a soft halo.
   const watchers = useWatchers();
   // And this reader's own selection, for theirs (only the id, and only while they share it: PresenceHost decides).
-  useEffect(() => { setSelectedPerson(sel); }, [sel]);
+  // A new, empty family has no focus person: `sel` is then '', which is nobody, not a person to share.
+  useEffect(() => { setSelectedPerson(sel || null); }, [sel]);
   useEffect(() => () => setSelectedPerson(null), []);
 
   const toggle = useCallback((id: string) => (play('page'), setCollapsed((c) => toggled(c, id))), []);
