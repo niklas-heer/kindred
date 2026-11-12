@@ -29,6 +29,7 @@ import operator from "./operator.ts";
 import ops from "./ops.ts";
 import panel from "./panel.ts";
 import photos from "./photos.ts";
+import policy from "./policy.ts";
 import portrait from "./portrait.ts";
 import presence from "./presence.ts";
 import print from "./print.ts";
@@ -81,6 +82,7 @@ export default {
   ...ops,
   ...panel,
   ...photos,
+  ...policy,
   ...portrait,
   ...presence,
   ...print,
