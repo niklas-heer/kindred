@@ -24,7 +24,6 @@ import { createFamily, idProblem, type FamilyTheme } from '../families.server.ts
 import { translate } from '../i18n/dictionary.ts';
 import { audit, instanceSettings } from '../operator/settings.server.ts';
 import { submitFamilyRequest } from '../operator/requests.server.ts';
-import { termsVersion } from '../operator/terms.server.ts';
 import { passesSignupTurnstile } from '../operator/turnstile.server.ts';
 import { guard, q, store, type Query } from '../store/index.ts';
 import { codeHash, codeRow, codeUsable, hostingSettings, saveHosting, signupCounts, signupState, readiness } from './settings.server.ts';
@@ -108,19 +107,6 @@ export async function precheck(form: CleanForm, g: SignupGuards, now = Date.now(
 }
 
 /**
- * The record of the processing agreement accepted with the terms. The `gdpr` lane adds `terms_acceptance.kind`; until its
- * migration runs, the column is not there and the terms' own row (createFamily) is the record. The agreement's version is the
- * terms' version: it is part of the terms until the server has its own text for it.
- */
-export async function dpaAcceptance(user: string, family: string, at: number): Promise<Query[]> {
-  const version = await termsVersion();
-  if (version === null) return [];
-  const table = await accounts().get<{ sql: string }>("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'terms_acceptance'");
-  if (!table || !/[(,]\s*"?kind"?\s/i.test(table.sql)) return [];
-  return [q("INSERT INTO terms_acceptance (user, version, at, action, family, kind) VALUES (?, ?, ?, 'family.create', ?, 'dpa')", user, version, at, family)];
-}
-
-/**
  * Who signs up. `passkey`: a new account and the passkey its device just made (verified by passkeys.server.ts). An account
  * signed in already starts another family with its own account (`existing`), within its families per account.
  * A password account plugs in here as another kind once the password sign-in method is on (lane `auth`).
@@ -166,7 +152,6 @@ export async function completeSignup(who: NewAccount, form: CleanForm, network: 
     q('INSERT INTO signup (id, user, family, name, email, verified, age_confirmed, code, network, created) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)',
       crypto.randomUUID(), user.id, id, who.kind === 'passkey' ? who.name : user.name, form.email, verified ? 1 : 0, withCode?.id ?? null, network, now),
     ...(withCode ? [q('UPDATE signup_code SET uses = uses + 1 WHERE id = ?', withCode.id)] : []),
-    ...(await dpaAcceptance(user.id, id, now)),
   ];
   const refused = async (): Promise<Error> => {
     const again = await signupState(form.code, Date.now());
@@ -176,6 +161,7 @@ export async function completeSignup(who: NewAccount, form: CleanForm, network: 
     return err('throttled', 'signup.err.slow');
   };
   const tree = await createFamily(user, { id, name: form.familyName, tagline: '', theme: form.theme }, {
+    // The terms and the processing agreement, recorded by createFamily in the same batch (src/lib/gdpr/dpa.server.ts).
     acceptedTerms: true, before, after, limit: h.perAccount, refused,
   });
   return { tree, user: user.id };

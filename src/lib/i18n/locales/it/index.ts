@@ -20,6 +20,7 @@ import families from "./families.ts";
 import feed from "./feed.ts";
 import feedback from "./feedback.ts";
 import fields from "./fields.ts";
+import gdpr from "./gdpr.ts";
 import heraldry from "./heraldry.ts";
 import history from "./history.ts";
 import houses from "./houses.ts";
@@ -76,6 +77,7 @@ export default {
   ...feed,
   ...feedback,
   ...fields,
+  ...gdpr,
   ...heraldry,
   ...history,
   ...houses,

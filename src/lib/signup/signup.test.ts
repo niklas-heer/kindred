@@ -344,11 +344,11 @@ test('a demo and a "View as" preview change nothing', async () => {
   }
 });
 
-test('the processing agreement is recorded with kind "dpa" once terms_acceptance has the column (the gdpr lane adds it)', async () => {
-  assert.deepEqual(await signup.dpaAcceptance(SIGNED.id, 'alderby', 1), [], 'no column yet: the terms’ own row is the record');
-  await sql("ALTER TABLE terms_acceptance ADD COLUMN kind TEXT NOT NULL DEFAULT 'terms'");
+test('sign-up records the terms and the processing agreement, each once, in the batch that makes the family', async () => {
+  await sql("INSERT INTO instance_setting (key, value, updated_at) VALUES ('processing_agreement', 'We process your family on your behalf.', 0) ON CONFLICT(key) DO UPDATE SET value = excluded.value");
   await open({ perDay: 100, total: null });
   const { user: id, tree } = await signup.completeSignup(newAccount('Dora'), form(), 'dpa');
   const rows = await acc.accounts().all<{ kind: string; family: string }>('SELECT kind, family FROM terms_acceptance WHERE user = ? ORDER BY id', id);
   assert.deepEqual(rows.map((r) => ({ ...r })), [{ kind: 'terms', family: tree }, { kind: 'dpa', family: tree }]);
+  await sql("DELETE FROM instance_setting WHERE key = 'processing_agreement'");
 });
