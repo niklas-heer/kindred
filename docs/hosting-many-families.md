@@ -41,6 +41,8 @@ Every family on the server, with what you need to run it and to help its steward
 | Last visit | When a member last opened it |
 | Status | In use, read-only or closed |
 
+Below the list, the **Lifecycle** section looks after families nobody uses any more ([Lifecycle](#lifecycle)).
+
 Actions:
 
 - **Make a family for someone.** Its name, address and theme, and the name (and, if you like, the email) of the person who will
@@ -71,6 +73,58 @@ Actions:
 
 On Node and Docker a new family is a new database file. On Cloudflare it needs its storage first: a Durable Object namespace or a
 bound D1 database ([deploy-cloudflare.md](deploy-cloudflare.md)).
+
+### Lifecycle
+
+A family nobody uses any more still holds personal data. The **Lifecycle** section at the bottom of the Families tab looks after
+such families, in three steps. It is **off** until you turn it on; an install that never does behaves exactly as before.
+
+| Setting | Default |
+| --- | --- |
+| Warn the stewards after | 12 months without activity |
+| Make it read-only after | 18 months |
+| Due for deletion after | 24 months |
+| Deletion | You confirm each one (or: automatically, 30 days after a final notice) |
+
+**Activity** is any member's visit or change (an operator who is a member counts like anyone else), a steward turning the family
+back on, or you letting it be used again (*In use*). A guest's visit is not activity, nor is anything during a "View as" preview or
+in a demo, which store nothing. A family nobody has opened yet counts from when it was made.
+
+What happens, once a day (the `lifecycle` job):
+
+1. **Warning.** Quiet for the warning's months: its stewards see a notice at the bottom of the family's pages and get a push on
+   every device where they have push on, with the dates it would become read-only and be deleted. A steward may hide the notice for
+   30 days; it returns while the family is still quiet. Any member's visit starts the clock again, and the next run withdraws the
+   warning.
+2. **Read-only.** Quiet for the read-only months: the family is suspended, as *Read-only* is, with the statement "nobody visited for
+   18 months" (ground: other). Its members read everything and change nothing; the bar says since when and why, and that **a
+   steward can turn it back on**. A steward does that with one click on the bar (logged), and that is activity: the clock starts
+   again. Its stewards are told by push too. While it is read-only, visits are not counted, so only a steward (or you) brings it
+   back.
+3. **Due for deletion.** Quiet for the deletion's months: the family is listed as due, with its dates, and its stewards are reminded
+   to download a copy (the bar links the Markdown archive, GEDCOM and the backup). Then:
+   - *You confirm each deletion* (the default): it waits for you. **Delete…** asks for its address typed and your passkey.
+   - *Automatically*: the stewards get a **final notice** at once, and the job deletes the family 30 days later unless a steward
+     turned it back on meanwhile.
+
+Each step waits its own time after the one before (six months between the warning and read-only, six more until it is due, with
+the defaults), so turning the lifecycle on for a family that has been quiet for years still warns first. A family you suspended or
+closed yourself is yours to decide on and is left alone; changing a family's status yourself ends its lifecycle (*In use* counts as
+activity). The server's last family, and the default one (`KINDRED_DEFAULT_TREE`), are never deleted: the run reports them instead.
+
+**Report first.** "If it ran now" lists what the next run would do with the saved settings, whether the lifecycle is on or not, and
+changes nothing, so you can look before you turn it on. "Last run" shows what the last run did, per family. Every step is claimed
+in one batch that checks again that nobody was active since the family was selected: a member who opens it at that moment wins,
+and the family is kept as it was ("kept" in the report). A deletion is claimed before anything is deleted, and finished by the next
+run if it stopped part-way. Every step is in the log (`lifecycle.*`, by "Kindred", or by you or the steward who acted).
+
+**Turning it off** opens every family it made read-only again and withdraws its warnings (logged).
+
+**What is kept.** A deleted family is deleted as **Delete** deletes it: its database, its files and every row of the accounts
+database that names it. Kindred keeps no copy of its own; only your backups do, for as long as they keep it (see
+[gdpr.md](gdpr.md#backups-and-the-nightly-archive)). Say how long in your privacy policy.
+
+Kindred sends no email yet: the warnings reach stewards in the app and by push only.
 
 ### Waiting list
 

@@ -106,6 +106,16 @@ role of the server, stored on the account, and has nothing to do with any family
 - **Terms and limits.** The operator writes the terms of use and sets how many families an account may make; neither applies to
   operators.
 
+### A family nobody visits
+
+On a server whose operator turned on the lifecycle of quiet families ([hosting-many-families.md](hosting-many-families.md#lifecycle)),
+a family nobody has opened for a long time (12 months by default) is announced to its **stewards**: a notice at the bottom of the
+family's pages, which a steward may hide for 30 days, and a push where they have push on. Any member's visit or change keeps the
+family. Some months later (18 by default) the family becomes **read-only**: every member sees a bar that says since when and why,
+and a steward turns it back on with one click. Later still (24 by default) it is due for deletion; the bar says from when, and
+offers stewards the Markdown archive, GEDCOM and the backup to download first. A guest sees none of this, and a guest's visit does
+not count. In "View as" the bar shows what the previewed reader would see, and its buttons change nothing.
+
 ## Guests (a family share link)
 
 A steward can share the family with relatives who don't want an account: on the Access page, **Share with a link** makes one

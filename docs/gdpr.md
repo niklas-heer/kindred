@@ -122,6 +122,17 @@ Kept by other jobs: the change history (3 years, `KINDRED_HISTORY_YEARS`), join 
 statistics (90 days after the last visit), usage statistics (3 years). A family's own records stay until the family deletes them,
 or the operator deletes the family.
 
+### Families nobody uses
+
+A family's records are its own, so the retention job never deletes a family. A family that nobody uses any more is still personal
+data kept without a purpose, and the operator may choose a **lifecycle** for it (off by default;
+[hosting-many-families.md](hosting-many-families.md#lifecycle)): after 12 months without a member's visit or change its stewards
+are warned (in the app and by push), after 18 it becomes read-only (a steward can turn it back on with one click), and after 24 it
+is due for deletion, which the operator confirms, or which follows 30 days after a final notice if the operator chose automatic
+deletion. The periods are the operator's to set; say them in your privacy policy. Each step is checked again just before it is
+taken, and any member's visit before then keeps the family as it was. A deleted family goes as **Delete** removes it; only the
+operator's own backups keep a copy, for as long as they are kept (below).
+
 ## Backups and the nightly archive
 
 Erasure and deletion reach the live databases and the stored files. They do not reach copies made before:

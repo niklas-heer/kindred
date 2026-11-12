@@ -189,6 +189,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0048_signin_fixes.sql` | Fixes to the ways in: `password_reset.seen_at` (the holder dismissed the notice of a used reset link), `signin_daily` (sign-ins per day and way in, for the statistics) and `oidc_flow` made again with the purpose `signup`. |
 | `0049_lasting_counts.sql` | Counts that outlive what they count, and bookkeeping for complete erasure ([gdpr.md](gdpr.md), [ai.md](ai.md#operator-funded-ai)): `ai_operator_family_month` (replaces `ai_operator_spend`, kept by the family's id when a family is deleted; rows copied), `ai_operator_overage`, `signup_tally` (rows copied from `signup`), `family_left`, `subject_action.pending` and `job_run.code`. |
 | `0050_round_seven_fixes.sql` | `ai_operator_overage.model`, `.acknowledged_at`, `.acknowledged_by` (an overage pauses the operator's AI for a family and model until acknowledged), `user.email_verified` (whether the address was verified, for `trust_email`) and `user.retiring`: the pseudonym an unused account's writing gets, claimed by the retention job before it changes anything ([gdpr.md](gdpr.md#retention)). |
+| `0052_family_lifecycle.sql` | The lifecycle of quiet families ([hosting-many-families.md](hosting-many-families.md#lifecycle)): `family_lifecycle` (where a quiet family stands), `family_admin.active_at` and `.status_by`, `steward_notice` (what a family's stewards were told in the app) and `steward_notice_dismissal`. Off until the operator turns it on. |
 
 ### Tables
 
@@ -346,6 +347,17 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 - **`family_left`** (0049): an account that left a family or was removed from it: `user`, `tree`, `left_at`. Deleting the account
   visits these families too, to give what it wrote there a pseudonym ([gdpr.md](gdpr.md)). Deleted with the account and with
   the family.
+- **`family_lifecycle`** (0052): one row per family in the lifecycle of quiet families: `tree`, `stage` (`warned`, `readonly` or
+  `due`), `quiet_since` (the last activity the stage was decided on: a later visit or reactivation wins), `warned_at`,
+  `readonly_at`, `due_at`, `final_notice_at` (automatic deletion's last notice) and `claim` (set by the batch that claims a
+  deletion before anything of the family is deleted). No row: not in the lifecycle. Deleted with the family.
+- **`family_admin.active_at`** (0052): the last activity that is not a member's visit (`family_visit`): a steward turning the family
+  back on, or the operator letting it be used again. **`family_admin.status_by`** (0052): `lifecycle` while the suspension is the
+  lifecycle's, which the family's stewards may lift themselves; NULL for the operator's own.
+- **`steward_notice`** (0052): what a family's stewards were told in the app (`src/lib/notify/stewards.server.ts`): `tree`, `kind`
+  (`lifecycle_warning`, `lifecycle_readonly`, `lifecycle_due`, `lifecycle_final`), `vars` (JSON of dates and numbers, never record
+  content) and `at`. **`steward_notice_dismissal`** (0052): a steward (`user`) put a kind of notice away for a family until
+  `until`. Both deleted with the family.
 - **`signup_code`** (0043): a code an operator made that opens sign-up: `hash` (the code's SHA-256; the code is shown once),
   `label`, `uses_max`, `uses`, `expires` (NULL: never), `created`, `created_by` and `revoked_at`.
 - **`subject_restriction`** (0044): a person in a family whose processing is restricted on a request (GDPR Art. 18): `tree`,
