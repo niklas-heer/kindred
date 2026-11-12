@@ -352,6 +352,43 @@ test('erasing a living non-member: a row in every place they can be, and nothing
   assert.ok(!action!.counts.includes('Cleo'));
 });
 
+test('an erasure that failed between the two databases is finished by trying again', async () => {
+  const tree = 'ashgrove';
+  const d = dbs.db(tree);
+  const P = 'pia_eeeeee';
+  await d.run("INSERT INTO person (id, given, surname, living) VALUES (?, 'Pia', 'Quell', 1), ('ola_ffffff', 'Ola', 'Ashgrove', 1)", P);
+  await d.run("INSERT INTO story (id, person, kind, title, body, author, at) VALUES ('st-pia', 'ola_ffffff', 'memory', 'Cousins', 'Rosa and Pia Quell at the lake.', 'Rosa', '2026-01-01')");
+  await run("INSERT INTO feedback (id, tree, kind, body, context, user, user_name, created_at, updated_at) VALUES ('fb-p', ?, 'bug', 'Pia Quell is listed twice', '{}', ?, 'Rosa', ?, ?)", tree, ROSA.id, T, T);
+  const request = crypto.randomUUID();
+  await run("INSERT INTO data_request (id, name, email, family, kind, message, created, status, forwarded_at) VALUES (?, 'Pia Quell', 'pia@example.org', ?, 'deletion', 'Please remove me.', ?, 'forwarded', ?)", request, tree, T, T);
+  // The accounts database fails as the erasure records that it is done: after the family's records are gone.
+  const accountsDb = a();
+  const batch = accountsDb.batch.bind(accountsDb);
+  let failed = false;
+  accountsDb.batch = (async (qs: { sql: string }[]) => {
+    if (!failed && qs.some((x) => x.sql.includes("outcome = 'erased'"))) { failed = true; throw new Error('the accounts database went away'); }
+    return batch(qs as never);
+  }) as typeof accountsDb.batch;
+  try {
+    await assert.rejects(subject.erasePerson(tree, P, ROSA.id, request), /went away/);
+  } finally {
+    accountsDb.batch = batch;
+  }
+  assert.ok(failed, 'the failure was injected');
+  assert.equal(await d.get('SELECT 1 FROM person WHERE id = ?', P), undefined, 'the family was done');
+  // The steward tries again: it finishes.
+  await subject.erasePerson(tree, P, ROSA.id, request);
+  assert.deepEqual({ ...(await one<object>('SELECT status, outcome FROM data_request WHERE id = ?', request)) }, { status: 'done', outcome: 'erased' });
+  assert.equal(await one("SELECT 1 FROM feedback WHERE id = 'fb-p' AND instr(body, 'Pia Quell') > 0"), undefined, 'the accounts database is clean');
+  assert.equal((await one<{ n: number }>("SELECT count(*) AS n FROM subject_action WHERE tree = ? AND kind = 'erase' AND request = ?", tree, request))!.n, 1, 'recorded once');
+  for (const needle of [P, 'Pia Quell']) {
+    assert.deepEqual(await containing(d, needle), []);
+    assert.deepEqual(await containing(a(), needle, new Set(['data_request', 'user'])), []);
+  }
+  // A person who was never there is still refused.
+  await assert.rejects(subject.erasePerson(tree, 'nobody_zzzzzz', ROSA.id), /no longer in the family/);
+});
+
 test('a member\'s own person is not erased, and a restricted person cannot be changed until it is lifted', async () => {
   const tree = 'brackwell';
   const d = dbs.db(tree);

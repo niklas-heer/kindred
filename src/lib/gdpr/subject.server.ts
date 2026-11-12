@@ -41,7 +41,7 @@ const PERSON_REF = new Set(['person', 'child', 'parent', 'a', 'b', 'head', 'heir
 /** Never searched or rewritten: secrets, files' bytes, and hashes. */
 const SKIP_COLUMN = /(^|_)(hash|sealed|secret|token|p256dh|auth|public_key|key_tail|fingerprint)$/;
 /** Accounts tables never searched as text: a chat's pictures (their bytes as text); their conversation is what counts. */
-const SKIP_TABLE = new Set(['ai_chat_image']);
+const SKIP_TABLE = new Set(['ai_chat_image', 'subject_action']);
 
 interface PersonRow { id: string; given: string; surname: string | null; current_given: string | null; current_surname: string | null; further_given: string | null; born: string | null; living: number }
 
@@ -239,11 +239,24 @@ function scrubText(tables: Table[], who: { id: string; names: string[] }, where 
  * Erases a living person who is not a member from a family, everywhere Kindred keeps them (see the top of this file). The caller
  * checked that `by` is a steward (and a fresh proof). `request` is the data request it answers, if any: it is marked done.
  * Returns how many rows went from each place, which is all the record of it keeps.
+ *
+ * Two databases cannot change in one batch, so it goes in three steps, each safe to repeat: (1) the accounts database is
+ * cleaned and the erasure recorded as pending (`subject_action.pending` holds the person's id, never a name); (2) the family's
+ * records go, in one batch; (3) the record is finished and the request marked done. A failure in (1) or (2) leaves the person
+ * in the family, and trying again does it all again. A failure in (3) leaves the person gone from the family: trying again finds
+ * the pending record and finishes it.
  */
 export async function erasePerson(tree: string, person: string, by: string, request: string | null = null, now = Date.now()): Promise<ErasureResult> {
   const d = db(tree);
   const p = await personRow(d, person);
-  if (!p) throw gone();
+  if (!p) {
+    // Gone from the family: an erasure that stopped after its family step is finished; anyone else was never here.
+    const pending = await accounts().get<{ counts: string; request: string | null }>(
+      "SELECT counts, request FROM subject_action WHERE tree = ? AND kind = 'erase' AND pending = ?", tree, person);
+    if (!pending) throw gone();
+    await finishErasure(tree, person, by, pending.request ?? request, now);
+    return { counts: JSON.parse(pending.counts) as Record<string, number>, files: 0 };
+  }
   if (await accounts().get('SELECT 1 FROM membership WHERE tree = ? AND person = ?', tree, person)) throw invalid('gdpr.err.is_member');
   const who = { id: p.id, names: namesOf(p) };
   const before = await traces(tree, who);
@@ -253,6 +266,32 @@ export async function erasePerson(tree: string, person: string, by: string, requ
   // Only the tables the report found them in are rewritten, which keeps the batch small (a D1 database counts every statement).
   const found = (where: Trace['db']) => new Set(before.filter((t) => t.db === where).map((t) => t.table));
   const familyFound = found('family'), accountsFound = found('accounts');
+
+  // (1) The accounts database: whole conversations that named them (by any message or by their title), then the rest of the
+  // family's rows; and the record, pending, once however often this step runs.
+  const terms = [who.id, ...who.names];
+  const named = (c: string) => `(${terms.map(() => `instr(${c}, ?) > 0`).join(' OR ')})`;
+  const convRows = await accounts().all<{ conv: string }>(
+    `SELECT conv FROM ai_chat WHERE tree = ? AND ${named('body')} UNION SELECT conv FROM ai_thread WHERE tree = ? AND ${named('title')}`, tree, ...terms, tree, ...terms);
+  const convs = JSON.stringify(convRows.map((r) => r.conv));
+  const inConvs = 'conv IN (SELECT value FROM json_each(?))';
+  const famTables = (await familyTables()).filter((t) => accountsFound.has(t.name) && !['ai_chat', 'ai_thread', 'ai_conversation'].includes(t.name));
+  await accounts().batch([
+    q(`DELETE FROM ai_turn WHERE ${inConvs}`, convs),
+    q(`DELETE FROM ai_chat_image WHERE tree = ? AND item IN (SELECT id FROM ai_chat WHERE tree = ? AND ${inConvs})`, tree, tree, convs),
+    q(`DELETE FROM ai_chat WHERE tree = ? AND ${inConvs}`, tree, convs),
+    q(`DELETE FROM ai_thread WHERE tree = ? AND ${inConvs}`, tree, convs),
+    q(`DELETE FROM ai_conversation WHERE tree = ? AND ${inConvs}`, tree, convs),
+    q('UPDATE guest_visitor SET people = json_remove(people, ?) WHERE tree = ? AND json_valid(people) AND json_type(people, ?) IS NOT NULL', `$."${person}"`, tree, `$."${person}"`),
+    q('UPDATE join_request SET person = NULL WHERE tree = ? AND person = ?', tree, person),
+    q('DELETE FROM presence WHERE tree = ? AND (focus = ? OR instr(route, ?) > 0)', tree, person, person),
+    q('DELETE FROM subject_restriction WHERE tree = ? AND person = ?', tree, person),
+    ...scrubText(famTables, who, ' AND tree = ?', [tree]),
+    q(`INSERT INTO subject_action (tree, kind, at, done_by, request, counts, pending) SELECT ?, 'erase', ?, ?, ?, ?, ?
+       WHERE NOT EXISTS (SELECT 1 FROM subject_action WHERE tree = ? AND kind = 'erase' AND pending = ?)`, tree, now, by, request, JSON.stringify(counts), person, tree, person),
+  ]);
+
+  // (2) The family's records.
   const tables = (await tablesOf(d)).filter((t) => familyFound.has(t.name));
   let files = 0;
   await once(tree, undefined, 'erasePerson', async (dd) => {
@@ -285,30 +324,17 @@ export async function erasePerson(tree: string, person: string, by: string, requ
     };
   });
 
-  // The accounts database: whole conversations that named them (by any message or by their title), then the rest of the
-  // family's rows.
-  const terms = [who.id, ...who.names];
-  const named = (c: string) => `(${terms.map(() => `instr(${c}, ?) > 0`).join(' OR ')})`;
-  const convRows = await accounts().all<{ conv: string }>(
-    `SELECT conv FROM ai_chat WHERE tree = ? AND ${named('body')} UNION SELECT conv FROM ai_thread WHERE tree = ? AND ${named('title')}`, tree, ...terms, tree, ...terms);
-  const convs = JSON.stringify(convRows.map((r) => r.conv));
-  const inConvs = 'conv IN (SELECT value FROM json_each(?))';
-  const famTables = (await familyTables()).filter((t) => accountsFound.has(t.name) && !['ai_chat', 'ai_thread', 'ai_conversation'].includes(t.name));
+  // (3) Done: the record no longer holds their id, and the request is answered.
+  await finishErasure(tree, person, by, request, now);
+  return { counts, files };
+}
+
+/** The erasure's last step: its record stops naming the person, and the request it answers is done. Safe to repeat. */
+async function finishErasure(tree: string, person: string, by: string, request: string | null, now: number): Promise<void> {
   await accounts().batch([
-    q(`DELETE FROM ai_turn WHERE ${inConvs}`, convs),
-    q(`DELETE FROM ai_chat_image WHERE tree = ? AND item IN (SELECT id FROM ai_chat WHERE tree = ? AND ${inConvs})`, tree, tree, convs),
-    q(`DELETE FROM ai_chat WHERE tree = ? AND ${inConvs}`, tree, convs),
-    q(`DELETE FROM ai_thread WHERE tree = ? AND ${inConvs}`, tree, convs),
-    q(`DELETE FROM ai_conversation WHERE tree = ? AND ${inConvs}`, tree, convs),
-    q('UPDATE guest_visitor SET people = json_remove(people, ?) WHERE tree = ? AND json_valid(people) AND json_type(people, ?) IS NOT NULL', `$."${person}"`, tree, `$."${person}"`),
-    q('UPDATE join_request SET person = NULL WHERE tree = ? AND person = ?', tree, person),
-    q('DELETE FROM presence WHERE tree = ? AND (focus = ? OR instr(route, ?) > 0)', tree, person, person),
-    q('DELETE FROM subject_restriction WHERE tree = ? AND person = ?', tree, person),
-    ...scrubText(famTables, who, ' AND tree = ?', [tree]),
-    q("INSERT INTO subject_action (tree, kind, at, done_by, request, counts) VALUES (?, 'erase', ?, ?, ?, ?)", tree, now, by, request, JSON.stringify(counts)),
+    q("UPDATE subject_action SET pending = NULL WHERE tree = ? AND kind = 'erase' AND pending = ?", tree, person),
     ...(request ? [q("UPDATE data_request SET status = 'done', outcome = 'erased', person = NULL, updated_at = ?, updated_by = ? WHERE id = ? AND family = ?", now, by, request, tree)] : []),
   ]);
-  return { counts, files };
 }
 
 // ---------- restriction ----------

@@ -81,6 +81,9 @@ Access → *A request about someone* → *Erase…*, with the person's name type
   claimed to be them, the background tasks' give-up list, live presence, and the same replacement in the family's feedback and
   join messages.
 - Nothing of it is written down again: the erasure leaves no history row, and the steward's record keeps only counts.
+- It can be finished after a failure. The accounts database is cleaned first and the erasure recorded as pending (with the
+  person's id, never a name), then the family's records go, then the record is finished and the request marked done. Each step
+  is safe to repeat: if one fails, *Erase…* again completes it, even once the person is already gone from the family.
 - **Push payload caches**: Kindred has none. A push's text is written when it is sent and not stored; the service worker caches
   nothing. Pushes already shown stay on the members' devices.
 - A member's own person is not erased this way: the member deletes their account, or a steward removes them first.
