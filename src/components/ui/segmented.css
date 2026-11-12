@@ -1,7 +1,9 @@
 /* Segmented: a track of choices with the chosen one raised. Tokens only, so every theme follows the app's palette. */
 
+/* Choices whose words are wider than the track together (a longer language on a phone) take a second row: they never
+   shrink under their words and run into one another. */
 .ui-seg {
-  display: inline-flex; align-items: stretch; gap: 2px; max-width: 100%; padding: 3px;
+  display: inline-flex; flex-wrap: wrap; align-items: stretch; gap: 2px; max-width: 100%; padding: 3px;
   border: 1px solid var(--border); border-radius: calc(var(--radius) + 3px); background: var(--panel-2);
 }
 .ui-seg.block { display: flex; width: 100%; }

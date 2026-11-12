@@ -250,6 +250,8 @@ body {
 a { color: inherit; }
 button { font: inherit; color: inherit; }
 input, textarea, select { font: inherit; color: inherit; }
+/* A placeholder longer than its box (a longer language, a phone) ends in an ellipsis, not in half a letter. */
+input { text-overflow: ellipsis; }
 ::selection { background: var(--accent); color: var(--accent-text); }
 
 .display { font-family: var(--font-display); letter-spacing: 0.02em; }
@@ -325,6 +327,8 @@ h1, h2, h3, h4 { text-wrap: balance; }
   text-decoration: none;
   transition: background-color var(--dur-1), box-shadow var(--dur-1), filter var(--dur-1), transform var(--dur-1);
 }
+/* An icon keeps its size: a label too long for its button (a longer language) must not squeeze it to a speck. */
+.btn > svg { flex: none; }
 /* Things press: a button, tab or card gives by a pixel under the finger. */
 .btn:active:not(:disabled) { transform: translateY(1px); }
 .btn:hover { background: var(--panel-3); }
@@ -464,7 +468,10 @@ kbd {
 .topbar-prefs { display: contents; }
 .topbar-menu { display: none; }
 .search-trigger { width: max(260px, 16.25rem); flex: none; justify-content: space-between; color: var(--muted); }
-.search-trigger > span:first-child { display: inline-flex; gap: 8px; align-items: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.search-trigger > span:first-child { display: inline-flex; gap: 8px; align-items: center; min-width: 0; overflow: hidden; }
+.search-trigger svg { flex: none; }
+/* Words longer than the box ("Trouver quelqu’un") end in an ellipsis rather than in half a letter. */
+.search-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 /* Positioned, so that what is absolutely placed inside (a visually hidden heading, say) scrolls with the page. Left
    static, such an element is laid out against the document and lets the whole app scroll away under the top bar. */
@@ -577,7 +584,8 @@ kbd {
   display: flex; align-items: center; gap: 14px; padding: 12px 10px; border-radius: var(--radius);
   text-decoration: none; font-family: var(--font-ui); font-size: var(--fs-4); min-height: var(--ctl-lg);
 }
-.more-list a svg { color: var(--muted); }
+.more-list a svg { color: var(--muted); flex: none; }
+.more-list button svg { flex: none; }
 .more-list a:hover, .more-list a[data-status='active'] { background: var(--panel-2); }
 .more-list a[data-status='active'] svg { color: var(--accent); }
 .more-list a:focus-visible { outline: none; box-shadow: var(--focus-ring); }

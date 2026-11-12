@@ -221,7 +221,7 @@ function TreeLayout() {
         </nav>
         <span className="spacer" />
         <button className="btn search-trigger" data-tour="search" onClick={() => palette.open()}>
-          <span><Search size={16} /> {t("shell.find_anyone")}</span>
+          <span><Search size={16} /> <span className="search-label">{t("shell.find_anyone")}</span></span>
           <kbd>⌘K</kbd>
         </button>
         <span className="topbar-tools">
