@@ -231,6 +231,24 @@ test('deleting an account removes every row that is its own, keeps what it wrote
   assert.equal(await one('SELECT 1 FROM user WHERE id = ?', s), undefined);
 });
 
+test('deleting an account reaches a family it left: what it wrote there gets the pseudonym too', async () => {
+  const ivy = user(40, 'Ivy Leftwell');
+  await addUser(ivy);
+  await member(ivy, 'brackwell', 'contributor');
+  const d = dbs.db('brackwell');
+  await d.run("INSERT INTO post (id, account, author_name, body, created_at) VALUES ('post-ivy', ?, ?, 'Before I left', '2026-01-01')", ivy.id, ivy.name);
+  const { endMembership } = await load<typeof import('../auth/members.server.ts')>('/src/lib/auth/members.server.ts');
+  await endMembership('brackwell', ivy.id);
+  assert.ok(await one('SELECT 1 FROM family_left WHERE user = ? AND tree = ?', ivy.id, 'brackwell'), 'the family is remembered');
+  const report = await account.deleteAccount(ivy, ivy.name);
+  assert.equal(report.families, 1);
+  const post = await d.get<{ account: string; author_name: string }>("SELECT account, author_name FROM post WHERE id = 'post-ivy'");
+  assert.match(post!.account, /^former-/);
+  assert.equal(post!.author_name, 'A former member');
+  assert.deepEqual(await containing(d, ivy.id), []);
+  assert.equal(await one('SELECT 1 FROM family_left WHERE user = ?', ivy.id), undefined, 'and the memory of it goes with the account');
+});
+
 test('downloading an account: its own rows, no secrets, nothing of anyone else', async () => {
   await run("INSERT INTO credential (id, user, public_key, created, device) VALUES ('cred-l', ?, x'0102', ?, 'Phone')", LONE.id, T);
   await run("INSERT INTO session (hash, user, created, expires, refreshed) VALUES ('sess-l', ?, ?, ?, ?)", LONE.id, T, T + DAY, T);

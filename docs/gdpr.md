@@ -58,6 +58,14 @@ by later features are covered without a list:
   records (it is their controller, or within the household exemption); a member who wants their writing gone deletes it before
   deleting the account, or asks the stewards. Names that older features copied as plain text (who uploaded a picture) are replaced
   where no other member of that family has the same name.
+- **Which families**: every family the account is a member of or left traces in (any accounts row of it that names a family),
+  and, from 2.4.0, every family it **left or was removed from** (`family_left`, written when a membership ends). Kindred does
+  not open every family on the server to look for the account's id: on Cloudflare each family is its own Durable Object, and a
+  deletion that woke all of them would grow with the server and run into the platform's limits per request. **What remains**:
+  in a family the account left *before 2.4.0*, what it wrote there (stories, posts, comments, changes in the history) still
+  shows its account id and the name it had then; its private notes and reactions were already removed when it left. Such a
+  person asks that family's stewards, who can delete their posts and stories or change the name shown, or the operator, who
+  can find the family by asking the person which families they were in.
 - **Kept by the operator**: the audit log of what operators did, and the record of who accepted the terms and the processing
   agreement (proof the operator may need; removed three years after the account is gone).
 - **Refused** while the account is the last steward of a family (make someone else a steward, or delete the family) or the

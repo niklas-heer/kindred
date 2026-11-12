@@ -67,6 +67,8 @@ export async function endMembership(tree: string, user: string): Promise<void> {
     return {
       writes: [
         s.q('DELETE FROM membership WHERE user = ? AND tree = ?', user, tree), s.keepsASteward(tree),
+        // Remembered, so deleting the account later still reaches what they wrote here (src/lib/gdpr/account.server.ts).
+        s.q('INSERT INTO family_left (user, tree, left_at) VALUES (?, ?, ?) ON CONFLICT (user, tree) DO UPDATE SET left_at = excluded.left_at', user, tree, Date.now()),
         // Their reminder devices for this family (migrations/accounts/0005_push.sql), and so their choices of what to be told,
         // and the assistant chats and the pictures kept in them: inviting them back must not bring back what they could read then.
         s.q('DELETE FROM push_subscription WHERE user = ? AND tree = ?', user, tree),
