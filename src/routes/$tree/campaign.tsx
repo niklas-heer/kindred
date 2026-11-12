@@ -336,7 +336,7 @@ function Submit({ finish, moves }: { finish: UseMutationResult<FinishResult, Err
   return (
     <div aria-live="polite">
       <p data-testid="result-rank">
-        {(r.record || r.personalBest) && <b className="cg-best"><Laurel size={15} /> {t(r.record ? 'campaign.result.record' : 'campaign.result.best')} </b>}
+        {(r.record || r.personalBest) && <><b className="cg-best"><Laurel size={15} /> {t(r.record ? 'campaign.result.record' : 'campaign.result.best')}</b>{' '}</>}
         {t('campaign.result.rank', { rank: ordinal(r.rank, t.locale), of: r.of, best: r.best })}
       </p>
       {house && (
