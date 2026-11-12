@@ -1,8 +1,9 @@
 // Journey 13: the Campaign. A steward gathers a house from surnames (the game needs a house to rule), turns the game on
 // under Games, looks at this week's invented continent, plays a whole reign of the week's challenge (placing the levy,
-// choosing a province, a target, the troops, and confirming), reads the reign's chronicle, sees the server's score and
-// the reign's title in the family's table and on Today, finds a reign kept under earlier rules let go with a word, and
-// tries a practice reign, which counts for nothing, with the board's scenes moving.
+// choosing a province, a target, the troops, and confirming), finds the turn's strip and the names of an order inside
+// the view on a phone, reads the reign's chronicle, sees the server's score and the reign's title in the family's table
+// and on Today, begins a second reign the same day, which is extra, finds a reign kept under earlier rules let go with a
+// word, and tries a practice reign, which counts for nothing, with the board's scenes moving.
 import { checkAxe, expect, openFamily, settled, test } from './fixtures.ts';
 
 test('campaign: a steward turns it on, plays a reign to the table, and a practice reign is not counted', async ({ page }) => {
@@ -57,6 +58,7 @@ test('campaign: a steward turns it on, plays a reign to the table, and a practic
   await expect(page.getByRole('heading', { name: 'The Campaign', level: 1 })).toBeVisible();
   await expect(page.getByText(/This week’s challenge · until /)).toBeVisible();
   await expect(page.getByTestId('week-me')).toHaveText('You have not played this week yet.');
+  await expect(page.getByTestId('week-today')).toHaveText(/Today’s reign is still to play: the first reign you finish today counts\./);
   await expect(page.getByText('Nobody has finished a reign this week yet.')).toBeVisible();
   // This week's field is an invented continent, shown as a picture before the reign begins: a name, and nothing to press.
   const picture = page.getByRole('img', { name: /^A map of [A-Z][a-z]+, this week’s continent/ });
@@ -79,7 +81,8 @@ test('campaign: a steward turns it on, plays a reign to the table, and a practic
   await expect(page.locator('.cm-prov')).toHaveCount(16);
   const names = await page.locator('.cm-prov').evaluateAll((all) => all.map((p) => p.getAttribute('data-province') ?? ''));
   expect(new Set(names).size).toBe(16);
-  for (const n of names) expect(n).toMatch(/^[A-Z][a-z]{4,17}$/);
+  // A province carries what it is after a hyphen: "Drevost-fell".
+  for (const n of names) expect(n).toMatch(/^[A-Z][a-z]{4,7}-[a-z]{3,5}$/);
   const legend = page.getByRole('list', { name: 'Reading the map' });
   for (const word of ['Plains', 'Forest', 'Highland', 'Marsh', 'Town', 'Seat', 'River', 'Mountains', 'Sea lane']) await expect(legend.getByText(word, { exact: true })).toBeVisible();
   await page.getByText('What each one does').click();
@@ -152,6 +155,46 @@ test('campaign: a steward turns it on, plays a reign to the table, and a practic
     const key = Object.keys(sessionStorage).find((k) => k.startsWith('kindred:campaign:reign:'))!;
     return { key, week: (JSON.parse(sessionStorage.getItem(key)!) as { run: { week: string } }).run.week };
   });
+  // On a phone the turn's panel is below the map, so a strip at the foot of the screen keeps the turn, what is left of
+  // it, Undo and "End the turn" in reach; the legend is one line until it is opened.
+  await page.setViewportSize({ width: 390, height: 844 });
+  const strip = page.getByRole('group', { name: 'This turn' });
+  await expect(strip).toBeVisible();
+  await expect(strip).toContainText('Turn 1 of 12');
+  await expect(strip).toContainText('2 orders left');
+  await expect(strip.getByRole('button', { name: 'Undo' })).toBeVisible();
+  await expect(strip.getByRole('button', { name: 'End the turn' })).toBeVisible();
+  await expect(orders.getByRole('button', { name: 'End the turn' })).toBeHidden();
+  await expect(legend).toBeHidden();
+  await expect(page.locator('.cg-terrain-legend summary').getByText('Reading the map')).toBeVisible();
+  await expect(page.locator('.cg-terrain-legend summary').getByText('What each one does')).toBeHidden();
+  // An order being chosen: the view moves in, and writes only the names of the provinces in play, inside what it shows.
+  for (const own of await page.locator('.cm-prov[data-mine]').evaluateAll((all) => all.map((p) => p.getAttribute('data-province')!))) {
+    await page.locator(`.cm-prov[data-province="${own}"]`).focus();
+    await page.keyboard.press('Enter');
+    if (await page.locator('.cm-prov[data-reach]').count()) break;
+    await page.keyboard.press('Escape');
+  }
+  const inPlay = 1 + (await page.locator('.cm-prov[data-reach]').count());
+  expect(inPlay).toBeGreaterThan(1);
+  await expect(page.locator('.cm-badge')).toHaveCount(inPlay - 1);
+  if (await page.locator('.cm-wrap[data-zoom]').count()) {
+    await expect(page.locator('.cm-name')).toHaveCount(inPlay);
+    const sheet = (await page.locator('.cm-wrap').boundingBox())!;
+    for (const mark of await page.locator('.cm-name, .cm-badge').all()) {
+      const box = (await mark.boundingBox())!;
+      expect(box.x, 'a name or badge begins inside the map').toBeGreaterThanOrEqual(sheet.x - 1);
+      expect(box.x + box.width, 'and ends inside it').toBeLessThanOrEqual(sheet.x + sheet.width + 1);
+      expect(box.y).toBeGreaterThanOrEqual(sheet.y - 1);
+      expect(box.y + box.height).toBeLessThanOrEqual(sheet.y + sheet.height + 1);
+    }
+  } else await expect(page.locator('.cm-name')).toHaveCount(0);
+  await checkAxe(page, 'campaign, an order on a phone');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.cm-badge')).toHaveCount(0);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(strip).toBeHidden();
+
   // Leaving asks first, since it ends the reign.
   await page.getByRole('button', { name: 'Leave the reign' }).click();
   const leaving = page.getByRole('dialog', { name: 'End this reign?' });
@@ -177,7 +220,9 @@ test('campaign: a steward turns it on, plays a reign to the table, and a practic
   // The score is the server's: it replayed the moves.
   const result = page.locator('.cg-result');
   await expect(result.getByRole('heading', { name: /^\d+ points$/ })).toBeVisible();
-  await expect(result.getByTestId('result-rank')).toHaveText(/Your best reign yet!\s*You are first of 1 this week/);
+  // A first reign is called that: it has beaten nothing, so it is not "your best", and one member is not "first of 1".
+  await expect(result.getByTestId('result-rank')).toHaveText(/^Your first reign\.\s*You are alone on this week’s table so far, with \d+ points\.$/);
+  await expect(result.getByTestId('result-extra')).toHaveCount(0);
   // The chronicle: the reign's title and why, its score in parts, and the provinces held turn by turn.
   await expect(result.locator('.cc-title')).toHaveText(/^\s*An? .+ reign\s/);
   await expect(result.getByRole('img', { name: /^Provinces held turn by turn: \d+ at the opening, \d+ at the end/ })).toBeVisible();
@@ -185,10 +230,22 @@ test('campaign: a steward turns it on, plays a reign to the table, and a practic
   await checkAxe(page, 'campaign, the chronicle');
   const score = Number(await result.getByRole('heading', { name: /points$/ }).getAttribute('data-score'));
   await result.getByRole('button', { name: 'Back to the table' }).click();
-  await expect(page.getByTestId('week-me')).toHaveText(new RegExp(`^Your best this week: ${score}, after 1 reign\\. You are first of 1\\.$`));
+  await expect(page.getByTestId('week-me')).toHaveText(new RegExp(`^Your best this week: ${score}, from 1 counted reign\\.\\s*Nobody else is on the table yet\\.$`));
   await expect(page.locator('.cg-table li.is-mine .cg-table-score')).toHaveText(String(score));
-  await expect(page.locator('.cg-table li.is-mine')).toHaveText(/1 reign · An? .+ reign/);
+  await expect(page.locator('.cg-table li.is-mine')).toHaveText(/1 counted reign · An? .+ reign/);
   await expect(page.locator('.cg-week-record')).toHaveText(new RegExp(`Your best reign so far: ${score} points\\.$`));
+  await expect(page.getByText('One reign a day counts: the first you finish.')).toBeVisible();
+  // A house's total is called what it is.
+  await page.getByRole('radio', { name: 'Houses' }).click();
+  await expect(page.getByRole('heading', { name: 'Participation totals' })).toBeVisible();
+  await page.getByRole('radio', { name: 'This week' }).click();
+  // One reign a day counts: today's is played, and another begun now is extra and says so.
+  await expect(page.getByTestId('week-today')).toHaveText(/Today’s counted reign is played\./);
+  await page.getByRole('button', { name: 'Begin a reign' }).click();
+  await expect(page.getByRole('heading', { name: /^The reign of /, level: 1 })).toBeVisible();
+  await expect(page.getByText(/^An extra reign: today’s counted reign is already played, so this one is not ranked\./)).toBeVisible();
+  await page.getByRole('button', { name: 'Leave the reign' }).click();
+  await expect(page.getByRole('heading', { name: 'The Campaign', level: 1 })).toBeVisible();
 
   // A reign this tab kept from before the invented continent (a map with no version, made from places) is let go with
   // a word, and the page goes on.
@@ -206,7 +263,8 @@ test('campaign: a steward turns it on, plays a reign to the table, and a practic
   // Today says where the steward stands.
   await page.goto(`/${tree}/today`);
   await settled(page);
-  await expect(page.getByText('You are first of 1 this week')).toBeVisible();
+  await expect(page.getByText('You are on this week’s table, alone so far')).toBeVisible();
+  await expect(page.getByText('Today’s reign is played. Tomorrow’s counts again.')).toBeVisible();
 
   // The practice reign: any house, a fresh field, counted for nothing.
   await page.goto(`/${tree}/campaign`);
@@ -235,5 +293,5 @@ test('campaign: a steward turns it on, plays a reign to the table, and a practic
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.getByRole('button', { name: 'Back to the week' }).click();
   await expect(page.getByRole('heading', { name: 'The Campaign', level: 1 })).toBeVisible();
-  await expect(page.getByTestId('week-me')).toHaveText(new RegExp('after 1 reign\\.'));
+  await expect(page.getByTestId('week-me')).toHaveText(new RegExp('from 1 counted reign\\.'));
 });
