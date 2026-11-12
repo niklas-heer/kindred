@@ -36,7 +36,16 @@ export function setTurnstileVerifier(v: TurnstileVerifier | undefined): void {
  * Nothing then reaches Cloudflare. The stand-in serves sign-up alone; the request forms keep Cloudflare's or nothing.
  */
 export const TURNSTILE_FAKE_SITE = 'fake';
-const fakeOn = (env: Record<string, string | undefined>) => env.KINDRED_TURNSTILE_FAKE === '1';
+/** The stand-in only on a local server: with a public KINDRED_ORIGIN the setting is ignored, so it can never open a real one. */
+const localOrigin = (origin: string | undefined) => {
+  if (!origin) return true;
+  try {
+    return ['localhost', '127.0.0.1', '[::1]'].includes(new URL(origin).hostname);
+  } catch {
+    return false;
+  }
+};
+const fakeOn = (env: Record<string, string | undefined>) => env.KINDRED_TURNSTILE_FAKE === '1' && localOrigin(env.KINDRED_ORIGIN);
 export const signupTurnstileSite = (env: Record<string, string | undefined> = process.env): string | undefined =>
   fakeOn(env) ? TURNSTILE_FAKE_SITE : turnstileKeys(env)?.site;
 export async function passesSignupTurnstile(token: string | undefined, ip: string | undefined, env: Record<string, string | undefined> = process.env): Promise<boolean> {

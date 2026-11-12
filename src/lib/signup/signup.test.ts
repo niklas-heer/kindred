@@ -198,6 +198,10 @@ test('Turnstile is checked by the server; the hidden field stops a bot; one netw
   assert.equal(turnstile.signupTurnstileSite(fake), 'fake');
   assert.equal(await turnstile.passesSignupTurnstile('kindred-fake-turnstile-pass', undefined, fake), true);
   assert.equal(await turnstile.passesSignupTurnstile('good', undefined, fake), false);
+  // Never on a public address: there the setting is ignored, and sign-up needs Cloudflare's Turnstile.
+  const leaked = { KINDRED_TURNSTILE_FAKE: '1', KINDRED_ORIGIN: 'https://family.example.org' };
+  assert.notEqual(turnstile.signupTurnstileSite(leaked), 'fake');
+  assert.equal(await turnstile.passesSignupTurnstile('kindred-fake-turnstile-pass', undefined, leaked), false);
   assert.equal(await turnstile.passesSignupTurnstile('good', undefined, {}), false, 'no keys, no sign-up');
   assert.equal(await turnstile.passesTurnstile('kindred-fake-turnstile-pass', undefined, { ...fake, ...process.env }), false, 'the request forms ignore it');
 });
