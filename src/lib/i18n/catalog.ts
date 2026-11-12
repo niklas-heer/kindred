@@ -26,6 +26,8 @@ import * as commonArea from "./areas/common.ts";
 import * as contactsArea from "./areas/contacts.ts";
 import * as eventsArea from "./areas/events.ts";
 import * as exchangeArea from "./areas/exchange.ts";
+import * as faithsArea from "./areas/faiths.ts";
+import * as favouritesArea from "./areas/favourites.ts";
 import * as familiesArea from "./areas/families.ts";
 import * as feedbackArea from "./areas/feedback.ts";
 import * as fieldsArea from "./areas/fields.ts";
@@ -93,7 +95,6 @@ export const AREAS = [
   exchangeArea,
   housesArea,
   heraldryArea,
-  chargeLibraryArea,
   portraitArea,
   characterArea,
   profileArea,
@@ -134,6 +135,10 @@ export const AREAS = [
   printArea,
   viewasArea,
   whoisArea,
+  // The vocabularies' names come last, so a thrown sentence is never matched to one of them (translateMessage).
+  chargeLibraryArea,
+  faithsArea,
+  favouritesArea,
 ] as const;
 
 type Table = Partial<Record<string, Message>>;

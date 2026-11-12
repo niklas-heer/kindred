@@ -3,21 +3,24 @@ import { test } from 'node:test';
 import { FAITH_TRADITIONS, faithSuggestions } from './faiths.ts';
 import { foldText } from './address.ts';
 import { defaultVisibility, storedValue } from './fields/model.ts';
+import { tableOf, translate, type Key } from './i18n/dictionary.ts';
 
 const L = ['en', 'de', 'af'] as const;
 const ROWS = FAITH_TRADITIONS.flatMap((t) => t.faiths);
+const nameOf = (id: string, l: (typeof L)[number]) => translate(l, `faith.name.${id}` as Key);
 
-test('every tradition has a source and names in all three languages', () => {
+test('every tradition has a source and names in the three complete languages', () => {
   for (const t of FAITH_TRADITIONS) {
-    for (const l of L) assert.ok(t[l].trim(), `${t.id} ${l}`);
+    for (const l of L) assert.ok(tableOf(l)[`faith.tradition.${t.id}`] ?? tableOf('en')[`faith.tradition.${t.id}`], `${t.id} ${l}`);
+    for (const l of L.filter((x) => x !== 'en')) assert.ok(tableOf(l)[`faith.tradition.${t.id}`], `${t.id} ${l}`);
     assert.ok(t.source.trim(), `${t.id} source`);
     assert.ok(t.faiths.length > 0, t.id);
   }
 });
 
 test('every entry is named in all three languages, within what the field may hold', () => {
-  for (const [id, en, de, af] of ROWS) {
-    for (const name of [en, de, af]) {
+  for (const [id] of ROWS) {
+    for (const name of L.map((l) => nameOf(id, l))) {
       assert.ok(name.trim(), id);
       assert.ok(name.length <= 120, id);
       assert.equal(name, name.trim(), id);
@@ -30,10 +33,10 @@ test('no duplicates: an id once, and a name once within each language', () => {
   assert.deepEqual(ids.filter((x, i) => ids.indexOf(x) !== i), []);
   const trad = FAITH_TRADITIONS.map((t) => t.id);
   assert.deepEqual(trad.filter((x, i) => trad.indexOf(x) !== i), []);
-  L.forEach((l, i) => {
-    const names = ROWS.map((r) => foldText(r[i + 1] as string));
+  for (const l of L) {
+    const names = ROWS.map((r) => foldText(nameOf(r[0], l)));
     assert.deepEqual(names.filter((x, j) => names.indexOf(x) !== j), [], l);
-  });
+  }
 });
 
 test('the traditions the owner named are all there', () => {

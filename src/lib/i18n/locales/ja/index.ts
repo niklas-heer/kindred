@@ -17,7 +17,9 @@ import common from "./common.ts";
 import contacts from "./contacts.ts";
 import events from "./events.ts";
 import exchange from "./exchange.ts";
+import faiths from "./faiths.ts";
 import families from "./families.ts";
+import favourites from "./favourites.ts";
 import feed from "./feed.ts";
 import feedback from "./feedback.ts";
 import fields from "./fields.ts";
@@ -76,7 +78,9 @@ export default {
   ...contacts,
   ...events,
   ...exchange,
+  ...faiths,
   ...families,
+  ...favourites,
   ...feed,
   ...feedback,
   ...fields,

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { foldText } from './address.ts';
-import { COLOURS, FAVOURITE_WORDS, favouriteWords, isColourLabel, parseColours, toggleColour } from './favourites.ts';
+import { COLOURS, FAVOURITE_WORDS, colourName, favouriteWords, isColourLabel, parseColours, toggleColour } from './favourites.ts';
 
 const ids = (t: string) => parseColours(t).map((x) => x.colour?.id);
 
@@ -14,7 +14,7 @@ test('several colours, however they were joined', () => {
 });
 
 test('names in every language, spelling and alias reach the colour', () => {
-  for (const c of COLOURS) for (const n of [c.en, c.de]) assert.ok(parseColours(n)[0].colour, n);
+  for (const c of COLOURS) for (const n of [colourName(c, 'en'), colourName(c, 'de'), colourName(c, 'af')]) assert.ok(parseColours(n)[0].colour, n);
   assert.equal(parseColours('gray')[0].colour?.id, 'grey');
   assert.equal(parseColours('HELLBLAU')[0].colour?.id, 'sky');
 });
@@ -36,11 +36,17 @@ test('the swatches add and remove a colour, leaving the rest as written', () => 
 
 test('every colour and word is named in all three languages, once', () => {
   for (const l of ['en', 'de', 'af'] as const) {
-    const names = COLOURS.map((c) => foldText(c[l]));
+    const names = COLOURS.map((c) => foldText(colourName(c, l)));
     assert.deepEqual(names.filter((x, i) => names.indexOf(x) !== i), [], l);
     for (const c of COLOURS) assert.match(c.hex, /^#[0-9a-f]{6}$/);
   }
-  for (const [kind, words] of Object.entries(FAVOURITE_WORDS)) for (const w of words) for (const x of w) assert.ok(x.trim(), kind);
+  for (const l of ['en', 'de', 'af'] as const) {
+    for (const kind of Object.keys(FAVOURITE_WORDS)) {
+      const words = favouriteWords(kind, l);
+      assert.equal(words.length, FAVOURITE_WORDS[kind].length);
+      for (const w of words) assert.ok(w.trim(), kind);
+    }
+  }
 });
 
 test('the usual choices come in the reader\'s language', () => {
