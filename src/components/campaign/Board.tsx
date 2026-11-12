@@ -271,9 +271,14 @@ export function Board({ reign, sides, game, renownLink }: BoardProps) {
   const marked = told ? told.to : pick.k === 'inspect' ? pick.id : null;
   const shown = hold ? { holder: hold.holder, troops: hold.troops, seats: state.seats } : state;
   const Season = SEASON_ICON[seasonOf(Math.min(state.turn, RULES.TURNS - 1)).season];
+  const donePlacing = () => { setSkipped(state.turn); setPick({ k: 'none' }); };
+  const endLabel = state.turn + 1 >= RULES.TURNS ? t('campaign.end.last') : t('campaign.end.turn');
+  // On a narrow screen the turn's panel is below the map: a strip at the foot of the screen keeps the turn, what is left
+  // of it, Undo and the way on within reach. It makes room for the order bar, and goes when the reign is over.
+  const strip = !over && pick.k !== 'target';
 
   return (
-    <div className={`cg-board${pick.k === 'target' ? ' has-bar' : ''}`}>
+    <div className={`cg-board${pick.k === 'target' ? ' has-bar' : ''}${strip ? ' has-strip' : ''}`}>
       <div className="cg-field">
         <div className="cg-field-head">
           <Segmented
@@ -367,7 +372,7 @@ export function Board({ reign, sides, game, renownLink }: BoardProps) {
             {renownLink}
             <div className="cg-step-actions">
               <button type="button" className="btn" disabled={!game.canUndo || busy} onClick={undo}><Undo2 size={15} /> {t('campaign.undo')}</button>
-              <button type="button" className="btn primary" onClick={() => { setSkipped(state.turn); setPick({ k: 'none' }); }}>{t('campaign.reinforce.done')} <ChevronRight size={15} /></button>
+              <button type="button" className="btn primary" onClick={donePlacing}>{t('campaign.reinforce.done')} <ChevronRight size={15} /></button>
             </div>
           </section>
         )}
@@ -402,7 +407,7 @@ export function Board({ reign, sides, game, renownLink }: BoardProps) {
         {!over && (
           <div className="cg-turn">
             {step === 2 && <button type="button" className="btn" disabled={!game.canUndo || busy} onClick={undo}><Undo2 size={15} /> {t('campaign.undo')}</button>}
-            <button type="button" className={`btn${step === 2 && pick.k !== 'target' ? ' primary' : ''}`} onClick={endTurn} disabled={busy}><Sunrise size={16} /> {state.turn + 1 >= RULES.TURNS ? t('campaign.end.last') : t('campaign.end.turn')}</button>
+            <button type="button" className={`btn${step === 2 && pick.k !== 'target' ? ' primary' : ''}`} onClick={endTurn} disabled={busy}><Sunrise size={16} /> {endLabel}</button>
           </div>
         )}
 
@@ -413,6 +418,18 @@ export function Board({ reign, sides, game, renownLink }: BoardProps) {
           </section>
         )}
       </aside>
+      {strip && (
+        <div className="cg-strip" role="group" aria-label={t('campaign.strip.label')}>
+          <p className="cg-strip-text">
+            <b>{t('campaign.strip.turn', { turn: state.turn + 1, turns: RULES.TURNS })}</b>
+            <span>{step === 1 ? t('campaign.strip.levy', { count: pool }) : t('campaign.orders.left', { count: state.orders })}</span>
+          </p>
+          <button type="button" className="btn icon" disabled={!game.canUndo || busy} onClick={undo} aria-label={t('campaign.undo')} title={t('campaign.undo')}><Undo2 size={17} /></button>
+          {step === 1
+            ? <button type="button" className="btn primary" onClick={donePlacing}>{t('campaign.reinforce.done')} <ChevronRight size={15} /></button>
+            : <button type="button" className="btn primary" onClick={endTurn} disabled={busy}><Sunrise size={16} /> {endLabel}</button>}
+        </div>
+      )}
       {battle && <BattleDialog battle={battle} map={map} sides={sides} mySide={player} onClose={() => endScene()} />}
     </div>
   );
@@ -536,7 +553,8 @@ export function MapLegend() {
         {features.map((f) => <li key={f.key} title={f.rule}><span className="cg-swatch" aria-hidden>{f.icon}</span> {t(f.name)}</li>)}
       </ul>
       <details className="cg-terrain-legend">
-        <summary>{t('campaign.legend.rules')}</summary>
+        {/* On a narrow screen the row of pictures above is put away, and this opens the whole legend. */}
+        <summary><span className="cg-legend-wide">{t('campaign.legend.rules')}</span><span className="cg-legend-narrow">{t('campaign.terrain.legend')}</span></summary>
         <ul>
           {LAND.map((k) => <li key={k}><span className={`cg-swatch is-${k}`} aria-hidden><TerrainIcon terrain={k} size={20} /></span> <span><b>{t(TERRAIN_NAME[k])}</b> {t(TERRAIN_RULE[k], { cap: capOn(k) })}</span></li>)}
           {features.map((f) => <li key={f.key}><span className="cg-swatch" aria-hidden>{f.icon}</span> <span><b>{t(f.name)}</b> {f.rule}</span></li>)}

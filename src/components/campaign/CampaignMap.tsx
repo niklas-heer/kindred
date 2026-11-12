@@ -19,7 +19,7 @@ import { HEX_V2 } from '~/lib/heraldry/tinctures';
 import { MAP_H, MAP_W, terrainOf, type Crossing, type GameMap, type Pt, type State, type Terrain } from '~/lib/campaign/engine';
 import type { StoredSide } from '~/lib/campaign/types';
 import { useT, type Key, type Translator } from '~/lib/i18n';
-import { cameraFor, coastOf, cornersOf, courseOf, namesAt, peaksAlong, settlementAt, smoothClosed, smoothOpen, spotsIn, type GlyphKind } from './drawing';
+import { badgeAt, cameraFor, coastOf, cornersOf, courseOf, nameBox, namesAt, peaksAlong, ridgeBoxes, settlementAt, smoothClosed, smoothOpen, spotsIn, type Box, type GlyphKind, type NameSpot } from './drawing';
 
 const SPARE = ['#8f97a6', '#b08a4a', '#5f8f8a', '#9a6fa3', '#7d8c4f', '#a8705c'];
 const pale = (hex: string) => {
@@ -169,26 +169,26 @@ const Sheet = memo(function Sheet({ map, uid, room }: { map: GameMap; uid: strin
   );
 });
 
-/** The land's own pictures, drawn over the provinces' washes: they never change while a reign is played either. */
-const Pictures = memo(function Pictures({ map, uid, seats, room }: { map: GameMap; uid: string; seats: string; room: number }) {
+/**
+ * The land's own pictures, drawn over the provinces' washes. They keep clear of the names as they are written (`avoid`),
+ * and step aside in the provinces an order is being chosen among (`quiet`), where the badges and names must be read.
+ */
+const Pictures = memo(function Pictures({ map, uid, seats, room, avoid, quiet }: { map: GameMap; uid: string; seats: string; room: number; avoid: readonly Box[]; quiet: string }) {
   const coast = useMemo(() => coastOf(map).map(smoothClosed).join(''), [map]);
   const seatSet = useMemo(() => new Set(seats.split(',').filter(Boolean).map(Number)), [seats]);
-  const spots = useMemo(() => map.provinces.flatMap((p) => spotsIn(map, p, room)), [map, room]);
+  const hushed = useMemo(() => new Set(quiet.split(',').filter(Boolean).map(Number)), [quiet]);
+  const spots = useMemo(() => map.provinces.map((p) => spotsIn(map, p, room, avoid)), [map, room, avoid]);
+  const towns = useMemo(() => map.provinces.filter((p) => terrainOf(map, p.id) === 'town').map((p) => ({ id: p.id, at: settlementAt(p, Math.sqrt(room), avoid) })), [map, room, avoid]);
   const ridges = useMemo(() => {
     const banners = map.provinces.map((p): Pt => [p.x, p.y]);
-    return (map.ridges ?? []).map((r, i) => ({ d: smoothOpen(r.line), peaks: peaksAlong(r.line, `${map.name}:${i}`, banners, room) }));
-  }, [map, room]);
+    return (map.ridges ?? []).map((r, i) => ({ d: smoothOpen(r.line), peaks: peaksAlong(r.line, `${map.name}:${i}`, banners, room, avoid) }));
+  }, [map, room, avoid]);
   return (
     <g className="cm-pictures" aria-hidden>
       {/* The coast, inked over the provinces' own dashed borders. */}
       <path className="cm-coastline" d={coast} />
-      {spots.map((s, i) => <use key={i} href={`#${uid}-${s.kind}`} transform={`translate(${s.x} ${s.y}) scale(${s.size})`} />)}
-      {map.provinces.filter((p) => terrainOf(map, p.id) === 'town').map((p) => {
-        const at = settlementAt(p, Math.sqrt(room));
-        if (!at) return null;
-        const [x, y] = at;
-        return <use key={`s${p.id}`} href={`#${uid}-${seatSet.has(p.id) ? 'castle' : 'town'}`} transform={`translate(${x} ${y}) scale(${1.75 * room ** 0.35})`} />;
-      })}
+      {spots.map((list, id) => !hushed.has(id) && list.map((s, i) => <use key={`${id}-${i}`} href={`#${uid}-${s.kind}`} transform={`translate(${s.x} ${s.y}) scale(${s.size})`} />))}
+      {towns.map(({ id, at }) => at && !hushed.has(id) && <use key={`s${id}`} href={`#${uid}-${seatSet.has(id) ? 'castle' : 'town'}`} transform={`translate(${at[0]} ${at[1]}) scale(${1.75 * room ** 0.35})`} />)}
       {(map.rivers ?? []).map((r, i) => {
         const d = smoothOpen(r.line);
         return <g key={`r${i}`}><path className="cm-river is-bank" d={d} /><path className="cm-river" d={d} /></g>;
@@ -202,6 +202,8 @@ const Pictures = memo(function Pictures({ map, uid, seats, room }: { map: GameMa
     </g>
   );
 });
+
+const NO_BOXES: readonly Box[] = [];
 
 export function CampaignMap({ map, state, sides, player, selected = null, reach = NONE, placeable, arrow, marked, flights, clash, onSelect, onClear, picture, children }: CampaignMapProps) {
   const t = useT();
@@ -235,7 +237,35 @@ export function CampaignMap({ map, state, sides, player, selected = null, reach 
   };
   const shield = 46 * k;
   const nameSize = narrow ? 21 * Math.max(0.62, k * 0.9) : 21;
-  const names = useMemo(() => namesAt(map, seats, k, nameSize), [map, seats, k, nameSize]);
+  // What the view shows of the sheet: all of it, or the part the camera has moved in on.
+  const within = useMemo<Box>(() => (camera ? [-camera.x / camera.k, -camera.y / camera.k, (MAP_W - camera.x) / camera.k, (MAP_H - camera.y) / camera.k] : [0, 0, MAP_W, MAP_H]), [camera]);
+  // The provinces an order is being chosen among: the chosen one and what it can reach.
+  const chosen = useMemo(() => (choosing ? new Set([selected!, ...reach.keys()]) : null), [choosing, selected, reach]);
+  // On a wide screen every name is written once and stays where it is. On a narrow one the names show only while the view
+  // has moved in on an order, and then only those the order is about, kept inside what the view shows.
+  const ridges = useMemo(() => ridgeBoxes(map), [map]);
+  const names = useMemo(
+    () => (narrow ? (camera && chosen ? namesAt(map, seats, k, nameSize, { only: chosen, within }) : new Map<number, NameSpot>()) : namesAt(map, seats, 1, 21, { avoid: ridges })),
+    [narrow, camera, chosen, map, seats, k, nameSize, within, ridges],
+  );
+  const nameBoxes = useMemo(() => (narrow ? NO_BOXES : [...names.values()].map((n) => nameBox(n, 21))), [narrow, names]);
+  // The badges have the say: each finds a place clear of the banners and names of the provinces in play, and of the others.
+  const badges = useMemo(() => {
+    const out = new Map<number, Pt>();
+    if (!chosen) return out;
+    const taken: Box[] = [];
+    for (const id of chosen) {
+      const p = map.provinces[id];
+      taken.push([p.x - shield / 2, p.y - shield * 0.78, p.x + shield * 0.46 + 15 * k, p.y + shield * 0.3 + 15 * k]);
+      const n = names.get(id);
+      if (n) taken.push(nameBox(n, nameSize));
+    }
+    for (const [id, r] of reach) {
+      const w = (r.kind === 'attack' ? (r.crossing ? 96 : 74) : r.kind === 'march' && r.crossing === 'sea' ? 48 : 28) * k;
+      out.set(id, badgeAt(map.provinces[id], w, 26 * k, k, taken, within));
+    }
+    return out;
+  }, [chosen, reach, map, names, shield, k, nameSize, within]);
   const [focused, setFocused] = useState<number | null>(null);
   const centre = (id: number): Pt => [map.provinces[id].x, map.provinces[id].y];
 
@@ -258,13 +288,12 @@ export function CampaignMap({ map, state, sides, player, selected = null, reach 
   const course = arrow ? courseOf(map, arrow.from, arrow.to, 34 * k) : null;
 
   const badge = (id: number, r: Reach): ReactNode => {
-    const [x, y] = centre(id);
     const s = k;
-    const by = y - shield * 0.78 - 26 * s;
+    const [bx, by] = badges.get(id) ?? [centre(id)[0], centre(id)[1] - shield * 0.78 - 26 * s];
     if (r.kind === 'attack') {
       const w = (r.crossing ? 96 : 74) * s;
       return (
-        <g key={`b${id}`} className="cm-badge is-attack" transform={`translate(${x - w / 2} ${by})`}>
+        <g key={`b${id}`} className="cm-badge is-attack" transform={`translate(${bx} ${by})`}>
           <rect width={w} height={26 * s} rx={13 * s} />
           <Swords x={6 * s} y={5 * s} width={16 * s} height={16 * s} />
           {r.crossing && (r.crossing === 'sea' ? <Sailboat x={26 * s} y={5 * s} width={16 * s} height={16 * s} /> : <Waves x={26 * s} y={5 * s} width={16 * s} height={16 * s} />)}
@@ -275,7 +304,7 @@ export function CampaignMap({ map, state, sides, player, selected = null, reach 
     const sea = r.kind === 'march' && r.crossing === 'sea';
     const w = (sea ? 48 : 28) * s;
     return (
-      <g key={`b${id}`} className={`cm-badge is-${r.kind}`} transform={`translate(${x - w / 2} ${by})`}>
+      <g key={`b${id}`} className={`cm-badge is-${r.kind}`} transform={`translate(${bx} ${by})`}>
         <rect width={w} height={26 * s} rx={13 * s} />
         {r.kind === 'march' ? <Footprints x={6 * s} y={5 * s} width={16 * s} height={16 * s} /> : <Lock x={6 * s} y={5 * s} width={16 * s} height={16 * s} />}
         {sea && <Sailboat x={26 * s} y={5 * s} width={16 * s} height={16 * s} />}
@@ -334,7 +363,7 @@ export function CampaignMap({ map, state, sides, player, selected = null, reach 
               </g>
             );
           })}
-          <Pictures map={map} uid={uid} seats={seatList} room={base} />
+          <Pictures map={map} uid={uid} seats={seatList} room={base} avoid={nameBoxes} quiet={chosen ? [...chosen].sort((a, b) => a - b).join(',') : ''} />
           {/* What is chosen, reachable or focused, drawn over every land so no neighbour covers it. */}
           <g className="cm-rings" aria-hidden>
             {[...reach].map(([id, r]) => <path key={`t${id}`} className={`cm-ring is-${r.kind}`} d={paths[id]} />)}
@@ -372,7 +401,7 @@ export function CampaignMap({ map, state, sides, player, selected = null, reach 
                       </g>
                     )}
                   </g>
-                  <text className="cm-name" x={names.get(p.id)?.x ?? p.x} y={names.get(p.id)?.y ?? p.y} textAnchor="middle" style={narrow ? { fontSize: `${nameSize}px` } : undefined}>{p.name}</text>
+                  {names.has(p.id) && <text className="cm-name" x={names.get(p.id)!.x} y={names.get(p.id)!.y} textAnchor="middle" style={narrow ? { fontSize: `${nameSize}px` } : undefined}>{p.name}</text>}
                 </g>
               );
             })}

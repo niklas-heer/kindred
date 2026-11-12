@@ -115,8 +115,11 @@
   paint-order: stroke; stroke: var(--cm-paper); stroke-width: 5px; stroke-linejoin: round;
 }
 [data-theme='codex'] .cm-name { font-variant: small-caps; font-size: 1.375rem; }
-/* On a narrow screen the names would be too small to read: they show when the view has moved in on an order. */
+/* On a narrow screen the names would be too small to read: they show when the view has moved in on an order, and then
+   only the names of the provinces the order is about (CampaignMap writes no other). */
 .cm-wrap[data-narrow]:not([data-zoom]) .cm-name { display: none; }
+/* While an order is being chosen, the provinces out of reach keep their banners, dimmed, and give up their names. */
+.cm-mark.is-dim .cm-name { opacity: 0; }
 
 /* Troops on the move, and where two armies meet. */
 .cm-flight { transform: translate(var(--x1), var(--y1)); }
@@ -359,9 +362,6 @@
 .cg-week-top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: center; }
 .cg-week-top h2 { margin: 0 0 4px; }
 .cg-week-me { font-family: var(--font-ui); font-weight: 600; margin-top: 6px !important; }
-.cg-local { margin: 0 0 12px; padding: 8px 12px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--border); font-family: var(--font-ui); font-size: var(--fs-2); }
-.cg-practice-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 12px; }
-.cg-practice-bar .cg-note { margin: 0; flex: 1 1 260px; }
 /* One reign a day counts: whether today's is still to play. */
 .cg-week-today { display: flex; align-items: flex-start; gap: 6px; margin-top: 6px !important; font-family: var(--font-ui); font-size: var(--fs-2) !important; color: var(--muted); }
 .cg-week-today svg { flex: none; margin-top: 2px; }
@@ -369,6 +369,9 @@
 .cg-week-today.is-open svg { color: var(--accent); }
 .cg-extra { font-family: var(--font-ui); font-size: var(--fs-2) !important; color: var(--muted); }
 .cg-card-today { color: var(--muted); font-size: var(--fs-2); }
+.cg-local { margin: 0 0 12px; padding: 8px 12px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--border); font-family: var(--font-ui); font-size: var(--fs-2); }
+.cg-practice-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 12px; }
+.cg-practice-bar .cg-note { margin: 0; flex: 1 1 260px; }
 .cg-score-parts { font-family: var(--font-ui); font-size: var(--fs-2); color: var(--muted); }
 .cg-best { color: var(--accent); display: inline-flex; align-items: center; gap: 4px; }
 [data-theme='modern'] .cg-best { color: #7a5c12; }
@@ -473,9 +476,23 @@
   .cb-army i { transition: opacity 300ms 500ms, transform 300ms 500ms; }
 }
 
+/* The turn's strip: only where the turn's panel is below the map. */
+.cg-strip, .cg-legend-narrow { display: none; }
 @media (max-width: 1000px) {
   .cg-board { grid-template-columns: minmax(0, 1fr); }
   .cg-orders { position: static; }
+  .cg-strip {
+    position: fixed; z-index: 29; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center;
+    padding: 8px 14px calc(8px + env(safe-area-inset-bottom)); background: var(--panel-solid); border-top: 1px solid var(--border); box-shadow: 0 -4px 18px #0003;
+  }
+  .cg-strip-text { margin: 0; display: grid; min-width: 0; font-family: var(--font-ui); line-height: 1.25; }
+  .cg-strip-text b { font-size: var(--fs-3); font-weight: 600; }
+  .cg-strip-text span { font-size: var(--fs-2); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cg-strip .btn { height: var(--ctl-lg); }
+  .cg-strip .btn.icon { width: var(--ctl-lg); padding: 0; justify-content: center; }
+  .cg-board.has-strip { padding-bottom: 72px; }
+  /* The strip has these buttons. */
+  .cg-board.has-strip .cg-turn, .cg-board.has-strip .cg-step-actions { display: none; }
   /* On a phone the order bar stays at the bottom of the screen while an order is being made. */
   .cg-orderbar {
     position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; border-radius: var(--radius-lg) var(--radius-lg) 0 0;
@@ -489,6 +506,10 @@
 @media (max-width: 760px) {
   /* Above the phone's tab bar. */
   .cg-orderbar { bottom: calc(58px + env(safe-area-inset-bottom)); padding-bottom: 12px; }
+  .cg-strip { bottom: calc(58px + env(safe-area-inset-bottom)); padding-bottom: 8px; }
+  /* The legend is one line until it is opened: the map and the turn come first. */
+  .cg-legend-chips, .cg-legend-wide { display: none; }
+  .cg-legend-narrow { display: inline; }
   .cg-list { grid-template-columns: minmax(0, 1fr); }
   .cg-week-top { grid-template-columns: minmax(0, 1fr); justify-items: start; }
   .cc-story { grid-template-columns: minmax(0, 1fr); }

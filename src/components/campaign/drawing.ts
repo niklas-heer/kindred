@@ -51,6 +51,7 @@ export function coastOf(map: GameMap): Pt[][] {
 }
 
 /** Whether a point lies inside an outline. */
+const insideCell = (cell: Pt[], x: number, y: number) => inside(cell, x, y);
 export function inside(cell: Pt[], x: number, y: number): boolean {
   let hit = false;
   for (let i = 0, j = cell.length - 1; i < cell.length; j = i++) {
@@ -59,6 +60,11 @@ export function inside(cell: Pt[], x: number, y: number): boolean {
   }
   return hit;
 }
+
+/** A box on the sheet: left, top, right, bottom. */
+export type Box = readonly [number, number, number, number];
+const meets = (a: Box, b: Box, gap = 0) => a[0] < b[2] + gap && a[2] > b[0] - gap && a[1] < b[3] + gap && a[3] > b[1] - gap;
+const holds = (b: Box, x: number, y: number, gap = 0) => x > b[0] - gap && x < b[2] + gap && y > b[1] - gap && y < b[3] + gap;
 
 export type GlyphKind = 'tree' | 'pine' | 'hill' | 'peak' | 'reed' | 'grass' | 'town' | 'castle' | 'ship';
 export interface Spot { x: number; y: number; kind: GlyphKind; size: number }
@@ -76,7 +82,7 @@ const SCATTER: Record<Terrain, { gap: number; kinds: GlyphKind[]; size: number }
  * Where a province's terrain is drawn: little pictures scattered over its land, the same every time, clear of its
  * border, its banner and its name. `room` is how much the banner is drawn larger (on a narrow screen).
  */
-export function spotsIn(map: GameMap, p: Province, room = 1): Spot[] {
+export function spotsIn(map: GameMap, p: Province, room = 1, avoid: readonly Box[] = []): Spot[] {
   const terrain = p.terrain ?? 'plains';
   const { gap, kinds, size } = SCATTER[terrain];
   const random = rng(`glyph:${map.name ?? ''}:${p.id}`);
@@ -93,6 +99,8 @@ export function spotsIn(map: GameMap, p: Province, room = 1): Spot[] {
       // Clear of the banner and the token beside it, and of the name beneath.
       if (Math.abs(dx) < 46 * room && dy > -62 * room && dy < 34 * room) continue;
       if (Math.abs(dx) < 70 && dy >= 34 * room && dy < 34 * room + 34) continue;
+      // Clear of every name as it is really written, a neighbour's too.
+      if (avoid.some((b) => holds(b, x, y, 11 * scale))) continue;
       if (![[0, 0], [edge, 0], [-edge, 0], [0, edge], [0, -edge]].every(([ox, oy]) => inside(p.cell, x + ox, y + oy))) continue;
       out.push({ x: n1(x), y: n1(y), kind, size: n1(scale) });
     }
@@ -101,7 +109,7 @@ export function spotsIn(map: GameMap, p: Province, room = 1): Spot[] {
 }
 
 /** Where a town's houses or a seat's castle stand: beside the banner, on the province's own land; nowhere when there is no room. */
-export function settlementAt(p: Province, room = 1): Pt | null {
+export function settlementAt(p: Province, room = 1, avoid: readonly Box[] = []): Pt | null {
   // To the left first: the garrison's token stands to the right of the banner.
   // Never under the banner, where the name is written.
   const tries: Pt[] = [[-62, 8], [-56, -36], [72, 2], [60, -40], [-84, 20], [88, 16], [0, -84], [-70, 44], [74, 44]];
@@ -110,37 +118,94 @@ export function settlementAt(p: Province, room = 1): Pt | null {
   for (const margin of room > 1 ? [18] : [14, 6]) {
     for (const [dx, dy] of tries) {
       const x = p.x + dx * room, y = p.y + dy * room;
-      if (fits(x, y, margin)) return [x, y];
+      if (fits(x, y, margin) && !avoid.some((b) => holds(b, x, y, 24))) return [x, y];
     }
   }
   return null;
 }
 
+/** Where a name is written: the middle of its baseline, and half its width. */
+export interface NameSpot { x: number; y: number; half: number }
+
+/** The room a name takes, for whatever must keep clear of it. */
+export const nameBox = (n: NameSpot, size = 21): Box => [n.x - n.half, n.y - size, n.x + n.half, n.y + size * 0.3];
+
 /**
  * Where each province's name is written: under its banner, or, when that would run into a name already written, above the
- * banner or a line lower. `seats` have a crown above the banner, so a name above stands higher there.
+ * banner or a line lower. `seats` have a crown above the banner, so a name above stands higher there. `only` names just
+ * these provinces (an order being chosen on a narrow screen), `within` keeps every name inside what the view shows, and
+ * `avoid` is what a name must not cover.
  */
-export function namesAt(map: GameMap, seats: ReadonlySet<number>, room = 1, size = 21): Map<number, { x: number; y: number; anchor: 'start' | 'middle' | 'end' }> {
-  const out = new Map<number, { x: number; y: number; anchor: 'start' | 'middle' | 'end' }>();
-  const boxes: [number, number, number, number][] = [];
+export function namesAt(map: GameMap, seats: ReadonlySet<number>, room = 1, size = 21, opts: { only?: ReadonlySet<number>; within?: Box; avoid?: readonly Box[] } = {}): Map<number, NameSpot> {
+  const out = new Map<number, NameSpot>();
+  const written: Box[] = [...(opts.avoid ?? [])];
   const shield = 46 * room;
-  for (const p of [...map.provinces].sort((a, b) => a.y - b.y || a.x - b.x)) {
-    const half = (p.name.length * size * 0.36) + 6;
-    const cx = Math.max(half + 14, Math.min(MAP_W - half - 14, p.x));
+  const [x0, y0, x1, y1] = opts.within ?? [0, 0, MAP_W, MAP_H];
+  const shown = map.provinces.filter((p) => !opts.only || opts.only.has(p.id));
+  // A banner with its crown and its garrison: no other province's name is written over it.
+  const banner = (p: Province): Box => [p.x - shield / 2 - 2, p.y - shield * 0.78 - (seats.has(p.id) ? 22 * room : 0), p.x + shield * 0.46 + 16 * room, p.y + shield * 0.3 + 16 * room];
+  for (const p of [...shown].sort((a, b) => a.y - b.y || a.x - b.x)) {
+    const half = Math.min((p.name.length * size * 0.3) + 5, (x1 - x0) / 2 - 14);
+    const fit = (x: number) => Math.max(x0 + half + 14, Math.min(x1 - half - 14, x));
     const below = p.y + shield * 0.62 + 22 * Math.max(room, 0.8);
     const above = p.y - shield * 0.78 - (seats.has(p.id) ? 26 * room : 8);
-    const tries = [below, above, below + size, above - size];
-    const free = (y: number) => y > 24 && y < MAP_H - 12 && boxes.every(([x0, y0, x1, y1]) => cx + half < x0 || cx - half > x1 || y < y0 || y - size > y1);
-    const y = tries.find(free) ?? below;
-    boxes.push([cx - half, y - size, cx + half, y]);
-    out.set(p.id, { x: n1(cx), y: n1(y), anchor: 'middle' });
+    // Under the banner first, then above it, then a little to either side, then a line further off.
+    const tries: Pt[] = [];
+    for (const y of [below, above, below + size, above - size]) for (const x of [p.x, p.x - half * 0.6, p.x + half * 0.6]) tries.push([fit(x), y]);
+    const boxAt = ([x, y]: Pt): Box => [x - half, y - size, x + half, y];
+    const others = shown.filter((q) => q.id !== p.id).map(banner);
+    const inside = ([, y]: Pt) => y - size > y0 + 12 && y < y1 - 12;
+    const free = (t: Pt) => inside(t) && written.every((b) => !meets(boxAt(t), b)) && others.every((b) => !meets(boxAt(t), b));
+    // On the province's own land when it can be: a name out at sea reads as the sea's.
+    const home = (t: Pt) => [-0.7, 0, 0.7].every((k) => insideCell(p.cell, t[0] + half * k, t[1] - size / 2));
+    const at = tries.find((t) => free(t) && home(t)) ?? tries.find(free) ?? tries.find(inside) ?? tries[0];
+    written.push(boxAt(at));
+    out.set(p.id, { x: n1(at[0]), y: n1(at[1]), half: n1(half) });
+  }
+  return out;
+}
+
+/**
+ * Where a badge (the chance of an attack, footprints, a lock) stands by a province's banner: above it, or, when a name
+ * or another badge is there, beside or below it. The badge has the say: it is never left out, only moved. `taken` is
+ * added to. Returns the badge's top left corner.
+ */
+export function badgeAt(p: { x: number; y: number }, w: number, h: number, room: number, taken: Box[], within: Box = [0, 0, MAP_W, MAP_H]): Pt {
+  const shield = 46 * room;
+  const top = p.y - shield * 0.78;
+  const tries: Pt[] = [
+    [p.x - w / 2, top - h - 2 * room],
+    [p.x - shield / 2 - w - 5 * room, p.y - shield * 0.5],
+    [p.x + shield / 2 + 18 * room, p.y - shield * 0.62],
+    [p.x - w / 2, top - 2 * h - 8 * room],
+    [p.x - w / 2, p.y + shield * 0.62 + 30 * room],
+  ];
+  const fit = ([x, y]: Pt): Pt => [Math.max(within[0] + 8, Math.min(within[2] - w - 8, x)), Math.max(within[1] + 8, Math.min(within[3] - h - 8, y))];
+  const boxOf = ([x, y]: Pt): Box => [x, y, x + w, y + h];
+  const at = tries.map(fit).find((t) => taken.every((b) => !meets(boxOf(t), b, 2))) ?? fit(tries[0]);
+  taken.push(boxOf(at));
+  return [n1(at[0]), n1(at[1])];
+}
+
+/** The room a ridge's peaks take, as boxes along its line: what a name keeps clear of, so the mountains stay on the map. */
+export function ridgeBoxes(map: GameMap): Box[] {
+  const out: Box[] = [];
+  for (const ridge of map.ridges ?? []) {
+    for (let i = 0; i + 1 < ridge.line.length; i++) {
+      const [a, b] = [ridge.line[i], ridge.line[i + 1]];
+      const steps = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 22));
+      for (let k = 0; k <= steps; k++) {
+        const x = a[0] + ((b[0] - a[0]) * k) / steps, y = a[1] + ((b[1] - a[1]) * k) / steps;
+        out.push([x - 15, y - 24, x + 15, y + 8]);
+      }
+    }
   }
   return out;
 }
 
 /** Peaks along a ridge: one every so often, each a little different, the same every time, and none over a banner or a name. */
-export function peaksAlong(line: Pt[], seed: string, banners: Pt[] = [], room = 1): Spot[] {
-  const clear = (x: number, y: number) => banners.every(([bx, by]) => Math.abs(x - bx) > 50 * room || y - by < -66 * room || y - by > 34 * room + 34);
+export function peaksAlong(line: Pt[], seed: string, banners: Pt[] = [], room = 1, avoid: readonly Box[] = []): Spot[] {
+  const clear = (x: number, y: number) => banners.every(([bx, by]) => Math.abs(x - bx) > 50 * room || y - by < -66 * room || y - by > 34 * room + 34) && !avoid.some((b) => holds(b, x, y - 4, 13));
   const random = rng(`ridge:${seed}`);
   const out: Spot[] = [];
   let carried = 10;
