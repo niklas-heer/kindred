@@ -132,7 +132,7 @@ Kindred gives the tools; the operator still has to:
 
 1. Decide and write down your **role** and your legal basis for each processing (the Art. 30 record lists Kindred's suggestions).
 2. Write a **privacy policy** (Art. 13): who you are, what you store, why, where, for how long, the subprocessors (copy them from
-   `/legal`), and how people exercise their rights (`/privacy-request`). Set it, an **Impressum** where required, and **terms**.
+   `/legal`, which lists every AI provider a family or you, for operator-funded AI, have a key for), and how people exercise their rights (`/privacy-request`). Set it, an **Impressum** where required, and **terms**.
 3. Adapt the **processing agreement** template and set it; families then accept it when they are made.
 4. Sign the **data processing agreements** of your own processors: your host (Cloudflare's DPA in the dashboard), any AI provider
    whose key *you* provide, GitHub if you run the archive.

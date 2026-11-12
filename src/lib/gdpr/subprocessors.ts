@@ -23,7 +23,7 @@ const AI: Record<string, Subprocessor> = {
 /** What the configuration says, gathered once so the list can be tested without a server. */
 export interface Configuration {
   workers: boolean;
-  /** AI providers some family (or the operator) has a key for. */
+  /** AI providers some family or the operator (operator-funded AI, or a key in the environment) has a key for. */
   aiProviders: string[];
   addressLookup: boolean;
   /** At least one family's nightly archive to GitHub is set up (KINDRED_ARCHIVE_<ID>_REPO and _TOKEN). */
@@ -32,9 +32,14 @@ export interface Configuration {
   turnstile: boolean;
 }
 
-/** Reads the configuration: the environment, and which AI providers families have keys for (accounts `ai_provider`). */
+/**
+ * Reads the configuration: the environment, and which AI providers have a key here: a family's own (accounts `ai_provider`) or
+ * the operator's for operator-funded AI (`operator_ai_provider`).
+ */
 export async function configuration(read: Read = fromEnv, env: Record<string, string | undefined> = process.env): Promise<Configuration> {
-  const providers = await store.accounts().all<{ provider: string }>('SELECT DISTINCT provider FROM ai_provider ORDER BY provider').catch(() => []);
+  const providers = await store.accounts().all<{ provider: string }>(
+    'SELECT provider FROM ai_provider UNION SELECT provider FROM operator_ai_provider ORDER BY provider').catch(() =>
+    store.accounts().all<{ provider: string }>('SELECT DISTINCT provider FROM ai_provider ORDER BY provider').catch(() => []));
   const operatorKeys = ['anthropic', 'openai', 'openrouter'].filter((p) => read(`KINDRED_${p.toUpperCase()}_API_KEY`) || read(`KINDRED_AI_${p.toUpperCase()}_KEY`));
   return {
     workers: onWorkers,

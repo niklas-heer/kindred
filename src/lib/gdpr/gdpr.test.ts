@@ -444,6 +444,12 @@ test('the subprocessors follow the configuration, and the Art. 30 record lists t
   assert.match(md, /OpenAI/);
   const legal = await settings.legalTexts();
   assert.ok(legal.subprocessors.some((s) => s.id === 'openai'), 'the legal page lists them too');
+  // The operator's own AI keys (operator-funded AI) name providers too.
+  await run("INSERT INTO operator_ai_provider (provider, key_sealed, key_tail, updated, updated_by) VALUES ('openrouter', 'x', 'abcd', ?, ?)", T, OP.id);
+  assert.deepEqual((await subs.configuration(() => undefined, {})).aiProviders, ['openai', 'openrouter']);
+  assert.ok((await settings.legalTexts()).subprocessors.some((s) => s.id === 'openrouter'), 'on /legal');
+  assert.ok((await record.processingRecord(new Date(T))).subprocessors.some((s) => s.id === 'openrouter'), 'in the Art. 30 record');
+  await run("DELETE FROM operator_ai_provider WHERE provider = 'openrouter'");
 });
 
 // ---------- the processing agreement ----------
