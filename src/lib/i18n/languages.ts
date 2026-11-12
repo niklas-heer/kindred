@@ -160,7 +160,7 @@ export const LANGUAGES = {
     jobForms: "fornaio/fornaia",
     accepts: ["it"],
     shortMonths: ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"],
-    complete: false,
+    complete: true,
   },
   nl: {
     native: "Nederlands",
