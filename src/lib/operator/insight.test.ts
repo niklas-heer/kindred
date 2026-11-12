@@ -173,7 +173,9 @@ test('a breakdown below five never leaves the server: cohorts, retention and sig
   }
   assert.ok(s.retention.some((r) => r.created === null), 'Bram and Dov’s week is hidden');
   for (const d of [...s.days, s.now]) for (const v of Object.values(d.signIns ?? {})) assert.ok(!small(v), `${d.day}: ${v}`);
-  assert.deepEqual(s.signIns30, { passkey: null }, 'one sign-in in 30 days is fewer than five');
+  // Every way in counted here (passkey, and whatever ways in the other tests' sessions used) had fewer than five sign-ins.
+  assert.ok('passkey' in s.signIns30);
+  for (const [k, v] of Object.entries(s.signIns30)) assert.equal(v, null, `${k}: fewer than five sign-ins in 30 days`);
   assert.ok(s.days.some((d) => d.signIns && 'passkey' in d.signIns), 'the method is still named');
 });
 
