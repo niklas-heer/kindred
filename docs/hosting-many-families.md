@@ -46,7 +46,10 @@ Actions:
   family as theirs, by making it or by importing into it. Only the invitation you made with the family can be renewed here, and
   only while the family has no members: once someone has joined, its stewards invite people themselves, and an invitation a
   steward made (for a co-steward, say) is never renewed by an operator. See [Invitations](#invitations).
-- **How it may be used**: **In use**, **Read-only** or **Closed** (each change is in the log).
+- **How it may be used**: **In use**, **Read-only** or **Closed** (each change is in the log). Read-only and Closed first ask for a
+  **statement of reasons** (EU Digital Services Act, Art. 17): what it rests on (the terms, the law, or something else) and, in
+  your words, what happened and how they can reach you or object. Its members read it under the bar or on the closed page; *In
+  use* clears it.
   - *Read-only* (suspended): its members and its share-link guests read everything; members see a bar that says the server's
     operator suspended it and how to reach you (the contact email in Settings) to ask why or to have it deleted. Every change is
     refused, deleting included: its stewards cannot remove it while you look into something, so they ask you. Use it for an unpaid
@@ -97,7 +100,11 @@ something else: their name, email, the family (its name or address, as far as th
 every legal footer and from the legal page.
 
 - Each request shows who asked, what, about which family (when what they wrote names one here: its address, its id or its exact
-  name) and **the days left** of the month GDPR gives to answer, then how many days past it.
+  name), **the days left** and the date it is due, then how many days past it. GDPR gives a month (Art. 12(3)), counted in
+  calendar months: a request of 31 January is due on 28 (or 29) February, not after 30 days.
+- **Extend by two months** when a request is complex or many arrive at once: allowed once, within the first month, and only
+  after you have told the requester why. Write to them, then record it with the reason; the deadline moves to three calendar
+  months after the request, for you and the stewards.
 - Move it on: **Open**, **With the stewards** or **Answered**. A request reaches a family's stewards only when you choose **With
   the stewards**: from then it shows at the top of their Access page, and they can mark it answered themselves once they have
   dealt with it. Until then only operators see it (you may want to check who is asking first), and moving it back to **Open**
@@ -502,17 +509,21 @@ This is a list of what operators commonly need, not legal advice. Check what app
   network a request came from), why, where (your server or Cloudflare), for how long, and the rights of the people concerned
   (Art. 13 GDPR). Link it in the console.
 - **A data processing agreement with each family.** The families decide what goes in their trees; you process it for them
-  (Art. 28 GDPR). Put it in your terms or a separate agreement.
+  (Art. 28 GDPR). Write it in Settings → *Processing agreement* (a template is at `/processing-agreement` and in
+  [processing-agreement.md](processing-agreement.md)); whoever makes a family then accepts it with the terms.
 - **Your own processors.** On Cloudflare, accept its Data Processing Addendum in the dashboard; on a hosting provider, theirs.
   Any AI provider a family connects with its own key is that family's choice and contract. If you offer your own AI (Policies,
   "Where the AI comes from"), its provider is yours: list it, and tell the families before they opt in. An announcement is a
   simple way to tell stewards about a new provider.
 - **EU storage.** Keep the data in the EU if you promise it: a server in the EU, or on Cloudflare a jurisdiction for the data
   ([deploy-cloudflare.md](deploy-cloudflare.md)).
-- **Records of processing.** Keep a short record of what you process and why (Art. 30 GDPR); the console's log helps show what
-  operators did.
+- **Records of processing.** Keep a record of what you process and why (Art. 30 GDPR): the Privacy tab generates one from
+  your configuration (Markdown or JSON) for you to complete; the console's log shows what operators did.
+- **Breaches.** Record every personal data breach in the Privacy tab's register; tell your supervisory authority within 72 hours
+  when it may put people at risk (Art. 33). The register counts the hours and can show the affected families' stewards a notice.
 - **Requests from the people concerned.** Answer access, correction and deletion requests within a month (Art. 12(3)); the Data
-  requests tab counts the days. Usually the family's stewards make the change; you make sure it happens.
+  requests tab counts the days. Usually the family's stewards make the change (Access → *A request about someone*); you make
+  sure it happens. [gdpr.md](gdpr.md) says what Kindred does for each right and what is left to you.
 - **Reporting content.** A hosting service in the EU needs a way for anyone to report illegal content (Digital Services Act,
   Art. 16): fill in "Report content".
 - **Deleting.** When a family leaves, export it for them first (they can, from Import & export), then delete it from the console.
