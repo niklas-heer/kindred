@@ -160,4 +160,6 @@ export default {
   "ops.r200.access_text": "Nodig familieleden uit als lezer, bijdrager, bewerker of beheerder, of deel een link om alleen te lezen.",
   "ops.r200.ai_title": "Een optionele assistent.",
   "ops.r200.ai_text": "Kies een aanbieder en een maandbudget; er verandert niets zonder goedkeuring.",
+  "ops.signins_password": "Logins met wachtwoord (30 dagen)",
+  "ops.signins_oidc": "Logins met single sign-on (30 dagen)",
 } satisfies Strings<typeof en, "nl">;

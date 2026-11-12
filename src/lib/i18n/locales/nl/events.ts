@@ -58,4 +58,5 @@ export default {
   "events.atlas.what": "levensgebeurtenissen",
   "events.atlas.kindword": "gebeurtenissen",
   "events.atlas.here": "Gebeurtenissen hier",
+  "events.atlas.count": { one: "{count} gebeurtenis", other: "{count} gebeurtenissen" },
 } satisfies Strings<typeof en, "nl">;

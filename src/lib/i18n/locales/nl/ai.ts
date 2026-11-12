@@ -326,4 +326,10 @@ export default {
   "ai.err_route": "Die route is niet toegestaan. Kies een aanbieder en model die ze kan gebruiken.",
   "ai.err_needs_provider": "Deze taak heeft een verbonden aanbieder nodig. Verbind er een onder Aanbieders, of kies een andere.",
   "ai.err_provider_not_connected": "Die aanbieder is niet verbonden. Verbind hem eerst onder Aanbieders.",
+  "ai.relOf.child": "kind van {name}",
+  "ai.relOf.parent": "ouder van {name}",
+  "ai.relOf.partner": "partner van {name}",
+  "ai.relOf.sibling": "broer of zus van {name}",
+  "ai.summaryAddRel": "{name} toevoegen, {rel}",
+  "ai.summaryLinkRel": "{name} koppelen, {rel}",
 } satisfies Strings<typeof en, "nl">;

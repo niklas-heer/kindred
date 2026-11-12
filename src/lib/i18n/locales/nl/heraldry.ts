@@ -936,4 +936,7 @@ export default {
   "canting.the_coopers_barrel": "de ton van de kuiper",
   "canting.the_woodcutters_axe": "de bijl van de houthakker",
   "heraldry.show_more": "Nog {count} tonen",
+  "heraldry.clash.repeated": "Een tinctuur komt twee keer voor in het veld ({tincture}), dus een deel van de verdeling verdwijnt.",
+  "heraldry.clash.metal": "Metaal op metaal. {what}: {tincture}. Eronder: {on}.",
+  "heraldry.clash.colour": "Kleur op kleur. {what}: {tincture}. Eronder: {on}.",
 } satisfies Strings<typeof en, "nl">;

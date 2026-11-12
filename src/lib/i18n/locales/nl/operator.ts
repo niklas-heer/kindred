@@ -236,4 +236,5 @@ export default {
   "request.full": "Er wachten op dit moment te veel verzoeken op een antwoord, dus dit formulier is voorlopig gesloten. Probeer het over een paar dagen opnieuw.",
   "privacyreq.full": "Er wachten op dit moment te veel verzoeken op een antwoord, dus dit formulier is voorlopig gesloten.",
   "privacyreq.full_write": "Je kunt de serverbeheerder nog wel schrijven:",
+  "operator.err.needs_totp": "Dat account heeft een wachtwoord maar geen tweestapscodes. Eerst zet de eigenaar de codes aan, daarna kan het serverbeheerder worden.",
 } satisfies Strings<typeof en, "nl">;

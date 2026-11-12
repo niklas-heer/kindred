@@ -96,4 +96,6 @@ export default {
   "policy.funding_switch": "De AI van deze server gebruiken",
   "policy.funding_on": "Geleverd door deze server: {spent} van {budget} deze maand.",
   "policy.funding_routes": "Zolang dit aanstaat, gebruikt elke taak de aanbieder en het model van de server, en wachten geschilderde portretten. Je eigen sleutels en keuzes blijven bewaard voor later.",
+  "policy.err.operator_paused": "De AI die deze server aanbiedt is gepauzeerd voor deze familie: een aanroep kostte meer dan ervoor was gereserveerd. De serverbeheerder zet hem weer aan.",
+  "policy.err.operator_unbounded": "De AI die deze server aanbiedt zoekt niet op het web en bekijkt geen afbeeldingen: de kosten daarvan zijn vooraf niet te weten. Vraag het zonder afbeelding, of stap over op de eigen AI-sleutel van je familie.",
 } satisfies Strings<typeof en, "nl">;

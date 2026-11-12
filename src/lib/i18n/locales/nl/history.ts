@@ -182,4 +182,10 @@ export default {
   "history.s.import.added": { one: "{author} importeerde een GEDCOM-bestand met één persoon", other: "{author} importeerde een GEDCOM-bestand met {count} personen" },
   "history.s.import.changed": { one: "{author} importeerde een GEDCOM-bestand", other: "{author} importeerde {count} GEDCOM-bestanden" },
   "history.s.import.removed": { one: "{author} importeerde een GEDCOM-bestand", other: "{author} importeerde {count} GEDCOM-bestanden" },
+  "history.reply.comment_by_story": "{author} reageerde op je herinnering",
+  "history.reply.comments_story": { one: "{count} nieuwe reactie op je herinnering", other: "{count} nieuwe reacties op je herinnering" },
+  "history.reply.comment_by_media": "{author} reageerde op je foto",
+  "history.reply.comments_media": { one: "{count} nieuwe reactie op je foto", other: "{count} nieuwe reacties op je foto" },
+  "history.reply.comment_by_post": "{author} reageerde op je bericht",
+  "history.reply.comments_post": { one: "{count} nieuwe reactie op je bericht", other: "{count} nieuwe reacties op je bericht" },
 } satisfies Strings<typeof en, "nl">;

@@ -66,4 +66,12 @@ export default {
   "atlas.fold_short": "Inklappen",
   "atlas.close_chronicle": "De kroniek sluiten",
   "atlas.show_earlier": "Eerdere tonen",
+  "atlas.count.births": { one: "{count} geboorte", other: "{count} geboorten" },
+  "atlas.count.deaths": { one: "{count} overlijden", other: "{count} overlijdens" },
+  "atlas.count.weddings": { one: "{count} huwelijk", other: "{count} huwelijken" },
+  "atlas.line.born": "{name} wordt geboren in {place}",
+  "atlas.line.died": "{name} overlijdt in {place}",
+  "atlas.line.died_aged": { one: "{name} overlijdt in {place}, {count} jaar oud", other: "{name} overlijdt in {place}, {count} jaar oud" },
+  "atlas.line.event": "{name}: {what} in {place}",
+  "atlas.line.married": "{name} trouwt met {partner} in {place}",
 } satisfies Strings<typeof en, "nl">;

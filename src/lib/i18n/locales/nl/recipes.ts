@@ -145,4 +145,5 @@ export default {
   "recipes.err.invalid": "Het recept kwam niet helemaal aan. Probeer het opnieuw.",
   "recipes.err.too_many_pictures": "De stappen van een recept kunnen hooguit zes afbeeldingen hebben.",
   "recipes.unitWords": "g, gr, gram, kg, kilo, mg, ml, cl, dl, l, liter, ons, pond, tl, theelepel, theelepels, el, eetlepel, eetlepels, koffielepel, kopje, kopjes, kop, mespuntje, snuf, snufje, scheut, scheutje, stuk, stuks, teen, tenen, plak, plakje, plakken, blik, blikje, bos, bosje, takje, takjes, stengel, stengels, pak, pakje, handje, handvol, druppel, druppels, blad, blaadje, bladeren, blokje, blokjes, pot, potje, fles, flesje, zak, zakje, kuipje, rol, rolletje",
+  "recipes.form.paste_example": "800 g rundvlees, in blokjes\n3 uien\n20 g paprikapoeder\n\nVoor de saus:\n250 ml room",
 } satisfies Strings<typeof en, "nl">;

@@ -93,4 +93,7 @@ export default {
   "oidc.enabled": "Aanbieden",
   "oidc.turn_off_warning": { one: "Uitzetten beëindigt de sessies die ermee zijn gestart; {count} account verliest deze manier van inloggen tot ze weer aanstaat.", other: "Uitzetten beëindigt de sessies die ermee zijn gestart; {count} accounts verliezen deze manier van inloggen tot ze weer aanstaat." },
   "oidc.save": "De aanbieder opslaan",
+  "oidc.err.signup_unverified": "Je aanbieder heeft je e-mailadres niet bevestigd, en zulke aanmeldingen bekijkt deze server eerst. Stuur in plaats daarvan een verzoek, of gebruik een aanbieder die het wel bevestigt.",
+  "oidc.err.signup_failed": "De familie kon niet worden gestart: het adres is misschien al bezet, of de server neemt op dit moment geen nieuwe families aan. Controleer het formulier en probeer het opnieuw.",
+  "oidc.err.signup_exists": "Dit inloggen hoort al bij een Kindred-account. Log er eerst mee in en start de familie daarna van daaruit.",
 } satisfies Strings<typeof en, "nl">;

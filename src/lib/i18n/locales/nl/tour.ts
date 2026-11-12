@@ -6,7 +6,7 @@ export default {
   "tour.menu": "Rondleidingen",
   "tour.offer.title": "Wil je een korte rondleiding?",
   "tour.offer.body": "Twee of drie minuten: waar de familie praat, hoe je iemand vindt, de stamboom, één persoon, en waar herinneringen en verjaardagen wonen. Hij wordt getoond op je eigen familie, en niets wat je erin doet, verandert iets.",
-  "tour.offer.yes": "Laat me rondkijken",
+  "tour.offer.yes": "Leid me rond",
   "tour.offer.no": "Nu niet",
   "tour.offer.all": "Alle rondleidingen",
   "tour.offer.demo_title": "Nieuw hier? Maak de grote rondleiding",
@@ -22,7 +22,7 @@ export default {
   "tour.chapter.skip": "Hoofdstuk overslaan",
   "tour.task.show": "Laat maar zien",
   "tour.task.skip": "Overslaan",
-  "tour.task.done": "Zo is het.",
+  "tour.task.done": "Zo gaat dat.",
 
   "tour.hub.title": "Rondleidingen",
   "tour.hub.intro": "Twee wandelingen door Kindred, getoond op je eigen familie. Een rondleiding toont alleen: hij verandert nooit iets aan de gegevens van je familie.",

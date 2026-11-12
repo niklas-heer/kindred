@@ -80,4 +80,8 @@ export default {
   "update.health_check_failed": "De laatste controle mislukte op {date} ({error}).",
   "update.health_check_never": "Nog niet gecontroleerd.",
   "update.health_update": "Er is een nieuwere release beschikbaar: zie Updates.",
+  "update.health_ai": "AI op kosten van de serverbeheerder",
+  "update.health_ai_overage": { one: "Deze maand kostte {count} aanroep van de AI die jij betaalt {amount} meer dan ervoor was gereserveerd. Hij is volledig geboekt, dus de cijfers van de maand en beide limieten tellen hem mee.", other: "Deze maand kostten {count} aanroepen van de AI die jij betaalt {amount} meer dan ervoor was gereserveerd. Elke aanroep is volledig geboekt, dus de cijfers van de maand en beide limieten tellen ze mee." },
+  "update.health_ai_paused": { one: "Gepauzeerd voor {family} met {model} sinds {date}: {count} aanroep kostte {amount} meer dan gereserveerd. Aanroepen van de familie naar jouw AI met dat model worden geweigerd totdat je het bevestigt.", other: "Gepauzeerd voor {family} met {model} sinds {date}: {count} aanroepen kostten {amount} meer dan gereserveerd. Aanroepen van de familie naar jouw AI met dat model worden geweigerd totdat je het bevestigt." },
+  "update.health_ai_acknowledge": "Bevestigen en hervatten",
 } satisfies Strings<typeof en, "nl">;

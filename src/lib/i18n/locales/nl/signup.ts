@@ -166,4 +166,6 @@ export default {
   "signup.audit_settings": "De hostinginstellingen gewijzigd",
   "signup.audit_code_create": "Een aanmeldcode gemaakt",
   "signup.audit_code_revoke": "Een aanmeldcode ingetrokken",
+  "signup.password_button": "Maak je account en de familie",
+  "signup.sso_skips_wait": "Of begin meteen door in te loggen bij een aanbieder die je e-mailadres bevestigt:",
 } satisfies Strings<typeof en, "nl">;

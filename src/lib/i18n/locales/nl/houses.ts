@@ -230,4 +230,6 @@ export default {
   "houses.review.count": { one: "{count} huis om na te kijken", other: "{count} huizen om na te kijken" },
   "houses.review.neededTitle": "Huizen om na te kijken",
   "houses.review.neededText": "Alleen beheerders zien dit. Een huis staat in de lijst zolang zijn naam niet is onderzocht, zijn wapen een blik nodig heeft, of het nog een gegenereerd wapen draagt.",
+  "houses.story_about": "over {name}",
+  "houses.quote_of": "van {name}",
 } satisfies Strings<typeof en, "nl">;
