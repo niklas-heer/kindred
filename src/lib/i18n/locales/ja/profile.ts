@@ -3,4 +3,7 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/profile.ts";
 
 export default {
+  "profile.open": "プロフィール全体",
+  "profile.openTitle": "{name}のプロフィールを開く",
+  "profile.enlarge": "{name}の写真を大きく表示",
 } satisfies Strings<typeof en, "ja">;
