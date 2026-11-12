@@ -22,3 +22,5 @@ scratch
 .dagger
 e2e
 playwright.config.ts
+# The processing-agreement page renders this template (src/routes/processing-agreement.tsx imports it).
+!docs/processing-agreement.md

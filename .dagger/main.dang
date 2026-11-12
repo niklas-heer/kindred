@@ -24,6 +24,8 @@ type KindredCi {
     "!wrangler.jsonc",
     "!e2e",
     "!playwright.config.ts",
+    "!.github",
+    "!docs/processing-agreement.md",
   ])
 
   """
