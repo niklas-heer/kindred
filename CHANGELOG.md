@@ -7,7 +7,47 @@ moving to before you upgrade ([docs/self-host.md](docs/self-host.md), "Upgrading
 
 ## [Unreleased]
 
-Changes on `main` since 2.4.1. They are not in a release yet.
+Changes on `main` since 2.5.0. They are not in a release yet.
+
+## [2.5.0] - 2026-11-12
+
+Backups that test themselves, a gentle lifecycle for families nobody uses any more, and optional email. Accounts migrations
+0051 to 0057 are new since 2.4.1; read the [release notes](docs/releases/v2.5.0.md) before upgrading.
+
+Database changes, all in `migrations/accounts` and all adding tables or columns: `0051_backups.sql` (backup manifests,
+status and recovery points), `0052_family_lifecycle.sql` (where a quiet family stands, steward notices),
+`0053_email.sql` and `0054_email_reset.sql` (the email settings, verifications, sends, unsubscribes, reset by email),
+`0055_backup_restore_guards.sql` (recorded stewards, address claims), `0056_email_fixes.sql` (send limits per account and
+network, delivery of steward notices) and `0057_breach_notice_reach.sql` (whom a breach notice reached). On Node they are applied when the server starts;
+on Cloudflare `mise run deploy` applies them before the new Worker goes live.
+
+New settings: `KINDRED_BACKUP_KEY`, `KINDRED_BACKUP_DIR`, `KINDRED_MAIL_API_KEY`, `KINDRED_SMTP_PASSWORD`. Email needs
+`KINDRED_ORIGIN`. A new dependency, nodemailer, is used by the Node build only (SMTP).
+
+### Added
+- **Automatic backups.** Every family and the accounts database, every night, encrypted (AES-256-GCM, a key derived from
+  `KINDRED_SECRET` or `KINDRED_BACKUP_KEY`); on Node into the data folder (or `KINDRED_BACKUP_DIR`), on Cloudflare into R2
+  from each family's Durable Object (D1-bound families use Cloudflare's Time Travel). Kept 7 days, 4 weeks and 12 months by
+  calendar age. A weekly **restore drill** proves a backup restores; a **recovery point** is taken before a Durable Object
+  updates its schema. The new **Backups** tab restores a family into a new family (only for the stewards its backup
+  recorded) or over itself, and rolls a Durable Object family back to before an update. `scripts/backup-open.ts` opens a
+  backup offline.
+- **A lifecycle for quiet families**, off by default: stewards are warned after 12 months without a member's visit (in the
+  app, by push and by email), the family becomes read-only at 18 months (a steward turns it back on with one click) and is
+  due for deletion at 24, confirmed by the operator, or automatically after a final notice that reached a steward. A dry
+  run shows what it would do.
+- **Optional email** (Resend, Postmark, Mailgun with an EU region, or SMTP on Node), set up in the console's Email tab:
+  confirming your address, password reset by email to a confirmed address, sign-up codes that skip the waiting list,
+  security notices, invitations by email, and notices to operators, data requesters and stewards, in the reader's language,
+  with one-click unsubscribe for everything but security and breach notices. Limits per address, account, network and
+  server, with a reserve for security mail. The provider is listed as a subprocessor.
+- Breach notices record whom they reached and the daily job retries the rest.
+- 2.5.0's highlights in "New in Kindred".
+
+### Fixed
+- Stewards of a read-only family can export it again (GEDCOM and Markdown).
+- The Families page says a family is read-only for inactivity rather than suspended by the operator.
+- The operator console's red chips are readable in the Codex theme.
 
 ## [2.4.1] - 2026-11-12
 
@@ -486,7 +526,8 @@ on Node 26 with SQLite or on Cloudflare Workers with D1 and R2.
 Read the [release notes](docs/releases/v2.0.0.md) for the full list and for moving from v1 (also
 [docs/migration-plan.md](docs/migration-plan.md)). Cloudflare Access installs must set `KINDRED_AUTH=cloudflare-access` before deploying.
 
-[Unreleased]: https://github.com/niklas-heer/kindred/compare/v2.4.1...HEAD
+[Unreleased]: https://github.com/niklas-heer/kindred/compare/v2.5.0...HEAD
+[2.5.0]: https://github.com/niklas-heer/kindred/compare/v2.4.1...v2.5.0
 [2.4.1]: https://github.com/niklas-heer/kindred/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/niklas-heer/kindred/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/niklas-heer/kindred/compare/v2.2.0...v2.3.0

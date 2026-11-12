@@ -221,6 +221,11 @@ address suggestions and push, and may offer AI on the operator's own key with pe
 a **Health** tab shows the daily jobs and backups, and the console says when a new Kindred release is out; installs made with
 the Deploy button update with one click. The **Privacy** tab holds the record of processing, the subprocessors, the breach
 register and a retention job, and the server can offer a processing agreement ([template](docs/processing-agreement.md)).
+The server **backs every family up itself**, every night and encrypted, and a weekly restore test proves the backups
+work; the **Backups** tab restores a family or rolls it back to before an update (keep a copy of the backup key somewhere
+other than the server). Families nobody uses any more can be warned, made read-only and removed on a schedule the operator
+sets (off by default). **Email** is optional (Resend, Postmark, Mailgun or SMTP), set up in the console: confirmed
+addresses, password resets, security notices, invitations and notices to operators and stewards.
 Members see what is new in each release under **New in Kindred**. See [docs/hosting-many-families.md](docs/hosting-many-families.md). `KINDRED_DEMO=1` runs a read-only demo of the invented
 families that anyone can open without signing in ([docs/self-host.md](docs/self-host.md#a-public-demo)).
 
@@ -251,7 +256,7 @@ Exports leave some things out, so back up the databases and pictures as well.
 - [Reactions and comments](docs/responses.md): answering messages, memories and photographs
 - [GEDCOM and the Markdown archive](docs/exchange.md)
 - [The data model](docs/data-model.md)
-- [Changelog](CHANGELOG.md), [release notes for 2.0.0](docs/releases/v2.0.0.md), [2.3.0](docs/releases/v2.3.0.md) and [2.4.0](docs/releases/v2.4.0.md) and [moving from v1](docs/migration-plan.md)
+- [Changelog](CHANGELOG.md), [release notes for 2.0.0](docs/releases/v2.0.0.md), [2.3.0](docs/releases/v2.3.0.md), [2.4.0](docs/releases/v2.4.0.md) and [2.5.0](docs/releases/v2.5.0.md) and [moving from v1](docs/migration-plan.md)
 - [The model evaluations](docs/evals/README.md) behind the AI recommendations
 
 Version 2 is a web app that replaces the earlier Rust CLI and its Markdown archive. It is a migration, not an upgrade.
