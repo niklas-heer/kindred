@@ -3,6 +3,7 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/join.ts";
 
 export default {
+  "join.invite_title": "用你自己的账号加入家族",
   "join.invite_text": "有了自己的账号，你就能看到自己和每个人是什么关系，可以添加回忆和照片，收到生日提醒，还能参加家族的游戏。",
   "join.ask": "申请加入",
   "join.not_now": "暂时不要",

@@ -3,6 +3,7 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/families.ts";
 
 export default {
+  "families.storage_used": "写真と書類：{used}",
   "families.storage_used_of": "写真と書類：{cap}のうち{used}",
   "demo.banner": "これは架空の家族によるデモです。変更しても保存されません。",
   "demo.banner_link": "GitHubのKindred",

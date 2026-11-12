@@ -3,6 +3,7 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/whois.ts";
 
 export default {
+  "whois.title": "这是谁？",
   "whois.sub": "这些照片里还没有人被标注姓名。愿意的话，点一下人脸，告诉我们这是谁。",
   "whois.page_sub": "每次几张照片。你给出的姓名只是建议，要等有权标注照片的人同意后才算数。",
   "whois.entry": "为未标注的照片认人",

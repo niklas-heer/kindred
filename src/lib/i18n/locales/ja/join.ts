@@ -3,6 +3,7 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/join.ts";
 
 export default {
+  "join.invite_title": "ご自身のアカウントで家族に参加",
   "join.invite_text": "自分のアカウントがあれば、みんなとの続柄がわかり、思い出や写真を追加でき、誕生日のお知らせも届き、家族のゲームにも参加できます。",
   "join.ask": "参加をお願いする",
   "join.not_now": "今はしない",

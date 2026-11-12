@@ -3,6 +3,7 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/whois.ts";
 
 export default {
+  "whois.title": "これは誰？",
   "whois.sub": "まだ誰の名前もついていない写真です。気が向いたら顔をタップして、誰なのか教えてください。",
   "whois.page_sub": "数枚ずつ表示します。あなたがつけた名前は、写真にタグをつけられる人が同意するまで候補のままです。",
   "whois.entry": "タグのない写真の人物に名前をつける",

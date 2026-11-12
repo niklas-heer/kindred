@@ -3,6 +3,7 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/families.ts";
 
 export default {
+  "families.storage_used": "图片和文档：已用{used}",
   "families.storage_used_of": "图片和文档：已用{used}，共{cap}",
   "demo.banner": "这是一个使用虚构家族的演示。你做的任何更改都不会保存。",
   "demo.banner_link": "GitHub 上的 Kindred",

@@ -3,6 +3,7 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/presence.ts";
 
 export default {
+  "presence.here_now": "いま{count}人が来ています",
   "presence.list_title": "いま来ている人",
   "presence.list_hint": "いまKindredを開いている家族のメンバーです。",
   "presence.on_page": "{name}（{page}）",

@@ -3,6 +3,7 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/ai-stream.ts";
 
 export default {
+  "ai.stepFamily": "家族を調べています…",
   "ai.stepMissing": "足りない情報を確認しています…",
   "ai.stepHouses": "家系を見ています…",
   "ai.stepPhotos": "写真を見ています…",
