@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 
 // Moving a family into its Durable Object on Cloudflare, one step per request (src/lib/store/move.server.ts), sent by
 // scripts/import-to-do.ts with the session of the person doing it (docs/deploy-cloudflare.md, "Moving a family into a
-// Durable Object"). A family with stewards may be moved by them; one without by whoever may make families (mayCreate),
+// Durable Object"). A family with stewards may be moved by them or by an operator; one without by whoever may make families (mayCreate),
 // who becomes its steward when the move finishes, as when they make a family. Refused in a demo and in a "View as" preview.
 export const Route = createFileRoute('/api/move/$tree')({
   server: {
@@ -23,12 +23,13 @@ export const Route = createFileRoute('/api/move/$tree')({
           const user = await requireUser();
           refuseReadOnly();
           if (NOT_TREES.has(params.tree)) return json({ error: 'not found' }, 404);
-          // TODO(operator): once the operator role exists, requireOperator() decides this instead of the family's stewards.
-          // A family with stewards is theirs to move; one without (new here, or half-moved) whoever may make families.
+          // A family with stewards is theirs to move, and the server's operators may move it too (moving its storage is
+          // running the server, and an operator gains no membership by it); one without stewards (new here, or half-moved),
+          // whoever may make families, which includes the operators.
           const memberships = await myRealMemberships();
           const stewarded = !!(await accounts().get("SELECT 1 FROM membership WHERE tree = ? AND role = 'steward'", params.tree));
           const steward = memberships.some((m) => m.tree === params.tree && m.role === 'steward');
-          if (stewarded ? !steward : !(await fam.mayCreate(user, memberships))) throw fam.notAllowed();
+          if (stewarded ? !steward && user.operator !== 1 : !(await fam.mayCreate(user, memberships))) throw fam.notAllowed();
 
           const parsed = mv.moveStep.safeParse(await request.json().catch(() => null));
           if (!parsed.success) return json({ error: 'Send one step: begin, rows or finish.' }, 400);

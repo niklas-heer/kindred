@@ -401,8 +401,10 @@ step 3. Otherwise setup stops before it asks for a passkey, and says what to add
 `scripts/import-to-do.ts` copies a family into its Durable Object on the running Worker. A Durable Object can only be reached
 through its Worker, so the script reads the family on your machine and sends the rows to the Worker (`POST /api/move/<id>`),
 signed in as you: `KINDRED_SESSION` is the value of your `kindred_session` cookie on the site (the browser's developer tools,
-Application or Storage, Cookies). You must be a steward of the family, or, for a family that has no stewards there yet, someone
-who may make families (a steward of any family, or the first account); you then become its steward. It does not run in a demo.
+Application or Storage, Cookies). You must be a steward of the family or an operator of the server
+([hosting-many-families.md](hosting-many-families.md)), or, for a family that has no stewards there yet, someone who may make
+families; you then become its steward. It does not run in a demo. The pictures it copies are counted towards the family's
+storage at the next recount (the daily `storage` job, or Recount in the operator console).
 
 From a D1 database of the same install (an older install moving its families over):
 
