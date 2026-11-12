@@ -24,7 +24,7 @@ export const en = {
   "pw.err.operator_needs_totp": "Turn on two-step codes for your account first: an operator who signs in with a password needs them.",
   "pw.err.last_way_in": "This is your only way in. Add another before removing it.",
   "pw.err.totp_on": "Two-step codes are already on.",
-  "pw.err.operator_totp": "As an operator whose only way in is a password, you keep two-step codes on.",
+  "pw.err.operator_totp": "As an operator with a password, you keep two-step codes on.",
   "pw.err.no_account": "No account has that username or email address.",
   "pw.err.no_proof": "This account has no way to confirm it’s you here.",
   "pw.proof_cancelled": "Cancelled.",
@@ -122,4 +122,7 @@ export const en = {
   "pw.reset_link_for": "Reset link for {name}, until {time}",
   "pw.audit_methods": "Changed the ways in",
   "pw.audit_reset_link": "Made a password reset link",
+  "pw.err.operator_password_totp": "As an operator, turn on two-step codes before you set a password.",
+  "pw.operator_totp_first": "As an operator, turn on two-step codes first; then you can add a password.",
+  "pw.recovery_renew": "Your recovery codes are stored the old way. Make new ones and keep those instead.",
 } as const;

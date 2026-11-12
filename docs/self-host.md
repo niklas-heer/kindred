@@ -127,8 +127,10 @@ Any combination works. A fresh install and an upgrade offer passkeys only, so up
   try back. An unknown username gets the same answer as a wrong password, after the same work. Two-step and recovery codes
   count too, and "this username is taken" costs the network a try, so usernames cannot be listed by trying them.
 - **Two-step codes** (an authenticator app, TOTP) are optional for everyone, set up from the account menu, and each code works
-  once. An operator who signs in with a password reaches the console only with them on. Turning them on gives ten one-use
-  **recovery codes**.
+  once. An operator's password goes with them: an operator turns them on before adding a password and keeps them while it has
+  one, reaches the console with a password only with them on, and a password typed without its code is never an operator's
+  proof (for adding a passkey or a change in the console). An account with a password but no codes is not made an operator.
+  Turning them on gives ten one-use **recovery codes**, stored under a hash keyed from `KINDRED_SECRET`.
 - **Forgotten passwords**: there is no email. A recovery code (with the app's code, when two-step codes are on) sets a new password
   from the sign-in page; a passkey on the account still signs in; or an operator makes a **one-hour reset link** in the console's
   Sign-in tab (it needs their fresh proof, is in the audit log, may also turn two-step codes off for a lost phone, and changes

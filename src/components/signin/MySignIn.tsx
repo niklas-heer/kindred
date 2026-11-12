@@ -1,7 +1,7 @@
 // The account menu's password section (in "Your name & passkeys"): set or change the password (the first one also picks the
 // username, which links this way in to the account), remove it, turn two-step codes on or off, and make new recovery codes.
 // Every change asks for a fresh proof first (withFreshProof). Shown only while the server offers passwords, or while the
-// reader still has one to remove.
+// reader still has one to remove. An operator turns two-step codes on before adding a password (proof.server.ts).
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, KeyRound, ShieldCheck, Trash2 } from 'lucide-react';
 import { useId, useState } from 'react';
@@ -59,6 +59,8 @@ export function MySignIn({ open }: { open: boolean }) {
   if (!offered && !d.password) return null;
   // Another way in remains without the password: a passkey the server accepts, or a single sign-on provider.
   const otherWay = (d.passkeys > 0 && d.methods.includes('passkey')) || d.oidc > 0;
+  // An operator's password goes with two-step codes: those come first, and stay while the password does.
+  const totpFirst = d.operator && !d.totp && !d.password;
   const busy = save.isPending || remove.isPending || begin.isPending || confirm.isPending || stop.isPending || renew.isPending;
 
   return (
@@ -80,7 +82,7 @@ export function MySignIn({ open }: { open: boolean }) {
         </form>
       ) : offered && (
         <div className="families-row">
-          <button className="btn acct-add" onClick={() => { setError(null); setEditing(true); }} disabled={busy}>
+          <button className="btn acct-add" onClick={() => { setError(null); setEditing(true); }} disabled={busy || totpFirst} title={totpFirst ? t('pw.operator_totp_first') : undefined}>
             <KeyRound size={16} /> {d.password ? t('pw.change_password') : t('pw.add_password')}
           </button>
           {d.password && (
@@ -91,9 +93,10 @@ export function MySignIn({ open }: { open: boolean }) {
           )}
         </div>
       )}
+      {totpFirst && offered && <p className="acct-help">{t('pw.operator_totp_first')}</p>}
       {save.isSuccess && !editing && <p className="acct-ok" role="status"><Check size={15} /> {t('pw.saved')}</p>}
 
-      {d.password && offered && <>
+      {(d.password || d.operator) && offered && <>
         <h3 className="acct-h">{t('pw.totp_section')}</h3>
         <p className="acct-help">{d.totp ? t('pw.totp_on') : t('pw.totp_off')}</p>
         {totpSetup ? (
@@ -115,12 +118,13 @@ export function MySignIn({ open }: { open: boolean }) {
         ) : d.totp ? (
           <div className="families-row">
             <button className="btn acct-add" onClick={() => { setError(null); renew.mutate(); }} disabled={busy}><ShieldCheck size={16} /> {t('pw.new_codes')}</button>
-            <button className="btn ghost acct-add" onClick={() => { setError(null); stop.mutate(); }} disabled={busy}>{t('pw.totp_turn_off')}</button>
+            {!(d.operator && d.password) && <button className="btn ghost acct-add" onClick={() => { setError(null); stop.mutate(); }} disabled={busy}>{t('pw.totp_turn_off')}</button>}
           </div>
         ) : (
           <button className="btn acct-add" onClick={() => { setError(null); begin.mutate(); }} disabled={busy}><ShieldCheck size={16} /> {t('pw.totp_turn_on')}</button>
         )}
         {d.totp && <p className="acct-help">{t('pw.codes_left', { count: d.recoveryLeft })}</p>}
+        {d.recoveryRenew && <p className="acct-help" role="note">{t('pw.recovery_renew')}</p>}
       </>}
 
       <Dialog open={!!codes} onClose={() => setCodes(null)} title={t('pw.codes_title')} description={t('pw.codes_lede')} width={440}

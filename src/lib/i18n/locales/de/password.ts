@@ -26,7 +26,7 @@ export default {
   "pw.err.operator_needs_totp": "Schalte zuerst Bestätigungscodes für dein Konto ein: Wer den Server betreibt und sich mit Passwort anmeldet, braucht sie.",
   "pw.err.last_way_in": "Das ist dein einziger Weg hinein. Füge zuerst einen anderen hinzu.",
   "pw.err.totp_on": "Bestätigungscodes sind schon an.",
-  "pw.err.operator_totp": "Da du den Server betreibst und dich nur mit Passwort anmeldest, bleiben deine Bestätigungscodes an.",
+  "pw.err.operator_totp": "Da du den Server betreibst und ein Passwort hast, bleiben deine Bestätigungscodes an.",
   "pw.err.no_account": "Kein Konto hat diesen Benutzernamen oder diese E-Mail-Adresse.",
   "pw.err.no_proof": "Dieses Konto kann hier nicht bestätigen, dass du es bist.",
   "pw.proof_cancelled": "Abgebrochen.",
@@ -124,4 +124,7 @@ export default {
   "pw.reset_link_for": "Link zum Zurücksetzen für {name}, bis {time}",
   "pw.audit_methods": "Anmeldewege geändert",
   "pw.audit_reset_link": "Link zum Zurücksetzen des Passworts erstellt",
+  "pw.err.operator_password_totp": "Als Betreiber des Servers schaltest du zuerst Bestätigungscodes ein, bevor du ein Passwort festlegst.",
+  "pw.operator_totp_first": "Als Betreiber des Servers schaltest du zuerst Bestätigungscodes ein; danach kannst du ein Passwort hinzufügen.",
+  "pw.recovery_renew": "Deine Wiederherstellungscodes sind noch auf die alte Art gespeichert. Erstelle neue und bewahre stattdessen diese auf.",
 } satisfies Strings<typeof en, "de">;

@@ -234,4 +234,5 @@ export const en = {
   "request.full": "Too many requests are waiting for an answer just now, so this form is closed for now. Please try again in a few days.",
   "privacyreq.full": "Too many requests are waiting for an answer just now, so this form is closed for now.",
   "privacyreq.full_write": "You can still write to the operator:",
+  "operator.err.needs_totp": "That account has a password but no two-step codes. They turn the codes on first, then it can be made an operator.",
 };

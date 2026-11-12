@@ -260,8 +260,10 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 - **`totp`** (0040): an account's two-step codes: `secret_sealed` (AES-GCM under a key from `KINDRED_SECRET` and the account),
   `last_step` (the last 30-second step used: a code is accepted only for a later step, in one statement, so it works once),
   `created`, and `confirmed_at` (NULL while being set up). Goes with the account.
-- **`recovery_code`** (0040): ten per account, `hash` only (SHA-256 of the account and the code; codes are 50 random bits),
-  `created` and `used_at` (one use: the update that sets it is the check). Replaced by a new set; goes with the account.
+- **`recovery_code`** (0040): ten per account, `hash` only (`h1:` and an HMAC of the account and the code keyed from
+  `KINDRED_SECRET`, as the passwords' pepper; codes are 50 random bits), `created` and `used_at` (one use: the update that sets
+  it is the check). Codes made before that are a plain SHA-256 with no prefix: they still work once each, and the account menu
+  asks for new ones. Replaced by a new set; goes with the account.
 - **`auth_attempt`** (0040): password, two-step and recovery-code tries per `key`: `u:` and a hash of the username (known or
   not), `p:` and a hash of the username with the network, `n:` and a hash of the network, or `all` for the server.
   `window_start`, `count`, and `level` (each lockout of a `p:` key doubles its next window, up to 16 hours). Every try is counted

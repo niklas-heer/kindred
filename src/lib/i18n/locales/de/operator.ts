@@ -236,4 +236,5 @@ export default {
   "request.full": "Gerade warten zu viele Anfragen auf eine Antwort, deshalb ist dieses Formular vorerst geschlossen. Versuche es in ein paar Tagen wieder.",
   "privacyreq.full": "Gerade warten zu viele Anfragen auf eine Antwort, deshalb ist dieses Formular vorerst geschlossen.",
   "privacyreq.full_write": "Du kannst trotzdem an den Serverbetrieb schreiben:",
+  "operator.err.needs_totp": "Dieses Konto hat ein Passwort, aber keine Bestätigungscodes. Die Person schaltet die Codes zuerst ein, dann kann sie den Server mitbetreiben.",
 } satisfies Strings<typeof en, "de">;

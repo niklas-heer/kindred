@@ -209,3 +209,57 @@ test('an operator whose only way in is a password keeps two-step codes on', asyn
   await mine.confirmMyTotp(req, olu, await totp.codeAt(secret, totp.stepAt(Date.now())));
   await assert.rejects(mine.stopMyTotp(req, olu), /pw\.err\.operator_totp/);
 });
+
+// ---------- council round 7: an operator's password is never enough on its own ----------
+
+test('an operator with a passkey and a password but no two-step codes: the password signs in, but proves nothing (no passkey, no console)', async () => {
+  await setMethods(['passkey', 'password']);
+  const olu = await account('Olu Operator', { passkey: 'k-olu', username: 'olu', operator: true });
+  // Someone who learned the password signs in with it: the session starts as a password sign-in that counts as a proof.
+  const req = await proved(olu, 'password');
+  const refusedProof = (e: { code?: string; message?: string }) => e.code === 'reauth' || /pw\.err\.operator_needs_totp/.test(e.message ?? '');
+  await assert.rejects(proof.requireFreshProof(req, olu), refusedProof, 'a password-only proof is no proof for an operator');
+  await assert.rejects(passkeys.addOptions(req, olu), refusedProof, 'so it cannot add a passkey of its own');
+  // Typing the password again does not make it one either.
+  await assert.rejects(proof.finishPasswordProof(req, olu, { password: GOOD }, { ip: '203.0.113.9' }).then(() => proof.requireFreshProof(req, olu)), refusedProof);
+  await assert.rejects(passkeys.addOptions(req, olu), refusedProof);
+  assert.equal((await proof.proofKinds(olu)).password, false, 'the browser is not offered the password as a proof');
+  // A passkey proof still works for the real operator.
+  await proof.requireFreshProof(await proved(olu, 'passkey', 'k-olu'), olu);
+});
+
+test('an operator may not set a password without two-step codes, nor turn them off while keeping one', async () => {
+  await setMethods(['passkey', 'password']);
+  const olu = await account('Olu Operator', { passkey: 'k-olu', operator: true });
+  const req = await proved(olu, 'passkey', 'k-olu');
+  await assert.rejects(mine.setMyPassword(req, olu, { username: 'olu', password: 'linking a password now' }), /pw\.err\.operator_password_totp/);
+  // Two-step codes first (an operator may set them up before a password), then the password.
+  const { secret } = await mine.startMyTotp(req, olu);
+  const totp = await import('./totp.server.ts');
+  await mine.confirmMyTotp(req, olu, await totp.codeAt(secret, totp.stepAt(Date.now())));
+  assert.deepEqual(await mine.setMyPassword(req, olu, { username: 'olu', password: 'linking a password now' }), { username: 'olu' });
+  const withPw = (await store.userById(olu.id))!;
+  await assert.rejects(mine.stopMyTotp(req, withPw), /pw\.err\.operator_totp/, 'not while the password stays, passkey or not');
+  assert.equal((await mine.mySignIn(req, withPw)).operator, true);
+});
+
+test('an operator with two-step codes: the password and its code together are a proof', async () => {
+  await setMethods(['passkey', 'password']);
+  const olu = await account('Olu Operator', { passkey: 'k-olu', username: 'olu', operator: true });
+  const totp = await import('./totp.server.ts');
+  const secret = (await totp.beginTotp(olu.id)) as string;
+  await totp.consumeTotp(olu.id, await totp.codeAt(secret, totp.stepAt(Date.now()) - 1), { pending: true });
+  const req = await proved(olu, 'password');
+  await proof.finishPasswordProof(req, olu, { password: GOOD, code: await totp.codeAt(secret, totp.stepAt(Date.now())) }, { ip: '203.0.113.9' });
+  await proof.requireFreshProof(req, olu);
+});
+
+test('an account with a password but no two-step codes cannot be made an operator', async () => {
+  await setMethods(['passkey', 'password']);
+  const op = await account('Olu Operator', { passkey: 'k-olu', operator: true });
+  const bo = await account('Bo Testfield', { username: 'bo.t' });
+  await store.accounts().run("UPDATE user SET email = 'bo@example.org' WHERE id = ?", bo.id);
+  const { addOperator } = await import('../operator/operator.server.ts');
+  await assert.rejects(addOperator(op, 'bo@example.org'), /two-step codes/);
+  assert.equal((await store.userById(bo.id))!.operator, 0);
+});

@@ -26,7 +26,7 @@ export default {
   "pw.err.operator_needs_totp": "Skakel eers bevestigingskodes vir jou rekening aan: ’n operateur wat met ’n wagwoord aanmeld, het hulle nodig.",
   "pw.err.last_way_in": "Dit is jou enigste manier om in te kom. Voeg eers ’n ander een by.",
   "pw.err.totp_on": "Bevestigingskodes is reeds aan.",
-  "pw.err.operator_totp": "As operateur wie se enigste manier om in te kom ’n wagwoord is, hou jy bevestigingskodes aan.",
+  "pw.err.operator_totp": "As operateur met ’n wagwoord hou jy bevestigingskodes aan.",
   "pw.err.no_account": "Geen rekening het daardie gebruikersnaam of e-posadres nie.",
   "pw.err.no_proof": "Hierdie rekening kan nie hier bevestig dat dit jy is nie.",
   "pw.proof_cancelled": "Gekanselleer.",
@@ -124,4 +124,7 @@ export default {
   "pw.reset_link_for": "Herstelskakel vir {name}, tot {time}",
   "pw.audit_methods": "Het die aanmeldmetodes verander",
   "pw.audit_reset_link": "Het ’n wagwoord-herstelskakel gemaak",
+  "pw.err.operator_password_totp": "As operateur skakel jy eers bevestigingskodes aan voordat jy ’n wagwoord stel.",
+  "pw.operator_totp_first": "As operateur skakel jy eers bevestigingskodes aan; daarna kan jy ’n wagwoord byvoeg.",
+  "pw.recovery_renew": "Jou herstelkodes is nog op die ou manier gestoor. Maak nuwes en hou eerder dié.",
 } satisfies Strings<typeof en, "af">;

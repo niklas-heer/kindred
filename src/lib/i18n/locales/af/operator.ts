@@ -236,4 +236,5 @@ export default {
   "request.full": "Te veel versoeke wag nou op 'n antwoord, so hierdie vorm is vir eers toe. Probeer asseblief oor 'n paar dae weer.",
   "privacyreq.full": "Te veel versoeke wag nou op 'n antwoord, so hierdie vorm is vir eers toe.",
   "privacyreq.full_write": "Jy kan steeds aan die operateur skryf:",
+  "operator.err.needs_totp": "Hierdie rekening het ’n wagwoord maar geen bevestigingskodes nie. Die persoon skakel eers die kodes aan, dan kan dit ’n operateur word.",
 } satisfies Strings<typeof en, "af">;

@@ -4,8 +4,8 @@
 // A way in is added only from a signed-in session like this, never by matching an email.
 //
 // An account always keeps a way in the server accepts: a password goes only while a passkey (with passkeys on) remains, and
-// the last passkey only while a password (with passwords on) remains (store.server.ts, removeCredential). An operator who
-// signs in with a password keeps two-step codes on (guard.server.ts, requireOperator, asks for them).
+// the last passkey only while a password (with passwords on) remains (store.server.ts, removeCredential). An operator's
+// password goes with two-step codes: set only once they are on, and they stay on while it does (proof.server.ts).
 import { AuthError } from './errors.ts';
 import { authMethod } from './method.server.ts';
 import { enabledMethods, hasWayIn } from './methods.server.ts';
@@ -14,7 +14,7 @@ import { checkNewPassword, cleanUsername, passwordAllowed, passwordOf, passwordW
 import { requireFreshProof } from './proof.server.ts';
 import { sessionOf } from './session.server.ts';
 import { accounts, credentialsOf, guard, isGuardError, q, type UserRow } from './store.server.ts';
-import { beginTotp, newRecoveryCodes, otpauthUri, recoveryLeft, removeTotp, totpOf, consumeTotp } from './totp.server.ts';
+import { beginTotp, newRecoveryCodes, otpauthUri, recoveryLeft, recoveryNeedsRenewal, removeTotp, totpOf, totpOn, consumeTotp } from './totp.server.ts';
 import { refuseReadOnly } from '../read-only.ts';
 import { instanceSettings } from '../operator/settings.server.ts';
 
@@ -32,24 +32,29 @@ export interface MySignIn {
   passkeys: number;
   /** Single sign-on providers the account uses that are on (0 while single sign-on is off). */
   oidc: number;
+  /** An operator: a password needs two-step codes first. */
+  operator: boolean;
+  /** Unused recovery codes stored the old way: the account is asked to make new ones. */
+  recoveryRenew: boolean;
 }
 
 export async function mySignIn(request: Request, user: UserRow): Promise<MySignIn> {
-  const [methods, pw, totp, left, keys, session, oidc] = await Promise.all([
+  const [methods, pw, totp, left, keys, session, oidc, renew] = await Promise.all([
     enabledMethods(), passwordOf(user.id), totpOf(user.id), recoveryLeft(user.id), credentialsOf(user.id), sessionOf(request),
     accounts().get<{ n: number }>('SELECT count(*) AS n FROM oidc_identity o JOIN auth_provider p ON p.id = o.provider WHERE o.user = ? AND p.enabled = 1', user.id),
+    recoveryNeedsRenewal(user.id),
   ]);
   return {
     methods, current: session ? ((session.method as SignInMethod | null) ?? 'passkey') : null, username: user.username ?? null,
     password: pw ? { setAt: pw.set_at } : null, totp: !!totp?.confirmed_at, recoveryLeft: left, passkeys: keys.length,
-    oidc: methods.includes('oidc') ? oidc?.n ?? 0 : 0,
+    oidc: methods.includes('oidc') ? oidc?.n ?? 0 : 0, operator: user.operator === 1, recoveryRenew: renew,
   };
 }
 
 /** A change to the reader's ways in: passwords on, a fresh proof, and nothing read-only about the request. */
-async function changing(request: Request, user: UserRow): Promise<void> {
+async function changing(request: Request, user: UserRow, o: { forTotp?: boolean } = {}): Promise<void> {
   await passwordAllowed(request);
-  await requireFreshProof(request, user);
+  await requireFreshProof(request, user, o);
 }
 
 /**
@@ -58,6 +63,8 @@ async function changing(request: Request, user: UserRow): Promise<void> {
  */
 export async function setMyPassword(request: Request, user: UserRow, input: { username?: unknown; password?: unknown }): Promise<{ username: string }> {
   await changing(request, user);
+  // An operator's password is never enough alone: two-step codes come first.
+  if (user.operator === 1 && !(await totpOn(user.id))) throw invalid('pw.err.operator_password_totp');
   const username = user.username ?? cleanUsername(input.username);
   const password = checkNewPassword(input.password, username);
   if (!user.username) await requireFreeUsername(username);
@@ -95,30 +102,29 @@ export async function removeMyPassword(request: Request, user: UserRow): Promise
   }
 }
 
-/** Starts two-step codes: a new secret to type into an authenticator app, and its link. Needs a password. */
+/** Starts two-step codes: a new secret to type into an authenticator app, and its link. Needs a password (an operator's come first). */
 export async function startMyTotp(request: Request, user: UserRow): Promise<{ secret: string; uri: string }> {
-  await changing(request, user);
-  if (!(await passwordOf(user.id)) || !user.username) throw invalid('pw.err.no_password');
+  await changing(request, user, { forTotp: true });
+  if (user.operator !== 1 && (!(await passwordOf(user.id)) || !user.username)) throw invalid('pw.err.no_password');
   const secret = await beginTotp(user.id);
   if (!secret) throw invalid('pw.err.totp_on');
   const issuer = (await instanceSettings()).instanceName.trim() || 'Kindred';
-  return { secret, uri: otpauthUri(issuer, user.username, secret) };
+  return { secret, uri: otpauthUri(issuer, user.username ?? user.name, secret) };
 }
 
 /** Confirms two-step codes with the first code the app shows. Returns the ten recovery codes, shown once. */
 export async function confirmMyTotp(request: Request, user: UserRow, code: unknown): Promise<{ codes: string[] }> {
-  await changing(request, user);
+  await changing(request, user, { forTotp: true });
   if (typeof code !== 'string' || !(await consumeTotp(user.id, code, { pending: true }))) throw invalid('pw.err.code');
   const { codes, writes } = await newRecoveryCodes(user.id);
   await accounts().batch(writes);
   return { codes };
 }
 
-/** Turns two-step codes off. An operator whose only way in is the password keeps them. */
+/** Turns two-step codes off. An operator keeps them while the account has a password. */
 export async function stopMyTotp(request: Request, user: UserRow): Promise<void> {
   await changing(request, user);
-  const passkeysOn = (await enabledMethods()).includes('passkey');
-  if (user.operator === 1 && !(passkeysOn && (await credentialsOf(user.id)).length)) throw invalid('pw.err.operator_totp');
+  if (user.operator === 1 && (await passwordOf(user.id))) throw invalid('pw.err.operator_totp');
   await accounts().batch([removeTotp(user.id)]);
 }
 

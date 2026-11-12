@@ -183,6 +183,9 @@ export async function addOperator(op: UserRow, email: string): Promise<void> {
   const target = await accounts().get<{ id: string; name: string; operator: number }>('SELECT id, name, operator FROM user WHERE email = ?', email.trim());
   if (!target) throw invalid('operator.err_no_account');
   if (target.operator === 1) return;
+  // An operator's password goes with two-step codes (src/lib/auth/proof.server.ts): turned on first.
+  const [{ passwordOf }, { totpOn }] = await Promise.all([import('../auth/password.server.ts'), import('../auth/totp.server.ts')]);
+  if ((await passwordOf(target.id)) && !(await totpOn(target.id))) throw invalid('operator.err.needs_totp');
   await accounts().batch([
     q('UPDATE user SET operator = 1 WHERE id = ?', target.id),
     audit(actor(op), 'operator.add', null, { account: target.id, name: target.name }),

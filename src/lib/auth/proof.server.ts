@@ -8,15 +8,19 @@
 // on (accounts migration 0040, `session.proved_via`), or by signing in again at a single sign-on provider it uses (accounts
 // migration 0046; oidc.server.ts asks the provider with `max_age=0` and checks `auth_time`): so deleting a family and the other
 // steps that ask for a proof work for every account. `proofKinds` tells the browser which to ask for.
+//
+// An operator's password alone proves nothing: for an operator, a proof by password counts only with two-step codes on (the
+// code was then part of it), so someone who learned an operator's password cannot add a passkey of their own or change the
+// console. The one exception is setting up those codes when the password is the account's only way in (`forTotp`).
 import { generateAuthenticationOptions, verifyAuthenticationResponse, type AuthenticationResponseJSON } from '@simplewebauthn/server';
 import { AuthError, needsProof } from './errors.ts';
 import { authMethod } from './method.server.ts';
-import { enabledMethods, requireMethod } from './methods.server.ts';
+import { enabledMethods, hasWayIn, requireMethod } from './methods.server.ts';
 import { checkOwnPassword, passwordOf, type Attempt } from './password.server.ts';
 import type { PublicProvider } from './oidc.ts';
 import { totpOn } from './totp.server.ts';
 import { sessionOf, siteOrigin } from './session.server.ts';
-import { credentialById, credentialsOf, credentialUsed, now, saveChallenge, sessionProved, takeChallenge, type UserRow } from './store.server.ts';
+import { accounts, credentialById, credentialsOf, credentialUsed, now, saveChallenge, sessionProved, takeChallenge, type UserRow } from './store.server.ts';
 
 /** How long a proof lasts. */
 export const PROOF_MS = 5 * 60_000;
@@ -35,11 +39,30 @@ async function ownSession(request: Request, user: UserRow) {
   return s;
 }
 
-/** Refuses unless this session proved itself (a passkey, or the password) within `PROOF_MS`. The browser then asks and tries again. */
-export async function requireFreshProof(request: Request, user: UserRow): Promise<void> {
+/** Whether the account has a way in besides its password that the server accepts (a passkey, a single sign-on provider). */
+export async function otherWayIn(user: string): Promise<boolean> {
+  const others = (await enabledMethods()).filter((m) => m !== 'password');
+  return !!(await accounts().get(`SELECT 1 FROM user u WHERE u.id = ? AND ${hasWayIn(others)}`, user));
+}
+
+/** An operator without two-step codes, whose only proof would be the password. */
+const operatorNeedsTotp = () => new AuthError('forbidden', 'pw.err.operator_needs_totp');
+
+/**
+ * Refuses unless this session proved itself (a passkey, the password, a provider) within `PROOF_MS`. The browser then asks
+ * and tries again. An operator's proof by password counts only with two-step codes on; `forTotp`: setting them up, which an
+ * operator whose only way in is the password may do with it.
+ */
+export async function requireFreshProof(request: Request, user: UserRow, { forTotp = false }: { forTotp?: boolean } = {}): Promise<void> {
   needPasskeys();
   const s = await ownSession(request, user);
   if (s.proved === null || now() - s.proved > PROOF_MS) throw needsProof();
+  if (user.operator === 1 && s.proved_via === 'password' && !(await totpOn(user.id))) {
+    const other = await otherWayIn(user.id);
+    if (forTotp && !other) return;
+    // With a passkey or a provider, the browser asks for that instead; with the password alone, codes come first.
+    throw other ? needsProof() : operatorNeedsTotp();
+  }
 }
 
 /**
@@ -51,7 +74,9 @@ export async function proofKinds(user: UserRow): Promise<{ passkey: boolean; pas
   const [methods, keys, pw, totp, oidc] = await Promise.all([
     enabledMethods(), credentialsOf(user.id), passwordOf(user.id), totpOn(user.id), import('./oidc.server.ts').then((m) => m.proofProviders(user)),
   ]);
-  return { passkey: methods.includes('passkey') && keys.length > 0, password: methods.includes('password') && !!pw, totp, oidc };
+  // An operator's password is a proof only with its code (or when it is all the account has: setting up the codes).
+  const passwordCounts = user.operator !== 1 || totp || !(await otherWayIn(user.id));
+  return { passkey: methods.includes('passkey') && keys.length > 0, password: methods.includes('password') && !!pw && passwordCounts, totp, oidc };
 }
 
 /** The proof by password: the password typed again on this session (and the two-step code, when on). */
