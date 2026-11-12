@@ -3,4 +3,8 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/profile.ts";
 
 export default {
+  "profile.showInTree": "Mostrar en el árbol",
+  "profile.open": "Perfil completo",
+  "profile.openTitle": "Abrir el perfil completo de {name}",
+  "profile.enlarge": "Ver en grande la imagen de {name}",
 } satisfies Strings<typeof en, "es">;

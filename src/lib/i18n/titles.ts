@@ -5,20 +5,20 @@ import type { Locale } from "./types.ts";
  * word (`node scripts/i18n-check.ts` lists the gaps); a word without one stays English.
  */
 export const TITLE_WORDS: Record<string, Partial<Record<Exclude<Locale, "en">, string>>> = {
-  "Sign in": { de: "Anmelden", af: "Meld aan" },
-  "Set up": { de: "Einrichten", af: "Stel op" },
-  Invitation: { de: "Einladung", af: "Uitnodiging" },
-  Almanac: { de: "Kalender", af: "Almanak" },
-  Contacts: { de: "Kontakte", af: "Kontakte" },
-  Register: { de: "Verzeichnis", af: "Register" },
-  Houses: { de: "Häuser", af: "Huise" },
-  Needed: { de: "Fehlende Angaben", af: "Inligting nodig" },
-  "Information needed": { de: "Fehlende Angaben", af: "Inligting nodig" },
-  Chronicle: { de: "Chronik", af: "Kroniek" },
-  Gallery: { de: "Galerie", af: "Galery" },
-  Access: { de: "Zugang", af: "Toegang" },
-  Statistics: { de: "Statistik", af: "Statistiek" },
-  Tree: { de: "Stammbaum", af: "Stamboom" },
+  "Sign in": { de: "Anmelden", af: "Meld aan", es: "Iniciar sesión" },
+  "Set up": { de: "Einrichten", af: "Stel op", es: "Configurar" },
+  Invitation: { de: "Einladung", af: "Uitnodiging", es: "Invitación" },
+  Almanac: { de: "Kalender", af: "Almanak", es: "Almanaque" },
+  Contacts: { de: "Kontakte", af: "Kontakte", es: "Contactos" },
+  Register: { de: "Verzeichnis", af: "Register", es: "Registro" },
+  Houses: { de: "Häuser", af: "Huise", es: "Casas" },
+  Needed: { de: "Fehlende Angaben", af: "Inligting nodig", es: "Pendientes" },
+  "Information needed": { de: "Fehlende Angaben", af: "Inligting nodig", es: "Datos pendientes" },
+  Chronicle: { de: "Chronik", af: "Kroniek", es: "Crónica" },
+  Gallery: { de: "Galerie", af: "Galery", es: "Galería" },
+  Access: { de: "Zugang", af: "Toegang", es: "Acceso" },
+  Statistics: { de: "Statistik", af: "Statistiek", es: "Estadísticas" },
+  Tree: { de: "Stammbaum", af: "Stamboom", es: "Árbol genealógico" },
 };
 
 /** The English word a title part stands for, whichever language it is written in. */

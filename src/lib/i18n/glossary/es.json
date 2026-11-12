@@ -30,6 +30,7 @@
     "member": {
       "use": "miembro, miembros",
       "accept": [
+        "familiar",
         "miembro"
       ]
     },
@@ -246,6 +247,15 @@
       ]
     }
   },
-  "sameAsEnglish": [],
-  "ownWords": []
+  "sameAsEnglish": [
+    "edit.no",
+    "chat.no",
+    "history.v.no",
+    "oidc.kind_entra",
+    "feedback.key_mod",
+    "signup.ready_turnstile"
+  ],
+  "ownWords": [
+    "has"
+  ]
 }
