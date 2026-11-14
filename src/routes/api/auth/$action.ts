@@ -17,6 +17,8 @@ const ACTIONS = new Set([
   'signup-options', 'signup', 'signup-password',
   // Single sign-on (src/lib/auth/oidc.server.ts): starts a flow and answers with the provider's address to go to.
   'oidc-start',
+  // A code by email (src/lib/auth/email-code.server.ts): asking sets this browser's cookie, which the code is bound to.
+  'email-code-request', 'email-code', 'email-code-second',
 ]);
 
 export const Route = createFileRoute('/api/auth/$action')({
@@ -46,7 +48,8 @@ export const Route = createFileRoute('/api/auth/$action')({
           ((action === 'invite-options' || action === 'password-invite') && !allow(`invite:${ip}`, 20, 10 * 60_000)) ||
           (action === 'password-setup' && (!allow(`setup:${ip}`, 5, 60_000) || !allow('setup:all', 20, 10 * 60_000))) ||
           ((action === 'signup-options' || action === 'signup-password') && !allow(`signup:${ip}`, 10, 10 * 60_000)) ||
-          (action === 'oidc-start' && !allow(`oidc:${ip}`, 30, 10 * 60_000));
+          (action === 'oidc-start' && !allow(`oidc:${ip}`, 30, 10 * 60_000)) ||
+          (action === 'email-code-request' && !allow(`email-code:${ip}`, 10, 10 * 60_000));
         if (limited) return json({ error: 'Too many attempts. Please wait a minute and try again.' }, 429);
 
         const body = (await request.json().catch(() => null)) as Record<string, any> | null;
@@ -65,6 +68,11 @@ export const Route = createFileRoute('/api/auth/$action')({
           if (allowed !== 'ok') throw new AuthError('invalid', allowed === 'pending' ? 'join.err_signin_pending' : 'join.err_signin_expired');
           return json({ ok: true }, 200, await s.startSession(request, user, null, true, 'password'));
         };
+
+        const code = () => import('~/lib/auth/email-code.server');
+        /** A code's sign-in as the browser receives it: done, or a ticket for the two-step code. */
+        const codeAnswer = (r: import('~/lib/auth/email-code.server').CodeSignIn) =>
+          json(r.kind === 'second' ? { step: 'code', ticket: r.ticket } : { ok: true }, 200, r.cookies);
 
         try {
           switch (action) {
@@ -142,6 +150,15 @@ export const Route = createFileRoute('/api/auth/$action')({
             case 'confirm-password':
               await (await proof()).finishPasswordProof(request, await requireUser(), body, await attempt());
               return json({ ok: true });
+            case 'email-code-request': {
+              const { cookie } = await (await code()).requestSignInCode(request, body.email, ip);
+              return json({ ok: true }, 200, cookie);
+            }
+            // An account with two-step codes still gives one (password.server.ts, stepTicket).
+            case 'email-code':
+              return codeAnswer(await (await code()).signInWithCode(request, body.code, ip));
+            case 'email-code-second':
+              return codeAnswer(await (await code()).signInCodeSecondStep(request, body, ip));
             case 'oidc-start': {
               // Adding a provider to the account and a fresh proof belong to the signed-in reader; the guard also makes a
               // "View as" preview's request read-only, which the start refuses.

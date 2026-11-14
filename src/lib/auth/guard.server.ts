@@ -235,7 +235,10 @@ export async function requireOperator(): Promise<UserRow> {
   const session = await currentSession();
   if (!session.user) throw fail(signedOut());
   if (isDemo() || session.via === 'demo' || session.user.operator !== 1) throw fail(notOperator());
-  // An operator signed in with a password reaches the console only with two-step codes on (docs/hosting-many-families.md).
-  if (session.method === 'password' && !(await totpOn(session.user.id))) throw fail(new AuthError('forbidden', 'pw.err.operator_needs_totp'));
+  // An operator signed in with a password, or with a code sent by email, reaches the console only with two-step codes on
+  // (docs/hosting-many-families.md): neither a password nor a mailbox alone opens it.
+  if ((session.method === 'password' || session.method === 'email-code') && !(await totpOn(session.user.id))) {
+    throw fail(new AuthError('forbidden', session.method === 'password' ? 'pw.err.operator_needs_totp' : 'email.err.operator_code_totp'));
+  }
   return session.user;
 }

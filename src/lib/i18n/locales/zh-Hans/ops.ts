@@ -179,4 +179,5 @@ export default {
   "ops.r200.ai_text": "选择服务商和月度预算；没有批准，什么都不会改变。",
   "ops.signins_password": "密码登录（30天）",
   "ops.signins_oidc": "单点登录（30天）",
+  "ops.signins_email_code": "用邮件验证码登录（30天）",
 } satisfies Strings<typeof en, "zh-Hans">;

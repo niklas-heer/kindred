@@ -184,4 +184,25 @@ export default {
   "email.err.other_account": "Deze link is voor een ander account. Log in bij dat account en open hem opnieuw.",
 
   "gdpr.sub_email": "e-mailverzending",
+
+  // ---------- a code to sign in with (src/lib/auth/email-code.server.ts) ----------
+  "email.mail.signin_subject": "Je inlogcode voor {server}",
+  "email.mail.signin_body": "Typ deze code op de inlogpagina van {address} om in te loggen. Hij werkt één keer en is 10 minuten geldig.",
+  "email.mail.signin_device": "Hij werkt alleen in de browser waarin je hem hebt aangevraagd. Typ hem nergens anders en vertel hem aan niemand: niemand van deze server zal erom vragen.",
+  "email.mail.signin_ignore": "Heb je geen code aangevraagd? Dan kun je deze e-mail negeren: zonder de code kan niemand inloggen.",
+  "email.mail.signin_action": "Open de inlogpagina",
+  "email.mail.sec_code_signin": "Je bent op {date} in je account ingelogd met een code die we naar dit adres hebben gestuurd.",
+  "email.code_open": "Mail me een inlogcode",
+  "email.code_title": "Inloggen met een code per e-mail",
+  "email.code_lede": "Typ het bevestigde e-mailadres van je account. We sturen er een code van zes cijfers heen om mee in te loggen.",
+  "email.code_send": "Stuur me een code",
+  "email.code_sent_title": "Kijk in je inbox",
+  "email.code_sent": "Is {email} het bevestigde adres van een account, dan is er een code onderweg. Hij is 10 minuten geldig.",
+  "email.code_from_link": "Typ de code van zes cijfers uit de e-mail.",
+  "email.code_label": "Code uit de e-mail",
+  "email.code_device": "De code werkt alleen in de browser waarin je hem hebt aangevraagd.",
+  "email.code_again": "Stuur een nieuwe code",
+  "email.code_add_passkey": "Je bent ingelogd met een code uit je e-mail. Voeg op dit apparaat een passkey toe, dan is het de volgende keer één tik.",
+  "email.err.code_off": "Inloggen met een code per e-mail wordt op deze server niet aangeboden.",
+  "email.err.operator_code_totp": "Een serverbeheerder die met een code per e-mail inlogt, komt alleen met tweestapscodes aan in de console. Log in plaats daarvan in met je passkey.",
 } satisfies Strings<typeof en, "nl">;

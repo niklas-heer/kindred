@@ -161,6 +161,15 @@ export const setUpWithPassword = (body: { code: string; name: string; familyName
 /** An invitation taken with a new password account. */
 export const acceptWithPassword = (body: { token: string; name: string; username: string; password: string; acceptTerms?: boolean }) => post('password-invite', body);
 
+// ---------- a code by email ----------
+
+/** Asks for a code by email (src/lib/auth/email-code.server.ts): the same answer for every address; binds this browser. */
+export const askSignInCode = (body: { email: string }) => post<{ ok: true }>('email-code-request', body);
+/** The code from the email: done (`ok`), or a ticket for the account's two-step code. Works only in the browser that asked. */
+export const signInWithCode = (body: { code: string }) => post<{ ok?: true; step?: 'code'; ticket?: string }>('email-code', body);
+/** The two-step code (or a recovery code) after a right code by email. */
+export const finishCodeSignIn = (body: { ticket: string; code?: string; recovery?: string }) => post('email-code-second', body);
+
 // ---------- single sign-on ----------
 
 /**

@@ -20,7 +20,7 @@
 // Nothing here works on the guest host, in a demo or in a preview. After the flow, the browser goes only to a path on this site.
 import { AuthError } from './errors.ts';
 import { authMethod } from './method.server.ts';
-import { enabledMethods, hasWayIn, methodEnabled } from './methods.server.ts';
+import { enabledMethods, lastingWayIn, methodEnabled } from './methods.server.ts';
 import { callbackPath, cleanScopes, issuerProblem, OIDC_KINDS, PROVIDER_ID, secureUrl, type OidcKind, type OidcPurpose, type ProviderView, type PublicProvider } from './oidc.ts';
 import { emailVerified, SKEW_S, TokenError, verifyIdToken, type IdTokenClaims, type Jwk } from './oidc-jwt.server.ts';
 import { onGuestHost } from './origin.ts';
@@ -538,7 +538,7 @@ export async function unlinkMine(request: Request, user: UserRow, provider: stri
   try {
     await accounts().batch([
       q('DELETE FROM oidc_identity WHERE user = ? AND provider = ?', user.id, provider),
-      guard(`EXISTS (SELECT 1 FROM user u WHERE u.id = ? AND ${hasWayIn(methods)})`, user.id),
+      guard(`EXISTS (SELECT 1 FROM user u WHERE u.id = ? AND ${lastingWayIn(methods)})`, user.id),
       q("DELETE FROM session WHERE user = ? AND method = 'oidc' AND provider = ?", user.id, provider),
     ]);
   } catch (e) {
@@ -577,7 +577,7 @@ export interface ProviderInput {
 
 /** Statements that keep every operator a way in, after the batch's other changes. */
 async function operatorsKeepAWayIn(): Promise<Query> {
-  return guard(`NOT EXISTS (SELECT 1 FROM user u WHERE u.operator = 1 AND NOT ${hasWayIn(await enabledMethods())})`);
+  return guard(`NOT EXISTS (SELECT 1 FROM user u WHERE u.operator = 1 AND NOT ${lastingWayIn(await enabledMethods())})`);
 }
 
 /**

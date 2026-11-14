@@ -184,4 +184,25 @@ export default {
   "email.err.other_account": "Ce lien est destiné à un autre compte. Connecte-toi à ce compte et ouvre-le à nouveau.",
 
   "gdpr.sub_email": "envoi d’e-mails",
+
+  // ---------- a code to sign in with (src/lib/auth/email-code.server.ts) ----------
+  "email.mail.signin_subject": "Ton code de connexion pour {server}",
+  "email.mail.signin_body": "Saisis ce code sur la page de connexion de {address} pour te connecter. Il ne sert qu’une fois et reste valable 10 minutes.",
+  "email.mail.signin_device": "Il ne fonctionne que dans le navigateur où tu l’as demandé. Ne le saisis nulle part ailleurs et ne le donne à personne : personne de ce serveur ne te le demandera.",
+  "email.mail.signin_ignore": "Si tu n’as pas demandé de code, tu peux ignorer cet e-mail : personne ne peut se connecter sans lui.",
+  "email.mail.signin_action": "Ouvrir la page de connexion",
+  "email.mail.sec_code_signin": "Tu t’es connecté à ton compte le {date} avec un code que nous avons envoyé à cette adresse.",
+  "email.code_open": "Recevoir un code par e-mail",
+  "email.code_title": "Se connecter avec un code par e-mail",
+  "email.code_lede": "Saisis l’adresse e-mail confirmée de ton compte. Nous y envoyons un code à six chiffres pour te connecter.",
+  "email.code_send": "M’envoyer un code",
+  "email.code_sent_title": "Regarde dans ta boîte de réception",
+  "email.code_sent": "Si {email} est l’adresse confirmée d’un compte, un code est en route. Il est valable 10 minutes.",
+  "email.code_from_link": "Saisis le code à six chiffres de l’e-mail.",
+  "email.code_label": "Code reçu par e-mail",
+  "email.code_device": "Le code ne fonctionne que dans le navigateur où tu l’as demandé.",
+  "email.code_again": "Envoyer un autre code",
+  "email.code_add_passkey": "Tu t’es connecté avec un code reçu par e-mail. Ajoute une clé d’accès sur cet appareil : la prochaine fois, un geste suffira.",
+  "email.err.code_off": "La connexion avec un code par e-mail n’est pas proposée sur ce serveur.",
+  "email.err.operator_code_totp": "Un exploitant qui se connecte avec un code par e-mail n’accède à la console qu’avec les codes à deux facteurs activés. Connecte-toi plutôt avec ta clé d’accès.",
 } satisfies Strings<typeof en, "fr">;

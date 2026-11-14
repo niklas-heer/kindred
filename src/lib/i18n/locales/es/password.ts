@@ -126,4 +126,6 @@ export default {
   "pw.err.reset_notice_method": "Inicia sesión con tu llave de acceso o con el inicio de sesión único para cerrar este aviso.",
   "pw.reset_notice": "Un operador de este servidor restableció tu contraseña el {date}. Si no lo pediste, cambia tu contraseña ahora y avisa al operador.",
   "pw.reset_notice_label": "La seguridad de tu cuenta",
+  "pw.method_email_code": "Código por correo",
+  "pw.method_email_code_hint": "Un código de seis dígitos a la dirección confirmada de la cuenta: una forma de volver para quien perdió sus dispositivos. Necesita el correo; nunca sirve como confirmación de un operador.",
 } satisfies Strings<typeof en, "es">;

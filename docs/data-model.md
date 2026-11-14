@@ -196,6 +196,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0055_backup_restore_guards.sql` | What a restore may hand to whom ([hosting-many-families.md](hosting-many-families.md#backups)): `family_backup.stewards` (the family's stewards when it was backed up), `.family_created` (which family held the id then) and `.pinned_until` (the backup from before a restore over a family or a rollback, kept a week), and `family_claim` (an address being made or restored into, and a restore's source for copying pictures). |
 | `0056_email_fixes.sql` | `email_send.sender` and `.network` (keyed hashes of who asked for a confirmation link or an invitation, for their daily limits) and the `notice` category; `steward_notice.emailed` and `.pushed` (how many stewards a notice reached each way: the lifecycle deletes by itself only after its final notice reached one). |
 | `0057_breach_notice_reach.sql` | `breach_mail`: one row per steward and affected family a breach's current notice is for, with when its email went out, how often it was tried and the last result, so the register shows how many it reached and the daily `breach-notices` job retries the rest. |
+| `0058_email_signin.sql` | `email_signin`: one row per "email me a sign-in code" asked in one browser (the hash of that browser's cookie value, and once a code went out the account and the hash of its code), and `signin_step.method`, so a ticket for the two-step code continues only the way in that issued it. |
 
 ### Tables
 
@@ -321,11 +322,17 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   before it is checked, by one statement that answers the new count, so the limit holds across every Worker isolate and against
   tries sent at once (`src/lib/auth/attempts.server.ts`). A success deletes the username's rows and gives the network's and the
   server's try back; old rows go with the next try.
-- **`session.method`**, **`session.proved_via`** (0040): which way in started a session (`passkey`, `password`, `oidc` from 0046; NULL for a session
+- **`session.method`**, **`session.proved_via`** (0040): which way in started a session (`passkey`, `password`, `oidc` from 0046, `email-code` from 0058; NULL for a session
   from before, read as a passkey's) and how its last fresh proof was given. Turning a way in off deletes the sessions it started;
   a session of a way that `KINDRED_AUTH_METHODS` leaves out is not honoured.
 - **`signin_step`** (0041): a right password whose account has two-step codes: the hash of a ticket the browser holds, the account,
-  `tries` (five wrong codes end it) and `expires` (five minutes). Deleting it is the check that starts the session.
+  `tries` (five wrong codes end it) and `expires` (five minutes). Deleting it is the check that starts the session. `method`
+  (0058): `password`, or `email-code` for a right sign-in code whose account has two-step codes; a ticket finishes only its own.
+- **`email_signin`** (0058): "email me a sign-in code" (`src/lib/auth/email-code.server.ts`): `id`, `browser` (the hash of the
+  random value in the asking browser's cookie: a code is checked only against that browser's rows), `user` and `secret` (the
+  account and the hash of its code, set after the answer and only for an account's confirmed address; NULL otherwise, so the
+  row looks the same either way), `created`, `expires` (ten minutes), `tries` (five, counted before checking) and `used_at` (once).
+  The address typed is never stored. Goes with the account; rows a day past their end go with the next request.
 - **`password_reset`** (0041): an operator's reset link: the hash of its token, the account, `created_by` (the operator, no foreign
   key), `expires` (an hour), `used_at` (once: guarded in the batch that sets the password) and `clear_totp` (1: the link also
   turns two-step codes off). A new link for the account replaces an unused one. `seen_at` (0048): when the holder dismissed the
@@ -340,7 +347,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   token the form sends with the sign-up, UNIQUE) and `proved_at`, and has an hour more; `used_at` is set once, by the link's
   confirmation or in the batch that makes the signed-up account. Expired rows go when new ones are made.
 - **`email_send`** (0053): one row per email Kindred meant to send: `at`, `recipient` (an HMAC of the address under the server
-  secret, never the address), `category` (`verify`, `signup`, `reset`, `security`, `notice`, `test`, `invitation`, `operator`,
+  secret, never the address), `category` (`verify`, `signup`, `reset`, `signin` from 0058, `security`, `notice`, `test`, `invitation`, `operator`,
   `family`, `receipt`), `status` (`sending`, `sent`, `failed`, `skipped`) and the provider's short `error`; `sender` and `network`
   (0056): keyed hashes of the account and network that caused it, for a confirmation link or an invitation, else NULL. The limits
   per address, per account, per network and per server are guards on its counts in the batch that adds a row. Rows older than

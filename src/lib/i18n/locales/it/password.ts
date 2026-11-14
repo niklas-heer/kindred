@@ -126,4 +126,6 @@ export default {
   "pw.err.reset_notice_method": "Accedi con la tua passkey o con il single sign-on per chiudere questo avviso.",
   "pw.reset_notice": "Un gestore di questo server ha reimpostato la tua password il {date}. Se non l’hai chiesto tu, cambia subito la password e avvisa il gestore.",
   "pw.reset_notice_label": "Sicurezza del tuo account",
+  "pw.method_email_code": "Codice per email",
+  "pw.method_email_code_hint": "Un codice di sei cifre all’indirizzo confermato dell’account: un modo per rientrare per chi ha perso i suoi dispositivi. Serve l’email; non è mai una conferma per un gestore.",
 } satisfies Strings<typeof en, "it">;

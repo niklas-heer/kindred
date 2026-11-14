@@ -126,4 +126,6 @@ export default {
   "pw.err.reset_notice_method": "Entre com a sua chave de acesso ou com o login único para dispensar este aviso.",
   "pw.reset_notice": "Um operador deste servidor redefiniu a sua senha em {date}. Se você não pediu isso, mude a sua senha agora e avise o operador.",
   "pw.reset_notice_label": "A segurança da sua conta",
+  "pw.method_email_code": "Código por e-mail",
+  "pw.method_email_code_hint": "Um código de seis dígitos para o endereço confirmado da conta: um caminho de volta para quem perdeu os aparelhos. Precisa de e-mail; nunca serve de confirmação para um operador.",
 } satisfies Strings<typeof en, "pt-BR">;

@@ -6,8 +6,8 @@
 // - sends nothing while no origin for its links is trusted (origin.ts: KINDRED_ORIGIN, never the request's Host);
 // - holds the limits in the database, in the batch that records the send (`email_send`, accounts migrations 0053 and 0056): a few
 //   emails an hour and a day to one address, a few confirmation links and invitations a day from one account and from one
-//   network (`SENDER_LIMITS`), the server's emails an hour (the operator's setting) with a reserve only password resets and
-//   security emails may use, and a category's own gap (the operators hear of new requests at most every ten minutes), so no
+//   network (`SENDER_LIMITS`), the server's emails an hour (the operator's setting) with a reserve only password resets, codes
+//   to sign in and security emails may use, and a category's own gap (the operators hear of new requests at most every ten minutes), so no
 //   number of processes or isolates gets past them;
 // - carries nothing a reader wrote but a name (an account's, a family's), cut to one short line (`mailName`);
 // - writes the email in the recipient's language, as plain text and simple HTML (render.ts), with the footer, and for a
@@ -39,9 +39,9 @@ const KEEP_MS = 30 * DAY;
 /** Emails one address gets at most: in an hour, and in a day (every category together). */
 export const RECIPIENT_PER_HOUR = 6;
 export const RECIPIENT_PER_DAY = 20;
-/** Codes and links (a sign-up code, a confirmation link, a reset link) to one address in an hour. */
+/** Codes and links (a sign-up code, a confirmation link, a reset link, a code to sign in with) to one address in an hour. */
 export const CODES_PER_HOUR = 3;
-const CODE_CATEGORIES: MailCategory[] = ['verify', 'signup', 'reset'];
+const CODE_CATEGORIES: MailCategory[] = ['verify', 'signup', 'reset', 'signin'];
 /**
  * Emails one account, and one network, may cause in a day to addresses nobody proved yet: confirmation links (each to a new
  * address) and invitations. Counted in the send's own batch, so Kindred cannot be made to send mail for someone.
@@ -50,8 +50,8 @@ export const SENDER_LIMITS = {
   verify: { account: 5, network: 10 },
   invitation: { account: 20, network: 40 },
 } as const satisfies Partial<Record<MailCategory, { account: number; network: number }>>;
-/** The categories that may use the reserve of the server's hourly emails: a password reset and the security emails. */
-const RESERVED_FOR: MailCategory[] = ['reset', 'security', 'notice'];
+/** The categories that may use the reserve of the server's hourly emails: a password reset, a code to sign in and the security emails. */
+const RESERVED_FOR: MailCategory[] = ['reset', 'signin', 'security', 'notice'];
 /** The part of the server's hourly emails only RESERVED_FOR may use: a fifth, at least one (none when the ceiling is one). */
 export const reserveOf = (perHour: number) => (perHour <= 1 ? 0 : Math.max(1, Math.ceil(perHour / 5)));
 
@@ -200,7 +200,7 @@ export async function sendMail(o: Outgoing, now = Date.now()): Promise<{ result:
       ...(perSender && sender ? [guard(`(SELECT count(*) FROM email_send WHERE sender = ? AND category = ? AND at > ? AND ${counted}) < ?`, sender, o.category, now - DAY, perSender.account)] : []),
       ...(perSender && network ? [guard(`(SELECT count(*) FROM email_send WHERE network = ? AND category = ? AND at > ? AND ${counted}) < ?`, network, o.category, now - DAY, perSender.network)] : []),
       ...(CODE_CATEGORIES.includes(o.category)
-        ? [guard(`(SELECT count(*) FROM email_send WHERE recipient = ? AND at > ? AND category IN ('verify', 'signup', 'reset') AND ${counted}) < ?`, recipient, now - HOUR, CODES_PER_HOUR)]
+        ? [guard(`(SELECT count(*) FROM email_send WHERE recipient = ? AND at > ? AND category IN (${CODE_CATEGORIES.map((c) => `'${c}'`).join(', ')}) AND ${counted}) < ?`, recipient, now - HOUR, CODES_PER_HOUR)]
         : []),
       ...(o.gapMs ? [guard(`NOT EXISTS (SELECT 1 FROM email_send WHERE recipient = ? AND category = ? AND at > ? AND ${counted})`, recipient, o.category, now - o.gapMs)] : []),
     ];

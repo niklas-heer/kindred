@@ -12,6 +12,10 @@
 //
 // Turning a method off is refused when an operator would be left without a way in; it ends every session that method
 // started; the console first shows how many accounts would lose their only way in.
+//
+// A code by email (`email-code`) is a way back in, not a way an account keeps: it is never counted when Kindred checks that an
+// operator, or an account removing a way in, still has one (`lastingWayIn`), as email can stop and a code is never an operator's
+// fresh proof. The console's counts and its "left with no way in" still count it, as it is how those accounts sign in now.
 import { authSetting } from './method.server.ts';
 import { DEFAULT_METHODS, parseMethods, SIGN_IN_METHODS, type MethodCard, type MethodState, type SignInMethod, type SignInSettings } from './methods.ts';
 import { accounts, guard, isGuardError, q } from './store.server.ts';
@@ -29,7 +33,7 @@ export function breakGlass(env: Env = process.env): SignInMethod[] | null {
   const list = parseMethods(raw);
   if (!list && !warned) {
     warned = true;
-    console.error(`[kindred] KINDRED_AUTH_METHODS="${raw}" is not a list of sign-in methods (passkey, password, oidc); it is ignored.`);
+    console.error(`[kindred] KINDRED_AUTH_METHODS="${raw}" is not a list of sign-in methods (passkey, password, oidc, email-code); it is ignored.`);
   }
   return list;
 }
@@ -71,15 +75,17 @@ export async function methodEnabled(m: SignInMethod): Promise<boolean> {
 
 /** Refuses unless `m` is on: every ceremony and form of a method starts with this. */
 export async function requireMethod(m: SignInMethod): Promise<void> {
-  if (!(await methodEnabled(m))) throw new AuthError('invalid', m === 'passkey' ? 'auth.passkeys_off' : m === 'oidc' ? 'oidc.err.off' : 'pw.err.method_off');
+  if (!(await methodEnabled(m))) throw new AuthError('invalid', m === 'passkey' ? 'auth.passkeys_off' : m === 'oidc' ? 'oidc.err.off' : m === 'email-code' ? 'email.err.code_off' : 'pw.err.method_off');
 }
 
 /**
  * Whether this server could offer a method at all. Passkeys and passwords need nothing more than Kindred's own sign-in.
- * Single sign-on needs a provider the operator added and left on (`auth_provider`, oidc.server.ts).
+ * Single sign-on needs a provider the operator added and left on (`auth_provider`, oidc.server.ts); a code by email needs the
+ * server to send email (src/lib/email/send.server.ts, emailOn: a provider and a trusted origin for links).
  */
 async function available(m: SignInMethod): Promise<boolean> {
   if (m === 'oidc') return !!(await accounts().get('SELECT 1 FROM auth_provider WHERE enabled = 1 LIMIT 1'));
+  if (m === 'email-code') return (await import('../email/send.server.ts')).emailOn();
   return true;
 }
 
@@ -89,10 +95,18 @@ const HAS = {
   password: 'EXISTS (SELECT 1 FROM password p WHERE p.user = u.id)',
   // An identity at a provider that is on (oidc.server.ts): turning the provider off takes this way in away.
   oidc: 'EXISTS (SELECT 1 FROM oidc_identity o JOIN auth_provider ap ON ap.id = o.provider WHERE o.user = u.id AND ap.enabled = 1)',
+  // A confirmed address (accounts migration 0050): a code is sent to nothing else (email-code.server.ts).
+  'email-code': '(u.email_verified = 1 AND u.email IS NOT NULL)',
 } as const satisfies Record<SignInMethod, string>;
 
 /** An SQL condition: the account `u` has a way in among `methods`. */
 export const hasWayIn = (methods: readonly SignInMethod[]) => (methods.length ? `(${methods.map((m) => HAS[m]).join(' OR ')})` : '0');
+
+/**
+ * An SQL condition: the account `u` has a way in among `methods` that it keeps, leaving out a code by email. The rules that an
+ * operator, and an account giving up a way in, must keep one use this.
+ */
+export const lastingWayIn = (methods: readonly SignInMethod[]) => hasWayIn(methods.filter((m) => m !== 'email-code'));
 
 /** The console's view: each method's state, how many accounts can use it, and how many have nothing else. */
 export async function signInSettings(env: Env = process.env): Promise<SignInSettings> {
@@ -100,7 +114,8 @@ export async function signInSettings(env: Env = process.env): Promise<SignInSett
   const mode = setting.method === 'cloudflare-access' ? 'cloudflare-access' : 'kindred';
   const { methods: enabled, source } = resolveMethods(await storedMethods(), env);
   const counts = await accounts().get<Record<string, number>>(
-    `SELECT ${SIGN_IN_METHODS.map((m) => `sum(${HAS[m]}) AS "${m}", sum(${HAS[m]} AND NOT ${hasWayIn(SIGN_IN_METHODS.filter((o) => o !== m))}) AS "${m}_only"`).join(', ')} FROM user u`,
+    // "The only way in" leaves out a code by email while it is off: a confirmed address is then no way in at all.
+    `SELECT ${SIGN_IN_METHODS.map((m) => `sum(${HAS[m]}) AS "${m}", sum(${HAS[m]} AND NOT ${hasWayIn(SIGN_IN_METHODS.filter((o) => o !== m && (o !== 'email-code' || enabled.includes(o))))}) AS "${m}_only"`).join(', ')} FROM user u`,
   );
   const cards: MethodCard[] = [];
   for (const m of SIGN_IN_METHODS) {
@@ -139,8 +154,8 @@ export async function saveMethods(next: SignInMethod[], by: string, audit: (chan
     await accounts().batch([
       q(`INSERT INTO instance_setting (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by`, SETTING_KEY, JSON.stringify(list), t, by),
-      // Every operator keeps a way in.
-      guard(`NOT EXISTS (SELECT 1 FROM user u WHERE u.operator = 1 AND NOT ${hasWayIn(list)})`),
+      // Every operator keeps a way in (a code by email does not count: it is never an operator's proof).
+      guard(`NOT EXISTS (SELECT 1 FROM user u WHERE u.operator = 1 AND NOT ${lastingWayIn(list)})`),
       ...change.removed.map((m) => q('DELETE FROM session WHERE COALESCE(method, ?) = ?', 'passkey', m)),
       audit(change),
     ]);

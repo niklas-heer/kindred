@@ -195,16 +195,24 @@ export async function passwordSignIn(request: Request, input: { username?: unkno
   if (await totpOn(user.id)) {
     // The password was right: its try is given back; the code's tries are counted on their own.
     await refund(keys);
-    const ticket = randomToken(32);
-    const t = now();
-    await accounts().batch([
-      q('DELETE FROM signin_step WHERE expires < ?', t),
-      q('INSERT INTO signin_step (hash, user, tries, created, expires) VALUES (?, ?, 0, ?, ?)', await hashToken('signin-step', ticket), user.id, t, t + SIGNIN_STEP_MS),
-    ]);
-    return { kind: 'second', ticket };
+    return { kind: 'second', ticket: await stepTicket(user.id, 'password') };
   }
   await succeeded(keys);
   return { kind: 'session', user: user.id };
+}
+
+/** The ways in whose right first step may wait for the account's two-step code (accounts migration 0058, `signin_step.method`). */
+export type StepMethod = 'password' | 'email-code';
+
+/** A five-minute ticket for the two-step code, after a right first step of `method`. Never a session by itself. */
+export async function stepTicket(user: string, method: StepMethod): Promise<string> {
+  const ticket = randomToken(32);
+  const t = now();
+  await accounts().batch([
+    q('DELETE FROM signin_step WHERE expires < ?', t),
+    q('INSERT INTO signin_step (hash, user, tries, created, expires, method) VALUES (?, ?, 0, ?, ?, ?)', await hashToken('signin-step', ticket), user, t, t + SIGNIN_STEP_MS, method),
+  ]);
+  return ticket;
 }
 
 /**
@@ -213,15 +221,23 @@ export async function passwordSignIn(request: Request, input: { username?: unkno
  */
 export async function passwordSecondStep(request: Request, input: { ticket?: unknown; code?: unknown; recovery?: unknown }, a: Attempt): Promise<{ user: string }> {
   await passwordAllowed(request);
+  return secondStep(input, a, 'password');
+}
+
+/**
+ * The two-step code for a ticket of `method`: a ticket of one way in never finishes another's. The caller checked that the way
+ * in may be used. Tries count against the username (a code by email: the account) like a wrong password.
+ */
+export async function secondStep(input: { ticket?: unknown; code?: unknown; recovery?: unknown }, a: Attempt, method: StepMethod): Promise<{ user: string }> {
   const expired = invalid('pw.err.step_expired');
   if (typeof input.ticket !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(input.ticket)) throw expired;
   const hash = await hashToken('signin-step', input.ticket);
   // The ticket's try is counted before the code is checked, like the username's: the count the update answers decides.
-  const step = await accounts().get<{ user: string; tries: number }>('UPDATE signin_step SET tries = tries + 1 WHERE hash = ? AND expires > ? RETURNING user, tries', hash, now());
+  const step = await accounts().get<{ user: string; tries: number }>('UPDATE signin_step SET tries = tries + 1 WHERE hash = ? AND expires > ? AND method = ? RETURNING user, tries', hash, now(), method);
   if (step && step.tries > SIGNIN_STEP_TRIES) await accounts().run('DELETE FROM signin_step WHERE hash = ?', hash);
   const user = step && step.tries <= SIGNIN_STEP_TRIES ? await userById(step.user) : undefined;
-  if (!step || !user?.username) throw expired;
-  const keys = await attemptKeys(user.username, a.ip);
+  if (!step || !user || (method === 'password' && !user.username)) throw expired;
+  const keys = await attemptKeys(method === 'password' ? user.username! : `two-step:${user.id}`, a.ip);
   await admit(keys, a, undefined);
   const ok = await secondFactor(user.id, input);
   if (!ok) throw invalid('pw.err.code');

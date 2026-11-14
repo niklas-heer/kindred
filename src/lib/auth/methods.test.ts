@@ -83,8 +83,9 @@ test('the console counts who can use each method and who would have nothing else
   const s = await m.signInSettings({});
   assert.equal(s.mode, 'kindred');
   assert.equal(s.source, 'console');
-  assert.deepEqual(s.methods.map((c) => [c.id, c.state, c.accounts, c.onlyWay]), [['passkey', 'enabled', 2, 1], ['password', 'enabled', 2, 1], ['oidc', 'unavailable', 0, 0]]);
-  // Single sign-on shows, unavailable until the operator adds a provider (src/lib/auth/oidc.server.ts).
+  assert.deepEqual(s.methods.map((c) => [c.id, c.state, c.accounts, c.onlyWay]), [['passkey', 'enabled', 2, 1], ['password', 'enabled', 2, 1], ['oidc', 'unavailable', 0, 0], ['email-code', 'unavailable', 0, 0]]);
+  // Single sign-on shows, unavailable until the operator adds a provider (src/lib/auth/oidc.server.ts); a code by email until
+  // the server sends email (src/lib/auth/email-code.server.ts).
   assert.equal((await m.previewMethods(['passkey'])).lockedOut, 1, 'turning passwords off locks out Bo');
   assert.deepEqual((await m.previewMethods(['passkey'])).removed, ['password']);
 });

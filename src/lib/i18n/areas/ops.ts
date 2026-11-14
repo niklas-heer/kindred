@@ -181,4 +181,5 @@ export const en = {
   "ops.r200.ai_text": "Choose a provider and a monthly budget; nothing changes without approval.",
   "ops.signins_password": "Password sign-ins (30 days)",
   "ops.signins_oidc": "Single sign-on sign-ins (30 days)",
+  "ops.signins_email_code": "Sign-ins with a code by email (30 days)",
 } as const;

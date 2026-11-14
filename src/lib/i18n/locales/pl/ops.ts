@@ -198,4 +198,5 @@ export default {
   "ops.r200.ai_text": "Wybierz dostawcę i miesięczny budżet; nic się nie zmienia bez zatwierdzenia.",
   "ops.signins_password": "Logowania hasłem (30 dni)",
   "ops.signins_oidc": "Logowania przez SSO (30 dni)",
+  "ops.signins_email_code": "Logowania kodem z e-maila (30 dni)",
 } satisfies Strings<typeof en, "pl">;

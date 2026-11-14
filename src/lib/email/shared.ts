@@ -15,11 +15,11 @@ export const SMTP_SECURITY = ['tls', 'starttls'] as const;
 export type SmtpSecurity = (typeof SMTP_SECURITY)[number];
 
 /**
- * What an email is about. The security ones (a code, a link, a notice about the account's ways in, and a `notice` a family's
+ * What an email is about. The security ones (a code, a link, a code to sign in with (`signin`), a notice about the account's ways in, and a `notice` a family's
  * stewards must get: a data breach, the final notice before the lifecycle deletes the family) cannot be unsubscribed from; the
  * others carry a one-click unsubscribe for their category.
  */
-export const SECURITY_CATEGORIES = ['verify', 'signup', 'reset', 'security', 'notice', 'test'] as const;
+export const SECURITY_CATEGORIES = ['verify', 'signup', 'reset', 'signin', 'security', 'notice', 'test'] as const;
 export const OPTIONAL_CATEGORIES = ['invitation', 'operator', 'family', 'receipt'] as const;
 export type SecurityCategory = (typeof SECURITY_CATEGORIES)[number];
 export type OptionalCategory = (typeof OPTIONAL_CATEGORIES)[number];

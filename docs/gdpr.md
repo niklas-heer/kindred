@@ -186,7 +186,8 @@ What is emailed, and to whom:
 | --- | --- | --- |
 | A confirmation link (account menu) or a sign-up code | the address being confirmed | no (asked for) |
 | A password reset link | an account's **confirmed** address, only when its holder asked | no (asked for) |
-| Security notices: password changed or reset, a new way in, two-step codes off | the account's **confirmed** address | no |
+| A sign-in code (*Code by email*, when the operator turned it on) | an account's **confirmed** address, only when someone asked for it | no (asked for) |
+| Security notices: password changed or reset, a new way in, two-step codes off, a sign-in with a code by email | the account's **confirmed** address | no |
 | An invitation | the address a steward typed, when they choose to send it | yes |
 | A new family request or data request is waiting (nothing of its content) | operators with a confirmed address | yes |
 | A receipt for a data request, with its deadline (nothing the requester wrote), at most one a day per address | the address typed into `/privacy-request` | yes |

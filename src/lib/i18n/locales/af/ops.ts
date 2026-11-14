@@ -183,4 +183,5 @@ export default {
   "ops.r200.ai_text": "Kies ’n verskaffer en ’n maandelikse begroting; niks verander sonder goedkeuring nie.",
   "ops.signins_password": "Aanmeldings met wagwoord (30 dae)",
   "ops.signins_oidc": "Aanmeldings met enkelaanmelding (30 dae)",
+  "ops.signins_email_code": "Aanmeldings met ’n kode per e-pos (30 dae)",
 } satisfies Strings<typeof en, "af">;

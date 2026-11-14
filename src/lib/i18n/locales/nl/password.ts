@@ -131,4 +131,6 @@ export default {
   "pw.err.reset_notice_method": "Log in met je passkey of single sign-on om deze melding weg te halen.",
   "pw.reset_notice": "Een serverbeheerder heeft op {date} je wachtwoord opnieuw ingesteld. Heb je daar niet om gevraagd, verander dan nu je wachtwoord en laat het de serverbeheerder weten.",
   "pw.reset_notice_label": "De beveiliging van je account",
+  "pw.method_email_code": "Code per e-mail",
+  "pw.method_email_code_hint": "Een code van zes cijfers naar het bevestigde adres van het account: een weg terug voor wie zijn apparaten kwijt is. Vraagt om e-mail; nooit een bevestiging voor een serverbeheerder.",
 } satisfies Strings<typeof en, "nl">;

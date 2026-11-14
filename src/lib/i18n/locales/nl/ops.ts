@@ -183,4 +183,5 @@ export default {
   "ops.r200.ai_text": "Kies een aanbieder en een maandbudget; er verandert niets zonder goedkeuring.",
   "ops.signins_password": "Logins met wachtwoord (30 dagen)",
   "ops.signins_oidc": "Logins met single sign-on (30 dagen)",
+  "ops.signins_email_code": "Logins met een code per e-mail (30 dagen)",
 } satisfies Strings<typeof en, "nl">;

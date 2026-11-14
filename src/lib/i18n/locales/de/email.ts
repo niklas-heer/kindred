@@ -184,4 +184,25 @@ export default {
   "email.err.other_account": "Dieser Link gehört zu einem anderen Konto. Melde dich bei diesem Konto an und öffne ihn noch einmal.",
 
   "gdpr.sub_email": "E-Mail-Versand",
+
+  // ---------- a code to sign in with (src/lib/auth/email-code.server.ts) ----------
+  "email.mail.signin_subject": "Dein Anmeldecode für {server}",
+  "email.mail.signin_body": "Gib diesen Code auf der Anmeldeseite von {address} ein, um dich anzumelden. Er gilt einmal und 10 Minuten lang.",
+  "email.mail.signin_device": "Er funktioniert nur in dem Browser, in dem du ihn angefordert hast. Gib ihn nirgendwo sonst ein und verrate ihn niemandem: Niemand von diesem Server wird dich danach fragen.",
+  "email.mail.signin_ignore": "Wenn du keinen Code angefordert hast, kannst du diese E-Mail ignorieren: Ohne ihn kann sich niemand anmelden.",
+  "email.mail.signin_action": "Anmeldeseite öffnen",
+  "email.mail.sec_code_signin": "Du hast dich am {date} mit einem Code bei deinem Konto angemeldet, den wir an diese Adresse geschickt haben.",
+  "email.code_open": "Schick mir einen Anmeldecode",
+  "email.code_title": "Mit einem Code per E-Mail anmelden",
+  "email.code_lede": "Gib die bestätigte E-Mail-Adresse deines Kontos ein. Wir schicken einen sechsstelligen Code, mit dem du dich anmeldest.",
+  "email.code_send": "Code schicken",
+  "email.code_sent_title": "Sieh in deinen Posteingang",
+  "email.code_sent": "Wenn {email} die bestätigte Adresse eines Kontos ist, ist ein Code unterwegs. Er gilt 10 Minuten.",
+  "email.code_from_link": "Gib den sechsstelligen Code aus der E-Mail ein.",
+  "email.code_label": "Code aus der E-Mail",
+  "email.code_device": "Der Code funktioniert nur in dem Browser, in dem du ihn angefordert hast.",
+  "email.code_again": "Neuen Code schicken",
+  "email.code_add_passkey": "Du hast dich mit einem Code aus deiner E-Mail angemeldet. Füge auf diesem Gerät einen Passkey hinzu, dann reicht beim nächsten Mal ein Tippen.",
+  "email.err.code_off": "Auf diesem Server kannst du dich nicht mit einem Code per E-Mail anmelden.",
+  "email.err.operator_code_totp": "Wer den Server betreibt und sich mit einem Code per E-Mail anmeldet, kommt nur mit eingeschalteten Bestätigungscodes in die Konsole. Melde dich stattdessen mit deinem Passkey an.",
 } satisfies Strings<typeof en, "de">;

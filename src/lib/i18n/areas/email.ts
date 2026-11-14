@@ -184,4 +184,25 @@ export const en = {
   "email.err.other_account": "This link is for another account. Sign in to that account and open it again.",
 
   "gdpr.sub_email": "sending email",
+
+  // ---------- a code to sign in with (src/lib/auth/email-code.server.ts) ----------
+  "email.mail.signin_subject": "Your sign-in code for {server}",
+  "email.mail.signin_body": "Type this code on the sign-in page of {address} to sign in. It works once, for 10 minutes.",
+  "email.mail.signin_device": "It works only in the browser where you asked for it. Never type it anywhere else and never tell it to anyone: nobody from this server will ask you for it.",
+  "email.mail.signin_ignore": "If you didn’t ask for a code, you can ignore this email: nobody can sign in without it.",
+  "email.mail.signin_action": "Open the sign-in page",
+  "email.mail.sec_code_signin": "You signed in to your account on {date} with a code we emailed to this address.",
+  "email.code_open": "Email me a sign-in code",
+  "email.code_title": "Sign in with a code by email",
+  "email.code_lede": "Type your account’s confirmed email address. We send it a six-digit code to sign in with.",
+  "email.code_send": "Send me a code",
+  "email.code_sent_title": "Look in your inbox",
+  "email.code_sent": "If {email} is an account’s confirmed address, a code is on its way. It works for 10 minutes.",
+  "email.code_from_link": "Type the six-digit code from the email.",
+  "email.code_label": "Code from the email",
+  "email.code_device": "The code works only in the browser where you asked for it.",
+  "email.code_again": "Send another code",
+  "email.code_add_passkey": "You signed in with a code from your email. Add a passkey on this device, so next time it takes one tap.",
+  "email.err.code_off": "Signing in with a code by email isn’t offered on this server.",
+  "email.err.operator_code_totp": "An operator who signs in with a code from email reaches the console only with two-step codes on. Sign in with your passkey instead.",
 };

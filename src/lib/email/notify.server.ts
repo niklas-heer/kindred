@@ -2,7 +2,8 @@
 //
 // - security notices, to the account's VERIFIED address only, always while email is on (they cannot be unsubscribed): a
 //   password changed or reset (with a link sent by email, a recovery code, or an operator's link), a new way in (a passkey, a
-//   password, single sign-on), two-step codes turned off, and to the OLD verified address when the account's address changed;
+//   password, single sign-on), two-step codes turned off, each sign-in with a code sent by email, and to the OLD verified
+//   address when the account's address changed;
 // - an invitation, when its steward asks (the address they typed; the link is still theirs to copy), a few a day per account
 //   and network (send.server.ts, SENDER_LIMITS);
 // - the operators (verified addresses), about a new family request or data request, at most every ten minutes each;
@@ -30,12 +31,13 @@ const localeOf = (l: unknown): Locale => (isLocale(l) ? l : 'en');
 
 // ---------- security ----------
 
-export type SecurityKind = 'password_changed' | 'password_reset' | 'recovery_reset' | 'operator_reset' | 'passkey_added' | 'password_added' | 'sso_added' | 'totp_off' | 'email_changed';
+export type SecurityKind = 'password_changed' | 'password_reset' | 'recovery_reset' | 'operator_reset' | 'passkey_added' | 'password_added' | 'sso_added' | 'totp_off' | 'email_changed' | 'code_signin';
 
 const SECURITY_KEY: Record<SecurityKind, Key> = {
   password_changed: 'email.mail.sec_password_changed', password_reset: 'email.mail.sec_password_reset', recovery_reset: 'email.mail.sec_recovery_reset',
   operator_reset: 'email.mail.sec_operator_reset', passkey_added: 'email.mail.sec_passkey_added', password_added: 'email.mail.sec_password_added',
   sso_added: 'email.mail.sec_sso_added', totp_off: 'email.mail.sec_totp_off', email_changed: 'email.mail.sec_email_changed',
+  code_signin: 'email.mail.sec_code_signin',
 };
 
 type Holder = { name: string; locale: string | null };

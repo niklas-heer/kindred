@@ -131,4 +131,6 @@ export default {
   "pw.err.reset_notice_method": "Meld aan met jou passkey of enkelaanmelding om hierdie kennisgewing weg te steek.",
   "pw.reset_notice": "’n Operateur van hierdie bediener het jou wagwoord op {date} herstel. As jy nie daarvoor gevra het nie, verander nou jou wagwoord en sê vir die operateur.",
   "pw.reset_notice_label": "Jou rekening se sekuriteit",
+  "pw.method_email_code": "Kode per e-pos",
+  "pw.method_email_code_hint": "’n Sessyferkode na die rekening se bevestigde adres: ’n weg terug vir iemand wat hul toestelle verloor het. Het e-pos nodig; nooit ’n operateur se bewys nie.",
 } satisfies Strings<typeof en, "af">;

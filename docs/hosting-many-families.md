@@ -215,14 +215,22 @@ them when they take its steward invitation.
 ### Sign-in
 
 How people get into their accounts (rules in [self-host.md](self-host.md#ways-in-passkeys-passwords-and-single-sign-on)). Each way in,
-passkeys, a username and password, and single sign-on, has a card: *Unavailable*, *Configured* or *Enabled*, how many accounts can use it and for how many it is
+passkeys, a username and password, single sign-on and a code by email, has a card: *Unavailable*, *Configured* or *Enabled*, how many accounts can use it and for how many it is
 the only way in. Before you save, the tab says how many accounts would be left with no way in; saving needs your fresh proof, ends
 every session a way you turned off started, and is refused if an operator would have no way in. Behind Cloudflare Access the tab
 is read-only, and while `KINDRED_AUTH_METHODS` is set it only shows what that setting chose.
 
-- **Passwords on a hosting server.** There is no email, so a forgotten password needs one of the account's recovery codes (which
-  come with two-step codes), another way in (a passkey), or you. Passkeys alone are the default; turn passwords on when your
-  families need them, and tell them to save their recovery codes.
+- **Passwords on a hosting server.** Without email, a forgotten password needs one of the account's recovery codes (which
+  come with two-step codes), another way in (a passkey), or you; with email, *Forgot your password?* sends a link to the
+  account's confirmed address ([Email](#email)). Passkeys alone are the default; turn passwords on when your families need
+  them, and tell them to save their recovery codes.
+- **Code by email** ([self-host.md](self-host.md#a-sign-in-code-by-email)) is *Unavailable* until the server sends email. Turned
+  on, the sign-in page offers *Email me a sign-in code*: a six-digit code to an account's **confirmed** address (never one a
+  steward typed), for 10 minutes and five tries, that works only in the browser that asked for it. It is the way back for
+  someone who lost every device: after it, the account menu offers a new passkey. An account with two-step codes still gives
+  one; every such sign-in sends the address a security notice. It is never an operator's proof, an operator signed in with a
+  code reaches the console only with two-step codes on, and it does not count for the rule that every operator keeps a way in.
+  The card's counts are the accounts with a confirmed address, and those with nothing else; turning it off ends its sessions.
 - **An operator who signs in with a password** reaches the console only with two-step codes on, and keeps them on while the
   password is their only way in. Give every operator a passkey too if you can.
 - **Single sign-on providers** (in the same tab; how to register Kindred with Google, Microsoft Entra ID, Authentik or Keycloak is
@@ -276,8 +284,11 @@ What email makes possible, each only while it is on:
   has that confirmed address. The reset page works as for your reset link: a new password, the two-step code when those are
   on, every other session ended, and the lasting notice at the next sign-in (here naming the email). Requests are counted
   against the address and the network like sign-in tries.
+- **A sign-in code**, while *Code by email* is on in the Sign-in tab: the same answer for every address, and a code only to an
+  account's confirmed address, bound to the browser that asked ([self-host.md](self-host.md#a-sign-in-code-by-email)).
 - **Security notices**, always, to a confirmed address: the password changed or reset (by email, a recovery code or your
-  link), a new passkey, password or single sign-on added, two-step codes turned off. They cannot be unsubscribed.
+  link), a new passkey, password or single sign-on added, two-step codes turned off, a sign-in with a code by email. They cannot
+  be unsubscribed.
 - **Invitations.** When a steward invites someone with an address, *Send the invitation by email* sends the link (it stays
   there to copy as well).
 - **Notices**: operators with a confirmed address about a new family request or data request (at most every ten minutes, and
@@ -292,8 +303,8 @@ an account's security carries a one-click unsubscribe for its kind (invitations,
 The only words a person chose that an email carries are names (an account's, a family's, the server's), cut to one line of
 80 characters, so nobody can make the server mail their text. Limits: a few emails an hour and a day to one address (codes and
 links fewer still); a few confirmation links (5) and invitations (20) a day from one account, and twice that from one network;
-and the server's own ceiling an hour (**Emails an hour, at most**), of which a fifth is kept for password resets and security
-notices, so a flood of other emails cannot hold those back. Nothing is sent in a demo or during a steward's *View as*. The **Health** tab shows the last
+and the server's own ceiling an hour (**Emails an hour, at most**), of which a fifth is kept for password resets, sign-in codes
+and security notices, so a flood of other emails cannot hold those back. Nothing is sent in a demo or during a steward's *View as*. The **Health** tab shows the last
 day's sends and the latest failures with the provider's reason; the log keeps a keyed hash of each address, never the address
 or the text.
 

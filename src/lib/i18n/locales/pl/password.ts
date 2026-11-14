@@ -141,4 +141,6 @@ export default {
   "pw.err.reset_notice_method": "Zaloguj się kluczem dostępu lub przez SSO, aby zamknąć to powiadomienie.",
   "pw.reset_notice": "Administrator tego serwera zresetował Twoje hasło {date}. Jeśli to nie była Twoja prośba, zmień teraz hasło i powiedz o tym administratorowi.",
   "pw.reset_notice_label": "Bezpieczeństwo Twojego konta",
+  "pw.method_email_code": "Kod e-mailem",
+  "pw.method_email_code_hint": "Sześciocyfrowy kod na potwierdzony adres konta: droga powrotu dla kogoś, kto stracił swoje urządzenia. Wymaga e-maila; nigdy nie potwierdza tożsamości administratora serwera.",
 } satisfies Strings<typeof en, "pl">;

@@ -435,6 +435,10 @@ export function PasskeysDialog({ open, onClose }: { open: boolean; onClose: () =
             ))}
           </ul>
         )}
+        {/* Signed in with a code from email (someone who lost their devices, say): a passkey here makes the next time one tap. */}
+        {ways.data?.current === 'email-code' && passkeysOffered && passkeysSupported() && !add.isSuccess && (
+          <p className="acct-help" role="note"><b>{t('email.code_add_passkey')}</b></p>
+        )}
         {passkeysSupported() && passkeysOffered && (
           <button className="btn acct-add" onClick={() => { setError(null); add.mutate(); }} disabled={add.isPending}>
             <Plus size={16} /> {add.isPending ? t("accountmenu.waiting_for_your_device") : t("accountmenu.add_a_passkey_on_this_device")}

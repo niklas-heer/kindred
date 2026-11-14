@@ -67,15 +67,16 @@ This file was written from the repository's `compose.yaml` and could not be run 
 
 Each installation uses exactly one sign-in mode, set by `KINDRED_AUTH`: Kindred's own accounts, or Cloudflare Access. It is a
 deployment setting, not a switch inside Kindred, because choosing wrongly can lock people out or open the site. Under Kindred's
-own accounts, the operator then chooses in the console which ways in it offers (passkeys, a username and password, or both; see
-[Ways in](#ways-in-passkeys-passwords-and-single-sign-on)).
+own accounts, the operator then chooses in the console which ways in it offers (passkeys, a username and password, single
+sign-on, a sign-in code by email, in any combination; see [Ways in](#ways-in-passkeys-passwords-and-single-sign-on) and
+[A sign-in code by email](#a-sign-in-code-by-email)).
 
 | | `kindred` (the default) | `cloudflare-access` |
 | --- | --- | --- |
 | **How people sign in** | A passkey on their phone or computer, and a username and password if the operator offers them | Whatever your Cloudflare Access policy allows: an email code, Google, your company login |
 | **Who looks after logins** | Kindred, with nothing more to run | You, in Cloudflare Zero Trust |
 | **Choose it when** | You want Kindred to work by itself, anywhere it runs | You already manage people in Cloudflare and want one place to add or remove them |
-| **What it costs** | HTTPS and a host name that stays the same. A relative who loses every device needs a new invitation | A Cloudflare account and an Access application whose policy lets in every relative. Guests need a second host name |
+| **What it costs** | HTTPS and a host name that stays the same. A relative who loses every device needs a new invitation, or, with email set up and codes by email on, a code to their confirmed address | A Cloudflare account and an Access application whose policy lets in every relative. Guests need a second host name |
 
 With `kindred`, Cloudflare Access tokens are ignored completely, even valid ones. If you still have an Access application in
 front of the site, people will sign in twice: remove the application from the members' host name.
@@ -132,8 +133,10 @@ Any combination works. A fresh install and an upgrade offer passkeys only, so up
   one, reaches the console with a password only with them on, and a password typed without its code is never an operator's
   proof (for adding a passkey or a change in the console). An account with a password but no codes is not made an operator.
   Turning them on gives ten one-use **recovery codes**, stored under a hash keyed from `KINDRED_SECRET`.
-- **Forgotten passwords**: there is no email. A recovery code (with the app's code, when two-step codes are on) sets a new password
-  from the sign-in page; a passkey on the account still signs in; or an operator makes a **one-hour reset link** in the console's
+- **Forgotten passwords**: while the server sends email ([Email](hosting-many-families.md#email)), *Forgot your password?* sends a
+  one-hour reset link to the account's confirmed address. Without email, or without a confirmed address, a recovery code (with
+  the app's code, when two-step codes are on) sets a new password from the sign-in page; a passkey on the account still signs in;
+  or an operator makes a **one-hour reset link** in the console's
   Sign-in tab (it needs their fresh proof, is in the audit log, may also turn two-step codes off for a lost phone, works only on
   an account that already has a password, changes nothing but the password, ends the account's sessions, and leaves the
   holder a notice at their next sign-in by another way in). Stewards cannot reset anyone.
@@ -143,6 +146,35 @@ Any combination works. A fresh install and an upgrade offer passkeys only, so up
 - **Every sign-in is a new session**, and confirming "it's you" before a sensitive step (deleting a family, adding a passkey)
   works with the password (and the app's code) for accounts without a passkey.
 - The guest host never honours a password, and a demo offers none.
+
+### A sign-in code by email
+
+The fourth way in, off by default: *Code by email* on the console's Sign-in tab. It is *Unavailable* until the server sends email
+([Email](hosting-many-families.md#email), which needs `KINDRED_ORIGIN`), and it is meant as a way back in rather than a way people
+sign in every day: someone who lost every device, or is on a computer that is not theirs, asks for a code instead.
+
+- **Asking**: *Email me a sign-in code* on the sign-in page, then the account's address. Kindred answers the same, at once, for
+  every address, and only afterwards sends a six-digit code, and only to an account whose address is **confirmed** (confirmed from
+  the account menu, by a sign-up code, or vouched for by single sign-on). An address a steward typed into an invitation, or an
+  unconfirmed one, never gets a code. Asking is counted like a sign-in try: 5 times per address from one network in 15 minutes
+  (a growing wait after that), 20 tries an hour per network, and at most 3 codes and links an hour to one address. The email is a
+  security email: it comes out of the reserve of **Emails an hour, at most** and cannot be unsubscribed.
+- **The code** works once, for 10 minutes, and five tries; each try is counted before it is checked, and against the network.
+- **Only on the device that asked.** Asking gives that browser a random value in a cookie only it holds (HttpOnly,
+  SameSite=Strict, `__Host-kindred_mailcode` over HTTPS), and the code is bound to it. The same code typed on another device is
+  wrong. So someone who talks a relative into reading a code out, or into typing it into another site, cannot use it on their
+  own device. The email says so and names this server's address; its link opens the sign-in page here and carries no code. A
+  site that relays the whole sign-in as it happens is the one thing the binding cannot stop.
+- **Two-step codes still apply.** An account that has them gives its app's code (or a recovery code) after the emailed one.
+- **The session** is a new one, and remembers it was a code's: turning *Code by email* off ends it. For a few minutes it counts as
+  "it's you" (the proof that adding a passkey asks for), so someone who lost every device can add a passkey on the new one
+  straight away; the account menu offers it. **Never for an operator**: an operator signed in with a code reaches the console
+  only with two-step codes on, and a code is never an operator's proof for a change there.
+- **Every sign-in by a code** sends the address a security notice.
+- **Not a way an account keeps.** Email can stop, so a confirmed address does not count when Kindred checks that an account removing
+  a passkey or a password still has a way in, nor for the rule that every operator keeps one. The console's counts do include it:
+  turning it off tells you how many accounts would be left with nothing else.
+- Nothing on the guest host, in a demo or during a steward's *View as*.
 
 ### Single sign-on (OpenID Connect)
 
@@ -241,7 +273,7 @@ gazetteer is at `/app/gazetteer/gazetteer.db`. Those four are for running withou
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `KINDRED_AUTH` | `kindred` | The installation's sign-in mode: `kindred` or `cloudflare-access`. Or a list of Kindred's own ways in (`passkey,password`), which the operator console starts from. See [Choosing how people sign in](#choosing-how-people-sign-in). |
-| `KINDRED_AUTH_METHODS` | empty | Break-glass: a list of ways in (`passkey`, `password`, `oidc`) that overrides the console, for an operator who locked themselves out. Remove it once fixed. See [Ways in](#ways-in-passkeys-passwords-and-single-sign-on). |
+| `KINDRED_AUTH_METHODS` | empty | Break-glass: a list of ways in (`passkey`, `password`, `oidc`, `email-code`) that overrides the console, for an operator who locked themselves out. Remove it once fixed. See [Ways in](#ways-in-passkeys-passwords-and-single-sign-on). |
 | `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` | unset | Used only with `KINDRED_AUTH=cloudflare-access`: your team domain and the Access application's audience tag. |
 | `KINDRED_GUEST_ORIGIN` | unset | The guest host for family share links, needed only with `KINDRED_AUTH=cloudflare-access` (see [deploy-cloudflare.md](deploy-cloudflare.md#guests-behind-access)). |
 | `KINDRED_ORIGIN` | `http://localhost:4901` in Compose; otherwise the address the request came in on | The public address, such as `https://family.example.org`. Passkeys are bound to its host name, sessions use its scheme for the cookie's `Secure` flag, and the setup warning uses it. Email needs it: every link in an email is built from it, never from a request's address, so without it (on any host but `localhost`) the server sends no email. Set it before the first sign-in. |

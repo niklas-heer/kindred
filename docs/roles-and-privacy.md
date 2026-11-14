@@ -334,13 +334,18 @@ themselves. The Markdown archive carries research that isn't private, with its d
 ## Sign-in and sessions
 
 - Each installation has one sign-in mode, chosen when it is deployed: Kindred's own accounts, or Cloudflare Access. Under Kindred's own
-  accounts the operator chooses the ways in: passkeys (the default), a username and password, or both. See
-  [Choosing how people sign in](self-host.md#choosing-how-people-sign-in).
+  accounts the operator chooses the ways in: passkeys (the default), a username and password, single sign-on, and a sign-in
+  code by email, in any combination. See [Choosing how people sign in](self-host.md#choosing-how-people-sign-in).
+- A sign-in code by email goes only to an account's **confirmed** address, never to one a steward typed, and the sign-in page
+  answers the same whether or not an account has the address it was given. The code works once, for 10 minutes, and only in
+  the browser that asked for it (a cookie only that browser holds); an account with two-step codes still gives one. It proves
+  control of the mailbox, as a reset link by email does, so the account is as safe as its mailbox. It is never an operator's
+  proof, and every sign-in this way sends the address a notice. See [A sign-in code by email](self-host.md#a-sign-in-code-by-email).
 - A password is stored only as a salted, peppered PBKDF2 hash (600,000 iterations); a two-step code's secret is sealed with the
   server's secret; recovery codes, reset links and the "enter your code" ticket only as hashes. An account always keeps one way in
   the server accepts. A way in is added only by the signed-in account itself after confirming it is them, never by matching an
   email address, and an invitation's address is never proof of who someone is.
-- Every sign-in, by passkey or password, starts a brand-new session; a session planted in the browser before is ended. A session
+- Every sign-in, by passkey, password, single sign-on or a code by email, starts a brand-new session; a session planted in the browser before is ended. A session
   remembers which way in started it, and turning that way off in the operator console ends it.
 - A session is a random token in an HttpOnly cookie (SameSite=Lax, and `Secure` on HTTPS). The server keeps only a
   SHA-256 hash of the token, so a copy of the database does not contain a working session.
@@ -352,7 +357,8 @@ themselves. The Markdown archive carries research that isn't private, with its d
   fingerprint or PIN, on this same browser session, in the last five minutes (a sign-in that asked for it counts). So someone
   at a borrowed, unlocked browser can't add a passkey of their own to your account, remove yours or sign your other devices out. The confirmation belongs
   to the session: another browser's doesn't count, and signing out ends it (`src/lib/auth/proof.server.ts`). An account with no
-  passkey here confirms with its password, and its two-step code when those are on.
+  passkey here confirms with its password, and its two-step code when those are on. A sign-in with a code by email counts for
+  those few minutes (so someone who lost every device can add a passkey on the new one), except for an operator.
 - Pages and data are sent with `Cache-Control: private, no-store`, so after signing out on a shared computer the family's
   pages are not left in the browser's cache, and no shared cache keeps one member's page for another. Pages also carry an
   enforced Content-Security-Policy (see [self-host.md](self-host.md#security-headers-and-caching)).
@@ -361,7 +367,8 @@ themselves. The Markdown archive carries research that isn't private, with its d
 - Passkey sign-in endpoints are rate-limited in memory: the limit resets when the server restarts, and on Cloudflare each isolate
   keeps its own count. It is a brake, not a wall. Password, two-step and recovery-code guesses are limited in the accounts
   database instead, the same on every isolate: 5 failures per username in 15 minutes with a growing wait, 20 an hour per network.
-  An unknown username gets the same answer as a wrong password, after the same work, and the counts store only hashes.
+  An unknown username gets the same answer as a wrong password, after the same work, and the counts store only hashes. Asking
+  for a sign-in code is counted the same way per address, and each code's five tries before it is checked.
 - Only an operator can reset someone's password, with a one-hour link they hand over themselves (logged); stewards cannot. The
   guest host never honours a password, and a demo offers none.
 - With Cloudflare Access as the method, Kindred accepts only a verified Access identity, so the first person through Access can

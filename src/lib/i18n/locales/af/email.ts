@@ -184,4 +184,25 @@ export default {
   "email.err.other_account": "Hierdie skakel is vir ’n ander rekening. Meld by daardie rekening aan en maak dit weer oop.",
 
   "gdpr.sub_email": "e-pos stuur",
+
+  // ---------- a code to sign in with (src/lib/auth/email-code.server.ts) ----------
+  "email.mail.signin_subject": "Jou aanmeldkode vir {server}",
+  "email.mail.signin_body": "Tik hierdie kode op die aanmeldbladsy van {address} om aan te meld. Dit werk een keer en geld 10 minute.",
+  "email.mail.signin_device": "Dit werk net in die blaaier waar jy daarvoor gevra het. Tik dit nêrens anders in nie en vertel dit vir niemand nie: niemand van hierdie bediener sal jou daarvoor vra nie.",
+  "email.mail.signin_ignore": "As jy nie vir ’n kode gevra het nie, kan jy hierdie e-pos ignoreer: niemand kan sonder dit aanmeld nie.",
+  "email.mail.signin_action": "Maak die aanmeldbladsy oop",
+  "email.mail.sec_code_signin": "Jy het op {date} by jou rekening aangemeld met ’n kode wat ons na hierdie adres gestuur het.",
+  "email.code_open": "E-pos vir my ’n aanmeldkode",
+  "email.code_title": "Meld aan met ’n kode per e-pos",
+  "email.code_lede": "Tik die bevestigde e-posadres van jou rekening. Ons stuur ’n sessyferkode daarheen om mee aan te meld.",
+  "email.code_send": "Stuur vir my ’n kode",
+  "email.code_sent_title": "Kyk in jou inboks",
+  "email.code_sent": "As {email} ’n rekening se bevestigde adres is, is ’n kode op pad. Dit geld 10 minute.",
+  "email.code_from_link": "Tik die sessyferkode uit die e-pos.",
+  "email.code_label": "Kode uit die e-pos",
+  "email.code_device": "Die kode werk net in die blaaier waar jy daarvoor gevra het.",
+  "email.code_again": "Stuur nog ’n kode",
+  "email.code_add_passkey": "Jy het met ’n kode uit jou e-pos aangemeld. Voeg ’n passkey op hierdie toestel by, dan is dit volgende keer net een tik.",
+  "email.err.code_off": "Aanmelding met ’n kode per e-pos word nie op hierdie bediener aangebied nie.",
+  "email.err.operator_code_totp": "’n Operateur wat met ’n kode per e-pos aanmeld, kom net by die konsole in as bevestigingskodes aan is. Meld eerder met jou passkey aan.",
 } satisfies Strings<typeof en, "af">;

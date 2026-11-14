@@ -2,7 +2,7 @@
 // how many have nothing else), saving the choice after showing what it changes, the single sign-on providers (OperatorOidc.tsx),
 // and a one-hour reset link for someone who cannot sign in. Rules: src/lib/auth/methods.server.ts and src/lib/operator/signin.server.ts. Both changes need a fresh proof.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Fingerprint, KeyRound, LifeBuoy, LogIn } from 'lucide-react';
+import { Fingerprint, KeyRound, LifeBuoy, LogIn, Mail } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
 import { ErrorState, Notice, Skeleton, Switch } from '~/components/ui';
 import { withFreshProof } from '~/lib/auth/client';
@@ -14,10 +14,10 @@ import { LinkBox } from './OperatorConsole';
 import { ProvidersSection } from './OperatorOidc';
 import '~/components/signin/signin.css';
 
-const NAME: Record<SignInMethod, Key> = { passkey: 'pw.method_passkey', password: 'pw.method_password', oidc: 'pw.method_oidc' };
-const HINT: Record<SignInMethod, Key> = { passkey: 'pw.method_passkey_hint', password: 'pw.method_password_hint', oidc: 'pw.method_oidc_hint' };
+const NAME: Record<SignInMethod, Key> = { passkey: 'pw.method_passkey', password: 'pw.method_password', oidc: 'pw.method_oidc', 'email-code': 'pw.method_email_code' };
+const HINT: Record<SignInMethod, Key> = { passkey: 'pw.method_passkey_hint', password: 'pw.method_password_hint', oidc: 'pw.method_oidc_hint', 'email-code': 'pw.method_email_code_hint' };
 const STATE: Record<MethodCard['state'], Key> = { unavailable: 'pw.state_unavailable', configured: 'pw.state_configured', enabled: 'pw.state_enabled' };
-const ICON: Record<SignInMethod, typeof KeyRound> = { passkey: Fingerprint, password: KeyRound, oidc: LogIn };
+const ICON: Record<SignInMethod, typeof KeyRound> = { passkey: Fingerprint, password: KeyRound, oidc: LogIn, 'email-code': Mail };
 
 export function SignInTab() {
   const t = useT();

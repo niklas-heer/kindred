@@ -9,13 +9,15 @@
 // migration 0046; oidc.server.ts asks the provider with `max_age=0` and checks `auth_time`): so deleting a family and the other
 // steps that ask for a proof work for every account. `proofKinds` tells the browser which to ask for.
 //
+// A sign-in with a code sent by email counts as a proof for a few minutes, except for an operator (email-code.server.ts).
+//
 // An operator's password alone proves nothing: for an operator, a proof by password counts only with two-step codes on (the
 // code was then part of it), so someone who learned an operator's password cannot add a passkey of their own or change the
 // console. The one exception is setting up those codes when the password is the account's only way in (`forTotp`).
 import { generateAuthenticationOptions, verifyAuthenticationResponse, type AuthenticationResponseJSON } from '@simplewebauthn/server';
 import { AuthError, needsProof } from './errors.ts';
 import { authMethod } from './method.server.ts';
-import { enabledMethods, hasWayIn, requireMethod } from './methods.server.ts';
+import { enabledMethods, lastingWayIn, requireMethod } from './methods.server.ts';
 import { checkOwnPassword, passwordOf, type Attempt } from './password.server.ts';
 import type { PublicProvider } from './oidc.ts';
 import { totpOn } from './totp.server.ts';
@@ -42,7 +44,7 @@ async function ownSession(request: Request, user: UserRow) {
 /** Whether the account has a way in besides its password that the server accepts (a passkey, a single sign-on provider). */
 export async function otherWayIn(user: string): Promise<boolean> {
   const others = (await enabledMethods()).filter((m) => m !== 'password');
-  return !!(await accounts().get(`SELECT 1 FROM user u WHERE u.id = ? AND ${hasWayIn(others)}`, user));
+  return !!(await accounts().get(`SELECT 1 FROM user u WHERE u.id = ? AND ${lastingWayIn(others)}`, user));
 }
 
 /** An operator without two-step codes, whose only proof would be the password. */
@@ -57,6 +59,9 @@ export async function requireFreshProof(request: Request, user: UserRow, { forTo
   needPasskeys();
   const s = await ownSession(request, user);
   if (s.proved === null || now() - s.proved > PROOF_MS) throw needsProof();
+  // A sign-in with a code sent by email is a proof for a few minutes (adding a passkey after losing every device), never an
+  // operator's: a mailbox alone must not change the console (email-code.server.ts).
+  if (user.operator === 1 && s.proved_via === 'email-code') throw needsProof();
   if (user.operator === 1 && s.proved_via === 'password' && !(await totpOn(user.id))) {
     const other = await otherWayIn(user.id);
     if (forTotp && !other) return;

@@ -126,4 +126,6 @@ export default {
   "pw.err.reset_notice_method": "このお知らせを閉じるには、パスキーかシングルサインオンでサインインしてください。",
   "pw.reset_notice": "このサーバーの運営者が、{date}にパスワードをリセットしました。心当たりがない場合は、すぐにパスワードを変更し、運営者に知らせてください。",
   "pw.reset_notice_label": "アカウントの安全",
+  "pw.method_email_code": "メールのコード",
+  "pw.method_email_code_hint": "アカウントの確認済みアドレスに6桁のコードを送ります。端末をなくした人が戻ってくるための方法です。メールの送信が必要で、運営者の本人確認には使えません。",
 } satisfies Strings<typeof en, "ja">;

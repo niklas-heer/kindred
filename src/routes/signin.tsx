@@ -12,10 +12,13 @@ import { useIsClient } from '~/components/ui';
 import { useSignInMethods } from '~/components/signin/PasswordFields';
 import { PasswordSignIn } from '~/components/signin/PasswordSignIn';
 import { OIDC_ERRORS, SsoButtons, useSignInProviders } from '~/components/signin/SingleSignOn';
+import { EmailCodeSignIn } from '~/components/signin/EmailCodeSignIn';
 
 export const Route = createFileRoute('/signin')({
-  validateSearch: (s: Record<string, unknown>): { next?: string; oidc_error?: string } => ({
+  validateSearch: (s: Record<string, unknown>): { next?: string; oidc_error?: string; code?: 1 } => ({
     ...(typeof s.next === 'string' ? { next: s.next } : {}),
+    // The link in an email with a sign-in code opens the code's field (src/lib/auth/email-code.server.ts); it carries no code.
+    ...(s.code === 1 || s.code === '1' ? { code: 1 as const } : {}),
     // A single sign-on provider's callback that failed says why here (src/lib/auth/oidc.server.ts).
     ...(typeof s.oidc_error === 'string' ? { oidc_error: s.oidc_error } : {}),
   }),
@@ -52,12 +55,13 @@ function AccessSignIn({ uninvited, logout }: { uninvited?: string; logout?: stri
 /** Kindred's own sign-in: a passkey, a username and password, or both, as the server's operator chose. */
 function PasskeySignIn() {
   const t = useT();
-  const { next, oidc_error } = Route.useSearch();
+  const { next, oidc_error, code } = Route.useSearch();
   const methods = useSignInMethods();
   const passkeys = methods.includes('passkey');
   const passwords = methods.includes('password');
   const providers = useSignInProviders();
   const sso = methods.includes('oidc') && providers.length > 0;
+  const mailCode = methods.includes('email-code');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(oidc_error ? t(OIDC_ERRORS[oidc_error] ?? 'oidc.err.failed') : null);
   const client = useIsClient();
@@ -100,6 +104,10 @@ function PasskeySignIn() {
         {(passkeys || passwords) && <p className="pw-or">{t('pw.or')}</p>}
         {!passkeys && <AuthError>{error}</AuthError>}
         <SsoButtons providers={providers} purpose="signin" next={safeNext(next)} onError={setError} />
+      </>}
+      {mailCode && <>
+        {(passkeys || passwords || sso) && <p className="pw-or">{t('pw.or')}</p>}
+        <EmailCodeSignIn next={next} open={!(passkeys || passwords || sso)} atCode={code === 1} />
       </>}
       {passkeys && <PasskeyExplainer />}
       <RequestFamilyLink />

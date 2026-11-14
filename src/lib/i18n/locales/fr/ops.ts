@@ -179,4 +179,5 @@ export default {
   "ops.r200.ai_text": "Choisis un fournisseur et un budget mensuel ; rien ne change sans approbation.",
   "ops.signins_password": "Connexions par mot de passe (30 jours)",
   "ops.signins_oidc": "Connexions par authentification unique (30 jours)",
+  "ops.signins_email_code": "Connexions avec un code par e-mail (30 jours)",
 } satisfies Strings<typeof en, "fr">;

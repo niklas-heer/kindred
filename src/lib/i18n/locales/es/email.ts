@@ -184,4 +184,25 @@ export default {
   "email.err.other_account": "Este enlace es para otra cuenta. Inicia sesión en esa cuenta y vuelve a abrirlo.",
 
   "gdpr.sub_email": "envío de correo",
+
+  // ---------- a code to sign in with (src/lib/auth/email-code.server.ts) ----------
+  "email.mail.signin_subject": "Tu código para iniciar sesión en {server}",
+  "email.mail.signin_body": "Escribe este código en la página de inicio de sesión de {address} para entrar. Sirve una sola vez y caduca en 10 minutos.",
+  "email.mail.signin_device": "Solo funciona en el navegador donde lo pediste. No lo escribas en ningún otro sitio ni se lo digas a nadie: nadie de este servidor te lo pedirá.",
+  "email.mail.signin_ignore": "Si no pediste ningún código, puedes ignorar este correo: nadie puede iniciar sesión sin él.",
+  "email.mail.signin_action": "Abrir la página de inicio de sesión",
+  "email.mail.sec_code_signin": "El {date} iniciaste sesión en tu cuenta con un código que enviamos a esta dirección.",
+  "email.code_open": "Recibir un código por correo",
+  "email.code_title": "Inicia sesión con un código por correo",
+  "email.code_lede": "Escribe la dirección de correo confirmada de tu cuenta. Te enviamos un código de seis dígitos para iniciar sesión.",
+  "email.code_send": "Enviarme un código",
+  "email.code_sent_title": "Mira en tu bandeja de entrada",
+  "email.code_sent": "Si {email} es la dirección confirmada de una cuenta, va en camino un código. Caduca en 10 minutos.",
+  "email.code_from_link": "Escribe el código de seis dígitos del correo.",
+  "email.code_label": "Código del correo",
+  "email.code_device": "El código solo funciona en el navegador donde lo pediste.",
+  "email.code_again": "Enviar otro código",
+  "email.code_add_passkey": "Iniciaste sesión con un código de tu correo. Añade una llave de acceso en este dispositivo y la próxima vez bastará un toque.",
+  "email.err.code_off": "En este servidor no se ofrece iniciar sesión con un código por correo.",
+  "email.err.operator_code_totp": "Un operador que inicia sesión con un código por correo solo entra en la consola con los códigos en dos pasos activados. Inicia sesión con tu llave de acceso.",
 } satisfies Strings<typeof en, "es">;

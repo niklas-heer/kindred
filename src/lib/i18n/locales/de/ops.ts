@@ -183,4 +183,5 @@ export default {
   "ops.r200.ai_text": "Wähle einen Anbieter und ein Monatsbudget; nichts ändert sich ohne Zustimmung.",
   "ops.signins_password": "Anmeldungen mit Passwort (30 Tage)",
   "ops.signins_oidc": "Anmeldungen per Single Sign-on (30 Tage)",
+  "ops.signins_email_code": "Anmeldungen mit Code per E-Mail (30 Tage)",
 } satisfies Strings<typeof en, "de">;

@@ -8,7 +8,7 @@
 // password goes with two-step codes: set only once they are on, and they stay on while it does (proof.server.ts).
 import { AuthError } from './errors.ts';
 import { authMethod } from './method.server.ts';
-import { enabledMethods, hasWayIn } from './methods.server.ts';
+import { enabledMethods, lastingWayIn } from './methods.server.ts';
 import type { SignInMethod } from './methods.ts';
 import { checkNewPassword, cleanUsername, passwordAllowed, passwordOf, passwordWrites, requireFreeUsername, rethrowTaken } from './password.server.ts';
 import { requireFreshProof } from './proof.server.ts';
@@ -94,7 +94,7 @@ export async function removeMyPassword(request: Request, user: UserRow): Promise
       removeTotp(user.id),
       q('DELETE FROM recovery_code WHERE user = ?', user.id),
       // Another way in the server accepts remains: a passkey, or a single sign-on provider (accounts migration 0046).
-      guard(`EXISTS (SELECT 1 FROM user u WHERE u.id = ? AND ${hasWayIn(methods)})`, user.id),
+      guard(`EXISTS (SELECT 1 FROM user u WHERE u.id = ? AND ${lastingWayIn(methods)})`, user.id),
       q("DELETE FROM session WHERE user = ? AND method = 'password'", user.id),
     ]);
   } catch (e) {

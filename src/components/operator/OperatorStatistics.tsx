@@ -204,8 +204,8 @@ function Storage({ data }: { data: OperatorStatistics }) {
 }
 
 /** Each way in's line; days stored before sign-ins were counted by way in say only "other". */
-const SIGNIN_LABEL: Record<string, 'ops.signins_passkey' | 'ops.signins_password' | 'ops.signins_oidc'> = {
-  passkey: 'ops.signins_passkey', password: 'ops.signins_password', oidc: 'ops.signins_oidc',
+const SIGNIN_LABEL: Record<string, 'ops.signins_passkey' | 'ops.signins_password' | 'ops.signins_oidc' | 'ops.signins_email_code'> = {
+  passkey: 'ops.signins_passkey', password: 'ops.signins_password', oidc: 'ops.signins_oidc', 'email-code': 'ops.signins_email_code',
 };
 
 function Activity({ data }: { data: OperatorStatistics }) {

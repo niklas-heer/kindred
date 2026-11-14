@@ -27,9 +27,11 @@ async function failing<T>(work: () => Promise<T>): Promise<T> {
  * Cloudflare Access and in a demo. Anyone may ask.
  */
 export const fetchSignInMethods = createServerFn({ method: 'GET' }).handler(async (): Promise<{ methods: SignInMethod[]; providers: PublicProvider[] }> => {
-  const [{ enabledMethods }, { isDemo }, { signInProviders }] = await Promise.all([import('./methods.server'), import('../demo'), import('./oidc.server')]);
+  const [{ enabledMethods }, { isDemo }, { signInProviders }, { emailOn }] = await Promise.all([import('./methods.server'), import('../demo'), import('./oidc.server'), import('../email/send.server')]);
   if (isDemo()) return { methods: [], providers: [] };
-  return { methods: await enabledMethods(), providers: await signInProviders() };
+  const methods = await enabledMethods();
+  // A code by email is offered only while the server sends email (src/lib/auth/email-code.server.ts).
+  return { methods: methods.includes('email-code') && !(await emailOn()) ? methods.filter((m) => m !== 'email-code') : methods, providers: await signInProviders() };
 });
 export const signInMethodsQuery = queryOptions({ queryKey: ['signin-methods'], queryFn: () => fetchSignInMethods(), staleTime: 60_000 });
 

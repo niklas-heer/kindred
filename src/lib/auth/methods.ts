@@ -3,9 +3,10 @@
 // (method.server.ts) that replaces them all.
 //
 // Single sign-on (`oidc`) is OpenID Connect with providers the operator adds in the console (./oidc.ts, ./oidc.server.ts): it is
-// available once one provider is on.
+// available once one provider is on. A code by email (`email-code`, ./email-code.server.ts) goes to an account's confirmed
+// address: it is available while the server sends email.
 
-export const SIGN_IN_METHODS = ['passkey', 'password', 'oidc'] as const;
+export const SIGN_IN_METHODS = ['passkey', 'password', 'oidc', 'email-code'] as const;
 export type SignInMethod = (typeof SIGN_IN_METHODS)[number];
 
 /** What a fresh install and an upgrade have: passkeys only, so an upgrade changes nothing. */
@@ -44,7 +45,7 @@ export function parseMethods(text: string | undefined | null): SignInMethod[] | 
 export interface MethodCard {
   id: SignInMethod;
   state: MethodState;
-  /** Accounts that can use it (a passkey saved, a password set). */
+  /** Accounts that can use it (a passkey saved, a password set, a confirmed address for a code by email). */
   accounts: number;
   /** Accounts for which it is the only way in: turning it off locks them out until they get another. */
   onlyWay: number;

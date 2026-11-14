@@ -179,4 +179,5 @@ export default {
   "ops.r200.ai_text": "プロバイダーと月の予算を選びます。承認なしには、何も変わりません。",
   "ops.signins_password": "パスワードでのサインイン（30日間）",
   "ops.signins_oidc": "シングルサインオンでのサインイン（30日間）",
+  "ops.signins_email_code": "メールのコードでのサインイン（30日間）",
 } satisfies Strings<typeof en, "ja">;

@@ -179,4 +179,5 @@ export default {
   "ops.r200.ai_text": "Escolha um provedor e um orçamento mensal; nada muda sem aprovação.",
   "ops.signins_password": "Entradas com senha (30 dias)",
   "ops.signins_oidc": "Entradas com login único (30 dias)",
+  "ops.signins_email_code": "Entradas com código por e-mail (30 dias)",
 } satisfies Strings<typeof en, "pt-BR">;

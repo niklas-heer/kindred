@@ -131,4 +131,6 @@ export default {
   "pw.err.reset_notice_method": "Melde dich mit deinem Passkey oder per Single Sign-on an, um diesen Hinweis auszublenden.",
   "pw.reset_notice": "Jemand, der diesen Server betreibt, hat am {date} dein Passwort zurückgesetzt. Wenn du das nicht wolltest, ändere jetzt dein Passwort und sag es der Person.",
   "pw.reset_notice_label": "Sicherheit deines Kontos",
+  "pw.method_email_code": "Code per E-Mail",
+  "pw.method_email_code_hint": "Ein sechsstelliger Code an die bestätigte Adresse des Kontos: ein Weg zurück für alle, die ihre Geräte verloren haben. Braucht E-Mail; für den Serverbetrieb nie eine Bestätigung.",
 } satisfies Strings<typeof en, "de">;
