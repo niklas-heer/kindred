@@ -14,9 +14,11 @@ Changes on `main` since 2.6.0. They are not in a release yet.
 Simpler sign-in: a sign-in code by email, and a guided setup for Google and personal Microsoft accounts. Accounts migrations
 0058 and 0059 are new since 2.5.0; read the [release notes](docs/releases/v2.6.0.md) before upgrading.
 
-Database changes, both in `migrations/accounts` and both additive: `0058_email_signin.sql` (the sign-in codes asked for, and
-the way in a two-step ticket belongs to) and `0059_sso_setup.sql` (provider presets, the test sign-in, health). On Node they are
-applied when the server starts; on Cloudflare `mise run deploy` applies them before the new Worker goes live. No new settings.
+Database changes, both in `migrations/accounts`: `0058_email_signin.sql` (the sign-in codes asked for, and the way in a two-step
+ticket belongs to) and `0059_sso_setup.sql` (provider presets, the test sign-in, health). Both add to stored data; 0059 also makes
+the short-lived `oidc_flow` table again, so a single sign-on sign-in in progress during the upgrade has to start over. On Node
+they are applied when the server starts; on Cloudflare `mise run deploy` applies them before the new Worker goes live. No new
+settings.
 
 ### Added
 - **"Email me a sign-in code"**, a fourth way in, off by default (*Code by email* in the console's Sign-in tab; it needs email
