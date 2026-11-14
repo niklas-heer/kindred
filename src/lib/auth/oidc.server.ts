@@ -17,11 +17,17 @@
 // Starting a family (`signup`, src/lib/signup/) checks the sign-up form, sign-up open and Turnstile before the browser leaves,
 // and makes the account with this identity, the family and its steward on the way back; a provider's verified email makes
 // the sign-up verified (so "unverified sign-ups go to the waiting list" lets it through) and becomes the contact email.
+// The operator's test sign-in (`test`, the console's guided setup) runs the same flow against a provider that may still be off,
+// from the operator's own signed-in session and browser; on the way back it only notes that the provider worked (`tested_at`)
+// and signs nobody in, makes no account and links nothing. Every flow notes the provider's last good sign-in and its last
+// failed discovery or token call (accounts migration 0059), for the console's health warnings.
 // Nothing here works on the guest host, in a demo or in a preview. After the flow, the browser goes only to a path on this site.
 import { AuthError } from './errors.ts';
 import { authMethod } from './method.server.ts';
 import { enabledMethods, lastingWayIn, methodEnabled } from './methods.server.ts';
-import { callbackPath, cleanScopes, issuerProblem, OIDC_KINDS, PROVIDER_ID, secureUrl, type OidcKind, type OidcPurpose, type ProviderView, type PublicProvider } from './oidc.ts';
+import {
+  callbackPath, cleanDay, cleanScopes, issuerProblem, MICROSOFT_PERSONAL_ISSUER, OIDC_KINDS, PROVIDER_ID, secureUrl, trustEmailOffered, type OidcKind, type OidcPurpose, type ProviderView, type PublicProvider,
+} from './oidc.ts';
 import { emailVerified, SKEW_S, TokenError, verifyIdToken, type IdTokenClaims, type Jwk } from './oidc-jwt.server.ts';
 import { onGuestHost } from './origin.ts';
 import { cleanName } from './passkeys.server.ts';
@@ -65,6 +71,17 @@ export class OidcFail extends Error {
   }
 }
 
+/** The provider's own words in an OAuth error answer (`error`, `error_description`), for the operator; '' when it gave none. */
+function providerSaid(text: string): string {
+  try {
+    const v = JSON.parse(text) as Record<string, unknown>;
+    const words = [v.error, v.error_description].filter((x): x is string => typeof x === 'string' && !!x).join(': ');
+    return words ? ` (${words.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 300)})` : '';
+  } catch {
+    return '';
+  }
+}
+
 async function fetchJson(url: string, init: RequestInit = {}): Promise<Record<string, unknown>> {
   let res: Response;
   try {
@@ -73,7 +90,7 @@ async function fetchJson(url: string, init: RequestInit = {}): Promise<Record<st
     throw new OidcFail('provider', `${url}: ${e instanceof Error ? e.message : e}`);
   }
   const text = await res.text();
-  if (res.status !== 200 || text.length > 1_000_000) throw new OidcFail('provider', `${url}: HTTP ${res.status}`);
+  if (res.status !== 200 || text.length > 1_000_000) throw new OidcFail('provider', `${url}: HTTP ${res.status}${providerSaid(text)}`);
   try {
     const v = JSON.parse(text);
     if (v && typeof v === 'object' && !Array.isArray(v)) return v;
@@ -118,6 +135,7 @@ export interface ProviderRow {
   id: string; kind: string; label: string; issuer: string; client_id: string; secret_sealed: string | null; scopes: string;
   trust_email: number; enabled: number; discovery: string | null; discovered_at: number | null; jwks: string | null; jwks_at: number | null;
   created: number; updated: number;
+  secret_expires: string | null; last_success: number | null; last_error: string | null; last_error_at: number | null; tested_at: number | null;
 }
 
 export const providerById = (id: string) => accounts().get<ProviderRow>('SELECT * FROM auth_provider WHERE id = ?', id);
@@ -172,11 +190,22 @@ async function keysOf(p: ProviderRow, d: Discovery, refresh: boolean): Promise<J
 
 // ---------- where single sign-on may be used ----------
 
-/** Every flow starts and ends here: Kindred's own sign-in, single sign-on on, the site's own host, a request that may write. */
-async function oidcAllowed(request: Request): Promise<void> {
+/** Every flow starts and ends here: Kindred's own sign-in, the site's own host, a request that may write. */
+function oidcBase(request: Request): void {
   if (isDemo() || authMethod() !== 'kindred' || onGuestHost(request)) throw invalid('oidc.err.off');
   refuseReadOnly();
+}
+
+/** ...and, for everything but the operator's test, single sign-on on. */
+async function oidcAllowed(request: Request): Promise<void> {
+  oidcBase(request);
   if (!(await methodEnabled('oidc'))) throw invalid('oidc.err.off');
+}
+
+async function anyProvider(id: unknown): Promise<ProviderRow> {
+  const p = typeof id === 'string' && PROVIDER_ID.test(id) ? await providerById(id) : undefined;
+  if (!p) throw invalid('oidc.err.provider_off');
+  return p;
 }
 
 async function enabledProvider(id: unknown): Promise<ProviderRow> {
@@ -202,17 +231,20 @@ export interface StartInput {
   familyName?: unknown; familyId?: unknown; email?: unknown; theme?: unknown; accept?: unknown; age16?: unknown; code?: unknown; turnstile?: unknown; website?: unknown;
 }
 
-const PURPOSES: readonly OidcPurpose[] = ['signin', 'invite', 'link', 'proof', 'signup'];
+const PURPOSES: readonly OidcPurpose[] = ['signin', 'invite', 'link', 'proof', 'signup', 'test'];
 
 /**
  * Starts a flow: returns the provider's authorization URL to send the browser to, and the flow cookie to set. `user` is the
- * signed-in reader, needed for `link` (with a fresh proof) and `proof`; `ip` the request's address (sign-up's limits).
+ * signed-in reader, needed for `link` (with a fresh proof), `proof` and `test` (an operator); `ip` the request's address
+ * (sign-up's limits).
  */
 export async function startOidc(request: Request, input: StartInput, user?: UserRow, ip = ''): Promise<{ url: string; cookie: string }> {
-  await oidcAllowed(request);
+  oidcBase(request);
   const purpose = PURPOSES.find((p) => p === input.purpose);
   if (!purpose) throw invalid('oidc.err.expired');
-  const p = await enabledProvider(input.provider);
+  // The operator's test works before single sign-on is on and on a provider still off: that is what it is for.
+  if (purpose !== 'test') await oidcAllowed(request);
+  const p = purpose === 'test' ? await anyProvider(input.provider) : await enabledProvider(input.provider);
   let subject: string | null = null;
   let data: string | null = null;
   if (purpose === 'invite') {
@@ -233,10 +265,17 @@ export async function startOidc(request: Request, input: StartInput, user?: User
       if (mine) throw invalid('oidc.err.already_linked');
     } else if (!mine) throw invalid('oidc.err.not_linked');
     subject = `${user.id} ${s.hash}`;
+  } else if (purpose === 'test') {
+    // Only an operator tests a provider, from their own session: the callback checks it is still this session in this browser.
+    if (!user?.operator) throw invalid('oidc.err.test_operator');
+    const s = await sessionOf(request);
+    if (!s || s.user !== user.id) throw invalid('oidc.err.session');
+    subject = `${user.id} ${s.hash}`;
   }
-  const d = await discoveryOf(p).catch((e) => {
+  const d = await discoveryOf(p).catch(async (e) => {
     console.error('[oidc] discovery failed for', p.id, e instanceof Error ? e.message : e);
-    throw invalid('oidc.err.provider');
+    await noteError(p.id, e);
+    throw invalid(purpose === 'test' ? 'oidc.err.discovery' : 'oidc.err.provider');
   });
   const state = randomToken(32);
   const nonce = randomToken(32);
@@ -295,8 +334,12 @@ async function exchange(p: ProviderRow, d: Discovery, code: string, verifier: st
   return res.id_token;
 }
 
-/** The identity's email as this sign-in reports it, kept for the `signup` lane's "verified email" (verifiedEmailOf). */
-const identityFacts = (c: IdTokenClaims) => ({ email: typeof c.email === 'string' ? c.email.slice(0, 254) : null, verified: emailVerified(c) ? 1 : 0 });
+/**
+ * The identity's email as this sign-in reports it, kept for the `signup` lane's "verified email" (verifiedEmailOf). Microsoft's
+ * personal accounts never count as verified, whatever the token says (MICROSOFT_PERSONAL_ISSUER).
+ */
+const vouches = (c: IdTokenClaims) => emailVerified(c) && c.iss !== MICROSOFT_PERSONAL_ISSUER;
+const identityFacts = (c: IdTokenClaims) => ({ email: typeof c.email === 'string' ? c.email.slice(0, 254) : null, verified: vouches(c) ? 1 : 0 });
 
 /** Handles the provider's redirect back. Never throws: a failure goes to a page that says what happened. */
 export async function finishOidc(request: Request, providerId: string): Promise<CallbackResult> {
@@ -306,13 +349,25 @@ export async function finishOidc(request: Request, providerId: string): Promise<
   } catch (e) {
     const code = e instanceof OidcFail ? e.code : e instanceof AuthError && e.message.startsWith('oidc.err.') ? e.message.slice('oidc.err.'.length) : 'failed';
     if (!(e instanceof OidcFail) || ['provider', 'token', 'failed'].includes(code)) console.error('[oidc]', providerId, e instanceof Error ? e.message : e);
-    const back = flow && (flow.purpose === 'link' || flow.purpose === 'proof') ? flow.next ?? '/' : flow?.purpose === 'signup' ? '/signup' : '/signin';
-    return { location: withParam(back, 'oidc_error', code), cookies: [] };
+    const back = flow?.purpose === 'test' ? flow.next ?? '/operator?tab=signin'
+      : flow && (flow.purpose === 'link' || flow.purpose === 'proof') ? flow.next ?? '/' : flow?.purpose === 'signup' ? '/signup' : '/signin';
+    // The operator's test page reads its own word (`oidc_test`), so the pages' "back from a provider" dialog leaves it alone.
+    return { location: withParam(back, flow?.purpose === 'test' ? 'oidc_test' : 'oidc_error', code), cookies: [] };
   }
 }
 
+/** Notes a failed call to the provider for the console's health (the first 500 characters of what went wrong). */
+async function noteError(provider: string, e: unknown): Promise<void> {
+  const text = (e instanceof Error ? e.message : String(e)).replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 500);
+  await accounts().run('UPDATE auth_provider SET last_error = ?, last_error_at = ? WHERE id = ?', text, now(), provider).catch(() => {});
+}
+
 async function callback(request: Request, providerId: string, seen: (f: FlowRow) => void): Promise<CallbackResult> {
-  await oidcAllowed(request).catch(() => { throw new OidcFail('off'); });
+  try {
+    oidcBase(request);
+  } catch {
+    throw new OidcFail('off');
+  }
   const url = new URL(request.url);
   const state = url.searchParams.get('state') ?? '';
   if (!/^[A-Za-z0-9_-]{43}$/.test(state)) throw new OidcFail('expired');
@@ -326,19 +381,39 @@ async function callback(request: Request, providerId: string, seen: (f: FlowRow)
   // The flow belongs to the browser that started it: a callback link sent to someone else's browser does nothing there.
   if (!browser || !FLOW_COOKIE.test(browser) || (await hashToken('oidc-browser', browser)) !== flow.browser) throw new OidcFail('expired', 'browser');
   if (flow.expires < now() || flow.provider !== providerId) throw new OidcFail('expired');
-  if (url.searchParams.get('error')) throw new OidcFail('denied', `provider said ${url.searchParams.get('error')}`);
+  const test = flow.purpose === 'test';
+  if (!test && !(await methodEnabled('oidc'))) throw new OidcFail('off');
+  // The test belongs to the operator's session that started it, still open in this browser, before anything goes to the provider.
+  if (test) await testSession(request, flow);
   const p = await providerById(flow.provider);
-  if (!p || !p.enabled) throw new OidcFail('provider_off');
+  if (!p || (!p.enabled && !test)) throw new OidcFail('provider_off');
+  const said = url.searchParams.get('error');
+  if (said) {
+    const words = [said, url.searchParams.get('error_description')].filter(Boolean).join(': ').slice(0, 300);
+    const fail = new OidcFail('denied', `provider said ${words}`);
+    // A relative who cancels at the provider says nothing about the provider's health; the operator's test does.
+    if (test) await noteError(p.id, fail);
+    throw fail;
+  }
   const code = url.searchParams.get('code') ?? '';
   if (!code || code.length > 4096) throw new OidcFail('expired');
-  const d = await discoveryOf(p);
-  const idToken = await exchange(p, d, code, flow.verifier, `${siteOrigin(request).origin}${callbackPath(p.id)}`);
   let claims: IdTokenClaims;
   try {
-    claims = await verifyIdToken(idToken, (refresh) => keysOf(p, d, refresh), { issuer: p.issuer, clientId: p.client_id, nonce: flow.nonce, algorithms: d.id_token_signing_alg_values_supported });
+    const d = await discoveryOf(p);
+    const idToken = await exchange(p, d, code, flow.verifier, `${siteOrigin(request).origin}${callbackPath(p.id)}`);
+    try {
+      claims = await verifyIdToken(idToken, (refresh) => keysOf(p, d, refresh), { issuer: p.issuer, clientId: p.client_id, nonce: flow.nonce, algorithms: d.id_token_signing_alg_values_supported });
+    } catch (e) {
+      throw e instanceof TokenError ? new OidcFail('token', e.message) : e;
+    }
   } catch (e) {
-    throw e instanceof TokenError ? new OidcFail('token', e.message) : e;
+    // Health: a discovery document or token call that failed. A code the provider refused (`invalid_grant`) is left out
+    // unless the operator is testing: anyone can start a flow and come back with a made-up code.
+    if (e instanceof OidcFail && (test || !/invalid_grant/.test(e.message))) await noteError(p.id, e);
+    throw e;
   }
+  await accounts().run('UPDATE auth_provider SET last_success = ? WHERE id = ?', now(), p.id);
+  if (test) return tested(p, flow);
   // Whether the person signed in at the provider during this flow (not a provider session from earlier).
   const reauthenticated = typeof claims.auth_time === 'number' && claims.auth_time + SKEW_S >= Math.floor(flow.created / 1000);
   const facts = identityFacts(claims);
@@ -352,10 +427,26 @@ async function callback(request: Request, providerId: string, seen: (f: FlowRow)
     case 'link': return link(request, p, claims, identity, flow);
     case 'proof': return prove(request, identity, reauthenticated, flow);
     case 'signup': return signUp(request, p, claims, identity, reauthenticated, flow);
+    case 'test': throw new OidcFail('expired');
   }
 }
 
 /** A brand-new session for `user`, started by this provider; refused for a guest's account a steward has not let in yet. */
+/** The operator's test session: the flow's session, still open in this browser, of an account that is still an operator. */
+async function testSession(request: Request, flow: FlowRow): Promise<void> {
+  const { user } = await flowSession(request, flow);
+  if (!user.operator) throw new OidcFail('session');
+}
+
+/**
+ * The operator's test worked: the provider signed someone in and its ID token passed every check. Nothing else happens: no
+ * session, no account, no identity. `tested_at` counts only when the client ID and secret did not change during the flow.
+ */
+async function tested(p: ProviderRow, flow: FlowRow): Promise<CallbackResult> {
+  await accounts().run('UPDATE auth_provider SET tested_at = ? WHERE id = ? AND updated <= ?', now(), p.id, flow.created);
+  return { location: withParam(flow.next ?? '/operator?tab=signin', 'oidc_test', 'ok'), cookies: [] };
+}
+
 async function sessionFor(request: Request, user: string, p: ProviderRow, proved: boolean): Promise<string> {
   const allowed = await (await import('./join.server.ts')).signInAllowed(user);
   if (allowed !== 'ok') throw new OidcFail(allowed === 'pending' ? 'pending' : 'expired');
@@ -364,7 +455,7 @@ async function sessionFor(request: Request, user: string, p: ProviderRow, proved
 
 /** The provider vouched for an address: when it is the account's own, the account's address is verified from now on. */
 async function vouch(user: string, c: IdTokenClaims): Promise<void> {
-  if (!emailVerified(c)) return;
+  if (!vouches(c)) return;
   await accounts().run('UPDATE user SET email_verified = 1 WHERE id = ? AND email_verified = 0 AND lower(email) = lower(?)', user, c.email!);
 }
 
@@ -380,7 +471,7 @@ async function signIn(request: Request, p: ProviderRow, c: IdTokenClaims, identi
   // The one way an email finds an account: the operator trusts this provider's emails, it says this one is verified, and the
   // account's own address was verified too (accounts migration 0050). An address a steward typed into an invitation is not:
   // whoever controls it at a provider must not take over the account it was typed into (pre-hijacking).
-  if (!user && p.trust_email && emailVerified(c)) {
+  if (!user && p.trust_email && vouches(c) && trustEmailOffered(kindOf(p.kind), p.issuer)) {
     const byEmail = await userByEmail(c.email!);
     if (byEmail?.email_verified) {
       try {
@@ -565,6 +656,7 @@ export async function listProviders(): Promise<ProviderView[]> {
     'SELECT p.*, (SELECT count(*) FROM oidc_identity o WHERE o.provider = p.id) AS n FROM auth_provider p ORDER BY p.label');
   return rows.map((r) => ({
     ...publicOf(r), issuer: r.issuer, clientId: r.client_id, scopes: r.scopes, trustEmail: r.trust_email === 1, enabled: r.enabled === 1, hasSecret: !!r.secret_sealed, identities: r.n,
+    secretExpires: r.secret_expires, lastSuccess: r.last_success, created: r.created, lastError: r.last_error, lastErrorAt: r.last_error_at, testedAt: r.tested_at,
   }));
 }
 
@@ -573,6 +665,8 @@ export interface ProviderInput {
   /** undefined keeps the stored secret; '' removes it (a public client). */
   secret?: string;
   scopes: string; trustEmail: boolean; enabled: boolean;
+  /** The day the client secret stops working (YYYY-MM-DD); '' or undefined: not known. */
+  secretExpires?: string;
 }
 
 /** Statements that keep every operator a way in, after the batch's other changes. */
@@ -597,6 +691,11 @@ export async function saveProvider(input: ProviderInput, audit: (detail: Record<
   const scopes = cleanScopes(input.scopes);
   if (!scopes) throw invalid('oidc.err.scopes');
   if (input.secret !== undefined && input.secret.length > 1000) throw invalid('oidc.err.secret');
+  // The personal-accounts preset is its fixed issuer and nothing else, and Microsoft's personal emails are never trusted.
+  if (input.kind === 'microsoft' && input.issuer !== MICROSOFT_PERSONAL_ISSUER) throw invalid('oidc.err.microsoft_issuer');
+  if (input.trustEmail && !trustEmailOffered(input.kind, input.issuer)) throw invalid('oidc.err.trust_email_microsoft');
+  const expires = input.secretExpires ? cleanDay(input.secretExpires) : null;
+  if (input.secretExpires && !expires) throw invalid('oidc.err.secret_expires');
   const before = await providerById(input.id);
   if (before && before.issuer !== input.issuer) throw invalid('oidc.err.issuer_fixed');
   let discovery: Discovery | null = null;
@@ -613,16 +712,18 @@ export async function saveProvider(input: ProviderInput, audit: (detail: Record<
   const disc = discovery ? JSON.stringify(discovery) : before?.discovery ?? null;
   const discAt = discovery ? t : before?.discovered_at ?? null;
   const turnedOff = !!before?.enabled && !input.enabled;
+  // A new client ID or secret has not been tested yet.
+  const retest = !!before && (before.client_id !== clientId || input.secret !== undefined);
   try {
     await accounts().batch([
       before
-        ? q('UPDATE auth_provider SET kind = ?, label = ?, client_id = ?, secret_sealed = ?, scopes = ?, trust_email = ?, enabled = ?, discovery = ?, discovered_at = ?, updated = ? WHERE id = ?',
-          input.kind, label, clientId, secret, scopes, input.trustEmail ? 1 : 0, input.enabled ? 1 : 0, disc, discAt, t, input.id)
-        : q('INSERT INTO auth_provider (id, kind, label, issuer, client_id, secret_sealed, scopes, trust_email, enabled, discovery, discovered_at, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          input.id, input.kind, label, input.issuer, clientId, secret, scopes, input.trustEmail ? 1 : 0, input.enabled ? 1 : 0, disc, discAt, t, t),
+        ? q(`UPDATE auth_provider SET kind = ?, label = ?, client_id = ?, secret_sealed = ?, scopes = ?, trust_email = ?, enabled = ?, discovery = ?, discovered_at = ?, secret_expires = ?, updated = ?${retest ? ', tested_at = NULL' : ''} WHERE id = ?`,
+          input.kind, label, clientId, secret, scopes, input.trustEmail ? 1 : 0, input.enabled ? 1 : 0, disc, discAt, expires, t, input.id)
+        : q('INSERT INTO auth_provider (id, kind, label, issuer, client_id, secret_sealed, scopes, trust_email, enabled, discovery, discovered_at, secret_expires, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          input.id, input.kind, label, input.issuer, clientId, secret, scopes, input.trustEmail ? 1 : 0, input.enabled ? 1 : 0, disc, discAt, expires, t, t),
       await operatorsKeepAWayIn(),
       ...(turnedOff ? [q("DELETE FROM session WHERE method = 'oidc' AND provider = ?", input.id), q('DELETE FROM oidc_flow WHERE provider = ?', input.id)] : []),
-      audit({ provider: input.id, label, issuer: input.issuer, enabled: input.enabled, trustEmail: input.trustEmail, created: !before, secretChanged: input.secret !== undefined }),
+      audit({ provider: input.id, label, issuer: input.issuer, enabled: input.enabled, trustEmail: input.trustEmail, created: !before, secretChanged: input.secret !== undefined, secretExpires: expires }),
     ]);
   } catch (e) {
     if (isGuardError(e)) throw invalid('pw.err.operator_locked_out');

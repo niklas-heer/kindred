@@ -160,9 +160,9 @@ export const Route = createFileRoute('/api/auth/$action')({
             case 'email-code-second':
               return codeAnswer(await (await code()).signInCodeSecondStep(request, body, ip));
             case 'oidc-start': {
-              // Adding a provider to the account and a fresh proof belong to the signed-in reader; the guard also makes a
-              // "View as" preview's request read-only, which the start refuses.
-              const user = body.purpose === 'link' || body.purpose === 'proof' ? await requireUser() : undefined;
+              // Adding a provider to the account, a fresh proof and the operator's test sign-in belong to the signed-in reader;
+              // the guard also makes a "View as" preview's request read-only, which the start refuses.
+              const user = body.purpose === 'link' || body.purpose === 'proof' || body.purpose === 'test' ? await requireUser() : undefined;
               if (body.purpose === 'signup' && !allow(`signup:${ip}`, 10, 10 * 60_000)) return json({ error: 'Too many attempts. Please wait a minute and try again.' }, 429);
               const { url, cookie } = await (await import('~/lib/auth/oidc.server')).startOidc(request, body, user, ip);
               return json({ url }, 200, cookie);

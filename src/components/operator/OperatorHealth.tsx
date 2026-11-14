@@ -1,6 +1,6 @@
 // The operator console's Health tab (docs/hosting-many-families.md, "Health"): the daily jobs' last runs, families whose
 // migration failed or that have not caught up, the automatic backups (each family's last good one, the key, the drills), the running version and the update check's last
-// answer (src/lib/operator/health.server.ts). Read only, but for acknowledging an operator-funded AI overage, which resumes
+// answer (src/lib/operator/health.server.ts), and the single sign-on providers' last sign-ins and warnings (OperatorOidc.tsx). Read only, but for acknowledging an operator-funded AI overage, which resumes
 // that family's and model's calls.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ExternalLink } from 'lucide-react';
@@ -12,6 +12,7 @@ import { formatBytes } from '~/lib/operator/shared';
 import { healthQuery, operatorAcknowledgeOverage } from '~/lib/operator/self-update.functions';
 import { DEFAULT_UPDATE_REPO } from '~/lib/operator/updates-shared';
 import { EmailHealth } from '~/components/email/OperatorEmail';
+import { SsoHealth } from './OperatorOidc';
 import './operator.css';
 import './ops.css';
 
@@ -125,6 +126,7 @@ export function HealthTab({ onWorkers }: { onWorkers: boolean }) {
         {data.check.updateAvailable && <p>{t('update.health_update')}</p>}
       </section>
       <EmailHealth />
+      <SsoHealth />
     </div>
   );
 }

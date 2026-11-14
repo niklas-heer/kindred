@@ -197,6 +197,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0056_email_fixes.sql` | `email_send.sender` and `.network` (keyed hashes of who asked for a confirmation link or an invitation, for their daily limits) and the `notice` category; `steward_notice.emailed` and `.pushed` (how many stewards a notice reached each way: the lifecycle deletes by itself only after its final notice reached one). |
 | `0057_breach_notice_reach.sql` | `breach_mail`: one row per steward and affected family a breach's current notice is for, with when its email went out, how often it was tried and the last result, so the register shows how many it reached and the daily `breach-notices` job retries the rest. |
 | `0058_email_signin.sql` | `email_signin`: one row per "email me a sign-in code" asked in one browser (the hash of that browser's cookie value, and once a code went out the account and the hash of its code), and `signin_step.method`, so a ticket for the two-step code continues only the way in that issued it. |
+| `0059_sso_setup.sql` | The guided setup of single sign-on providers: `auth_provider.secret_expires` (the day the client secret expires, typed by the operator), `.last_success`, `.last_error` and `.last_error_at` (health), `.tested_at` (the operator's test sign-in worked with the current client ID and secret), and `oidc_flow` made again with the purpose `test`. |
 
 ### Tables
 
@@ -359,19 +360,24 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 - **`signin_daily`** (0048): `day` (UTC, `YYYY-MM-DD`), `method` (`passkey`, `password`, `oidc`) and `count`: one added by every
   new session (`createSession`), in the same batch. Aggregates only, for the operator's statistics; names nobody.
 - **`auth_provider`** (0046): a single sign-on provider the operator added: `id` (the slug in the redirect URI
-  `/api/auth/oidc/<id>/callback`, never changed), `kind` (`google`, `entra`, `authentik`, `keycloak`, `generic`: only presets and
-  help), `label` (the button), `issuer` (compared exactly; fixed once saved), `client_id`, `secret_sealed` (AES-GCM under a key
+  `/api/auth/oidc/<id>/callback`, never changed), `kind` (`google`, `microsoft` (personal accounts, from 0059: its issuer is
+  fixed and its emails never trusted), `entra`, `authentik`, `keycloak`, `generic`: presets, help and the guided setup's steps), `label` (the button), `issuer` (compared exactly; fixed once saved), `client_id`, `secret_sealed` (AES-GCM under a key
   from `KINDRED_SECRET` and the provider; NULL for a public client), `scopes` (space-separated, `openid` first), `trust_email`
   (0/1, off by default: a verified email the provider vouches for may find an account whose `user.email_verified` is 1), `enabled`, and a cache of the discovery
   document (`discovery`, `discovered_at`, a day) and the signing keys (`jwks`, `jwks_at`, a day; fetched again for an unknown key
-  id, at most once a minute). Not a family's: no `tree`.
+  id, at most once a minute). From 0059: `secret_expires` (YYYY-MM-DD as the operator typed it; the console warns 30 days
+  before), `last_success` (the last sign-in that got a good ID token, any purpose; Google deletes clients unused for six
+  months, the console warns at five), `last_error` and `last_error_at` (the last failed discovery or token call, the provider's
+  own words included, shown while newer than `last_success`; a refused code at a relative's sign-in is not recorded), and
+  `tested_at` (the operator's test sign-in worked; cleared when the client ID or secret changes). Not a family's: no `tree`.
 - **`oidc_identity`** (0046): an account's identity at a provider: `(provider, subject)` is the key (the provider's `sub`), so
   one identity belongs to one account; `UNIQUE (user, provider)` keeps one per provider per account. `email` and `email_verified`
   as the last sign-in said: `email_verified = 1` is the account's **verified email** (`verifiedEmailOf` in
   `src/lib/auth/oidc.server.ts`), which nothing else gives. Goes with the account or the provider.
-- **`oidc_flow`** (0046, made again in 0048): a sign-in in flight, ten minutes: the hash of its `state`, `provider`, `purpose`
-  (`signin`, `invite`, `link`, `proof`, and `signup` from 0048), the hash of the browser's flow cookie, `nonce`, the PKCE `verifier`, `subject` (the account and session for
-  `link` and `proof`), `next` (a same-site path) and `data` (an invitation's id, name and terms, or a sign-up's form). The callback deletes its row
+- **`oidc_flow`** (0046, made again in 0048 and 0059): a sign-in in flight, ten minutes: the hash of its `state`, `provider`, `purpose`
+  (`signin`, `invite`, `link`, `proof`, `signup` from 0048, and `test` from 0059: the operator's test sign-in, which signs nobody
+  in, makes no account and links nothing), the hash of the browser's flow cookie, `nonce`, the PKCE `verifier`, `subject` (the account and session for
+  `link`, `proof` and `test`), `next` (a same-site path) and `data` (an invitation's id, name and terms, or a sign-up's form). The callback deletes its row
   first: a state works once. Not in any backup worth keeping; old rows go with the next flow.
 - **`session.provider`** (0046): the provider that started a session whose `method` is `oidc`; turning that provider off or
   removing it deletes those sessions.

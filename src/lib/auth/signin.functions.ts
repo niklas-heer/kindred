@@ -162,6 +162,7 @@ export const providersQuery = queryOptions({ queryKey: ['operator', 'signin', 'p
 const providerInput = z.object({
   id: z.string().max(40), kind: z.enum(OIDC_KINDS), label: z.string().max(200), issuer: z.string().max(500), clientId: z.string().max(500),
   secret: z.string().max(2000).optional(), scopes: z.string().max(1000), trustEmail: z.boolean(), enabled: z.boolean(),
+  secretExpires: z.string().max(20).optional(),
 });
 
 export const saveProvider = createServerFn({ method: 'POST' })

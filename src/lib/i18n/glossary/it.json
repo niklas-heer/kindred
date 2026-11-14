@@ -259,6 +259,8 @@
     "oidc.kind_entra",
     "oidc.kind_google",
     "oidc.kind_keycloak",
+    "oidc.m_client_id",
+    "oidc.m_secret",
     "oidc.section",
     "preset.blog",
     "preset.bluesky",

@@ -47,6 +47,7 @@ import { Route as ApiPresenceRouteImport } from './routes/api/presence'
 import { Route as ApiStatsRouteImport } from './routes/api/stats'
 import { Route as ApiUnsubscribeRouteImport } from './routes/api/unsubscribe'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
+import { Route as OperatorSsoTestRouteImport } from './routes/operator_.sso-test'
 import { Route as ResetTokenRouteImport } from './routes/reset.$token'
 import { Route as ShareTokenRouteImport } from './routes/share.$token'
 import { Route as UiCharacterRouteImport } from './routes/ui_.character'
@@ -266,6 +267,11 @@ const InviteTokenRoute = InviteTokenRouteImport.update({
   path: '/invite/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OperatorSsoTestRoute = OperatorSsoTestRouteImport.update({
+  id: '/operator_/sso-test',
+  path: '/operator/sso-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResetTokenRoute = ResetTokenRouteImport.update({
   id: '/reset/$token',
   path: '/reset/$token',
@@ -446,6 +452,7 @@ export interface FileRoutesByFullPath {
   '/api/stats': typeof ApiStatsRoute
   '/api/unsubscribe': typeof ApiUnsubscribeRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/operator/sso-test': typeof OperatorSsoTestRoute
   '/reset/$token': typeof ResetTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/ui/character': typeof UiCharacterRoute
@@ -513,6 +520,7 @@ export interface FileRoutesByTo {
   '/api/stats': typeof ApiStatsRoute
   '/api/unsubscribe': typeof ApiUnsubscribeRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/operator/sso-test': typeof OperatorSsoTestRoute
   '/reset/$token': typeof ResetTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/ui/character': typeof UiCharacterRoute
@@ -582,6 +590,7 @@ export interface FileRoutesById {
   '/api/stats': typeof ApiStatsRoute
   '/api/unsubscribe': typeof ApiUnsubscribeRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/operator_/sso-test': typeof OperatorSsoTestRoute
   '/reset/$token': typeof ResetTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/ui_/character': typeof UiCharacterRoute
@@ -652,6 +661,7 @@ export interface FileRouteTypes {
     | '/api/stats'
     | '/api/unsubscribe'
     | '/invite/$token'
+    | '/operator/sso-test'
     | '/reset/$token'
     | '/share/$token'
     | '/ui/character'
@@ -719,6 +729,7 @@ export interface FileRouteTypes {
     | '/api/stats'
     | '/api/unsubscribe'
     | '/invite/$token'
+    | '/operator/sso-test'
     | '/reset/$token'
     | '/share/$token'
     | '/ui/character'
@@ -787,6 +798,7 @@ export interface FileRouteTypes {
     | '/api/stats'
     | '/api/unsubscribe'
     | '/invite/$token'
+    | '/operator_/sso-test'
     | '/reset/$token'
     | '/share/$token'
     | '/ui_/character'
@@ -839,6 +851,7 @@ export interface RootRouteChildren {
   ApiStatsRoute: typeof ApiStatsRoute
   ApiUnsubscribeRoute: typeof ApiUnsubscribeRoute
   InviteTokenRoute: typeof InviteTokenRoute
+  OperatorSsoTestRoute: typeof OperatorSsoTestRoute
   ResetTokenRoute: typeof ResetTokenRoute
   ShareTokenRoute: typeof ShareTokenRoute
   UiCharacterRoute: typeof UiCharacterRoute
@@ -1127,6 +1140,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InviteTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/operator_/sso-test': {
+      id: '/operator_/sso-test'
+      path: '/operator/sso-test'
+      fullPath: '/operator/sso-test'
+      preLoaderRoute: typeof OperatorSsoTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reset/$token': {
       id: '/reset/$token'
       path: '/reset/$token'
@@ -1411,6 +1431,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiStatsRoute: ApiStatsRoute,
   ApiUnsubscribeRoute: ApiUnsubscribeRoute,
   InviteTokenRoute: InviteTokenRoute,
+  OperatorSsoTestRoute: OperatorSsoTestRoute,
   ResetTokenRoute: ResetTokenRoute,
   ShareTokenRoute: ShareTokenRoute,
   UiCharacterRoute: UiCharacterRoute,

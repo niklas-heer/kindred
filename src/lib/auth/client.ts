@@ -175,9 +175,9 @@ export const finishCodeSignIn = (body: { ticket: string; code?: string; recovery
 /**
  * Starts a single sign-on flow (src/lib/auth/oidc.server.ts) and leaves for the provider; the provider sends the browser back
  * to /api/auth/oidc/<provider>/callback, which goes on to `next` (a path on this site). `link` and `proof` need the reader
- * signed in; `invite` takes the invitation with a new account.
+ * signed in; `invite` takes the invitation with a new account; `test` is the operator's test sign-in from the console.
  */
-export async function startSingleSignOn(body: { provider: string; purpose: 'signin' | 'invite' | 'link' | 'proof' | 'signup'; next?: string; token?: string; name?: string; acceptTerms?: boolean; [field: string]: unknown }) {
+export async function startSingleSignOn(body: { provider: string; purpose: 'signin' | 'invite' | 'link' | 'proof' | 'signup' | 'test'; next?: string; token?: string; name?: string; acceptTerms?: boolean; [field: string]: unknown }) {
   const { url } = await post<{ url: string }>('oidc-start', body);
   window.location.assign(url);
 }

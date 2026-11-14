@@ -2,7 +2,7 @@
 .pw-fixed { margin: 0; color: var(--ink-soft, inherit); }
 .pw-problem { color: var(--danger, #a33); }
 .pw-or { display: flex; align-items: center; gap: 0.75rem; margin: 1rem 0; color: var(--ink-faint, #888); font-size: 0.85rem; }
-.pw-or::before, .pw-or::after { content: ''; flex: 1; border-top: 1px solid var(--rule, #ccc); }
+.pw-or::before, .pw-or::after { content: ''; flex: 1; border-top: 1px solid var(--border); }
 .pw-links { display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center; margin-top: 0.75rem; }
 .pw-codes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem 1rem; padding: 0.75rem 1rem; margin: 0.5rem 0; list-style: none;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.95rem; border: 1px dashed var(--rule, #ccc); border-radius: 8px; }
@@ -21,4 +21,15 @@
 .sso-provider { display: grid; gap: 0.25rem; padding: 0.75rem 1rem; border: 1px solid var(--rule, #ccc); border-radius: 10px; margin: 0.5rem 0; }
 .sso-provider header { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
 .sso-redirect { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; word-break: break-all; user-select: all; }
+/* The guided setup of a provider (OperatorOidcWizard.tsx): numbered steps, each with its link, values to paste and notes. */
+.sso-steps { list-style: none; margin: 0.5rem 0 0; padding: 0; display: grid; gap: 1rem; }
+.sso-step { display: grid; gap: 0.5rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+.sso-step h4 { display: flex; align-items: center; gap: 0.5rem; margin: 0; font-size: 1rem; }
+.sso-step p { margin: 0; }
+.sso-step-n { display: inline-grid; place-items: center; flex: none; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--accent); color: var(--accent-text); font-size: 0.85rem; font-weight: 600; }
+.sso-more summary { cursor: pointer; margin-bottom: 0.5rem; }
+.sso-warnings { list-style: none; margin: 0.25rem 0; padding: 0; display: grid; gap: 0.25rem; font-size: 0.9rem; }
+/* The text in the page's own ink (the warning red is too faint for small text on some themes), the sign in red. */
+.sso-warnings li { display: flex; gap: 0.4rem; align-items: baseline; }
+.sso-warnings svg { flex: none; color: var(--danger); transform: translateY(2px); }
 .qr-code { display: block; margin: 0.5rem 0; border-radius: 6px; max-width: 100%; height: auto; }

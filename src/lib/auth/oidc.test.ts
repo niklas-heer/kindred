@@ -19,7 +19,7 @@ for (const k of ['KINDRED_AUTH', 'KINDRED_AUTH_METHODS', 'CF_ACCESS_TEAM_DOMAIN'
 const store = await import('./store.server.ts');
 const o = await import('./oidc.server.ts');
 const jwt = await import('./oidc-jwt.server.ts');
-const { issuerProblem, cleanScopes } = await import('./oidc.ts');
+const { issuerProblem, cleanScopes, OIDC_PRESETS, MICROSOFT_PERSONAL_ISSUER, trustEmailOffered, providerWarnings } = await import('./oidc.ts');
 const { onRequestReadOnly } = await import('../read-only.ts');
 type Jwk = import('./oidc-jwt.server.ts').Jwk;
 const { AuthError } = await import('./errors.ts');
@@ -84,6 +84,8 @@ const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body)
 
 o.setOidcFetch(async (url, init) => {
   if (url === `${ISSUER}/.well-known/openid-configuration`) return reply(idp.discovery);
+  // Microsoft's personal accounts, faked: their discovery names the consumer tenant's issuer; the endpoints are the fake's.
+  if (url === `${MICROSOFT_PERSONAL_ISSUER}/.well-known/openid-configuration`) return reply({ ...idp.discovery, issuer: MICROSOFT_PERSONAL_ISSUER });
   if (url === `${ISSUER}/jwks`) {
     idp.jwksFetches++;
     return reply({ keys: idp.keys });
@@ -244,7 +246,9 @@ test('issuers: https only (or this machine), no query; Microsoft’s shared tena
   assert.equal(issuerProblem('http://id.example.net'), 'oidc.err.issuer');
   assert.equal(issuerProblem('https://id.example.net/?x=1'), 'oidc.err.issuer');
   assert.equal(issuerProblem('https://{host}/application/o/{slug}/'), 'oidc.err.issuer');
-  for (const t of ['common', 'organizations', 'consumers', 'Common']) assert.equal(issuerProblem(`https://login.microsoftonline.com/${t}/v2.0`), 'oidc.err.entra_common');
+  for (const t of ['common', 'organizations', 'Common']) assert.equal(issuerProblem(`https://login.microsoftonline.com/${t}/v2.0`), 'oidc.err.entra_common');
+  // `consumers` is still refused, with an error that points to the personal-accounts preset.
+  for (const t of ['consumers', 'Consumers']) assert.equal(issuerProblem(`https://login.microsoftonline.com/${t}/v2.0`), 'oidc.err.entra_consumers');
   assert.equal(issuerProblem('https://login.microsoftonline.com/contoso.onmicrosoft.com/v2.0'), 'oidc.err.entra_tenant');
   assert.equal(issuerProblem('https://login.microsoftonline.com/0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0/v2.0'), null);
   assert.equal(cleanScopes('email openid, profile email'), 'openid email profile');
@@ -594,4 +598,161 @@ test('sign-up with single sign-on: a verified email makes the sign-up verified (
     delete process.env.KINDRED_TURNSTILE_SITE_KEY;
     delete process.env.KINDRED_TURNSTILE_SECRET;
   }
+});
+
+// ---------- the guided setup (accounts migration 0059) ----------
+
+test('presets: Google’s issuer, Microsoft personal accounts by the consumer tenant’s fixed issuer, Entra still per tenant', () => {
+  assert.equal(OIDC_PRESETS.google.issuer, 'https://accounts.google.com');
+  assert.equal(OIDC_PRESETS.microsoft.issuer, 'https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0');
+  assert.equal(issuerProblem(OIDC_PRESETS.microsoft.issuer), null, 'the fixed issuer passes the issuer rules');
+  assert.equal(issuerProblem(OIDC_PRESETS.google.issuer), null);
+  assert.match(OIDC_PRESETS.entra.issuer, /\{tenant\}/);
+  for (const k of ['authentik', 'keycloak', 'entra'] as const) assert.ok(OIDC_PRESETS[k], k);
+});
+
+test('Microsoft personal accounts: trusting emails is never offered nor accepted, and the preset keeps its issuer', async () => {
+  assert.equal(trustEmailOffered('microsoft', MICROSOFT_PERSONAL_ISSUER), false);
+  assert.equal(trustEmailOffered('generic', MICROSOFT_PERSONAL_ISSUER), false, 'the issuer decides, whatever the preset');
+  assert.equal(trustEmailOffered('google', 'https://accounts.google.com'), true);
+  await assert.rejects(provider({ kind: 'microsoft', issuer: MICROSOFT_PERSONAL_ISSUER, trustEmail: true }), /oidc\.err\.trust_email_microsoft/);
+  await assert.rejects(provider({ kind: 'generic', issuer: MICROSOFT_PERSONAL_ISSUER, trustEmail: true }), /oidc\.err\.trust_email_microsoft/);
+  await assert.rejects(provider({ kind: 'microsoft', issuer: ISSUER }), /oidc\.err\.microsoft_issuer/);
+  await provider({ kind: 'microsoft', issuer: MICROSOFT_PERSONAL_ISSUER });
+  assert.equal((await o.listProviders())[0].issuer, MICROSOFT_PERSONAL_ISSUER, 'the faked discovery document names the fixed issuer');
+});
+
+test('Microsoft personal accounts: a sign-in works by sub, and its email never counts as verified', async () => {
+  await provider({ kind: 'microsoft', issuer: MICROSOFT_PERSONAL_ISSUER });
+  const ada = await account('Ada Example', { email: 'ada@example.org' });
+  const b = await linked(ada, 'msa-1', { iss: MICROSOFT_PERSONAL_ISSUER, email: 'ada@example.org', email_verified: true });
+  assert.equal((await identityOf('msa-1'))?.email_verified, 0, 'Microsoft does not guarantee the email claim');
+  assert.equal((await store.userById(ada.id))?.email_verified, 0, 'nor does it verify the account’s address');
+  const p = await start(b, { purpose: 'signin' });
+  assert.equal((await callback(b, p.get('state'), authorize(p, { sub: 'msa-1', iss: MICROSOFT_PERSONAL_ISSUER }))).location, '/');
+});
+
+/** An operator, signed in in a browser of their own, with a provider saved but still off and single sign-on not on. */
+async function testSetup() {
+  await store.accounts().run("UPDATE instance_setting SET value = ? WHERE key = 'auth_methods'", JSON.stringify(['passkey']));
+  const op = await account('Olive Operator', { operator: true, passkey: true });
+  await provider({ enabled: false });
+  const b = new Browser();
+  await b.signInAs(op.id, false);
+  return { op, b };
+}
+const NEXT = '/operator/sso-test?provider=example';
+const row = async () => (await store.accounts().get<{ tested_at: number | null; last_success: number | null; last_error: string | null; last_error_at: number | null }>('SELECT * FROM auth_provider WHERE id = ?', 'example'))!;
+const counts = async () => Promise.all(['user', 'session', 'oidc_identity'].map(async (t) => (await store.accounts().get<{ n: number }>(`SELECT count(*) AS n FROM ${t}`))!.n));
+
+test('the operator’s test sign-in: the real flow on a provider still off; it signs nobody in, makes no account, links nothing', async () => {
+  const { op, b } = await testSetup();
+  const before = await counts();
+  const sessionCookie = b.cookies.get('kindred_session');
+  const p = await start(b, { purpose: 'test', next: NEXT }, op);
+  assert.equal(p.get('code_challenge_method'), 'S256');
+  assert.ok(p.get('state') && p.get('nonce') && p.get('code_challenge'));
+  assert.equal(p.get('redirect_uri'), `${SITE}/api/auth/oidc/example/callback`);
+  const r = await callback(b, p.get('state'), authorize(p, { sub: 'someone-new', email: 'new@example.org', email_verified: true }));
+  assert.equal(r.location, `${NEXT}&oidc_test=ok`);
+  assert.deepEqual(r.cookies, [], 'no session cookie');
+  assert.equal(b.cookies.get('kindred_session'), sessionCookie);
+  assert.deepEqual(await counts(), before, 'no account, no session, no identity');
+  const after = await row();
+  assert.ok(after.tested_at && after.last_success, 'tested, and a good sign-in for the health');
+  assert.equal(idp.tokenCalls.length, 1);
+  // The state works once.
+  assert.equal((await callback(b, p.get('state'), authorize(p))).location, '/signin?oidc_error=expired');
+});
+
+test('the test sign-in belongs to the operator’s own session in their own browser', async () => {
+  const { op, b } = await testSetup();
+  const relative = await account('Rowan Relative', { passkey: true });
+  const rb = new Browser();
+  await rb.signInAs(relative.id);
+  await assert.rejects(start(rb, { purpose: 'test', next: NEXT }, relative), /oidc\.err\.test_operator/);
+  await assert.rejects(start(new Browser(), { purpose: 'test', next: NEXT }, op), /oidc\.err\.session/, 'signed in elsewhere');
+
+  // The callback link in another browser does nothing there.
+  const p = await start(b, { purpose: 'test', next: NEXT }, op);
+  const other = new Browser();
+  await other.signInAs(op.id);
+  assert.match((await callback(other, p.get('state'), authorize(p))).location, /oidc_test=expired/);
+  assert.equal((await row()).tested_at, null);
+
+  // Signed out in the meantime: the session is gone, nothing is tested and the provider is never asked for a token.
+  const p2 = await start(b, { purpose: 'test', next: NEXT }, op);
+  await store.accounts().run('DELETE FROM session WHERE user = ?', op.id);
+  assert.equal((await callback(b, p2.get('state'), authorize(p2))).location, `${NEXT}&oidc_test=session`);
+  assert.equal(idp.tokenCalls.length, 0);
+  assert.equal((await row()).tested_at, null);
+
+  // A relative's sign-in flow cannot use a provider that is off; only the test can.
+  await assert.rejects(start(new Browser(), { purpose: 'signin' }), /oidc\.err\.off/);
+});
+
+test('the test reports the provider’s error, and the health keeps it until a sign-in works again', async () => {
+  const { op, b } = await testSetup();
+  // Cancelled or refused at the provider: its words are kept.
+  const p = await start(b, { purpose: 'test', next: NEXT }, op);
+  assert.equal((await callback(b, p.get('state'), authorize(p), '&error=unauthorized_client&error_description=The+client+is+not+registered')).location, `${NEXT}&oidc_test=denied`);
+  assert.match((await row()).last_error ?? '', /unauthorized_client: The client is not registered/);
+  // A wrong client secret: the token endpoint's own error.
+  await provider({ enabled: false, secret: 'not-the-secret' });
+  const p2 = await start(b, { purpose: 'test', next: NEXT }, op);
+  assert.equal((await callback(b, p2.get('state'), authorize(p2))).location, `${NEXT}&oidc_test=provider`);
+  assert.match((await row()).last_error ?? '', /invalid_client/);
+  assert.equal((await row()).tested_at, null);
+  const view = (await o.listProviders())[0];
+  assert.deepEqual(providerWarnings(view, Date.now()).map((w) => w.kind), ['failing']);
+  // Fixed: the test works, and the error is no longer shown.
+  await provider({ enabled: false, secret: SECRET });
+  const p3 = await start(b, { purpose: 'test', next: NEXT }, op);
+  assert.equal((await callback(b, p3.get('state'), authorize(p3))).location, `${NEXT}&oidc_test=ok`);
+  assert.deepEqual(providerWarnings((await o.listProviders())[0], Date.now() + 1), []);
+  // A changed secret needs a new test.
+  assert.ok((await row()).tested_at);
+  await provider({ enabled: false, secret: 'another-secret' });
+  assert.equal((await row()).tested_at, null);
+});
+
+test('a discovery that fails stops the test before the provider and is shown; a made-up code at a sign-in is not', async () => {
+  const { op, b } = await testSetup();
+  idp.discovery.issuer = 'https://evil.example';
+  await assert.rejects(start(b, { purpose: 'test', next: NEXT }, op), /oidc\.err\.discovery/);
+  assert.match((await row()).last_error ?? '', /discovery issuer/);
+  resetIdp();
+  // Anyone can start a sign-in and come back with a code of their own making: that says nothing about the provider.
+  await provider();
+  await store.accounts().run("UPDATE instance_setting SET value = ? WHERE key = 'auth_methods'", JSON.stringify(['passkey', 'oidc']));
+  await store.accounts().run('UPDATE auth_provider SET last_error = NULL, last_error_at = NULL');
+  const sb = new Browser();
+  const p = await start(sb, { purpose: 'signin' });
+  assert.equal((await callback(sb, p.get('state'), 'made-up-code')).location, '/signin?oidc_error=provider');
+  assert.equal((await row()).last_error, null);
+});
+
+test('the secret’s expiry: stored, shown, refused when not a day, and warned about 30 days before', async () => {
+  await assert.rejects(provider({ secretExpires: '2027-02-30' }), /oidc\.err\.secret_expires/);
+  await provider({ kind: 'microsoft', issuer: MICROSOFT_PERSONAL_ISSUER, secretExpires: '2027-05-31' });
+  const view = (await o.listProviders())[0];
+  assert.equal(view.secretExpires, '2027-05-31');
+  const at = (day: string) => Date.parse(`${day}T12:00:00Z`);
+  const kinds = (now: number) => providerWarnings(view, now).map((w) => w.kind);
+  assert.deepEqual(kinds(at('2027-04-30')), [], '31 days before');
+  assert.deepEqual(providerWarnings(view, at('2027-05-02')), [{ kind: 'secret_expiring', day: '2027-05-31', days: 29 }]);
+  assert.deepEqual(kinds(at('2027-05-31')), ['secret_expired']);
+  await provider({ kind: 'microsoft', issuer: MICROSOFT_PERSONAL_ISSUER, secretExpires: '' });
+  assert.equal((await o.listProviders())[0].secretExpires, null, 'cleared');
+});
+
+test('Google’s six-month deletion: a warning at five months without a sign-in, only while it is on', () => {
+  const base = { kind: 'google' as const, issuer: 'https://accounts.google.com', enabled: true, secretExpires: null, lastError: null, lastErrorAt: null };
+  const day = (d: string) => Date.parse(`${d}T00:00:00Z`);
+  const google = { ...base, created: day('2026-01-10'), lastSuccess: day('2026-03-15') };
+  assert.deepEqual(providerWarnings(google, day('2026-08-14')), [], 'just under five months');
+  assert.deepEqual(providerWarnings(google, day('2026-08-15')), [{ kind: 'google_idle', since: day('2026-03-15') }]);
+  assert.deepEqual(providerWarnings({ ...google, lastSuccess: null }, day('2026-06-10')), [{ kind: 'google_idle', since: day('2026-01-10') }], 'never used: counted from when it was added');
+  assert.deepEqual(providerWarnings({ ...google, enabled: false }, day('2027-01-01')), []);
+  assert.deepEqual(providerWarnings({ ...google, kind: 'keycloak', issuer: 'https://id.example.net/realms/x' }, day('2027-01-01')), [], 'other providers keep their clients');
 });
