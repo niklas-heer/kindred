@@ -132,5 +132,5 @@ export default {
   "pw.reset_notice": "Een serverbeheerder heeft op {date} je wachtwoord opnieuw ingesteld. Heb je daar niet om gevraagd, verander dan nu je wachtwoord en laat het de serverbeheerder weten.",
   "pw.reset_notice_label": "De beveiliging van je account",
   "pw.method_email_code": "Code per e-mail",
-  "pw.method_email_code_hint": "Een code van zes cijfers naar het bevestigde adres van het account: een weg terug voor wie zijn apparaten kwijt is. Vraagt om e-mail; nooit een bevestiging voor een serverbeheerder. De keerzijde: wie de e-mail van een lid kan lezen, komt in diens account, ook als dat alleen passkeys of single sign-on gebruikt, familiebeheerders inbegrepen, tenzij het lid tweestapscodes aanzet.",
+  "pw.method_email_code_hint": "Een code van zes cijfers naar het bevestigde adres van het account: een weg terug voor wie zijn apparaten kwijt is. Vraagt om e-mail; nooit een bevestiging voor een serverbeheerder. De keerzijde: wie de e-mail van een lid kan lezen, komt in diens account, ook als dat alleen passkeys of single sign-on gebruikt, familiebeheerders inbegrepen, tenzij het lid een wachtwoord met tweestapscodes heeft.",
 } satisfies Strings<typeof en, "nl">;

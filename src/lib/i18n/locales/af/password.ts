@@ -132,5 +132,5 @@ export default {
   "pw.reset_notice": "’n Operateur van hierdie bediener het jou wagwoord op {date} herstel. As jy nie daarvoor gevra het nie, verander nou jou wagwoord en sê vir die operateur.",
   "pw.reset_notice_label": "Jou rekening se sekuriteit",
   "pw.method_email_code": "Kode per e-pos",
-  "pw.method_email_code_hint": "’n Sessyferkode na die rekening se bevestigde adres: ’n weg terug vir iemand wat hul toestelle verloor het. Het e-pos nodig; nooit ’n operateur se bewys nie. Die prys: enigiemand wat ’n lid se e-pos kan lees, kan in hul rekening kom, ook een met net passkeys of enkelaanmelding, rentmeesters ingesluit, tensy hulle bevestigingskodes aanskakel.",
+  "pw.method_email_code_hint": "’n Sessyferkode na die rekening se bevestigde adres: ’n weg terug vir iemand wat hul toestelle verloor het. Het e-pos nodig; nooit ’n operateur se bewys nie. Die prys: enigiemand wat ’n lid se e-pos kan lees, kan in hul rekening kom, ook een met net passkeys of enkelaanmelding, rentmeesters ingesluit, tensy hulle ’n wagwoord met bevestigingskodes het.",
 } satisfies Strings<typeof en, "af">;
