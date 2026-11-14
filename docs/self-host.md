@@ -160,11 +160,15 @@ sign in every day: someone who lost every device, or is on a computer that is no
   (a growing wait after that), 20 tries an hour per network, and at most 3 codes and links an hour to one address. The email is a
   security email: it comes out of the reserve of **Emails an hour, at most** and cannot be unsubscribed.
 - **The code** works once, for 10 minutes, and five tries; each try is counted before it is checked, and against the network.
-- **Only on the device that asked.** Asking gives that browser a random value in a cookie only it holds (HttpOnly,
-  SameSite=Strict, `__Host-kindred_mailcode` over HTTPS), and the code is bound to it. The same code typed on another device is
-  wrong. So someone who talks a relative into reading a code out, or into typing it into another site, cannot use it on their
-  own device. The email says so and names this server's address; its link opens the sign-in page here and carries no code. A
-  site that relays the whole sign-in as it happens is the one thing the binding cannot stop.
+- **Only in the browser that asked.** Asking gives that browser a random value in a cookie only it holds (HttpOnly,
+  SameSite=Strict, `__Host-kindred_mailcode` over HTTPS), and the code is bound to it: the same code typed in another browser
+  is wrong. That protects a code a member asked for themselves: someone who gets them to read it out, or to type it into
+  another site, cannot use it elsewhere. It does **not** stop the phone scam: the caller asks for a code for the relative's
+  address from their own browser, and talks the relative into reading out the code that arrives, which is bound to the
+  caller's browser and works there. Nor does it stop a site that relays the whole sign-in as it happens. Against both, the
+  defence is the email itself: it says never to tell the code to anyone, that nobody from this server will ask for it, and
+  names this server's address; its link opens the sign-in page here and carries no code. A code also dies when the account's
+  confirmed address changes, and an account gets at most 3 codes an hour, however many networks ask.
 - **Two-step codes still apply.** An account that has them gives its app's code (or a recovery code) after the emailed one.
 - **The session** is a new one, and remembers it was a code's: turning *Code by email* off ends it. For a few minutes it counts as
   "it's you" (the proof that adding a passkey asks for), so someone who lost every device can add a passkey on the new one

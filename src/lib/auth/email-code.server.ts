@@ -11,10 +11,17 @@
 //
 // The binding: the row belongs to the browser that asked. Asking sets a cookie (`__Host-kindred_mailcode` over HTTPS) holding a
 // random value only that browser has, HttpOnly and SameSite=Strict, and the row keeps only its hash. A code is checked only
-// against the rows of the browser that sends it, so a code works on the device that asked for it and nowhere else: someone
-// who gets a person to read a code out, or to type it into another site, cannot use it on their own device. The email says
-// so, and its link only opens the sign-in page on this server (it carries no code). What the binding cannot stop is a site
-// that relays the whole sign-in as it happens; the email names this server's address so its reader can tell.
+// against the rows of the browser that sends it, so a code works in the browser that asked for it and nowhere else. That
+// protects a code the member asked for themselves: whoever gets them to read it out, or to type it into another site, cannot
+// use it elsewhere. It does not stop the phone scam, where the caller asks from their own browser and talks the member into
+// reading out the code that arrives (that code is bound to the caller's browser), nor a site that relays the whole sign-in as
+// it happens. The defence against both is the email: never tell the code to anyone, nobody from this server asks for it, and
+// this server's address, so its reader can tell. Its link only opens the sign-in page here (it carries no code).
+//
+// A code lives only while its email does, for the address it went to: issuing it counts the account's codes this hour (at
+// most CODES_PER_HOUR, however many networks ask) and checks the address is still the account's confirmed one, in one
+// statement; a code whose email was not sent is cleared at once; and its hash includes that address, checked again when it is
+// spent, so a confirmed change of address (../email/verify.server.ts) voids it and the two-step ticket it opened.
 //
 // Checking (`checkSignInCode`): every try is counted on each of this browser's live rows before any code is compared (five
 // tries a code), and against the network; a right code is spent in a statement whose count is the check (single use), and

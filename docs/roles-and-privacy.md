@@ -338,7 +338,9 @@ themselves. The Markdown archive carries research that isn't private, with its d
   code by email, in any combination. See [Choosing how people sign in](self-host.md#choosing-how-people-sign-in).
 - A sign-in code by email goes only to an account's **confirmed** address, never to one a steward typed, and the sign-in page
   answers the same whether or not an account has the address it was given. The code works once, for 10 minutes, and only in
-  the browser that asked for it (a cookie only that browser holds); an account with two-step codes still gives one. It proves
+  the browser that asked for it (a cookie only that browser holds); an account with two-step codes still gives one. That
+  binding protects a code the member asked for; it does not stop a caller who asks from their own browser and talks the member
+  into reading the code out, which is why the email says never to tell it to anyone. It proves
   control of the mailbox, as a reset link by email does, so the account is as safe as its mailbox. It is never an operator's
   proof, and every sign-in this way sends the address a notice. See [A sign-in code by email](self-host.md#a-sign-in-code-by-email).
 - A password is stored only as a salted, peppered PBKDF2 hash (600,000 iterations); a two-step code's secret is sealed with the
