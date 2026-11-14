@@ -178,9 +178,51 @@ sign in every day: someone who lost every device, or is on a computer that is no
 
 ### Single sign-on (OpenID Connect)
 
-The third way in: people sign in with an account they already have at a provider, such as Google, Microsoft Entra ID, or your
-own Authentik or Keycloak. Add providers in the console's **Sign-in** tab (under "Single sign-on providers"), then switch on the
-*Single sign-on* card; it stays *Unavailable* until one provider is on.
+The third way in: people sign in with an account they already have at a provider, such as Google, a personal Microsoft
+account (outlook.com, hotmail, live), Microsoft Entra ID (work or school), or your own Authentik or Keycloak. Add providers in
+the console's **Sign-in** tab (under "Single sign-on providers"), then switch on the *Single sign-on* card; it stays
+*Unavailable* until one provider is on.
+
+**The guided setup.** *Add a provider* opens a wizard: pick the provider and its short name, then follow the numbered steps.
+Each links to the right page of the provider's console and shows the exact values to paste there, each with a copy button
+(the app name, your site's domain, the JavaScript origin and the redirect URI). Paste the client ID and secret back and choose
+*Save, still off*: nobody sees the provider yet. *Test sign-in* opens a new window that runs the real sign-in with any account
+at the provider; the test signs nobody in, makes no account and adds the provider to nobody's account, and it works only from
+your own signed-in session in that browser (with its own `state`, `nonce` and PKCE verifier, as every sign-in). It says
+whether it worked or, in plain words, what went wrong, with the provider's own words when it gave some (such as
+`invalid_client`). Only after a test that worked with the current client ID and secret does *Turn it on* become available;
+changing either needs a new test. Saving and turning on need your fresh proof. Setting up Google takes about ten minutes.
+
+**Google** (free; about ten minutes):
+
+1. [Create a project](https://console.cloud.google.com/projectcreate) in Google Cloud, or pick one.
+2. [Branding](https://console.cloud.google.com/auth/branding): the app name your relatives will see, your email as the support
+   and developer contact, and your site's domain under *Authorized domains*.
+3. [Audience](https://console.cloud.google.com/auth/audience): *External*, then *Publish app*. Kindred asks only for
+   `openid email profile`, which needs no verification.
+4. [Clients](https://console.cloud.google.com/auth/clients/create) → *Create client* → *Web application*: the name, your site's
+   origin under *Authorized JavaScript origins*, and the redirect URI under *Authorized redirect URIs*.
+5. Copy the client ID and the client secret into Kindred at once: **Google shows the secret only once**.
+
+Google **deletes OAuth clients nobody used for six months** (it emails a warning 30 days before). The console warns you at
+five months without a Google sign-in ("Google deletes unused sign-in apps after six months: sign in once with it"); one
+sign-in, the test included, resets the count.
+
+**Microsoft personal accounts** (outlook.com, hotmail, live). The preset uses the consumer tenant's fixed issuer
+`https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0`, which lets in personal accounts only:
+
+1. Sign in to the [Azure portal](https://portal.azure.com/) with a Microsoft account. Registering an app needs a directory;
+   Microsoft may ask you to sign up for Azure with a subscription, which asks for a payment card. The registration itself is
+   free.
+2. *App registrations* → [New registration](https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/CreateApplicationBlade):
+   the name, *Personal Microsoft accounts only*, and under *Redirect URI* the platform *Web* with the redirect URI.
+3. Copy the *Application (client) ID* from the app's *Overview*.
+4. *Certificates & secrets* → *New client secret*: copy its **Value** (not the *Secret ID*) at once, and type the day it
+   expires into Kindred's *The secret expires on*. **Microsoft's client secrets expire**: the console warns 30 days before,
+   and after that day nobody can sign in with it until you paste a new one.
+
+Microsoft does not guarantee the `email` claim of personal accounts, so *Trust this provider's verified emails* is never
+offered (and refused) for this preset or its issuer, and such an email never counts as verified.
 
 **Registering Kindred with a provider.** Every provider needs the same three things:
 
@@ -193,13 +235,28 @@ own Authentik or Keycloak. Add providers in the console's **Sign-in** tab (under
 
 | Provider | Where | Issuer |
 | --- | --- | --- |
-| Google | Google Cloud console → APIs & Services → Credentials → *Create OAuth client ID* → *Web application*; add the redirect URI under *Authorized redirect URIs*. | `https://accounts.google.com` |
-| Microsoft Entra ID | Entra admin center → App registrations → *New registration*, platform *Web*, the redirect URI; then *Certificates & secrets* → a client secret. | `https://login.microsoftonline.com/<Directory (tenant) ID>/v2.0` |
+| Google | Google Cloud → *Google Auth Platform* → *Clients* → *Create client* → *Web application* (the steps above). | `https://accounts.google.com` |
+| Microsoft, personal accounts | Azure portal → App registrations → *New registration*, *Personal Microsoft accounts only*, platform *Web* (the steps above). | `https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0` (fixed) |
+| Microsoft Entra ID (work or school) | Entra admin center → App registrations → *New registration*, platform *Web*, the redirect URI; then *Certificates & secrets* → a client secret. | `https://login.microsoftonline.com/<Directory (tenant) ID>/v2.0` |
 | Authentik | Applications → Providers → *OAuth2/OpenID Provider*, client type *Confidential*, the redirect URI (strict); then an Application for it. | The provider's *OpenID Configuration Issuer*, such as `https://auth.example.org/application/o/kindred/` (with the slash) |
 | Keycloak | Your realm → Clients → *Create client*, OpenID Connect, *Client authentication* on, *Standard flow*, the redirect URI under *Valid redirect URIs*. | `https://<host>/realms/<realm>` |
 
 Microsoft's shared issuers (`common`, `organizations`, `consumers`) are refused: tokens from them can come from any tenant, so
-anyone with a Microsoft account could sign in. Use your tenant's ID (a GUID).
+anyone with a Microsoft account could sign in. Use your tenant's ID (a GUID); typing `consumers` points you to the
+personal-accounts preset, whose fixed issuer does the same safely.
+
+**Health.** Each provider's card (and the console's **Health** tab) shows its last successful sign-in, the day its secret
+expires when you typed one, and a warning for a Google client five months without a sign-in, a secret that expires within
+30 days or has expired, and a provider whose discovery document or token call failed since its last good sign-in (with what
+went wrong). A code the provider refused at a relative's sign-in (`invalid_grant`) is not counted: anyone can make one up.
+
+**Using a broker.** Kindred has no central sign-in service of its own, on purpose: one would see every family's sign-ins, lock
+every family out when it is down, and need one registration with Google and Microsoft for all installations. If you already
+run an identity broker, it plugs into the generic OpenID Connect preset: self-hosted [Authentik](https://goauthentik.io/) or
+[Keycloak](https://www.keycloak.org/) (presets above), or a hosted one such as WorkOS AuthKit, which publishes a standard
+discovery document. A broker does not save you the registration at Google or Microsoft: hosted brokers lend shared
+credentials for development only, so in production you still register Kindred there, now with the broker's redirect URI,
+and the broker becomes one more service that sees your families' sign-ins.
 
 **What Kindred checks.** It reads the provider's settings from the issuer's fixed address
 (`<issuer>/.well-known/openid-configuration`, whose `issuer` must be the one you typed exactly) when you save, and keeps them a

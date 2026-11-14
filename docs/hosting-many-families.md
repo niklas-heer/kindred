@@ -233,13 +233,23 @@ is read-only, and while `KINDRED_AUTH_METHODS` is set it only shows what that se
   The card's counts are the accounts with a confirmed address, and those with nothing else; turning it off ends its sessions.
 - **An operator who signs in with a password** reaches the console only with two-step codes on, and keeps them on while the
   password is their only way in. Give every operator a passkey too if you can.
-- **Single sign-on providers** (in the same tab; how to register Kindred with Google, Microsoft Entra ID, Authentik or Keycloak is
-  in [self-host.md](self-host.md#single-sign-on-openid-connect)). *Add a provider*, pick a preset, choose its short name, and copy
-  the **redirect URI** the form shows into the provider's client settings (`https://<this server>/api/auth/oidc/<short name>/callback`,
-  scopes `openid email profile`). Then paste the client ID and secret and save: Kindred reads the provider's discovery document
-  first, so a wrong issuer is caught now. Microsoft's shared `common` and `organizations` issuers are refused; use your tenant's
-  ID. *Trust this provider's verified emails* stays off unless you run the provider yourself. Turning a provider off ends its
-  sessions; removing it also removes every account's identity there; both are refused while an operator would have no way in.
+- **Single sign-on providers** (in the same tab; the steps for Google, personal Microsoft accounts, Microsoft Entra ID, Authentik
+  and Keycloak are in [self-host.md](self-host.md#single-sign-on-openid-connect)). *Add a provider* opens a guided setup: pick a
+  preset and a short name, then follow its numbered steps, which link to the right pages of Google Cloud or the Azure portal and
+  show every value to paste there with a copy button: the app name, your domain, the JavaScript origin and the **redirect URI**
+  (`https://<this server>/api/auth/oidc/<short name>/callback`, scopes `openid email profile`). Paste the client ID and secret
+  (and, for Microsoft, the day the secret expires) and choose *Save, still off*. *Test sign-in* runs the real sign-in in a new
+  window with any account at the provider; it signs nobody in, makes no account and links nothing, and says in plain words
+  what went wrong if it fails. Only then can you *Turn it on*. Google shows its client secret only once, and **deletes clients
+  unused for six months**; Microsoft's **secrets expire**, and registering there may need an Azure subscription (a payment card).
+  Microsoft's shared `common`, `organizations` and `consumers` issuers are refused (typing `consumers` points to the
+  personal-accounts preset); use your tenant's ID for Entra. *Trust this provider's verified emails* stays off unless you run
+  the provider yourself, and is never offered for personal Microsoft accounts. Each provider's card and the **Health** tab show
+  its last sign-in and warn at five months without a Google sign-in, 30 days before a Microsoft secret expires, and when the
+  provider's discovery or token call fails. Turning a provider off ends its sessions; removing it also removes every account's
+  identity there; both are refused while an operator would have no way in. Kindred runs no central sign-in broker; an
+  existing one (Authentik, Keycloak, WorkOS AuthKit) plugs in as a generic provider ([self-host.md](self-host.md#single-sign-on-openid-connect),
+  "Using a broker").
   On a hosting server, single sign-on gives people a way back in without email, and it is the only way in that verifies an email
   address (the provider's `email_verified`).
 - **A reset link** (in the same tab): type someone's username or email, optionally tick "also turn off their two-step codes"
