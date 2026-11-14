@@ -47,7 +47,7 @@ Actions:
 
 - **Make a family for someone.** Its name, address and theme, and the name (and, if you like, the email) of the person who will
   be its first steward. Kindred makes the family with **no members** (you are not added) and a link that works once, for two
-  weeks, and makes whoever opens it the family's steward. **Kindred sends no email**: copy the link and send it yourself. While
+  weeks, and makes whoever opens it the family's steward. Copy the link and send it to them yourself. While
   nobody has joined, **New invitation link** makes another (the old one stops working), and nobody else can claim the empty
   family as theirs, by making it or by importing into it. Only the invitation you made with the family can be renewed here, and
   only while the family has no members: once someone has joined, its stewards invite people themselves, and an invitation a
@@ -125,7 +125,7 @@ run if it stopped part-way. Every step is in the log (`lifecycle.*`, by "Kindred
 database that names it. Kindred keeps no copy of its own; only your backups do, for as long as they keep it (see
 [gdpr.md](gdpr.md#backups-and-the-nightly-archive)). Say how long in your privacy policy.
 
-Kindred sends no email yet: the warnings reach stewards in the app and by push only.
+The warnings reach stewards in the app, by push, and by email to a confirmed address when the server sends email ([Email](#email)).
 
 ### Waiting list
 
@@ -168,7 +168,7 @@ every legal footer and from the legal page.
   the stewards**: from then it shows at the top of their Access page, and they can mark it answered themselves once they have
   dealt with it. Until then only operators see it (you may want to check who is asking first), and moving it back to **Open**
   takes it from them again. One you mark **Answered** yourself never reaches them.
-- Kindred sends no email here either. Answer from your own mail, or let the family's stewards answer.
+- When the server sends email, the person who asked gets a receipt with the deadline, and the stewards hear when a request is handed to them ([Email](#email)). The answer itself comes from your own mail, or from the family's stewards.
 - Answered requests are listed newest first, 50 at a time, with **Show older**.
 
 ### Being told about new requests
@@ -650,7 +650,7 @@ sign-on lands in the family. Someone already signed in starts the family with th
 Kindred records the terms' acceptance (`terms_acceptance`, as for any family made), the processing agreement (a second row with
 `kind = 'dpa'` once the server's `terms_acceptance` has that column; until then the terms' row is the record, and the agreement's
 version is the terms' version), and the sign-up itself (`signup`: name, contact email, whether it was verified, the age answer,
-the code, a 4-character network hash, when). The contact email is **not verified** (Kindred sends no email) and so never becomes
+the code, a 4-character network hash, when). The contact email is **verified** only when the server sends email and the person typed the code it sent; an unverified one never becomes
 the account's own email: it is only how you reach them, listed under **Latest sign-ups** on the Hosting tab. A single sign-on
 provider that says the address it signed the person in with is verified (`email_verified`) makes the sign-up **verified**: that
 address becomes the contact email and the account's own. **Sign-ups whose email nobody checked** (every passkey and password
