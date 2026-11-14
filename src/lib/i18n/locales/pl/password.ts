@@ -105,7 +105,7 @@ export default {
   "pw.method_passkey": "Klucze dostępu",
   "pw.method_passkey_hint": "Twarz, odcisk palca lub blokada ekranu. Nic do zapamiętania i nic do ukradzenia.",
   "pw.method_password": "Nazwa użytkownika i hasło",
-  "pw.method_password_hint": "Dla urządzeń bez klucza dostępu. Kody dwuetapowe są opcjonalne; administratorzy serwera używający hasła ich potrzebują. Nie ma e-maila, więc zapomniane hasło wymaga kodu odzyskiwania albo Twojego linku do resetu.",
+  "pw.method_password_hint": "Dla urządzeń bez klucza dostępu. Kody dwuetapowe są opcjonalne; administratorzy serwera używający hasła ich potrzebują. Zapomniane hasło można zresetować e-mailem na potwierdzony adres, jeśli serwer wysyła e-maile; w przeciwnym razie kodem odzyskiwania albo Twoim linkiem do resetu.",
   "pw.method_oidc": "Jednokrotne logowanie (SSO)",
   "pw.method_oidc_hint": "Logowanie kontem z innego miejsca (OpenID Connect).",
   "pw.method_counts": {

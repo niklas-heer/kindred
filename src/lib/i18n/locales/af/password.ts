@@ -105,7 +105,7 @@ export default {
   "pw.method_passkey": "Passkeys",
   "pw.method_passkey_hint": "Gesig, vingerafdruk of skermslot. Niks om te onthou nie en niks om te steel nie.",
   "pw.method_password": "Gebruikersnaam en wagwoord",
-  "pw.method_password_hint": "Vir toestelle sonder ’n passkey. Bevestigingskodes is opsioneel; operateurs wat ’n wagwoord gebruik, het hulle nodig. Daar is geen e-pos nie, so ’n vergete wagwoord het ’n herstelkode of jou herstelskakel nodig.",
+  "pw.method_password_hint": "Vir toestelle sonder ’n passkey. Bevestigingskodes is opsioneel; operateurs wat ’n wagwoord gebruik, het hulle nodig. ’n Vergete wagwoord word per e-pos na ’n bevestigde adres teruggestel solank die bediener e-pos stuur; anders met ’n herstelkode of jou herstelskakel.",
   "pw.method_oidc": "Enkelaanmelding",
   "pw.method_oidc_hint": "Meld aan met ’n rekening elders (OpenID Connect).",
   "pw.method_counts": { one: "{count} rekening kan dit gebruik; vir {only} is dit die enigste manier om in te kom.", other: "{count} rekeninge kan dit gebruik; vir {only} is dit die enigste manier om in te kom." },

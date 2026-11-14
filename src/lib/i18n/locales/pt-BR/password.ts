@@ -100,7 +100,7 @@ export default {
   "pw.method_passkey": "Chaves de acesso",
   "pw.method_passkey_hint": "Rosto, impressão digital ou bloqueio de tela. Nada para lembrar e nada para roubar.",
   "pw.method_password": "Nome de usuário e senha",
-  "pw.method_password_hint": "Para aparelhos sem chave de acesso. Os códigos em duas etapas são opcionais; os operadores que usam senha precisam deles. Não há e-mail, então uma senha esquecida precisa de um código de recuperação ou do seu link de redefinição.",
+  "pw.method_password_hint": "Para aparelhos sem chave de acesso. Os códigos em duas etapas são opcionais; os operadores que usam senha precisam deles. Uma senha esquecida é redefinida por e-mail para um endereço confirmado enquanto o servidor envia e-mails; senão, com um código de recuperação ou o seu link de redefinição.",
   "pw.method_oidc": "Login único",
   "pw.method_oidc_hint": "Entre com uma conta de outro serviço (OpenID Connect).",
   "pw.method_counts": { one: "{count} conta pode usá-lo; para {only} é a única forma de entrar.", other: "{count} contas podem usá-lo; para {only} é a única forma de entrar." },

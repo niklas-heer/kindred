@@ -100,7 +100,7 @@ export default {
   "pw.method_passkey": "Llaves de acceso",
   "pw.method_passkey_hint": "Cara, huella o bloqueo de pantalla. Nada que recordar y nada que robar.",
   "pw.method_password": "Nombre de usuario y contraseña",
-  "pw.method_password_hint": "Para dispositivos sin llave de acceso. Los códigos en dos pasos son opcionales; los operadores que usan contraseña los necesitan. No hay correo, así que una contraseña olvidada necesita un código de recuperación o tu enlace de restablecimiento.",
+  "pw.method_password_hint": "Para dispositivos sin llave de acceso. Los códigos en dos pasos son opcionales; los operadores que usan contraseña los necesitan. Una contraseña olvidada se restablece por correo a una dirección confirmada mientras el servidor envíe correos; si no, con un código de recuperación o tu enlace de restablecimiento.",
   "pw.method_oidc": "Inicio de sesión único",
   "pw.method_oidc_hint": "Inicia sesión con una cuenta de otro servicio (OpenID Connect).",
   "pw.method_counts": { one: "{count} cuenta puede usarlo; para {only} es la única forma de entrar.", other: "{count} cuentas pueden usarlo; para {only} es la única forma de entrar." },

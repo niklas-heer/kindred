@@ -103,7 +103,7 @@ export const en = {
   "pw.method_passkey": "Passkeys",
   "pw.method_passkey_hint": "Face, fingerprint or screen lock. Nothing to remember and nothing to steal.",
   "pw.method_password": "Username and password",
-  "pw.method_password_hint": "For devices without a passkey. Two-step codes are optional; operators who use a password need them. There is no email, so a forgotten password needs a recovery code or your reset link.",
+  "pw.method_password_hint": "For devices without a passkey. Two-step codes are optional; operators who use a password need them. A forgotten password is reset by email to a confirmed address while the server sends email; otherwise with a recovery code or your reset link.",
   "pw.method_oidc": "Single sign-on",
   "pw.method_oidc_hint": "Sign in with an account elsewhere (OpenID Connect).",
   "pw.method_counts": { one: "{count} account can use it; for {only} it is the only way in.", other: "{count} accounts can use it; for {only} it is the only way in." },

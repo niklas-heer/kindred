@@ -100,7 +100,7 @@ export default {
   "pw.method_passkey": "Passkey",
   "pw.method_passkey_hint": "Volto, impronta o blocco schermo. Niente da ricordare e niente da rubare.",
   "pw.method_password": "Nome utente e password",
-  "pw.method_password_hint": "Per i dispositivi senza passkey. I codici a due passaggi sono facoltativi; i gestori che usano una password ne hanno bisogno. Non c’è e-mail, quindi una password dimenticata richiede un codice di recupero o il tuo link di reimpostazione.",
+  "pw.method_password_hint": "Per i dispositivi senza passkey. I codici a due passaggi sono facoltativi; i gestori che usano una password ne hanno bisogno. Una password dimenticata si reimposta via email a un indirizzo confermato finché il server invia email; altrimenti con un codice di recupero o il tuo link di reimpostazione.",
   "pw.method_oidc": "Single sign-on",
   "pw.method_oidc_hint": "Accedi con un account altrove (OpenID Connect).",
   "pw.method_counts": { one: "{count} account può usarlo; per {only} è l’unico modo di accesso.", other: "{count} account possono usarlo; per {only} è l’unico modo di accesso." },

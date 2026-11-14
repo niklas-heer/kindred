@@ -100,7 +100,7 @@ export default {
   "pw.method_passkey": "Clés d’accès",
   "pw.method_passkey_hint": "Visage, empreinte ou verrouillage d’écran. Rien à retenir et rien à voler.",
   "pw.method_password": "Nom d’utilisateur et mot de passe",
-  "pw.method_password_hint": "Pour les appareils sans clé d’accès. Les codes à deux facteurs sont facultatifs ; les exploitants qui utilisent un mot de passe en ont besoin. Il n’y a pas d’e-mail, donc un mot de passe oublié demande un code de récupération ou ton lien de réinitialisation.",
+  "pw.method_password_hint": "Pour les appareils sans clé d’accès. Les codes à deux facteurs sont facultatifs ; les exploitants qui utilisent un mot de passe en ont besoin. Un mot de passe oublié se réinitialise par e-mail vers une adresse confirmée tant que le serveur envoie des e-mails ; sinon avec un code de récupération ou ton lien de réinitialisation.",
   "pw.method_oidc": "Authentification unique",
   "pw.method_oidc_hint": "Se connecter avec un compte ailleurs (OpenID Connect).",
   "pw.method_counts": { one: "{count} compte peut l’utiliser ; pour {only}, c’est le seul mode d’accès.", other: "{count} comptes peuvent l’utiliser ; pour {only}, c’est le seul mode d’accès." },

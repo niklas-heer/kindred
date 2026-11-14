@@ -100,7 +100,7 @@ export default {
   "pw.method_passkey": "通行密钥",
   "pw.method_passkey_hint": "刷脸、指纹或屏幕锁。不用记，也没什么可被偷走。",
   "pw.method_password": "用户名和密码",
-  "pw.method_password_hint": "用于没有通行密钥的设备。两步验证码是可选的；用密码登录的运营者则必须开启。这里不使用邮箱，所以忘记密码时需要恢复码或你的重置链接。",
+  "pw.method_password_hint": "用于没有通行密钥的设备。两步验证码是可选的；用密码登录的运营者则必须开启。服务器发送邮件时，可以通过发往已确认地址的邮件重设忘记的密码；否则需要恢复码或你的重置链接。",
   "pw.method_oidc": "单点登录",
   "pw.method_oidc_hint": "用别处的账号登录（OpenID Connect）。",
   "pw.method_counts": "有{count}个账号可以使用；其中{only}个账号把它当作唯一的登录方式。",

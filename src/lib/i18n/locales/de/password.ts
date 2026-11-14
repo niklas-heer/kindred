@@ -105,7 +105,7 @@ export default {
   "pw.method_passkey": "Passkeys",
   "pw.method_passkey_hint": "Gesicht, Fingerabdruck oder Bildschirmsperre. Nichts zu merken und nichts zu stehlen.",
   "pw.method_password": "Benutzername und Passwort",
-  "pw.method_password_hint": "Für Geräte ohne Passkey. Bestätigungscodes sind freiwillig; wer den Server betreibt und ein Passwort nutzt, braucht sie. Es gibt keine E-Mail: Ein vergessenes Passwort braucht einen Wiederherstellungscode oder deinen Link zum Zurücksetzen.",
+  "pw.method_password_hint": "Für Geräte ohne Passkey. Bestätigungscodes sind freiwillig; wer den Server betreibt und ein Passwort nutzt, braucht sie. Ein vergessenes Passwort lässt sich per E-Mail an eine bestätigte Adresse zurücksetzen, solange der Server E-Mails verschickt; sonst mit einem Wiederherstellungscode oder deinem Link zum Zurücksetzen.",
   "pw.method_oidc": "Single Sign-on",
   "pw.method_oidc_hint": "Mit einem Konto anderswo anmelden (OpenID Connect).",
   "pw.method_counts": { one: "{count} Konto kann ihn nutzen; für {only} ist es der einzige Weg hinein.", other: "{count} Konten können ihn nutzen; für {only} ist es der einzige Weg hinein." },

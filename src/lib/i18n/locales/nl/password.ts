@@ -105,7 +105,7 @@ export default {
   "pw.method_passkey": "Passkeys",
   "pw.method_passkey_hint": "Gezicht, vingerafdruk of schermvergrendeling. Niets te onthouden en niets te stelen.",
   "pw.method_password": "Gebruikersnaam en wachtwoord",
-  "pw.method_password_hint": "Voor apparaten zonder passkey. Tweestapscodes zijn optioneel; serverbeheerders die een wachtwoord gebruiken, hebben ze nodig. Er is geen e-mail, dus een vergeten wachtwoord vraagt om een herstelcode of jouw herstellink.",
+  "pw.method_password_hint": "Voor apparaten zonder passkey. Tweestapscodes zijn optioneel; serverbeheerders die een wachtwoord gebruiken, hebben ze nodig. Een vergeten wachtwoord wordt per e-mail naar een bevestigd adres hersteld zolang de server e-mail verstuurt; anders met een herstelcode of jouw herstellink.",
   "pw.method_oidc": "Single sign-on",
   "pw.method_oidc_hint": "Inloggen met een account elders (OpenID Connect).",
   "pw.method_counts": { one: "{count} account kan het gebruiken; voor {only} is het de enige manier om in te loggen.", other: "{count} accounts kunnen het gebruiken; voor {only} is het de enige manier om in te loggen." },
