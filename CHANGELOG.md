@@ -24,7 +24,8 @@ applied when the server starts; on Cloudflare `mise run deploy` applies them bef
   to the browser that asked, at most 3 an hour per account, and void if the address changes. Two-step codes are still asked, and
   every sign-in this way sends the address a security notice. For a member it counts as a fresh proof for 5 minutes, so someone
   who lost every device can add a new passkey straight away; never for an operator, and an operator signed in this way needs
-  two-step codes for the console. Whoever can read a member's mail can get in unless the account uses two-step codes.
+  two-step codes for the console. Whoever can read a member's mail can get in unless the account has a password with two-step
+  codes.
 - **Guided single sign-on setup** in the Sign-in tab: presets for Google and personal Microsoft accounts (Outlook.com, Hotmail,
   Xbox) and a step-by-step wizard with the exact values to paste, including the redirect URL. A **test sign-in** with your own
   account at the provider creates nothing and signs nobody in. Health warnings: Google deletes unused clients after six months,
@@ -43,6 +44,8 @@ applied when the server starts; on Cloudflare `mise run deploy` applies them bef
 - A sign-in code lives only while the address it went to is confirmed, and works only in the browser that asked. The docs say
   what the browser binding does not stop (a caller who talks a relative into reading out a code).
 - The provider test follows the console's operator rule, and a code sign-in is never an operator's proof for the console.
+- A session whose way in was turned off (also by the `KINDRED_AUTH_METHODS` break-glass list) cannot finish a provider test or
+  link a provider.
 
 ## [2.5.0] - 2026-11-12
 
