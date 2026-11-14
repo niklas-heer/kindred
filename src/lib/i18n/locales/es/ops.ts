@@ -107,6 +107,15 @@ export default {
   "ops.card_link": "Ver las novedades",
   "ops.card_dismiss": "Descartar",
 
+  "ops.r260.code_title": "Un código de acceso por correo.",
+  "ops.r260.code_text": "Donde tu servidor lo ofrezca: pide un código de seis dígitos a tu dirección confirmada e inicia sesión con él.",
+  "ops.r260.device_title": "De vuelta tras perder todos tus dispositivos.",
+  "ops.r260.device_text": "Si iniciaste sesión con un código, puedes añadir una llave de acceso nueva enseguida.",
+  "ops.r260.sso_title": "Inicio de sesión con Google y Microsoft, paso a paso.",
+  "ops.r260.sso_text": "Una configuración guiada para Google y cuentas personales de Microsoft, con la dirección exacta que debes introducir y un inicio de sesión de prueba que no crea nada.",
+  "ops.r260.health_title": "Avisos antes de que un proveedor deje de funcionar.",
+  "ops.r260.health_text": "La consola avisa cuando Google puede borrar un cliente sin usar o un secreto de Microsoft está a punto de caducar.",
+
   "ops.r250.email_title": "Correo, si tu servidor lo envía.",
   "ops.r250.email_text": "Confirma tu dirección, restablece una contraseña olvidada y recibe avisos de seguridad por correo.",
   "ops.r250.invite_title": "Invitaciones directas a la bandeja de entrada.",

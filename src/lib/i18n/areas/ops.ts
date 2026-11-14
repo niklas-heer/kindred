@@ -108,6 +108,15 @@ export const en = {
   "ops.card_link": "See what's new",
   "ops.card_dismiss": "Dismiss",
 
+  "ops.r260.code_title": "A sign-in code by email.",
+  "ops.r260.code_text": "Where your server offers it: ask for a six-digit code at your confirmed address and sign in with it.",
+  "ops.r260.device_title": "Back in after losing every device.",
+  "ops.r260.device_text": "Signed in with a code, you can add a new passkey straight away.",
+  "ops.r260.sso_title": "Google and Microsoft sign-in, step by step.",
+  "ops.r260.sso_text": "A guided setup for Google and personal Microsoft accounts, with the exact address to enter and a test sign-in that creates nothing.",
+  "ops.r260.health_title": "Warnings before a provider stops working.",
+  "ops.r260.health_text": "The console warns when Google may delete an unused client or a Microsoft secret is about to expire.",
+
   "ops.r250.email_title": "Email, if your server sends it.",
   "ops.r250.email_text": "Confirm your address, reset a forgotten password and get security notices by email.",
   "ops.r250.invite_title": "Invitations straight to the inbox.",

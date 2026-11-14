@@ -7,7 +7,42 @@ moving to before you upgrade ([docs/self-host.md](docs/self-host.md), "Upgrading
 
 ## [Unreleased]
 
-Changes on `main` since 2.5.0. They are not in a release yet.
+Changes on `main` since 2.6.0. They are not in a release yet.
+
+## [2.6.0] - 2026-11-14
+
+Simpler sign-in: a sign-in code by email, and a guided setup for Google and personal Microsoft accounts. Accounts migrations
+0058 and 0059 are new since 2.5.0; read the [release notes](docs/releases/v2.6.0.md) before upgrading.
+
+Database changes, both in `migrations/accounts` and both additive: `0058_email_signin.sql` (the sign-in codes asked for, and
+the way in a two-step ticket belongs to) and `0059_sso_setup.sql` (provider presets, the test sign-in, health). On Node they are
+applied when the server starts; on Cloudflare `mise run deploy` applies them before the new Worker goes live. No new settings.
+
+### Added
+- **"Email me a sign-in code"**, a fourth way in, off by default (*Code by email* in the console's Sign-in tab; it needs email
+  to be set up). A six-digit code goes to an account's **confirmed** address: valid for 10 minutes, usable once, five tries, bound
+  to the browser that asked, at most 3 an hour per account, and void if the address changes. Two-step codes are still asked, and
+  every sign-in this way sends the address a security notice. For a member it counts as a fresh proof for 5 minutes, so someone
+  who lost every device can add a new passkey straight away; never for an operator, and an operator signed in this way needs
+  two-step codes for the console. Whoever can read a member's mail can get in unless the account uses two-step codes.
+- **Guided single sign-on setup** in the Sign-in tab: presets for Google and personal Microsoft accounts (Outlook.com, Hotmail,
+  Xbox) and a step-by-step wizard with the exact values to paste, including the redirect URL. A **test sign-in** with your own
+  account at the provider creates nothing and signs nobody in. Health warnings: Google deletes unused clients after six months,
+  and Microsoft client secrets expire. Apple is not included.
+- 2.6.0's highlights in "New in Kindred", in all eleven languages.
+
+### Changed
+- The operator's audit records whether a saved provider had been tested.
+- The password hint knows that a forgotten password can be reset by email.
+- The hosting guides no longer say Kindred sends no email.
+
+### Fixed
+- Translation polish for the sign-in, password and email texts in every language.
+
+### Security
+- A sign-in code lives only while the address it went to is confirmed, and works only in the browser that asked. The docs say
+  what the browser binding does not stop (a caller who talks a relative into reading out a code).
+- The provider test follows the console's operator rule, and a code sign-in is never an operator's proof for the console.
 
 ## [2.5.0] - 2026-11-12
 
@@ -527,7 +562,8 @@ on Node 26 with SQLite or on Cloudflare Workers with D1 and R2.
 Read the [release notes](docs/releases/v2.0.0.md) for the full list and for moving from v1 (also
 [docs/migration-plan.md](docs/migration-plan.md)). Cloudflare Access installs must set `KINDRED_AUTH=cloudflare-access` before deploying.
 
-[Unreleased]: https://github.com/niklas-heer/kindred/compare/v2.5.0...HEAD
+[Unreleased]: https://github.com/niklas-heer/kindred/compare/v2.6.0...HEAD
+[2.6.0]: https://github.com/niklas-heer/kindred/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/niklas-heer/kindred/compare/v2.4.1...v2.5.0
 [2.4.1]: https://github.com/niklas-heer/kindred/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/niklas-heer/kindred/compare/v2.3.0...v2.4.0

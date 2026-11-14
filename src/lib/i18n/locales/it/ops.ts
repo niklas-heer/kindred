@@ -107,6 +107,15 @@ export default {
   "ops.card_link": "Scopri le novità",
   "ops.card_dismiss": "Ignora",
 
+  "ops.r260.code_title": "Un codice di accesso via email.",
+  "ops.r260.code_text": "Dove il tuo server lo offre: chiedi un codice di sei cifre al tuo indirizzo confermato e accedi con quello.",
+  "ops.r260.device_title": "Di nuovo dentro dopo aver perso tutti i dispositivi.",
+  "ops.r260.device_text": "Se hai effettuato l’accesso con un codice, puoi aggiungere subito una nuova passkey.",
+  "ops.r260.sso_title": "L’accesso con Google e Microsoft, passo dopo passo.",
+  "ops.r260.sso_text": "Una configurazione guidata per Google e gli account Microsoft personali, con l’indirizzo esatto da inserire e un accesso di prova che non crea nulla.",
+  "ops.r260.health_title": "Avvisi prima che un provider smetta di funzionare.",
+  "ops.r260.health_text": "La console avvisa quando Google potrebbe eliminare un client inutilizzato o un segreto Microsoft sta per scadere.",
+
   "ops.r250.email_title": "Email, se il tuo server le invia.",
   "ops.r250.email_text": "Conferma il tuo indirizzo, reimposta una password dimenticata e ricevi gli avvisi di sicurezza via email.",
   "ops.r250.invite_title": "Inviti direttamente nella casella di posta.",

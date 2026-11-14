@@ -110,6 +110,15 @@ export default {
   "ops.card_link": "Kyk wat nuut is",
   "ops.card_dismiss": "Maak toe",
 
+  "ops.r260.code_title": "’n Aanmeldkode per e-pos.",
+  "ops.r260.code_text": "Waar jou bediener dit aanbied: vra ’n kode van ses syfers by jou bevestigde adres en meld daarmee aan.",
+  "ops.r260.device_title": "Weer binne ná jy al jou toestelle verloor het.",
+  "ops.r260.device_text": "As jy met ’n kode aangemeld het, kan jy dadelik ’n nuwe passkey byvoeg.",
+  "ops.r260.sso_title": "Aanmelding met Google en Microsoft, stap vir stap.",
+  "ops.r260.sso_text": "’n Begeleide opstelling vir Google en persoonlike Microsoft-rekeninge, met die presiese adres om in te vul en ’n toetsaanmelding wat niks skep nie.",
+  "ops.r260.health_title": "Waarskuwings voordat ’n verskaffer ophou werk.",
+  "ops.r260.health_text": "Die konsole waarsku as Google ’n ongebruikte kliënt kan skrap of ’n Microsoft-geheim binnekort verval.",
+
   "ops.r250.email_title": "E-pos, as jou bediener dit stuur.",
   "ops.r250.email_text": "Bevestig jou adres, stel ’n vergete wagwoord terug en kry sekuriteitskennisgewings per e-pos.",
   "ops.r250.invite_title": "Uitnodigings reguit in die posbus.",

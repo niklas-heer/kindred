@@ -110,6 +110,15 @@ export default {
   "ops.card_link": "Sieh dir an, was neu ist",
   "ops.card_dismiss": "Schließen",
 
+  "ops.r260.code_title": "Anmelden mit einem Code per E-Mail.",
+  "ops.r260.code_text": "Wo dein Server es anbietet: Lass dir einen sechsstelligen Code an deine bestätigte Adresse schicken und melde dich damit an.",
+  "ops.r260.device_title": "Zurück ins Konto, auch ohne alle Geräte.",
+  "ops.r260.device_text": "Wer sich mit einem Code angemeldet hat, kann sofort einen neuen Passkey hinzufügen.",
+  "ops.r260.sso_title": "Anmeldung mit Google und Microsoft, Schritt für Schritt.",
+  "ops.r260.sso_text": "Eine geführte Einrichtung für Google und persönliche Microsoft-Konten, mit der genauen Adresse zum Eintragen und einer Testanmeldung, die nichts anlegt.",
+  "ops.r260.health_title": "Warnungen, bevor ein Anbieter ausfällt.",
+  "ops.r260.health_text": "Die Konsole warnt, wenn Google einen unbenutzten Client löschen könnte oder ein Microsoft-Geheimnis bald abläuft.",
+
   "ops.r250.email_title": "E-Mail, wenn dein Server sie verschickt.",
   "ops.r250.email_text": "Bestätige deine Adresse, setze ein vergessenes Passwort zurück und erhalte Sicherheitshinweise per E-Mail.",
   "ops.r250.invite_title": "Einladungen direkt ins Postfach.",
