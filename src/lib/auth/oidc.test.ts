@@ -106,7 +106,7 @@ o.setOidcFetch(async (url, init) => {
 
 // ---------- the browser ----------
 
-const TABLES = ['oidc_flow', 'session', 'oidc_identity', 'auth_provider', 'credential', 'password', 'membership', 'invite', 'join_request', 'instance_setting', 'operator_audit', 'signup', 'family_admin', 'terms_acceptance', 'user'];
+const TABLES = ['oidc_flow', 'totp', 'session', 'oidc_identity', 'auth_provider', 'credential', 'password', 'membership', 'invite', 'join_request', 'instance_setting', 'operator_audit', 'signup', 'family_admin', 'terms_acceptance', 'user'];
 beforeEach(async () => {
   resetIdp();
   await store.accounts().batch(TABLES.map((t) => store.q(`DELETE FROM ${t}`)));
@@ -147,8 +147,8 @@ class Browser {
     if (attrs.includes('Max-Age=0')) this.cookies.delete(pair.slice(0, i));
     else this.cookies.set(pair.slice(0, i), pair.slice(i + 1));
   }
-  async signInAs(user: string, proved = true) {
-    const { token } = await store.createSession(user, null, proved, 'passkey');
+  async signInAs(user: string, proved = true, method: 'passkey' | 'password' | 'email-code' = 'passkey') {
+    const { token } = await store.createSession(user, null, proved, method);
     this.cookies.set('kindred_session', token);
   }
 }
@@ -689,6 +689,33 @@ test('the test sign-in belongs to the operator’s own session in their own brow
 
   // A relative's sign-in flow cannot use a provider that is off; only the test can.
   await assert.rejects(start(new Browser(), { purpose: 'signin' }), /oidc\.err\.off/);
+});
+
+test('the test follows the console’s rule: an operator signed in by password or emailed code needs two-step codes, at the start and at the callback', async () => {
+  const { op } = await testSetup();
+  const { beginTotp } = await import('./totp.server.ts');
+  for (const [method, refusal] of [['password', /pw\.err\.operator_needs_totp/], ['email-code', /email\.err\.operator_code_totp/]] as const) {
+    const b = new Browser();
+    await b.signInAs(op.id, false, method);
+    await assert.rejects(start(b, { purpose: 'test', next: NEXT }, op), refusal, method);
+  }
+  // With two-step codes on, a password session may test; turned off while the provider has the browser, the callback refuses.
+  assert.ok(await beginTotp(op.id));
+  await store.accounts().run('UPDATE totp SET confirmed_at = ? WHERE user = ?', Date.now(), op.id);
+  const b = new Browser();
+  await b.signInAs(op.id, false, 'password');
+  const p = await start(b, { purpose: 'test', next: NEXT }, op);
+  await store.accounts().run('DELETE FROM totp WHERE user = ?', op.id);
+  assert.equal((await callback(b, p.get('state'), authorize(p))).location, `${NEXT}&oidc_test=test_operator`);
+  assert.equal(idp.tokenCalls.length, 0, 'the provider is never asked for a token');
+  assert.equal((await row()).tested_at, null);
+  // No longer an operator by the callback: the same refusal.
+  const pk = new Browser();
+  await pk.signInAs(op.id, false);
+  const p2 = await start(pk, { purpose: 'test', next: NEXT }, op);
+  await store.accounts().run('UPDATE user SET operator = 0 WHERE id = ?', op.id);
+  assert.equal((await callback(pk, p2.get('state'), authorize(p2))).location, `${NEXT}&oidc_test=test_operator`);
+  assert.equal((await row()).tested_at, null);
 });
 
 test('the test reports the provider’s error, and the health keeps it until a sign-in works again', async () => {

@@ -30,12 +30,13 @@ import {
 } from './oidc.ts';
 import { emailVerified, SKEW_S, TokenError, verifyIdToken, type IdTokenClaims, type Jwk } from './oidc-jwt.server.ts';
 import { onGuestHost } from './origin.ts';
+import { operatorRefusal } from './operator-rule.server.ts';
 import { cleanName } from './passkeys.server.ts';
 import { requireFreshProof } from './proof.server.ts';
 import { seal, unseal } from './seal.server.ts';
 import { guestChoice, readCookie, sessionOf, siteOrigin, startSession } from './session.server.ts';
 import {
-  accounts, commit, guard, inviteById, inviteUsed, isGuardError, newUser, now, openInvite, q, sessionProved, usable, useInvite, userByEmail, userById, type UserRow,
+  accounts, commit, guard, inviteById, inviteUsed, isGuardError, newUser, now, openInvite, q, sessionMethod, sessionProved, usable, useInvite, userByEmail, userById, type UserRow,
 } from './store.server.ts';
 import { hashToken, randomToken } from './tokens.server.ts';
 import { safeNext } from './client.ts';
@@ -270,6 +271,9 @@ export async function startOidc(request: Request, input: StartInput, user?: User
     if (!user?.operator) throw invalid('oidc.err.test_operator');
     const s = await sessionOf(request);
     if (!s || s.user !== user.id) throw invalid('oidc.err.session');
+    // The console's own rule, for the session that starts it: a password or a mailbox alone does not open the console's tools.
+    const refusal = await operatorRefusal({ user, via: 'passkey', method: sessionMethod(s) });
+    if (refusal) throw refusal;
     subject = `${user.id} ${s.hash}`;
   }
   const d = await discoveryOf(p).catch(async (e) => {
@@ -432,10 +436,13 @@ async function callback(request: Request, providerId: string, seen: (f: FlowRow)
 }
 
 /** A brand-new session for `user`, started by this provider; refused for a guest's account a steward has not let in yet. */
-/** The operator's test session: the flow's session, still open in this browser, of an account that is still an operator. */
+/**
+ * The operator's test session: the flow's session, still open in this browser, of an account the console's rule still lets in
+ * (./operator-rule.server.ts), as when the test started.
+ */
 async function testSession(request: Request, flow: FlowRow): Promise<void> {
-  const { user } = await flowSession(request, flow);
-  if (!user.operator) throw new OidcFail('session');
+  const { user, method } = await flowSession(request, flow);
+  if (await operatorRefusal({ user, via: 'passkey', method })) throw new OidcFail('test_operator');
 }
 
 /**
@@ -564,12 +571,12 @@ async function signUp(request: Request, p: ProviderRow, c: IdTokenClaims, identi
 }
 
 /** The session the flow was started from, still open in this browser, and its account. */
-async function flowSession(request: Request, flow: FlowRow): Promise<{ user: UserRow; hash: string }> {
+async function flowSession(request: Request, flow: FlowRow): Promise<{ user: UserRow; hash: string; method: string }> {
   const [userId, hash] = (flow.subject ?? '').split(' ');
   const s = await sessionOf(request);
   const user = userId && (await userById(userId));
   if (!s || !user || s.user !== userId || s.hash !== hash) throw new OidcFail('session');
-  return { user, hash };
+  return { user, hash, method: sessionMethod(s) };
 }
 
 /** Adds this provider's identity to the signed-in account. One identity belongs to one account, one per provider. */
