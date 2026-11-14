@@ -132,5 +132,5 @@ export default {
   "pw.reset_notice": "Jemand, der diesen Server betreibt, hat am {date} dein Passwort zurückgesetzt. Wenn du das nicht wolltest, ändere jetzt dein Passwort und sag es der Person.",
   "pw.reset_notice_label": "Sicherheit deines Kontos",
   "pw.method_email_code": "Code per E-Mail",
-  "pw.method_email_code_hint": "Ein sechsstelliger Code an die bestätigte Adresse des Kontos: ein Weg zurück für alle, die ihre Geräte verloren haben. Braucht E-Mail; für den Serverbetrieb nie eine Bestätigung.",
+  "pw.method_email_code_hint": "Ein sechsstelliger Code an die bestätigte Adresse des Kontos: ein Weg zurück für alle, die ihre Geräte verloren haben. Braucht E-Mail; für den Serverbetrieb nie eine Bestätigung. Der Preis: Wer die E-Mails eines Mitglieds lesen kann, kommt in dessen Konto, auch in eins nur mit Passkeys oder Single Sign-on, Verwalterinnen und Verwalter eingeschlossen, außer es hat Bestätigungscodes eingeschaltet.",
 } satisfies Strings<typeof en, "de">;

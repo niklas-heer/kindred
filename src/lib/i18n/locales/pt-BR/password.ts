@@ -127,5 +127,5 @@ export default {
   "pw.reset_notice": "Um operador deste servidor redefiniu a sua senha em {date}. Se você não pediu isso, mude a sua senha agora e avise o operador.",
   "pw.reset_notice_label": "A segurança da sua conta",
   "pw.method_email_code": "Código por e-mail",
-  "pw.method_email_code_hint": "Um código de seis dígitos para o endereço confirmado da conta: um caminho de volta para quem perdeu os aparelhos. Precisa de e-mail; nunca serve de confirmação para um operador.",
+  "pw.method_email_code_hint": "Um código de seis dígitos para o endereço confirmado da conta: um caminho de volta para quem perdeu os aparelhos. Precisa de e-mail; nunca serve de confirmação para um operador. O preço: quem consegue ler o e-mail de um membro consegue entrar na conta dele, mesmo que ela use só chaves de acesso ou login único, inclusive a de um responsável, a menos que os códigos em duas etapas estejam ligados.",
 } satisfies Strings<typeof en, "pt-BR">;
