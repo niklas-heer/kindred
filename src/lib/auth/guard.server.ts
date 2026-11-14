@@ -18,8 +18,8 @@ import { CHANGE_OF_ACTION } from '../stats/shared';
 import { onChangeCommitted } from '../db.server';
 import { onActor, type Actor } from '../history.server';
 import { can, needs, type Action, type Role } from '../roles';
-import { AuthError, closedFamily, forbidden, notMember, notOperator, signedOut, suspended } from './errors';
-import { totpOn } from './totp.server';
+import { AuthError, closedFamily, forbidden, notMember, signedOut, suspended } from './errors';
+import { operatorRefusal } from './operator-rule.server';
 import { getSession, type Session } from './session.server';
 import { membershipsOf, type MembershipRow, type UserRow } from './store.server';
 import { demoRefused, isDemo } from '../demo';
@@ -233,12 +233,8 @@ onChangeCommitted(async (tree) => {
  */
 export async function requireOperator(): Promise<UserRow> {
   const session = await currentSession();
-  if (!session.user) throw fail(signedOut());
-  if (isDemo() || session.via === 'demo' || session.user.operator !== 1) throw fail(notOperator());
-  // An operator signed in with a password, or with a code sent by email, reaches the console only with two-step codes on
-  // (docs/hosting-many-families.md): neither a password nor a mailbox alone opens it.
-  if ((session.method === 'password' || session.method === 'email-code') && !(await totpOn(session.user.id))) {
-    throw fail(new AuthError('forbidden', session.method === 'password' ? 'pw.err.operator_needs_totp' : 'email.err.operator_code_totp'));
-  }
-  return session.user;
+  // The rule (./operator-rule.server.ts) is shared with the provider test sign-in, which checks a session it was handed.
+  const refusal = await operatorRefusal(session);
+  if (refusal) throw fail(refusal);
+  return session.user!;
 }

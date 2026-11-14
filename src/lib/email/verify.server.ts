@@ -119,6 +119,10 @@ export async function redeemVerification(token: unknown, reader: string): Promis
       guard('EXISTS (SELECT 1 FROM user WHERE id = ? AND retiring IS NULL)', row.user),
       q('UPDATE user SET email = ?, email_verified = 1 WHERE id = ?', row.email, row.user),
       q("DELETE FROM email_token WHERE purpose = 'verify' AND user = ? AND used_at IS NULL", row.user),
+      // Codes to sign in that were emailed to the address it had, and the two-step tickets they opened, end with the change
+      // (src/lib/auth/email-code.server.ts). Voided, not deleted: they still count against the account's codes this hour.
+      q('UPDATE email_signin SET secret = NULL WHERE user = ?', row.user),
+      q("DELETE FROM signin_step WHERE user = ? AND method = 'email-code'", row.user),
     ]);
   } catch (e) {
     if (isUniqueError(e)) throw invalid('email.err.taken');

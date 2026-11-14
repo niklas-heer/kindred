@@ -127,5 +127,5 @@ export default {
   "pw.reset_notice": "Un operador de este servidor restableció tu contraseña el {date}. Si no lo pediste, cambia tu contraseña ahora y avisa al operador.",
   "pw.reset_notice_label": "La seguridad de tu cuenta",
   "pw.method_email_code": "Código por correo",
-  "pw.method_email_code_hint": "Un código de seis dígitos a la dirección confirmada de la cuenta: una forma de volver para quien perdió sus dispositivos. Necesita el correo; nunca sirve como confirmación de un operador.",
+  "pw.method_email_code_hint": "Un código de seis dígitos a la dirección confirmada de la cuenta: una forma de volver para quien perdió sus dispositivos. Necesita el correo; nunca sirve como confirmación de un operador. El precio: quien pueda leer el correo de un miembro puede entrar en su cuenta, aunque solo use llaves de acceso o inicio de sesión único, también la de un responsable, salvo que tenga activados los códigos en dos pasos.",
 } satisfies Strings<typeof en, "es">;

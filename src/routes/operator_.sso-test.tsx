@@ -35,7 +35,7 @@ export const Route = createFileRoute('/operator_/sso-test')({
 });
 
 /** What the test's failures mean for the operator setting the provider up; the rest say what the sign-in pages say. */
-const TEST_ERRORS: Record<string, Key> = { provider: 'oidc.test_err_provider', token: 'oidc.test_err_token', denied: 'oidc.test_err_denied' };
+const TEST_ERRORS: Record<string, Key> = { provider: 'oidc.test_err_provider', token: 'oidc.test_err_token', denied: 'oidc.test_err_denied', test_operator: 'oidc.err.test_operator' };
 /** Closes the console's test window; a browser that does not let the page close it goes back to the console instead. */
 function closeOrBack() {
   window.close();

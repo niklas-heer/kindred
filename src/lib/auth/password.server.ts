@@ -204,14 +204,22 @@ export async function passwordSignIn(request: Request, input: { username?: unkno
 /** The ways in whose right first step may wait for the account's two-step code (accounts migration 0058, `signin_step.method`). */
 export type StepMethod = 'password' | 'email-code';
 
-/** A five-minute ticket for the two-step code, after a right first step of `method`. Never a session by itself. */
-export async function stepTicket(user: string, method: StepMethod): Promise<string> {
+/**
+ * A five-minute ticket for the two-step code, after a right first step of `method`. Never a session by itself. With `address`
+ * (a code by email), it is issued only while that is still the account's confirmed address; a change of address ends it
+ * (src/lib/email/verify.server.ts, redeemVerification).
+ */
+export async function stepTicket(user: string, method: StepMethod, address?: string): Promise<string> {
   const ticket = randomToken(32);
   const t = now();
-  await accounts().batch([
+  const values = [await hashToken('signin-step', ticket), user, t, t + SIGNIN_STEP_MS, method];
+  const [, made] = await accounts().batch([
     q('DELETE FROM signin_step WHERE expires < ?', t),
-    q('INSERT INTO signin_step (hash, user, tries, created, expires, method) VALUES (?, ?, 0, ?, ?, ?)', await hashToken('signin-step', ticket), user, t, t + SIGNIN_STEP_MS, method),
+    address === undefined
+      ? q('INSERT INTO signin_step (hash, user, tries, created, expires, method) VALUES (?, ?, 0, ?, ?, ?)', ...values)
+      : q('INSERT INTO signin_step (hash, user, tries, created, expires, method) SELECT ?, ?, 0, ?, ?, ? WHERE EXISTS (SELECT 1 FROM user WHERE id = ? AND email_verified = 1 AND retiring IS NULL AND lower(email) = ?)', ...values, user, address),
   ]);
+  if (made!.changes !== 1) throw invalid('pw.err.step_expired');
   return ticket;
 }
 

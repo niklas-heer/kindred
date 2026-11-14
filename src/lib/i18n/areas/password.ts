@@ -130,5 +130,5 @@ export const en = {
   "pw.reset_notice": "An operator of this server reset your password on {date}. If you did not ask for that, change your password now and tell the operator.",
   "pw.reset_notice_label": "Your account’s security",
   "pw.method_email_code": "Code by email",
-  "pw.method_email_code_hint": "A six-digit code to the account’s confirmed address: a way back in for someone who lost their devices. Needs email; never an operator’s proof.",
+  "pw.method_email_code_hint": "A six-digit code to the account’s confirmed address: a way back in for someone who lost their devices. Needs email; never an operator’s proof. The trade-off: anyone who can read a member’s email can get into their account, even one with only passkeys or single sign-on, stewards included, unless they turn on two-step codes.",
 } as const;

@@ -127,5 +127,5 @@ export default {
   "pw.reset_notice": "这台服务器的运营者在{date}重置了你的密码。如果不是你要求的，请立即修改密码并告诉运营者。",
   "pw.reset_notice_label": "账号安全",
   "pw.method_email_code": "邮件验证码",
-  "pw.method_email_code_hint": "向账户已确认的地址发送六位数验证码：给丢失了设备的人一条回来的路。需要能发邮件；永远不能作为运营者的身份确认。",
+  "pw.method_email_code_hint": "向账户已确认的地址发送六位数验证码：给丢失了设备的人一条回来的路。需要能发邮件；永远不能作为运营者的身份确认。代价是：能读到某位成员邮件的人，就能进入其账号，即使该账号只用通行密钥或单点登录，负责人的账号也一样，除非开启了两步验证码。",
 } satisfies Strings<typeof en, "zh-Hans">;

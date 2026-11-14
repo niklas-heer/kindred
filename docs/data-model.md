@@ -333,7 +333,12 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   random value in the asking browser's cookie: a code is checked only against that browser's rows), `user` and `secret` (the
   account and the hash of its code, set after the answer and only for an account's confirmed address; NULL otherwise, so the
   row looks the same either way), `created`, `expires` (ten minutes), `tries` (five, counted before checking) and `used_at` (once).
-  The address typed is never stored. Goes with the account; rows a day past their end go with the next request.
+  The address typed is never stored. Goes with the account; rows a day past their end go with the next request. A code is issued
+  in one statement that checks the account has had fewer than three codes this hour and that the address is still its confirmed
+  one; both are cleared again when its email was not sent, so codes that could sign in never outnumber the emails sent. The
+  secret hashes the address the code went to, and spending it checks that address is still the account's confirmed one; a
+  confirmed change of address voids the account's codes (`secret` NULL, still counted for the hour) and ends its `email-code`
+  tickets in `signin_step`.
 - **`password_reset`** (0041): an operator's reset link: the hash of its token, the account, `created_by` (the operator, no foreign
   key), `expires` (an hour), `used_at` (once: guarded in the batch that sets the password) and `clear_totp` (1: the link also
   turns two-step codes off). A new link for the account replaces an unused one. `seen_at` (0048): when the holder dismissed the

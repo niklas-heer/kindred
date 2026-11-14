@@ -31,7 +31,7 @@ let sent: Sent[] = [];
 const capture = { mailer: { send: async (m: Sent) => { sent.push(m); } } };
 const ip = '203.0.113.9';
 
-const TABLES = ['session', 'credential', 'password', 'totp', 'recovery_code', 'auth_attempt', 'signin_step', 'signin_daily', 'email_signin', 'membership', 'instance_setting', 'email_send', 'join_request', 'user'];
+const TABLES = ['session', 'credential', 'password', 'totp', 'recovery_code', 'auth_attempt', 'signin_step', 'signin_daily', 'email_signin', 'email_token', 'membership', 'instance_setting', 'email_send', 'join_request', 'user'];
 const setMethods = (list: string[]) => store.accounts().run("INSERT INTO instance_setting (key, value, updated_at) VALUES ('auth_methods', ?, 0) ON CONFLICT(key) DO UPDATE SET value = excluded.value", JSON.stringify(list));
 beforeEach(async () => {
   await send.settleSends();
@@ -320,4 +320,105 @@ test('a session of a code is not honoured once the method is off by the break-gl
     delete process.env.KINDRED_AUTH_METHODS;
   }
   assert.equal((await getSession(b.req())).method, 'email-code');
+});
+
+// ---------- a code exists only while its email does, and only for the address it went to ----------
+
+/** Codes that could still sign someone in: issued (an account and a secret), not used, not run out. */
+const liveCodes = async () => (await store.accounts().get<{ n: number }>('SELECT count(*) AS n FROM email_signin WHERE secret IS NOT NULL AND used_at IS NULL AND expires > ?', Date.now()))!.n;
+
+test('live codes never outnumber the emails sent: one address asked for from forty networks, five times each', async () => {
+  await account('Ada Example', { email: 'ada@example.org', verified: true, passkey: true });
+  // The probe: one browser, a new IPv6 /64 for each five asks, every ask within the per-address-and-network limit.
+  const asker = browser();
+  for (let n = 0; n < 40; n++) {
+    for (let i = 0; i < 5; i++) await asker.ask('ada@example.org', `2001:db8:${n.toString(16)}::${i + 1}`);
+  }
+  await send.settleSends();
+  const delivered = sent.filter((m) => m.to === 'ada@example.org').length;
+  assert.equal(delivered, send.CODES_PER_HOUR);
+  assert.ok((await liveCodes()) <= delivered, `${await liveCodes()} live codes, ${delivered} emails`);
+});
+
+test('a code whose email was not sent is no code; an account gets no more than the hour’s codes, even asked for all at once', async () => {
+  await account('Ada Example', { email: 'ada@example.org', verified: true, passkey: true });
+  send.setMailerForTests({ mailer: { send: async () => { throw new Error('the provider refused'); } } });
+  await browser().ask('ada@example.org');
+  await send.settleSends();
+  assert.equal(await liveCodes(), 0, 'a failed send leaves no code behind');
+  // While every email is still on its way, the account's codes are counted as they are issued, not as they are sent.
+  let release!: () => void;
+  const gate = new Promise<void>((r) => { release = r; });
+  send.setMailerForTests({ mailer: { send: async (m) => { await gate; sent.push(m); } } });
+  await Promise.all(Array.from({ length: 10 }, (_, i) => browser().ask('ada@example.org', `198.51.100.${i + 1}`)));
+  await new Promise((r) => setTimeout(r, 50));
+  assert.ok((await liveCodes()) <= send.CODES_PER_HOUR, `${await liveCodes()} codes issued at once`);
+  release();
+  await send.settleSends();
+  send.setMailerForTests(capture);
+  assert.ok((await liveCodes()) <= sent.length);
+});
+
+/** Confirms a new address for `user` the way the account page does (email/verify.server.ts). */
+async function confirmAddress(user: Awaited<ReturnType<typeof account>>, to: string) {
+  const verify = await import('../email/verify.server.ts');
+  send.setMailerForTests(capture);
+  await verify.startVerification(new Request(`${SITE}/settings`), user, to, async () => {});
+  const token = /verify-email\/([A-Za-z0-9_-]{43})/.exec(sent.filter((m) => m.to === to).at(-1)!.text)![1]!;
+  await verify.redeemVerification(token, user.id);
+}
+
+test('a code is void once the account’s confirmed address changes, even if it changes back', async () => {
+  const ada = await account('Ada Example', { email: 'ada@example.org', verified: true, passkey: true });
+  const b = browser();
+  await b.ask('ada@example.org');
+  const c = await lastCode();
+  await confirmAddress(ada, 'ada.new@example.org');
+  await assert.rejects(b.signIn(c), /email\.err\.code/, 'sent to the old address');
+  const b2 = browser();
+  await b2.ask('ada.new@example.org');
+  const c2 = await lastCode();
+  await confirmAddress(ada, 'ada@example.org');
+  await assert.rejects(b2.signIn(c2), /email\.err\.code/, 'changed away and back');
+});
+
+test('a code is void when the address changes while its email is being sent, or is no longer confirmed when it is used', { timeout: 20_000 }, async () => {
+  const ada = await account('Ada Example', { email: 'ada@example.org', verified: true, passkey: true });
+  let release!: () => void;
+  const gate = new Promise<void>((r) => { release = r; });
+  let inFlight!: () => void;
+  const sending = new Promise<void>((r) => { inFlight = r; });
+  send.setMailerForTests({ mailer: { send: async (m) => { if (/sign-in code/.test(m.subject)) { inFlight(); await gate; } sent.push(m); } } });
+  const b = browser();
+  await b.ask('ada@example.org');
+  await sending;
+  // The change lands while the provider still has the email.
+  const verify = await import('../email/verify.server.ts');
+  await verify.startVerification(new Request(`${SITE}/settings`), ada, 'ada.new@example.org', async () => {});
+  const token = /verify-email\/([A-Za-z0-9_-]{43})/.exec(sent.at(-1)!.text)![1]!;
+  await verify.redeemVerification(token, ada.id);
+  release();
+  const c = await lastCode();
+  send.setMailerForTests(capture);
+  await assert.rejects(b.signIn(c), /email\.err\.code/);
+  // The binding is checked when the code is spent, whatever ended the address.
+  const b2 = browser();
+  await b2.ask('ada.new@example.org');
+  const c2 = await lastCode();
+  await store.accounts().run('UPDATE user SET email_verified = 0 WHERE id = ?', ada.id);
+  await assert.rejects(b2.signIn(c2), /email\.err\.code/, 'no longer confirmed');
+});
+
+test('the two-step ticket of a code ends when the address changes while the browser waits for the two-step code', async () => {
+  const ada = await account('Ada Example', { email: 'ada@example.org', verified: true, passkey: true });
+  const { beginTotp, codeAt, stepAt } = await import('./totp.server.ts');
+  const secret = (await beginTotp(ada.id)) as string;
+  await store.accounts().run('UPDATE totp SET confirmed_at = ? WHERE user = ?', Date.now(), ada.id);
+  const b = browser();
+  await b.ask('ada@example.org');
+  const r = await b.signIn(await lastCode());
+  assert.equal(r.kind, 'second');
+  await confirmAddress(ada, 'ada.new@example.org');
+  await assert.rejects(code.signInCodeSecondStep(b.req(), { ticket: (r as { ticket: string }).ticket, code: await codeAt(secret, stepAt(Date.now())) }, ip), /pw\.err\.step_expired/);
+  assert.equal((await store.accounts().get<{ n: number }>('SELECT count(*) AS n FROM session'))!.n, 0);
 });
