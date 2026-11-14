@@ -159,7 +159,8 @@ export async function checkSignInCode(request: Request, code: unknown, ip: strin
   // still be the account's confirmed one at this moment.
   const spent = await accounts().run(`UPDATE email_signin SET used_at = ? WHERE id = ? AND used_at IS NULL AND user = ? AND EXISTS (${STILL_CONFIRMED})`, t, match.id, match.user, match.user, match.address);
   if (spent.changes !== 1) throw wrong;
-  await accounts().run('DELETE FROM email_signin WHERE browser = ? AND id <> ?', await hashToken('signin-browser', browser), match.id);
+  // The browser's other codes die but their rows stay: they still count toward the account's codes this hour.
+  await accounts().run('UPDATE email_signin SET secret = NULL, used_at = coalesce(used_at, ?) WHERE browser = ? AND id <> ?', t, await hashToken('signin-browser', browser), match.id);
   await refundNetwork(ip);
   const user = await userById(match.user);
   if (!user || user.retiring || user.email_verified !== 1 || user.email?.toLowerCase() !== match.address) throw wrong;

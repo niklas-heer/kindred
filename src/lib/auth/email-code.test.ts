@@ -422,3 +422,15 @@ test('the two-step ticket of a code ends when the address changes while the brow
   await assert.rejects(code.signInCodeSecondStep(b.req(), { ticket: (r as { ticket: string }).ticket, code: await codeAt(secret, stepAt(Date.now())) }, ip), /pw\.err\.step_expired/);
   assert.equal((await store.accounts().get<{ n: number }>('SELECT count(*) AS n FROM session'))!.n, 0);
 });
+
+test('signing in keeps the hour’s count: the browser’s other codes are voided, not forgotten', async () => {
+  const ada = await account('Ada Example', { email: 'ada@example.org', verified: true, passkey: true });
+  const b = browser();
+  for (let i = 0; i < send.CODES_PER_HOUR; i++) await b.ask('ada@example.org', `198.51.100.${i + 1}`);
+  await b.signIn(await lastCode());
+  await confirmAddress(ada, 'ada.new@example.org');
+  for (let i = 0; i < 3; i++) await browser().ask('ada.new@example.org', `192.0.2.${i + 1}`);
+  await send.settleSends();
+  const codes = sent.filter((m) => /sign-in code/.test(m.subject)).length;
+  assert.equal(codes, send.CODES_PER_HOUR, `${codes} codes emailed to one account within the hour`);
+});
