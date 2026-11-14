@@ -721,6 +721,9 @@ export async function saveProvider(input: ProviderInput, audit: (detail: Record<
   const turnedOff = !!before?.enabled && !input.enabled;
   // A new client ID or secret has not been tested yet.
   const retest = !!before && (before.client_id !== clientId || input.secret !== undefined);
+  // Saving, enabling included, never waits for a test: the test proves the provider answers, not that it is safe, and an operator
+  // may have no account there. The audit says whether this client ID and secret were tested, and when.
+  const testedAt = before && !retest ? before.tested_at ?? null : null;
   try {
     await accounts().batch([
       before
@@ -730,7 +733,7 @@ export async function saveProvider(input: ProviderInput, audit: (detail: Record<
           input.id, input.kind, label, input.issuer, clientId, secret, scopes, input.trustEmail ? 1 : 0, input.enabled ? 1 : 0, disc, discAt, expires, t, t),
       await operatorsKeepAWayIn(),
       ...(turnedOff ? [q("DELETE FROM session WHERE method = 'oidc' AND provider = ?", input.id), q('DELETE FROM oidc_flow WHERE provider = ?', input.id)] : []),
-      audit({ provider: input.id, label, issuer: input.issuer, enabled: input.enabled, trustEmail: input.trustEmail, created: !before, secretChanged: input.secret !== undefined, secretExpires: expires }),
+      audit({ provider: input.id, label, issuer: input.issuer, enabled: input.enabled, trustEmail: input.trustEmail, created: !before, secretChanged: input.secret !== undefined, secretExpires: expires, tested: testedAt !== null, testedAt }),
     ]);
   } catch (e) {
     if (isGuardError(e)) throw invalid('pw.err.operator_locked_out');

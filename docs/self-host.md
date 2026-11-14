@@ -191,7 +191,10 @@ at the provider; the test signs nobody in, makes no account and adds the provide
 your own signed-in session in that browser (with its own `state`, `nonce` and PKCE verifier, as every sign-in). It says
 whether it worked or, in plain words, what went wrong, with the provider's own words when it gave some (such as
 `invalid_client`). Only after a test that worked with the current client ID and secret does *Turn it on* become available;
-changing either needs a new test. Saving and turning on need your fresh proof. Setting up Google takes about ten minutes.
+changing either needs a new test. That order is the wizard's, not the server's: a test proves the provider answers, not that
+it is safe, and you may have no account there yourself, so a provider's own settings can still turn it on untested, with a
+warning. Each save in the operator's audit records whether the provider had been tested, and when. Saving
+and turning on need your fresh proof. Setting up Google takes about ten minutes.
 
 **Google** (free; about ten minutes):
 

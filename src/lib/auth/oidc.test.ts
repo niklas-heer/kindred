@@ -783,3 +783,19 @@ test('Google’s six-month deletion: a warning at five months without a sign-in,
   assert.deepEqual(providerWarnings({ ...google, enabled: false }, day('2027-01-01')), []);
   assert.deepEqual(providerWarnings({ ...google, kind: 'keycloak', issuer: 'https://id.example.net/realms/x' }, day('2027-01-01')), [], 'other providers keep their clients');
 });
+
+test('saving a provider records in the operator’s audit whether it was tested, and when; a new secret is untested again', async () => {
+  const details: Record<string, unknown>[] = [];
+  const audit = (d: Record<string, unknown>) => { details.push(d); return q('SELECT 1'); };
+  const save = (patch: Partial<Parameters<typeof o.saveProvider>[0]> = {}) =>
+    o.saveProvider({ id: 'example', kind: 'generic', label: 'Example ID', issuer: ISSUER, clientId: CLIENT, scopes: 'openid email profile', trustEmail: false, enabled: false, ...patch }, audit);
+  await save({ secret: SECRET });
+  assert.deepEqual([details.at(-1)!.tested, details.at(-1)!.testedAt], [false, null], 'a new provider is untested');
+  const at = Date.now() - 1000;
+  await store.accounts().run('UPDATE auth_provider SET tested_at = ? WHERE id = ?', at, 'example');
+  // Enabling it is never refused for want of a test: the test proves the provider answers, not that it is safe.
+  await save({ enabled: true });
+  assert.deepEqual([details.at(-1)!.enabled, details.at(-1)!.tested, details.at(-1)!.testedAt], [true, true, at]);
+  await save({ enabled: true, secret: 'another-secret' });
+  assert.deepEqual([details.at(-1)!.tested, details.at(-1)!.testedAt], [false, null], 'a new secret has not been tested');
+});
