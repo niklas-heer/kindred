@@ -125,6 +125,15 @@ export default {
   "ops.card_link": "Zobacz, co nowego",
   "ops.card_dismiss": "Zamknij",
 
+  "ops.r260.code_title": "Kod logowania e-mailem.",
+  "ops.r260.code_text": "Tam, gdzie serwer to oferuje: poproś o sześciocyfrowy kod na swój potwierdzony adres i zaloguj się nim.",
+  "ops.r260.device_title": "Powrót po utracie wszystkich urządzeń.",
+  "ops.r260.device_text": "Po zalogowaniu kodem możesz od razu dodać nowy klucz dostępu.",
+  "ops.r260.sso_title": "Logowanie przez Google i Microsoft, krok po kroku.",
+  "ops.r260.sso_text": "Prowadzona konfiguracja dla Google i osobistych kont Microsoft, z dokładnym adresem do wpisania i próbnym logowaniem, które niczego nie tworzy.",
+  "ops.r260.health_title": "Ostrzeżenia, zanim dostawca przestanie działać.",
+  "ops.r260.health_text": "Konsola ostrzega, gdy Google może usunąć nieużywanego klienta albo wkrótce wygaśnie sekret Microsoft.",
+
   "ops.r250.email_title": "E-mail, jeśli Twój serwer go wysyła.",
   "ops.r250.email_text": "Potwierdź swój adres, zresetuj zapomniane hasło i otrzymuj powiadomienia o bezpieczeństwie e-mailem.",
   "ops.r250.invite_title": "Zaproszenia prosto do skrzynki.",

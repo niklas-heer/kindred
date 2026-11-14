@@ -110,6 +110,15 @@ export default {
   "ops.card_link": "Bekijk wat er nieuw is",
   "ops.card_dismiss": "Sluiten",
 
+  "ops.r260.code_title": "Een inlogcode per e-mail.",
+  "ops.r260.code_text": "Waar je server het aanbiedt: vraag een zescijferige code aan op je bevestigde adres en log daarmee in.",
+  "ops.r260.device_title": "Weer binnen nadat je al je apparaten kwijt bent.",
+  "ops.r260.device_text": "Heb je met een code ingelogd, dan kun je meteen een nieuwe passkey toevoegen.",
+  "ops.r260.sso_title": "Inloggen met Google en Microsoft, stap voor stap.",
+  "ops.r260.sso_text": "Een begeleide installatie voor Google en persoonlijke Microsoft-accounts, met het exacte adres om in te vullen en een proefaanmelding die niets aanmaakt.",
+  "ops.r260.health_title": "Waarschuwingen voordat een aanbieder niet meer werkt.",
+  "ops.r260.health_text": "De console waarschuwt als Google een ongebruikte client kan verwijderen of een Microsoft-geheim bijna verloopt.",
+
   "ops.r250.email_title": "E-mail, als je server die verstuurt.",
   "ops.r250.email_text": "Bevestig je adres, stel een vergeten wachtwoord opnieuw in en krijg beveiligingsmeldingen per e-mail.",
   "ops.r250.invite_title": "Uitnodigingen rechtstreeks in de inbox.",

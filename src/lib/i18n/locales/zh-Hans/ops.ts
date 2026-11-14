@@ -107,6 +107,15 @@ export default {
   "ops.card_link": "看看有什么新功能",
   "ops.card_dismiss": "知道了",
 
+  "ops.r260.code_title": "用邮件接收登录验证码。",
+  "ops.r260.code_text": "只要你的服务器支持：向已确认的地址申请一个六位验证码，用它登录。",
+  "ops.r260.device_title": "丢了所有设备，也能重新进入。",
+  "ops.r260.device_text": "用验证码登录后，可以马上添加新的通行密钥。",
+  "ops.r260.sso_title": "Google 和 Microsoft 登录，一步一步设置。",
+  "ops.r260.sso_text": "为 Google 和个人 Microsoft 账户提供的引导式设置：给出要填写的准确地址，还有不会创建任何内容的测试登录。",
+  "ops.r260.health_title": "在服务商失效之前发出警告。",
+  "ops.r260.health_text": "当 Google 可能删除闲置客户端，或 Microsoft 密钥即将过期时，控制台会提醒你。",
+
   "ops.r250.email_title": "如果服务器发送邮件，就用邮件。",
   "ops.r250.email_text": "通过邮件确认地址、重设忘记的密码并接收安全通知。",
   "ops.r250.invite_title": "邀请直达收件箱。",

@@ -107,6 +107,15 @@ export default {
   "ops.card_link": "Ver as novidades",
   "ops.card_dismiss": "Dispensar",
 
+  "ops.r260.code_title": "Um código de acesso por e-mail.",
+  "ops.r260.code_text": "Onde o seu servidor oferecer: peça um código de seis dígitos para o seu endereço confirmado e entre com ele.",
+  "ops.r260.device_title": "De volta depois de perder todos os dispositivos.",
+  "ops.r260.device_text": "Se você entrou com um código, pode adicionar uma nova chave de acesso na hora.",
+  "ops.r260.sso_title": "Entrar com Google e Microsoft, passo a passo.",
+  "ops.r260.sso_text": "Uma configuração guiada para Google e contas pessoais da Microsoft, com o endereço exato para preencher e um login de teste que não cria nada.",
+  "ops.r260.health_title": "Avisos antes que um provedor pare de funcionar.",
+  "ops.r260.health_text": "O console avisa quando o Google pode excluir um cliente sem uso ou um segredo da Microsoft está prestes a expirar.",
+
   "ops.r250.email_title": "E-mail, se o seu servidor enviar.",
   "ops.r250.email_text": "Confirme seu endereço, redefina uma senha esquecida e receba avisos de segurança por e-mail.",
   "ops.r250.invite_title": "Convites direto na caixa de entrada.",

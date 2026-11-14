@@ -107,6 +107,15 @@ export default {
   "ops.card_link": "新機能を見る",
   "ops.card_dismiss": "閉じる",
 
+  "ops.r260.code_title": "メールで届くサインインコード。",
+  "ops.r260.code_text": "サーバーが対応していれば、確認済みのアドレスに6桁のコードを送ってもらい、それでサインインできます。",
+  "ops.r260.device_title": "すべての端末をなくしても、また入れます。",
+  "ops.r260.device_text": "コードでサインインすると、すぐに新しいパスキーを追加できます。",
+  "ops.r260.sso_title": "GoogleとMicrosoftでのサインインを、手順に沿って設定。",
+  "ops.r260.sso_text": "GoogleとMicrosoftの個人アカウント向けのガイド付き設定です。入力する正確なアドレスが示され、何も作成しないテストサインインもできます。",
+  "ops.r260.health_title": "プロバイダーが使えなくなる前に警告。",
+  "ops.r260.health_text": "使われていないGoogleのクライアントが削除されそうなときや、Microsoftのシークレットの期限が近いときに、コンソールが知らせます。",
+
   "ops.r250.email_title": "サーバーがメールを送るなら、メールでも。",
   "ops.r250.email_text": "アドレスの確認、忘れたパスワードの再設定、セキュリティのお知らせをメールで受け取れます。",
   "ops.r250.invite_title": "招待をメールで直接。",
