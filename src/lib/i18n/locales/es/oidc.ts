@@ -102,7 +102,7 @@ export default {
   "oidc.err.secret_expires": "Indica como fecha el día en que caduca el secreto.",
   "oidc.err.test_operator": "Solo un operador puede probar un proveedor.",
   "oidc.kind_microsoft": "Microsoft (cuentas personales: outlook.com, hotmail, live)",
-  "oidc.help_microsoft": "Para quienes entran en Microsoft con una dirección de outlook.com, hotmail o live. La app se registra en el portal de Azure de Microsoft solo para cuentas personales, con el URI de redirección de abajo; su secreto de cliente caduca.",
+  "oidc.help_microsoft": "Para quienes inician sesión en Microsoft con una dirección de outlook.com, hotmail o live. La app se registra en el portal de Azure de Microsoft solo para cuentas personales, con el URI de redirección de abajo; su secreto de cliente caduca.",
   "oidc.wizard_lede": "Sigue los pasos en el proveedor y pega lo que te dé. Kindred guarda el proveedor desactivado, tú pruebas el inicio de sesión y solo entonces lo activas.",
   "oidc.open_page": "Abrir “{page}”",
   "oidc.paste_name": "Nombre de la app",

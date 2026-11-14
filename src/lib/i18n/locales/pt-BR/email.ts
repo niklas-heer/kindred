@@ -187,6 +187,6 @@ export default {
   "email.code_device": "O código só funciona no navegador em que você o pediu.",
   "email.code_again": "Enviar outro código",
   "email.code_add_passkey": "Você entrou com um código do seu e-mail. Adicione uma chave de acesso neste aparelho e, da próxima vez, basta um toque.",
-  "email.err.code_off": "Neste servidor não se oferece entrar com um código por e-mail.",
+  "email.err.code_off": "Este servidor não oferece entrar com um código por e-mail.",
   "email.err.operator_code_totp": "Um operador que entra com um código por e-mail só acessa o console com os códigos em duas etapas ligados. Entre com a sua chave de acesso.",
 } satisfies Strings<typeof en, "pt-BR">;

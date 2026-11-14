@@ -172,7 +172,7 @@ export default {
   // ---------- a code to sign in with (src/lib/auth/email-code.server.ts) ----------
   "email.mail.signin_subject": "你在{server}的登录验证码",
   "email.mail.signin_body": "在{address}的登录页面输入这个验证码即可登录。验证码只能用一次，10分钟内有效。",
-  "email.mail.signin_device": "它只在你申请验证码的那个浏览器里有效。不要在别处输入，也不要告诉任何人：这台服务器的人绝不会向你索要验证码。",
+  "email.mail.signin_device": "它只在你申请验证码的那个浏览器里有效。不要在别处输入，也不要告诉任何人：这台服务器上没有人会向你索要验证码。",
   "email.mail.signin_ignore": "如果你没有申请验证码，可以忽略这封邮件：没有它，谁也无法登录。",
   "email.mail.signin_action": "打开登录页面",
   "email.mail.sec_code_signin": "你在{date}用我们发到这个地址的验证码登录了你的账户。",

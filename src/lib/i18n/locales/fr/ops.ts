@@ -118,7 +118,7 @@ export default {
   "ops.r240.languages_title": "Kindred en onze langues.",
   "ops.r240.languages_text": "L’espagnol, le français, l’italien, le néerlandais, le polonais, le portugais, le japonais et le chinois rejoignent l’anglais, l’allemand et l’afrikaans.",
   "ops.r240.signin_title": "Plus de façons de te connecter.",
-  "ops.r240.signin_text": "Là où ton serveur les propose : un mot de passe avec des codes à deux facteurs, ou l’authentification unique, en plus des clés d’accès.",
+  "ops.r240.signin_text": "Là où ton serveur les propose : un mot de passe avec des codes à deux facteurs, ou l’authentification unique, en plus des clés d’accès.",
   "ops.r240.data_title": "Tes données, ton choix.",
   "ops.r240.data_text": "Télécharge tout ce que contient ton compte, ou supprime ton compte, depuis le menu du compte.",
   "ops.r240.requests_title": "Réponds à la demande de données d’un proche.",

@@ -172,7 +172,7 @@ export default {
   // ---------- a code to sign in with (src/lib/auth/email-code.server.ts) ----------
   "email.mail.signin_subject": "{server}のサインインコード",
   "email.mail.signin_body": "{address}のサインインページでこのコードを入力すると、サインインできます。1回だけ、10分間有効です。",
-  "email.mail.signin_device": "コードを求めたブラウザーでしか使えません。ほかの場所には入力せず、誰にも教えないでください。このサーバーの人がコードを尋ねることはありません。",
+  "email.mail.signin_device": "コードを求めたブラウザーでしか使えません。ほかの場所には入力せず、誰にも教えないでください。このサーバーの関係者がコードを尋ねることはありません。",
   "email.mail.signin_ignore": "コードを求めた覚えがない場合は、このメールを無視してください。コードがなければ誰もサインインできません。",
   "email.mail.signin_action": "サインインページを開く",
   "email.mail.sec_code_signin": "{date}に、このアドレスへ送ったコードでアカウントにサインインがありました。",

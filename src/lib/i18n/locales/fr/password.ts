@@ -127,5 +127,5 @@ export default {
   "pw.reset_notice": "Un exploitant de ce serveur a réinitialisé ton mot de passe le {date}. Si tu ne l’as pas demandé, change ton mot de passe maintenant et préviens l’exploitant.",
   "pw.reset_notice_label": "Sécurité de ton compte",
   "pw.method_email_code": "Code par e-mail",
-  "pw.method_email_code_hint": "Un code à six chiffres envoyé à l’adresse confirmée du compte : un moyen de revenir pour qui a perdu ses appareils. Il faut l’e-mail ; jamais une preuve pour un exploitant.",
+  "pw.method_email_code_hint": "Un code à six chiffres envoyé à l’adresse confirmée du compte : un moyen de revenir pour qui a perdu ses appareils. Il faut l’e-mail ; jamais une preuve pour un exploitant.",
 } satisfies Strings<typeof en, "fr">;
