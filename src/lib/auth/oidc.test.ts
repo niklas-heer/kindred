@@ -693,6 +693,8 @@ test('the test sign-in belongs to the operator’s own session in their own brow
 
 test('the test follows the console’s rule: an operator signed in by password or emailed code needs two-step codes, at the start and at the callback', async () => {
   const { op } = await testSetup();
+  // Both ways in are on: a session of a way in that is off is no session at all (the next test).
+  await store.accounts().run("UPDATE instance_setting SET value = ? WHERE key = 'auth_methods'", JSON.stringify(['passkey', 'password', 'email-code', 'oidc']));
   const { beginTotp } = await import('./totp.server.ts');
   for (const [method, refusal] of [['password', /pw\.err\.operator_needs_totp/], ['email-code', /email\.err\.operator_code_totp/]] as const) {
     const b = new Browser();
@@ -715,6 +717,25 @@ test('the test follows the console’s rule: an operator signed in by password o
   const p2 = await start(pk, { purpose: 'test', next: NEXT }, op);
   await store.accounts().run('UPDATE user SET operator = 0 WHERE id = ?', op.id);
   assert.equal((await callback(pk, p2.get('state'), authorize(p2))).location, `${NEXT}&oidc_test=test_operator`);
+  assert.equal((await row()).tested_at, null);
+});
+
+test('a session whose way in the break-glass list turned off cannot finish a test', async () => {
+  const { op } = await testSetup();
+  const { beginTotp } = await import('./totp.server.ts');
+  assert.ok(await beginTotp(op.id));
+  await store.accounts().run('UPDATE totp SET confirmed_at = ? WHERE user = ?', Date.now(), op.id);
+  await store.accounts().run("UPDATE instance_setting SET value = ? WHERE key = 'auth_methods'", JSON.stringify(['passkey', 'password', 'oidc']));
+  const b = new Browser();
+  await b.signInAs(op.id, false, 'password');
+  const p = await start(b, { purpose: 'test', next: NEXT }, op);
+  process.env.KINDRED_AUTH_METHODS = 'passkey,oidc';
+  try {
+    assert.equal((await callback(b, p.get('state'), authorize(p))).location, `${NEXT}&oidc_test=session`);
+  } finally {
+    delete process.env.KINDRED_AUTH_METHODS;
+  }
+  assert.equal(idp.tokenCalls.length, 0);
   assert.equal((await row()).tested_at, null);
 });
 

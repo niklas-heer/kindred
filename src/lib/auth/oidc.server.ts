@@ -576,6 +576,8 @@ async function flowSession(request: Request, flow: FlowRow): Promise<{ user: Use
   const s = await sessionOf(request);
   const user = userId && (await userById(userId));
   if (!s || !user || s.user !== userId || s.hash !== hash) throw new OidcFail('session');
+  // As getSession: a session of a way in that is off now (the break-glass list) is no session, even mid-flow.
+  if (!(await methodEnabled(sessionMethod(s)))) throw new OidcFail('session');
   return { user, hash, method: sessionMethod(s) };
 }
 
