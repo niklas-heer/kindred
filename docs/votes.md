@@ -83,13 +83,16 @@ A device switch under Reminders, **A new vote, and a reminder before it closes**
   (`votes`), which looks 30 hours ahead, so a run that comes a few hours late misses no vote. A vote started after a day's
   run that closes before the next one gets none, and a closing time moved later gets no second reminder.
 
+Comments and reactions on a vote reach the member who started it as they do on a message: in "What's new", under the vote's
+question, and in the weekly push.
+
 Pushes name the question, never a ballot or the tally of a secret vote. Who has voted is read from the list of voters, never
 from a ballot. A demo and a steward's *View as* send nothing.
 
 ## Exports and data requests
 
 - The **Markdown archive** has `votes/<year>.md` ([exchange.md](exchange.md)): each vote with its question, options and,
-  once closed, its result. A closed open vote lists each ballot by name. A secret vote lists only its totals and who voted,
+  once closed, its result, then its comments. A closed open vote lists each ballot by name. A secret vote lists only its totals and who voted,
   never who chose what. A vote still open gets no result, so the archive is no way around the secret tallies. GEDCOM has no
   votes.
 - The **steward's backup** and the **D1 transfer** copy the vote tables. A secret ballot carries only its key, so neither

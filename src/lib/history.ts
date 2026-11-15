@@ -87,11 +87,11 @@ export interface WhatsNewPosts { author: string; count: number }
 /** A comment or reactions on something the reader wrote. */
 export interface WhatsNewReply {
   kind: 'comment' | 'reaction';
-  /** What was commented on: a story, a photo or a post in the feed. */
-  target: 'story' | 'media' | 'post';
-  /** Its id (a story's or a post's id, or a photo's key). */
+  /** What was commented on: a story, a photo, a post in the feed or a vote. */
+  target: 'story' | 'media' | 'post' | 'vote';
+  /** Its id (a story's, a post's or a vote's id, or a photo's key). */
   id: string;
-  /** Its title or caption, or a post's first words, if it has any. */
+  /** Its title or caption, a post's first words or a vote's question, if it has any. */
   label: string | null;
   /** The person a story is about. */
   person: string | null;

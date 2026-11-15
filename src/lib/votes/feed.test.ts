@@ -21,6 +21,7 @@ const db = await load<typeof import('../db.server.ts')>('/src/lib/db.server.ts')
 const V = await load<typeof import('./votes.server.ts')>('/src/lib/votes/votes.server.ts');
 const F = await load<typeof import('../feed/feed.server.ts')>('/src/lib/feed/feed.server.ts');
 const R = await load<typeof import('../responses.server.ts')>('/src/lib/responses.server.ts');
+const H = await load<typeof import('../history.server.ts')>('/src/lib/history.server.ts');
 type FeedItem = import('../feed/types.ts').FeedItem;
 
 test.after(async () => {
@@ -144,6 +145,22 @@ test('reactions and comments on a vote: members give them, both entries carry th
   assert.equal((await db.db(t).get<{ n: number }>("SELECT count(*) AS n FROM reaction WHERE target_kind = 'vote'"))!.n, 0);
   assert.equal((await db.db(t).get<{ n: number }>("SELECT count(*) AS n FROM comment WHERE target_kind = 'vote'"))!.n, 0);
   assert.deepEqual(votesOf((await F.feedPage(t, carl, null, undefined, later(2 * HOUR))).items), []);
+});
+
+test('comments and reactions on a vote are news to the one who started it, under its question', async () => {
+  const t = await family();
+  const since = Date.now() - 60_000;
+  const { id } = await V.createVote(t, ada, input(), undefined, NOW);
+  await R.addComment(t, bo, 'vote', id, 'The lake, surely!');
+  await R.react(t, carl, 'vote', id, '❤️', true);
+  const news = await H.whatsNew(db.db(t), { account: ada.id, role: 'contributor', guest: false }, since);
+  assert.deepEqual(news.replies.map((r) => [r.kind, r.target, r.id, r.count, r.author, r.label]), [
+    ['comment', 'vote', id, 1, 'Bo Birch', 'Where do we meet next summer?'],
+    ['reaction', 'vote', id, 1, '', 'Where do we meet next summer?'],
+  ]);
+  assert.deepEqual((await H.whatsNew(db.db(t), { account: bo.id, role: 'contributor', guest: false }, since)).replies, [], 'not to the one who commented');
+  await V.removeVote(t, ada, id);
+  assert.deepEqual((await H.repliesTo(db.db(t), ada.id, since)), [], 'a removed vote is no news');
 });
 
 test('a page with votes is still one batch of reads, and paging shows every vote entry once', async () => {

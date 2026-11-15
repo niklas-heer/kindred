@@ -418,22 +418,23 @@ export async function whatsNew(d: Db, a: Audience, since: number, first = false)
 
 /**
  * Comments and reactions since `since` on what this account wrote: the stories it added (by its history rows, or by its
- * name for stories older than history), the photos it uploaded and its posts in the feed. A reader's own comments and
+ * name for stories older than history), the photos it uploaded, its posts in the feed and the votes it started. A reader's own comments and
  * reactions are not news to them. `created_at` is ISO text in both tables (tree migration 0027).
  */
 export async function repliesTo(d: Db, account: string, since: number): Promise<WhatsNewReply[]> {
   const mine = `((x.target_kind = 'media' AND x.target IN (SELECT key FROM media WHERE uploaded_by = ?))
     OR (x.target_kind = 'post' AND x.target IN (SELECT id FROM post WHERE account = ?))
+    OR (x.target_kind = 'vote' AND x.target IN (SELECT id FROM vote WHERE account = ?))
     OR (x.target_kind = 'story' AND (x.target IN (SELECT id FROM story WHERE author_account = ?)
       OR x.target IN (SELECT record FROM history WHERE kind = 'story' AND action = 'added' AND account = ?))))`;
   const after = iso(since);
   const [comments, reactions] = (await d.readBatch([
     q(`SELECT x.target_kind, x.target, max(x.author_name) AS author, count(*) AS n FROM comment x
        WHERE x.account IS NOT ? AND x.created_at > ? AND ${mine} GROUP BY x.target_kind, x.target LIMIT 50`,
-      account, after, account, account, account, account),
+      account, after, account, account, account, account, account),
     q(`SELECT x.target_kind, x.target, count(*) AS n FROM reaction x
        WHERE x.account IS NOT ? AND x.created_at > ? AND ${mine} GROUP BY x.target_kind, x.target LIMIT 50`,
-      account, after, account, account, account, account),
+      account, after, account, account, account, account, account),
   ])) as [
     { target_kind: WhatsNewReply['target']; target: string; author: string | null; n: number }[],
     { target_kind: WhatsNewReply['target']; target: string; n: number }[],
@@ -446,17 +447,20 @@ export async function repliesTo(d: Db, account: string, since: number): Promise<
   const stories = out.filter((r) => r.target === 'story').map((r) => r.id);
   const photos = out.filter((r) => r.target === 'media').map((r) => r.id);
   const posts = out.filter((r) => r.target === 'post').map((r) => r.id);
+  const votes = out.filter((r) => r.target === 'vote').map((r) => r.id);
   const marks = (xs: string[]) => xs.map(() => '?').join(', ');
-  const [storyRows, photoRows, postRows] = await d.readBatch([
+  const [storyRows, photoRows, postRows, voteRows] = await d.readBatch([
     q(`SELECT id, person, coalesce(title, '') AS label FROM story WHERE id IN (${marks(stories) || "''"})`, ...stories),
     q(`SELECT key AS id, coalesce(caption, '') AS label FROM media WHERE key IN (${marks(photos) || "''"})`, ...photos),
     // A post has no title: its first words say which one it is.
     q(`SELECT id, CASE WHEN length(body) > 60 THEN substr(body, 1, 60) || '…' ELSE body END AS label FROM post WHERE id IN (${marks(posts) || "''"})`, ...posts),
+    q(`SELECT id, question AS label FROM vote WHERE id IN (${marks(votes) || "''"})`, ...votes),
   ]);
   const byStory = new Map((storyRows as { id: string; person: string; label: string }[]).map((r) => [r.id, r]));
   const byPhoto = new Map((photoRows as { id: string; label: string }[]).map((r) => [r.id, r]));
   const byPost = new Map((postRows as { id: string; label: string }[]).map((r) => [r.id, r]));
-  const found = (r: WhatsNewReply) => (r.target === 'story' ? byStory.get(r.id) : r.target === 'media' ? byPhoto.get(r.id) : byPost.get(r.id));
+  const byVote = new Map((voteRows as { id: string; label: string }[]).map((r) => [r.id, r]));
+  const found = (r: WhatsNewReply) => (r.target === 'story' ? byStory.get(r.id) : r.target === 'media' ? byPhoto.get(r.id) : r.target === 'vote' ? byVote.get(r.id) : byPost.get(r.id));
   for (const r of out) {
     r.label = found(r)?.label.replace(/\s+/g, ' ').trim() || null;
     r.person = r.target === 'story' ? byStory.get(r.id)?.person ?? null : null;

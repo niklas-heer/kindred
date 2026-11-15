@@ -188,4 +188,7 @@ export default {
   "history.reply.comments_media": { one: "{count} nieuwe reactie op je foto", other: "{count} nieuwe reacties op je foto" },
   "history.reply.comment_by_post": "{author} reageerde op je bericht",
   "history.reply.comments_post": { one: "{count} nieuwe reactie op je bericht", other: "{count} nieuwe reacties op je bericht" },
+  "history.reply.comment_by_vote": "{author} reageerde op de stemming die je startte",
+  "history.reply.comments_vote": { one: "{count} nieuwe reactie op de stemming die je startte", other: "{count} nieuwe reacties op de stemming die je startte" },
+  "history.reply.reaction_vote": { one: "Iemand reageerde op de stemming die je startte", other: "{count} reacties op de stemming die je startte" },
 } satisfies Strings<typeof en, "nl">;

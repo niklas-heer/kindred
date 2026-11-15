@@ -208,4 +208,7 @@ export default {
   "history.reply.comments_media": { one: "{count} nowy komentarz do Twojego zdjęcia", few: "{count} nowe komentarze do Twojego zdjęcia", many: "{count} nowych komentarzy do Twojego zdjęcia", other: "{count} nowego komentarza do Twojego zdjęcia" },
   "history.reply.comment_by_post": "{author} komentuje Twoją wiadomość",
   "history.reply.comments_post": { one: "{count} nowy komentarz do Twojej wiadomości", few: "{count} nowe komentarze do Twojej wiadomości", many: "{count} nowych komentarzy do Twojej wiadomości", other: "{count} nowego komentarza do Twojej wiadomości" },
+  "history.reply.comment_by_vote": "{author} komentuje Twoje głosowanie",
+  "history.reply.comments_vote": { one: "{count} nowy komentarz do Twojego głosowania", few: "{count} nowe komentarze do Twojego głosowania", many: "{count} nowych komentarzy do Twojego głosowania", other: "{count} nowego komentarza do Twojego głosowania" },
+  "history.reply.reaction_vote": { one: "Reakcja na Twoje głosowanie", few: "{count} reakcje na Twoje głosowanie", many: "{count} reakcji na Twoje głosowanie", other: "{count} reakcji na Twoje głosowanie" },
 } satisfies Strings<typeof en, "pl">;
