@@ -77,6 +77,7 @@ export default {
   "sources.err.picture_gone": "その写真はもうギャラリーにありません。",
   "sources.err.picture_of_a_post": "家族宛てのメッセージで共有された写真は、そのメッセージと一緒に扱われるため、出典にはできません。",
   "sources.err.cited_changed": "その間に、この出典がまた引用されました。削除する前に、もう一度確かめてください。",
+  "sources.supplied_by_suggestion": "{name}さんの提案と一緒に届いたもの",
   "exchange.issue.date_event": "{subject}の日付：{note}",
   "exchange.issue.source_missing": "ファイルにない出典の引用が{count}件ありました。それらの引用は除きました",
   "exchange.loss.death_citations_gedcom": "存命として記録された人の死去の引用{count}件は、エクスポートされません",

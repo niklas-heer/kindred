@@ -23,6 +23,7 @@ const H = await load<typeof import('../history.server.ts')>('/src/lib/history.se
 const P = await load<typeof import('../person.server.ts')>('/src/lib/person.server.ts');
 const S = await load<typeof import('./suggest.server.ts')>('/src/lib/suggestions/suggest.server.ts');
 const R = await load<typeof import('./review.server.ts')>('/src/lib/suggestions/review.server.ts');
+const Rel = await load<typeof import('../relations.server.ts')>('/src/lib/relations.server.ts');
 const readOnly = await load<typeof import('../read-only.ts')>('/src/lib/read-only.ts');
 const { AuthError } = await load<typeof import('../auth/errors.ts')>('/src/lib/auth/errors.ts');
 const { MAX_REASON } = await load<typeof import('./types.ts')>('/src/lib/suggestions/types.ts');
@@ -98,6 +99,24 @@ const usage = async (t: string, prefix: string) =>
 const suggest = (t: string, by: Parameters<typeof S.createSuggestion>[1], kind: 'details' | 'relative' | 'event' | 'source', person: string | null, payload: unknown, note?: string) =>
   S.createSuggestion(t, by, { kind, person, payload: payload as never, note }, NOW);
 
+// ---------- retry keys ----------
+
+// First in the file: `once` prunes old retry keys at its first keyed change in a process, which is the approval below.
+test('old retry keys are pruned, but not the steps of an approval whose suggestion still waits', async () => {
+  const t = await family();
+  asReviewer(fay);
+  const waits = await suggest(t, member(ada), 'details', 'bo', { born: '1919' });
+  const decided = await suggest(t, member(ada), 'details', 'cara', { born: '1923' });
+  await db.db(t).run("UPDATE suggestion SET status = 'declined' WHERE id = ?", decided.id);
+  const old = new Date(NOW.getTime() - 60 * 86_400_000).toISOString();
+  for (const key of [`sugg-${waits.id}-1`, `sugg-${waits.id}-d1`, `sugg-${decided.id}-1`, 'some-old-key'])
+    await db.db(t).run("INSERT INTO op (key, fn, result, at, user, fingerprint) VALUES (?, 'x', 'null', ?, 'u', 'f')", key, old);
+  const other = await suggest(t, member(ada), 'details', 'dag', { nickname: 'Dee' });
+  await R.approveSuggestion(t, fay, other.id);
+  const left = (await db.db(t).all<{ key: string }>('SELECT key FROM op WHERE at = ? ORDER BY key', old)).map((r) => r.key);
+  assert.deepEqual(left, [`sugg-${waits.id}-1`, `sugg-${waits.id}-d1`].sort());
+});
+
 // ---------- who ----------
 
 test('only an editor or a steward approves, declines or sees matches; a viewer, a contributor or a guest is refused', async () => {
@@ -161,6 +180,16 @@ test('a details suggestion applies through the person write path, names as detai
   assert.equal(await count(t, 'history', 'suggestion IS NULL'), 0, 'no change of an approval goes unattributed');
 });
 
+test('a current surname the same as the birth surname is no current surname: no stray change of it', async () => {
+  const t = await family();
+  asReviewer(fay);
+  await db.db(t).run("UPDATE person SET current_surname = 'Dune' WHERE id = 'dag'");
+  const { id } = await suggest(t, member(ada), 'details', 'dag', { nickname: 'Dee' });
+  await R.approveSuggestion(t, fay, id);
+  const rows = await historyOf(t, id);
+  assert.deepEqual(rows.map((r) => Object.keys(JSON.parse(r.fields!).f)), [['nickname']]);
+});
+
 test('approving with adjusted values applies those and marks the suggestion adjusted', async () => {
   const t = await family();
   asReviewer(fay);
@@ -192,8 +221,10 @@ test('a correction is refused as changed since when the record moved on; approve
   assert.equal((await row(t, id))!.status, 'waiting');
   // The reviewer looked again and approves against what is there now.
   assert.equal(await refusal(R.approveSuggestion(t, fay, id, undefined, { seen: { born: '1922' } })), 'suggest.err.changed');
-  await R.approveSuggestion(t, fay, id, undefined, { seen: { born: '1921' } });
-  assert.deepEqual([(await personRow(t, 'bo'))!.born, (await personRow(t, 'bo'))!.nickname], ['1919', 'Bobo']);
+  // Refused before any step was written, it may still be decided again: here with other values.
+  await R.approveSuggestion(t, fay, id, { born: '1917', nickname: 'Bobo' }, { seen: { born: '1921' } });
+  assert.deepEqual([(await personRow(t, 'bo'))!.born, (await personRow(t, 'bo'))!.nickname], ['1917', 'Bobo']);
+  assert.equal((await row(t, id))!.adjusted, 1);
 
   // A record that moved on to exactly the suggested value is no conflict.
   const second = await suggest(t, member(ada), 'details', 'cara', { born: '1923' });
@@ -208,6 +239,40 @@ test('a correction is refused as changed since when the record moved on; approve
   const union = await suggest(t, member(ada), 'event', 'bo', { partnership: 'u1', start: '1947' });
   await db.db(t).run("UPDATE partnership SET start = '1949' WHERE id = 'u1'");
   assert.equal(await refusal(R.approveSuggestion(t, fay, union.id)), 'suggest.err.changed');
+});
+
+test('an edit landing between the check and the write of an event or couple correction refuses it as changed', async () => {
+  const t = await family();
+  asReviewer(fay);
+  const ev = await suggest(t, member(ada), 'event', 'bo', { event: 'e1', note: 'In the cathedral' });
+  const union = await suggest(t, member(ada), 'event', 'bo', { partnership: 'u1', start: '1947' });
+  const d = db.db(t);
+  const get = d.get.bind(d);
+  /** After the approval's own read of the record, someone else's edit lands. */
+  const landing = (read: string, edit: string) => {
+    let fired = false;
+    d.get = (async (sql: string, ...params: unknown[]) => {
+      const r = await get(sql, ...(params as never[]));
+      if (!fired && sql === read) {
+        fired = true;
+        await d.run(edit);
+      }
+      return r;
+    }) as typeof d.get;
+  };
+  try {
+    landing('SELECT type, label, date, end_date, place, note FROM life_event WHERE id = ? AND person = ?', "UPDATE life_event SET place = 'Ystad' WHERE id = 'e1'");
+    assert.equal(await refusal(R.approveSuggestion(t, fay, ev.id)), 'suggest.err.changed');
+    const e1 = (await d.get<Record<string, unknown>>("SELECT place, note FROM life_event WHERE id = 'e1'"))!;
+    assert.deepEqual([e1.place, e1.note], ['Ystad', ''], 'the other edit stands, and the suggestion wrote nothing');
+    landing('SELECT a, b, kind, start, place FROM partnership WHERE id = ?', "UPDATE partnership SET place = 'Ystad' WHERE id = 'u1'");
+    assert.equal(await refusal(R.approveSuggestion(t, fay, union.id)), 'suggest.err.changed');
+    const u1 = (await d.get<Record<string, unknown>>("SELECT start, place FROM partnership WHERE id = 'u1'"))!;
+    assert.deepEqual([u1.start, u1.place], ['1948', 'Ystad']);
+  } finally {
+    d.get = get;
+  }
+  assert.equal(await count(t, 'history'), 0);
 });
 
 test('a missing relative is added with its link through the add-relative path, or linked to someone already there', async () => {
@@ -236,6 +301,11 @@ test('a missing relative is added with its link through the add-relative path, o
   const fen = (await personRow(t, 'fen'))!;
   assert.deepEqual([fen.given, fen.sex, fen.born], ['Fen', 'f', '1955']);
   assert.ok((await historyOf(t, known.id)).length >= 2);
+
+  // The link plan gives a parent's kind only to a parent or a child link, never to a sibling's shared parents.
+  await db.db(t).run("INSERT INTO person (id, given, living) VALUES ('kit', 'Kit', 0)");
+  await db.once(t, undefined, 'linkRelative', (d) => Rel.linkPlan(d, { anchor: 'ada', person: 'kit', relation: 'sibling', parentKind: 'adoptive' }));
+  assert.deepEqual((await db.db(t).all<{ kind: string }>("SELECT kind FROM parent WHERE child = 'kit'")).map((x) => x.kind), ['biological', 'biological']);
 
   // The form's own rules still hold: a third parent is refused, and nothing is written.
   const third = await suggest(t, member(ada), 'relative', 'ada', { person: { given: 'Ivo', living: false }, link: { kind: 'parent' } });
@@ -338,6 +408,11 @@ test('files move to source/ through the counted store, on a source made for them
   await S.addSuggestionFile(t, { ...guest }, ev.id, file('image/png', PNG(), 'census.png'), NOW);
   const er = await R.approveSuggestion(t, fay, ev.id);
   assert.equal((await db.db(t).get<{ title: string }>('SELECT title FROM source WHERE id = ?', er.applied.source!))?.title, 'Supplied with a suggestion by Hal Hazel');
+  // In the reviewer's language.
+  const de = await suggest(t, member(ada), 'event', 'bo', { kind: 'census', date: '1940' });
+  await S.addSuggestionFile(t, member(ada), de.id, file('image/png', PNG(), 'census.png'), NOW);
+  const dr = await R.approveSuggestion(t, fay, de.id, undefined, { locale: 'de' });
+  assert.equal((await db.db(t).get<{ title: string }>('SELECT title FROM source WHERE id = ?', dr.applied.source!))?.title, 'Mit einem Vorschlag von Ada Alder geschickt');
   assert.equal((await db.db(t).get<{ event: string }>('SELECT event FROM citation WHERE source = ?', er.applied.source!))?.event, er.applied.event);
   assert.deepEqual(await stored(t, 'suggest/'), []);
 });
@@ -375,6 +450,53 @@ test('an approval that fails at its second step is retried without duplicates, a
   assert.equal(await refusal(R.approveSuggestion(t, gus, id)), 'suggest.err.state');
   assert.deepEqual(await records(t), after);
   assert.equal((await row(t, id))!.decided_at, LATER.toISOString());
+});
+
+test('an adjusted correction that fails at a later step finishes on retry with the values it began with', async () => {
+  const t = await family();
+  asReviewer(fay);
+  const { id } = await suggest(t, member(ada), 'details', 'bo', { born: '1919', nickname: 'Bobo' });
+  await S.addSuggestionFile(t, member(ada), id, file('image/png', PNG(), 'bo.png'), NOW);
+  const ev = await suggest(t, member(ada), 'event', 'bo', { event: 'e1', place: 'Malmö' });
+  await S.addSuggestionFile(t, member(ada), ev.id, file('image/png', PNG(), 'e1.png'), NOW);
+  await db.db(t).run("CREATE TRIGGER no_sources BEFORE INSERT ON source BEGIN SELECT RAISE(ABORT, 'test: no sources'); END");
+  assert.match(await refusal(R.approveSuggestion(t, fay, id, { born: '1918' })), /no sources/);
+  assert.match(await refusal(R.approveSuggestion(t, fay, ev.id, { event: 'e1', place: 'Ystad' })), /no sources/);
+  assert.equal((await personRow(t, 'bo'))!.born, '1918', 'the first step was written, adjusted');
+  assert.equal((await db.db(t).get<{ place: string }>("SELECT place FROM life_event WHERE id = 'e1'"))?.place, 'Ystad');
+
+  // Half-way, it can be neither declined nor withdrawn: only approving it again finishes it.
+  assert.equal(await refusal(R.declineSuggestion(t, fay, id)), 'suggest.err.partial');
+  assert.equal(await refusal(S.withdrawSuggestion(t, member(ada), id)), 'suggest.err.partial');
+  assert.equal((await row(t, id))!.status, 'waiting');
+
+  await db.db(t).run('DROP TRIGGER no_sources');
+  // Sent again without the adjustment, or with another one: it finishes as it began.
+  await R.approveSuggestion(t, fay, id);
+  await R.approveSuggestion(t, gus, ev.id, { event: 'e1', place: 'Lund, cathedral' });
+  const b = (await personRow(t, 'bo'))!;
+  assert.deepEqual([b.born, b.nickname], ['1918', null], 'the adjusted values, not the suggested ones');
+  assert.deepEqual([(await row(t, id))!.status, (await row(t, id))!.adjusted], ['approved', 1]);
+  assert.equal((await db.db(t).get<{ place: string }>("SELECT place FROM life_event WHERE id = 'e1'"))?.place, 'Ystad');
+  assert.deepEqual([(await row(t, ev.id))!.status, (await row(t, ev.id))!.adjusted], ['approved', 1]);
+  assert.equal(await count(t, 'history', `suggestion = '${id}' AND kind = 'person'`), 1);
+  assert.equal(await count(t, 'history', `suggestion = '${ev.id}' AND kind = 'event'`), 1);
+  assert.equal(await count(t, 'source_file'), 2);
+});
+
+test('an approval begun whose steps are lost is refused rather than written twice', async () => {
+  const t = await family();
+  asReviewer(fay);
+  const { id } = await suggest(t, member(ada), 'relative', 'bo', { person: { given: 'Eve', born: '1952', living: false }, link: { kind: 'child' } });
+  await S.addSuggestionFile(t, member(ada), id, file('image/png', PNG()), NOW);
+  await db.db(t).run("CREATE TRIGGER no_sources BEFORE INSERT ON source BEGIN SELECT RAISE(ABORT, 'test: no sources'); END");
+  await refusal(R.approveSuggestion(t, fay, id));
+  await db.db(t).run('DROP TRIGGER no_sources');
+  await db.db(t).run("DELETE FROM op WHERE key LIKE 'sugg-%'");
+  const before = await records(t);
+  assert.equal(await refusal(R.approveSuggestion(t, fay, id)), 'suggest.err.stuck');
+  assert.deepEqual(await records(t), before);
+  assert.equal(await count(t, 'person', "given = 'Eve'"), 1);
 });
 
 test('a step of an approval writes nothing once its suggestion is no longer waiting', async () => {

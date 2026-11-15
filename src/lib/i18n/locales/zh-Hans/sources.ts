@@ -77,6 +77,7 @@ export default {
   "sources.err.picture_gone": "那张图片已经不在相册里了。",
   "sources.err.picture_of_a_post": "发给家人的消息里分享的图片跟随那条消息，不能作为来源。",
   "sources.err.cited_changed": "这期间这个来源又被引用了。删除之前请再看一看。",
+  "sources.supplied_by_suggestion": "随{name}的建议一起提供",
   "exchange.issue.date_event": "{subject}的日期：{note}",
   "exchange.issue.source_missing": "有{count}处引用的来源不在文件里，这些引用已被省略",
   "exchange.loss.death_citations_gedcom": "标记为在世者的{count}条去世引用不会导出",

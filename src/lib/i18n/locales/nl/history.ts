@@ -132,6 +132,7 @@ export default {
   "history.f.events": "Levensgebeurtenissen",
   "history.f.sources": "Bronnen",
   "history.f.citations": "Bronvermeldingen",
+  "history.f.files": "Bestanden",
   "history.s.person.added": { one: "{author} voegde deze persoon toe", other: "{author} voegde deze persoon toe" },
   "history.s.person.changed": { one: "{author} wijzigde de gegevens", other: "{author} wijzigde de gegevens" },
   "history.s.person.removed": { one: "{author} haalde deze persoon uit de stamboom", other: "{author} haalde deze persoon uit de stamboom" },

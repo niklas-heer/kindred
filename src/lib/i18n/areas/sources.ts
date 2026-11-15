@@ -75,6 +75,7 @@ export const en = {
   "sources.err.picture_gone": "That picture is no longer in the gallery.",
   "sources.err.picture_of_a_post": "A picture shared in a message to the family goes with that message: a source cannot rest on it.",
   "sources.err.cited_changed": "The source was cited again meanwhile. Look at it once more before you delete it.",
+  "sources.supplied_by_suggestion": "Supplied with a suggestion by {name}",
   "exchange.issue.date_event": "Date of {subject}: {note}",
   "exchange.issue.source_missing": "{count}× a source the file does not hold was cited; those citations were left out",
   "exchange.loss.death_citations_gedcom": { one: "{count} citation of the death of someone marked living is not exported", other: "{count} citations of the deaths of people marked living are not exported" },

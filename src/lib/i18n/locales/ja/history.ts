@@ -141,6 +141,7 @@ export default {
   "history.f.events": "人生の出来事",
   "history.f.sources": "出典",
   "history.f.citations": "引用",
+  "history.f.files": "ファイル",
   "history.s.person.added": "{author}さんがこの人を追加しました",
   "history.s.person.changed": "{author}さんが詳細を変更しました",
   "history.s.person.removed": "{author}さんがこの人を家系図から削除しました",

@@ -10,10 +10,14 @@
 //   through `saveEvent`, a couple through the partnership details plan, a source through `saveSource` and `saveCitation`.
 //   Every history row it writes names the suggestion (`once`'s `suggestion`), and each of those writes is made only while
 //   the suggestion is still waiting.
-// - It runs as steps, each with its own retry key `sugg-<id>-<n>` (the same for every reviewer, and bound to the values
-//   approved), so an approval that failed half-way and is approved again replays the steps that were written instead of
-//   writing them twice; the last step moves the files and marks the suggestion approved (`status`, `adjusted`, `decided_*`,
-//   `applied`), guarded on it still waiting. A retry must approve the same values: other values are refused by the retry key.
+// - It runs as steps, each with its own retry key `sugg-<id>-<n>` (the same for every reviewer), so an approval that failed
+//   half-way and is approved again replays the steps that were written instead of writing them twice; the last step moves
+//   the files and marks the suggestion approved (`status`, `adjusted`, `decided_*`, `applied`), guarded on it still waiting.
+//   What is approved (the values, adjusted or not, the person already in the tree, the files' source title) is kept first as
+//   a decision (`sugg-<id>-d<k>`, writing nothing else). Until a step is written a new approval may decide again; once one
+//   is, the approval finishes as it began, whatever values a retry sends. Its steps' keys are kept while it waits (`once`).
+// - An approval that changed records is finished only by approving again: it cannot be declined or withdrawn (`partial`).
+//   One whose steps' keys are lost while its changes are in the history is refused (`stuck`) rather than written twice.
 // - A correction (a person's facts, an event, a couple) rests on the values it was made against (`basis`), or on those the
 //   reviewer was shown (`seen`): when the record moved on from them, other than to the suggested value, it is refused as
 //   `changed` and nothing is written.
@@ -27,6 +31,7 @@
 //     person    the person it is about, or the one named as already in the tree, is not there
 //     event     the event or couple it corrects is not this person's       reason  the decline reason is too long
 //     files     a file was attached while it was being approved: approve it again
+//     partial   an approval of it has begun: approve it again to finish     stuck  an approval begun but its steps are lost
 import { forbidden, AuthError } from '../auth/errors.ts';
 import { fail } from '../auth/guard.server.ts';
 import { db, media, NOT_A_RECORD, once, q, guard, change, type Db, type OnceOptions, type OpKey } from '../db.server.ts';
@@ -40,8 +45,10 @@ import { cleanComment } from '../responses.ts';
 import { can, needs as lowestRole } from '../roles.ts';
 import { saveCitation, saveSource } from '../sources.server.ts';
 import { CHANGED_SINCE_OPENED } from '../fields/model.ts';
+import { translate } from '../i18n/dictionary.ts';
+import type { Locale } from '../i18n/languages.ts';
 import type { GParent, GUnion } from '../types.ts';
-import { checkPayload, detailsOf, PERSON_COLUMNS, type PersonRow } from './suggest.server.ts';
+import { checkPayload, detailsOf, NOT_PARTLY_APPROVED, partlyApproved, PERSON_COLUMNS, type PersonRow } from './suggest.server.ts';
 import { MAX_REASON, type DetailsPayload, type EventPayload, type RelativePayload, type SourcePayload, type SuggestionKind, type SuggestionPayload } from './types.ts';
 
 const err = (code: string) => new Error(`suggest.err.${code}`);
@@ -104,8 +111,13 @@ export interface ApproveOptions {
   existing?: string;
   /** The title of the source made for the files of a suggestion that is not a source. */
   sourceTitle?: string;
+  /** The reviewer's language, for the files' source's title when none is given. */
+  locale?: Locale;
   now?: Date;
 }
+
+/** What an approval decided, kept before its first step (`sugg-<id>-d<k>`): a retry finishes with it. */
+interface Decision { payload: SuggestionPayload; adjusted: boolean; existing: string | null; title: string }
 
 /** The fixed step numbers of an approval, so a retry finds each step's key whatever else changed. */
 const STEP = { main: 1, gaps: 2, backs: 3, filesSource: 4, cite: 5, last: 9 } as const;
@@ -126,8 +138,8 @@ interface Ctx {
   existing?: string;
   reader: LifeReader;
   opts: OnceOptions;
-  /** Runs step `n` with its retry key; `replay` is true when it was written before (its checks are then not run again). */
-  step: <T>(n: number, run: (op: OpKey, replay: boolean) => Promise<T>) => Promise<T>;
+  /** Runs step `n` with its retry key; a step written before gives back what it gave then, and its checks are not run again. */
+  step: <T>(n: number, run: (op: OpKey) => Promise<T>) => Promise<T>;
 }
 
 /** The changes that differ from what the record now has and from the value suggested: the fields `changed` refuses on. */
@@ -137,11 +149,11 @@ function moved(now: Record<string, unknown>, target: Record<string, unknown>, se
 
 async function applyDetails(c: Ctx, out: Applied): Promise<Fact[]> {
   const P = c.payload as DetailsPayload;
-  await c.step(STEP.main, async (op, replay) => {
+  await c.step(STEP.main, async (op) => {
     const r = await c.d.get<PersonRow>(`SELECT ${PERSON_COLUMNS} FROM person WHERE id = ?`, c.person);
     if (!r) throw err('person');
     const now = detailsOf(r);
-    if (!replay && moved(now, P, c.seen)) throw err('changed');
+    if (moved(now, P, c.seen)) throw err('changed');
     // The person as the suggestion reads them afterwards, then as the columns store it: the surname they go by is the
     // current one only where it is not their birth surname (detailsOf in suggest.server.ts).
     const t = { ...now, ...P };
@@ -150,7 +162,9 @@ async function applyDetails(c: Ctx, out: Applied): Promise<Fact[]> {
       sex: t.sex, living: t.living ? 1 : 0, born: t.born, born_place: t.bornPlace, died: t.died, died_place: t.diedPlace,
     };
     const had = r as unknown as Record<Correctable, string | number | null>;
-    const set = Object.fromEntries(Object.entries(want).filter(([k, v]) => v !== (had[k as Correctable] || (k === 'living' ? 0 : null)))) as Partial<typeof want>;
+    // A current surname equal to the birth surname reads as none (detailsOf), so it is not rewritten as a change.
+    const stored = (k: Correctable) => (k === 'current_surname' && had.current_surname === had.surname ? null : had[k] || (k === 'living' ? 0 : null));
+    const set = Object.fromEntries(Object.entries(want).filter(([k, v]) => v !== stored(k as Correctable))) as Partial<typeof want>;
     // What the person had in every column written, and both surnames whenever one is: the target was decided on them.
     const columns = Object.keys(set).some((k) => k === 'surname' || k === 'current_surname') ? [...Object.keys(set), 'surname', 'current_surname'] : Object.keys(set);
     const seen = Object.fromEntries(columns.map((k) => [k, had[k as Correctable]]));
@@ -195,30 +209,42 @@ async function applyEvent(c: Ctx, out: Applied): Promise<Fact[]> {
   const P = c.payload as EventPayload;
   if (P.partnership !== undefined) {
     const id = P.partnership;
-    await c.step(STEP.main, async (op, replay) => {
+    await c.step(STEP.main, async (op) => {
       const u = await c.d.get<{ a: string; b: string; kind: string; start: string | null; place: string | null }>('SELECT a, b, kind, start, place FROM partnership WHERE id = ?', id);
       if (!u || (u.a !== c.person && u.b !== c.person)) throw err('event');
       const now = { partnershipKind: u.kind, start: u.start || null, startPlace: u.place || null };
       const target = { partnershipKind: P.partnershipKind, start: P.start, startPlace: P.startPlace };
       const fields = Object.fromEntries(Object.entries(target).filter(([, v]) => v !== undefined));
-      if (!replay && moved(now, fields, c.seen)) throw err('changed');
+      if (moved(now, fields, c.seen)) throw err('changed');
       const t = { ...now, ...fields } as typeof now;
-      await once(c.tree, op, 'setPartnershipDetails', (d) => partnershipDetailsPlan(d, { id, kind: t.partnershipKind as GUnion['kind'], start: t.start, place: t.startPlace }), c.opts);
+      // The couple's plan, held to the values checked above: a change landing in between refuses as `changed`.
+      await once(c.tree, op, 'setPartnershipDetails', async (d) => {
+        const fresh = await d.get<{ kind: string; start: string | null; place: string | null }>('SELECT kind, start, place FROM partnership WHERE id = ?', id);
+        if (!fresh || fresh.kind !== u.kind || fresh.start !== u.start || fresh.place !== u.place) throw err('changed');
+        const plan = await partnershipDetailsPlan(d, { id, kind: t.partnershipKind as GUnion['kind'], start: t.start, place: t.startPlace });
+        return { ...plan, writes: [guard('EXISTS (SELECT 1 FROM partnership WHERE id = ? AND kind = ? AND start IS ? AND place IS ?)', id, u.kind, u.start, u.place), ...plan.writes] };
+      }, c.opts);
     });
     out.partnership = id;
     return [{ fact: 'partnership', partnership: id }];
   }
   if (P.event !== undefined) {
     const id = P.event;
-    await c.step(STEP.main, async (op, replay) => {
+    await c.step(STEP.main, async (op) => {
       const e = await c.d.get<{ type: EventType; label: string | null; date: string | null; end_date: string | null; place: string | null; note: string }>(
         'SELECT type, label, date, end_date, place, note FROM life_event WHERE id = ? AND person = ?', id, c.person);
       if (!e) throw err('event');
       const now = { date: e.date || null, place: e.place || null, note: e.note };
       const fields = Object.fromEntries((['date', 'place', 'note'] as const).filter((k) => P[k] !== undefined).map((k) => [k, P[k]]));
-      if (!replay && moved(now, fields, c.seen)) throw err('changed');
+      if (moved(now, fields, c.seen)) throw err('changed');
       const t = { ...now, ...fields } as typeof now;
-      await saveEvent(c.tree, c.reader, { id, person: c.person, type: e.type, label: e.label, date: t.date, endDate: e.end_date, place: t.place, note: t.note ?? '' }, op, c.opts);
+      try {
+        // Held to the values checked above: a change landing in between refuses as `changed`.
+        await saveEvent(c.tree, c.reader, { id, person: c.person, type: e.type, label: e.label, date: t.date, endDate: e.end_date, place: t.place, note: t.note ?? '' },
+          op, { ...c.opts, expect: { date: e.date, place: e.place, note: e.note } });
+      } catch (x) {
+        throw x instanceof Error && x.message === 'events.err.changed' ? err('changed') : x;
+      }
     });
     out.event = id;
     return [{ fact: 'event', event: id }];
@@ -264,6 +290,18 @@ async function approvedPayload(d: Db, who: Who, row: SuggestionRow, adjusted: Su
   return { payload, adjusted: !same(payload, stored) };
 }
 
+/** Every step's key of an approval: one of them written means it has begun. */
+const stepKeys = (id: string) => Array.from({ length: STEP.last }, (_, i) => `sugg-${id}-${i + 1}`);
+/** The keys' owner: the suggestion, not a reviewer, so any reviewer finishes an approval another began. */
+const keyUser = (id: string) => `suggestion:${id}`;
+
+/** The latest decision kept for an approval, and its number. */
+async function lastDecision(d: Db, id: string): Promise<{ k: number; decision: Decision } | undefined> {
+  const rows = await d.all<{ key: string; result: string }>('SELECT key, result FROM op WHERE key LIKE ?', `sugg-${id}-d%`);
+  const latest = rows.map((r) => ({ k: Number(r.key.slice(`sugg-${id}-d`.length)), decision: JSON.parse(r.result) as Decision })).sort((a, b) => b.k - a.k)[0];
+  return latest && Number.isInteger(latest.k) ? latest : undefined;
+}
+
 /**
  * Approves a waiting suggestion: applies it (as suggested, or with the reviewer's `adjusted` values, a payload of its kind)
  * through the forms' write paths, then moves its files and marks it approved. See the top of this file for the rules.
@@ -277,23 +315,45 @@ export async function approveSuggestion(
   // Only a source may be about no one, and then it backs nothing.
   const person = row.person ?? '';
   if (row.person) await notRestricted(tree, row.person);
-  if (options.existing !== undefined) {
-    if (row.kind !== 'relative') throw err('payload');
-    if (!(await d.get('SELECT 1 AS x FROM person WHERE id = ?', options.existing))) throw err('person');
-    await notRestricted(tree, options.existing);
+  const latest = await lastDecision(d, id);
+  const begun = !!(await d.get(`SELECT 1 AS x FROM op WHERE key IN (${stepKeys(id).map(() => '?').join(', ')})`, ...stepKeys(id)));
+  let decision: Decision;
+  let k: number;
+  if (begun) {
+    // Begun: it finishes as it began. Values sent now are not used; checking them against records it already changed would refuse them.
+    if (!latest) throw err('stuck');
+    ({ decision, k } = latest);
+  } else {
+    // Its changes are in the history but none of its steps is: finishing it could write them twice.
+    if (await partlyApproved(d, id)) throw err('stuck');
+    if (options.existing !== undefined) {
+      if (row.kind !== 'relative') throw err('payload');
+      if (!(await d.get('SELECT 1 AS x FROM person WHERE id = ?', options.existing))) throw err('person');
+    }
+    const approved = await approvedPayload(d, who, row, adjusted);
+    const title = cleanComment(options.sourceTitle ?? '').replace(/\s+/g, ' ').slice(0, 300)
+      || translate(options.locale ?? 'en', 'sources.supplied_by_suggestion', { name: row.author_name });
+    decision = { payload: approved.payload, adjusted: approved.adjusted, existing: options.existing ?? null, title };
+    k = latest && same(latest.decision, decision) ? latest.k : (latest?.k ?? 0) + 1;
+    if (k !== latest?.k) {
+      const kept = decision;
+      await once(tree, { key: `sugg-${id}-d${k}`, user: keyUser(id), payload: kept }, 'decideSuggestion',
+        () => ({ writes: [], history: NOT_A_RECORD, result: kept }), { suggestion: id });
+    }
   }
-  const approved = await approvedPayload(d, who, row, adjusted);
+  if (decision.existing) await notRestricted(tree, decision.existing);
   const files = (await d.get<{ n: number }>('SELECT count(*) AS n FROM suggestion_file WHERE suggestion = ?', id))?.n ?? 0;
-  const title = cleanComment(options.sourceTitle ?? '').replace(/\s+/g, ' ').slice(0, 300) || `Supplied with a suggestion by ${row.author_name}`;
-  // What every step's retry key is bound to: the same approval sent again replays, different values are refused.
-  const fingerprint = { payload: approved.payload, existing: options.existing ?? null };
-  const opOf = (n: number): OpKey => ({ key: `sugg-${id}-${n}`, user: `suggestion:${id}`, payload: fingerprint });
+  const opOf = (n: number): OpKey => ({ key: `sugg-${id}-${n}`, user: keyUser(id), payload: { decision: k } });
   const c: Ctx = {
-    tree, d, row, person, payload: approved.payload, existing: options.existing,
+    tree, d, row, person, payload: decision.payload, existing: decision.existing ?? undefined,
     seen: options.seen ?? (row.basis ? (JSON.parse(row.basis) as Record<string, unknown>) : {}),
     reader: { id: who.id, name: who.name, role: who.role },
     opts: { suggestion: id },
-    step: async (n, run) => run(opOf(n), !!(await d.get('SELECT 1 AS x FROM op WHERE key = ?', opOf(n).key))),
+    step: async <T>(n: number, run: (op: OpKey) => Promise<T>) => {
+      const op = opOf(n);
+      const done = await d.get<{ result: string }>('SELECT result FROM op WHERE key = ?', op.key);
+      return done ? (JSON.parse(done.result) as T) : run(op);
+    },
   };
 
   const out: Applied = {};
@@ -301,7 +361,7 @@ export async function approveSuggestion(
   let filesSource = row.kind === 'source' ? out.source : undefined;
   if (files && row.kind !== 'source') {
     const made = await c.step(STEP.filesSource, (op) => saveSource(tree, c.reader, {
-      title, author: null, publication: null, reference: null, date: null, note: '', document: null, media: null,
+      title: decision.title, author: null, publication: null, reference: null, date: null, note: '', document: null, media: null,
     }, op, c.opts));
     filesSource = made.id;
     out.source = made.id;
@@ -310,7 +370,7 @@ export async function approveSuggestion(
       (out.citations ??= []).push(cited.id);
     }
   }
-  return { applied: await c.step(STEP.last, (op) => finish(c, out, filesSource, approved.adjusted, who, options.now ?? new Date(), op)) };
+  return { applied: await c.step(STEP.last, (op) => finish(c, out, filesSource, decision.adjusted, who, options.now ?? new Date(), op)) };
 }
 
 /** The last step: the files move to their source, and the suggestion is marked approved with what was written. */
@@ -382,10 +442,12 @@ export async function declineSuggestion(tree: string, who: Who, id: string, reas
   if (text.length > MAX_REASON) throw err('reason');
   return once(tree, undefined, 'declineSuggestion', async (d) => {
     await waiting(d, id);
+    if (await partlyApproved(d, id)) throw err('partial');
     const keys = (await d.all<{ key: string }>('SELECT key FROM suggestion_file WHERE suggestion = ?', id)).map((r) => r.key);
     return {
       writes: [
         guard("EXISTS (SELECT 1 FROM suggestion WHERE id = ? AND status = 'waiting')", id),
+        NOT_PARTLY_APPROVED(id),
         // Its files as read: one added meanwhile makes the plan read them again, so none is left in storage.
         guard('(SELECT count(*) FROM suggestion_file WHERE suggestion = ?) = ?', id, keys.length),
         q('DELETE FROM suggestion_file WHERE suggestion = ?', id),

@@ -139,6 +139,7 @@ export const en = {
   "history.f.events": "Life events",
   "history.f.sources": "Sources",
   "history.f.citations": "Citations",
+  "history.f.files": "Files",
   "history.s.person.added": { one: "{author} added this person", other: "{author} added this person" },
   "history.s.person.changed": { one: "{author} changed their details", other: "{author} changed their details" },
   "history.s.person.removed": { one: "{author} removed this person from the tree", other: "{author} removed this person from the tree" },

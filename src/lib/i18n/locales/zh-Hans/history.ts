@@ -141,6 +141,7 @@ export default {
   "history.f.events": "人生事件",
   "history.f.sources": "来源",
   "history.f.citations": "引用",
+  "history.f.files": "文件",
   "history.s.person.added": "{author}添加了这个人",
   "history.s.person.changed": "{author}修改了他们的详情",
   "history.s.person.removed": "{author}把这个人从家谱中删除了",

@@ -77,6 +77,7 @@ export default {
   "sources.err.picture_gone": "Dieses Bild ist nicht mehr in der Galerie.",
   "sources.err.picture_of_a_post": "Ein Bild aus einer Nachricht an die Familie gehört zu dieser Nachricht: Eine Quelle kann sich nicht darauf stützen.",
   "sources.err.cited_changed": "Die Quelle wurde inzwischen erneut als Beleg verwendet. Sieh sie dir noch einmal an, bevor du sie löschst.",
+  "sources.supplied_by_suggestion": "Mit einem Vorschlag von {name} geschickt",
   "exchange.issue.date_event": "Datum von {subject}: {note}",
   "exchange.issue.source_missing": "{count}× wurde eine Quelle angegeben, die nicht in der Datei steht; diese Belege wurden ausgelassen",
   "exchange.loss.death_citations_gedcom": { one: "{count} Beleg für den Tod einer als lebend markierten Person wird nicht exportiert", other: "{count} Belege für den Tod als lebend markierter Personen werden nicht exportiert" },

@@ -19,7 +19,7 @@ const FIELD_NAMES = new Set([
   'living', 'title', 'epithet', 'occupation', 'bio', 'house', 'look', 'photo', 'painted', 'display', 'prefer_avatar', 'label', 'value',
   'visibility', 'kind', 'start', 'end', 'end_reason', 'place', 'type', 'date', 'end_date', 'note', 'author', 'publication', 'reference',
   'document', 'media', 'source', 'page', 'quality', 'transcription', 'taken', 'caption', 'album', 'name', 'motto', 'arms', 'law', 'head',
-  'heir', 'country', 'members', 'meaning', 'pin', 'tagline', 'summary', 'private', 'body', 'notes', 'people', 'parents', 'unions',
+  'heir', 'country', 'members', 'meaning', 'pin', 'tagline', 'summary', 'private', 'body', 'notes', 'people', 'parents', 'unions', 'files',
   'events', 'sources', 'citations',
 ]);
 

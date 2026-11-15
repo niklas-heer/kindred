@@ -77,6 +77,7 @@ export default {
   "sources.err.picture_gone": "Die afbeelding staat niet meer in de galerij.",
   "sources.err.picture_of_a_post": "Een afbeelding die in een bericht aan de familie is gedeeld, hoort bij dat bericht: een bron kan er niet op berusten.",
   "sources.err.cited_changed": "De bron is intussen opnieuw aangehaald. Bekijk haar nog eens voordat je haar verwijdert.",
+  "sources.supplied_by_suggestion": "Meegestuurd met een voorstel van {name}",
   "exchange.issue.date_event": "Datum van {subject}: {note}",
   "exchange.issue.source_missing": "{count}× is een bron aangehaald die het bestand niet bevat; die bronvermeldingen zijn weggelaten",
   "exchange.loss.death_citations_gedcom": { one: "{count} bronvermelding van het overlijden van iemand die als levend is aangemerkt, wordt niet geëxporteerd", other: "{count} bronvermeldingen van het overlijden van mensen die als levend zijn aangemerkt, worden niet geëxporteerd" },

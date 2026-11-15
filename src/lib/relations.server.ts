@@ -15,7 +15,7 @@ export interface LinkInput {
   /** For a child: the anchor's partner who is the other parent. */
   coParent?: string;
   partnership?: { kind: GUnion['kind']; start?: string; place?: string };
-  /** For a parent or a child: what kind of parent the link is (left out: biological, as the table's default). */
+  /** For a parent or a child: what kind of parent the link is (left out, or for a sibling or partner: biological, the table's default). */
   parentKind?: GParent['kind'];
 }
 
@@ -105,7 +105,7 @@ export async function linkPlan(d: Db, data: LinkInput): Promise<Plan<LinkResult>
   const history: HistoryEntry[] = created.partnership ? [added('partnership', created.partnership, { person: data.anchor, label: other })] : [];
   // The guards hold every parent set as read, so exactly the edges not already there are new.
   for (const [child, parent] of edges) {
-    writes.push(data.parentKind && data.relation !== 'sibling'
+    writes.push(data.parentKind && (data.relation === 'child' || data.relation === 'parent')
       ? q('INSERT OR IGNORE INTO parent (child, parent, kind) VALUES (?, ?, ?)', child, parent, data.parentKind)
       : q('INSERT OR IGNORE INTO parent (child, parent) VALUES (?, ?)', child, parent));
     if (!(await parentsOf(child)).includes(parent) && !created.parents.some((e) => e.child === child && e.parent === parent)) {

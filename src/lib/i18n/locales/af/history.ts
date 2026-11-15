@@ -141,6 +141,7 @@ export default {
   "history.f.events": "Lewensgebeure",
   "history.f.sources": "Bronne",
   "history.f.citations": "Aanhalings",
+  "history.f.files": "Lêers",
   "history.s.person.added": { one: "{author} het hierdie persoon bygevoeg", other: "{author} het hierdie persoon bygevoeg" },
   "history.s.person.changed": { one: "{author} het besonderhede verander", other: "{author} het besonderhede verander" },
   "history.s.person.removed": { one: "{author} het hierdie persoon uit die stamboom verwyder", other: "{author} het hierdie persoon uit die stamboom verwyder" },

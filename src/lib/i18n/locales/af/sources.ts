@@ -77,6 +77,7 @@ export default {
   "sources.err.picture_gone": "Daardie prent is nie meer in die galery nie.",
   "sources.err.picture_of_a_post": "'n Prent uit 'n boodskap aan die familie hoort by daardie boodskap: 'n bron kan nie daarop berus nie.",
   "sources.err.cited_changed": "Die bron is intussen weer aangehaal. Kyk weer daarna voordat jy dit skrap.",
+  "sources.supplied_by_suggestion": "Saam met ’n voorstel van {name} gestuur",
   "exchange.issue.date_event": "Datum van {subject}: {note}",
   "exchange.issue.source_missing": "{count}× is ’n bron aangehaal wat nie in die lêer is nie; daardie aanhalings is weggelaat",
   "exchange.loss.death_citations_gedcom": { one: "{count} aanhaling vir die dood van iemand wat as lewend gemerk is, word nie uitgevoer nie", other: "{count} aanhalings vir die dood van mense wat as lewend gemerk is, word nie uitgevoer nie" },

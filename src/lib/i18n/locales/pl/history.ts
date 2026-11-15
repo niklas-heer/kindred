@@ -147,6 +147,7 @@ export default {
   "history.f.events": "Wydarzenia z życia",
   "history.f.sources": "Źródła",
   "history.f.citations": "Przypisy",
+  "history.f.files": "Pliki",
   "history.s.person.added": { one: "{author}: dodano tę osobę", few: "{author}: dodano tę osobę", many: "{author}: dodano tę osobę", other: "{author}: dodano tę osobę" },
   "history.s.person.changed": { one: "{author}: zmieniono dane tej osoby", few: "{author}: zmieniono dane tej osoby", many: "{author}: zmieniono dane tej osoby", other: "{author}: zmieniono dane tej osoby" },
   "history.s.person.removed": { one: "{author}: usunięto tę osobę z drzewa", few: "{author}: usunięto tę osobę z drzewa", many: "{author}: usunięto tę osobę z drzewa", other: "{author}: usunięto tę osobę z drzewa" },

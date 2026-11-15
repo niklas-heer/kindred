@@ -56,11 +56,17 @@ export async function familyEventPlaces(tree: string, who: LifeReader): Promise<
 
 const clean = (s: string | null | undefined) => (s && s.trim() ? s.trim() : null);
 
+/** The date, place and note a change expects an event to have still (stored values, as read). */
+export interface EventExpect { date: string | null; place: string | null; note: string }
+
 /**
  * Adds an event (no id) or changes one. An event stays with the person it was added to. A custom event needs its own label;
- * a burial or a cremation is only for someone not living. Returns the event's id.
+ * a burial or a cremation is only for someone not living. Returns the event's id. `opts` is `once`'s; with `expect`, a change
+ * is written only while the event still has that date, place and note (`events.err.changed` otherwise), as an approved
+ * suggestion's correction needs.
  */
-export function saveEvent(tree: string, who: LifeReader, input: EventInput, op: OpKey | undefined, opts: OnceOptions = {}): Promise<{ id: string }> {
+export function saveEvent(tree: string, who: LifeReader, input: EventInput, op: OpKey | undefined, opts: OnceOptions & { expect?: EventExpect } = {}): Promise<{ id: string }> {
+  const { expect, ...onceOpts } = opts;
   return once(tree, op, 'saveLifeEvent', async (d) => {
     needsEditor(who);
     const label = clean(input.label);
@@ -78,9 +84,11 @@ export function saveEvent(tree: string, who: LifeReader, input: EventInput, op: 
     if (input.id) {
       const had = await d.get<{ person: string } & typeof next>('SELECT person, type, label, date, end_date, place, note FROM life_event WHERE id = ?', input.id);
       if (!had || had.person !== input.person) throw new Error('events.err.gone');
+      if (expect && (had.date !== expect.date || had.place !== expect.place || had.note !== expect.note)) throw new Error('events.err.changed');
       const { person: _, ...was } = had;
       writes.push(
         guard('EXISTS (SELECT 1 FROM life_event WHERE id = ? AND person = ?)', input.id, input.person),
+        ...(expect ? [guard('EXISTS (SELECT 1 FROM life_event WHERE id = ? AND date IS ? AND place IS ? AND note IS ?)', input.id, had.date, had.place, had.note)] : []),
         q('UPDATE life_event SET type = ?, label = ?, date = ?, end_date = ?, place = ?, note = ?, updated_by = ?, updated_at = ? WHERE id = ?', ...values, who.id, at, input.id),
       );
       return { writes, history: change('event', input.id, was, next, { person: input.person, label: label ?? type }), result: { id: input.id } };
@@ -95,7 +103,7 @@ export function saveEvent(tree: string, who: LifeReader, input: EventInput, op: 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, input.person, ...values, (count?.last ?? -1) + 1, who.id, who.name, at, who.id, at),
     );
     return { writes, history: [added('event', id, { person: input.person, label: label ?? input.type })], result: { id } };
-  }, opts);
+  }, onceOpts);
 }
 
 /** Removes an event; its citations go with it (they cite nothing any more). An event already gone is not an error. */

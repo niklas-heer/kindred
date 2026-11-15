@@ -166,7 +166,11 @@ export async function once<T>(tree: string, op: OpKey | undefined, fn: string, w
     const now = Date.now();
     if (op && now - lastPrune > 3_600_000) {
       lastPrune = now;
-      await d.run('DELETE FROM op WHERE at < ?', new Date(now - OP_KEEP_DAYS * 86_400_000).toISOString()).catch(() => {});
+      // An approval's steps (`sugg-<id>-…`, suggestions/review.server.ts) are kept while their suggestion waits: a suggestion
+      // waits up to 90 days, and a retry of one approved half-way must find the steps it already wrote.
+      await d.run(`DELETE FROM op WHERE at < ? AND NOT (key LIKE 'sugg-%'
+        AND EXISTS (SELECT 1 FROM suggestion s WHERE s.status = 'waiting' AND op.key LIKE 'sugg-' || s.id || '-%'))`,
+      new Date(now - OP_KEEP_DAYS * 86_400_000).toISOString()).catch(() => {});
     }
     await plan.after?.(writes);
     return value(writes);

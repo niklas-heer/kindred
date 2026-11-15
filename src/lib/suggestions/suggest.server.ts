@@ -31,6 +31,7 @@
 //     file_type    not an image or PDF its bytes agree with        file_size  the file is too large
 //     files        the suggestion has its files                    pending    the family's pending files are full
 //     gone         no such suggestion of yours                     state      it is no longer waiting
+//     partial      an approval of it has begun: only approving it again (which finishes it) is left
 //     settings     the settings are not two switches
 import { z } from 'zod';
 import { forbidden } from '../auth/errors.ts';
@@ -502,15 +503,25 @@ export async function addSuggestionFile(
 
 // ---------- withdrawing ----------
 
+/**
+ * Whether an approval of the suggestion has begun and changed the records (review.server.ts): it may then only be approved
+ * again, which finishes it, never withdrawn or declined, or the records would keep a change nobody approved to the end.
+ */
+export const partlyApproved = async (d: Db, id: string) => !!(await d.get('SELECT 1 AS x FROM history WHERE suggestion = ? LIMIT 1', id));
+/** The guard of the same: no change of the records names the suggestion yet. */
+export const NOT_PARTLY_APPROVED = (id: string) => guard('NOT EXISTS (SELECT 1 FROM history WHERE suggestion = ?)', id);
+
 /** Withdraws the suggester's own waiting suggestion: its files go from storage, with their rows. */
 export async function withdrawSuggestion(tree: string, by: Suggester, id: string, now: Date = new Date()): Promise<void> {
   ownerCheck(by);
   return once(tree, undefined, 'withdrawSuggestion', async (d) => {
     const own = await ownWaiting(d, by, id);
+    if (await partlyApproved(d, id)) throw err('partial');
     const keys = (await d.all<{ key: string }>('SELECT key FROM suggestion_file WHERE suggestion = ?', id)).map((r) => r.key);
     return {
       writes: [
         own.guard,
+        NOT_PARTLY_APPROVED(id),
         // Its files as read: one added meanwhile makes the plan read them again, so none is left in storage.
         guard('(SELECT count(*) FROM suggestion_file WHERE suggestion = ?) = ?', id, keys.length),
         q('DELETE FROM suggestion_file WHERE suggestion = ?', id),

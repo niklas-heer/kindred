@@ -141,6 +141,7 @@ export default {
   "history.f.events": "Eventos de la vida",
   "history.f.sources": "Fuentes",
   "history.f.citations": "Citas",
+  "history.f.files": "Archivos",
   "history.s.person.added": { one: "{author} añadió a esta persona", other: "{author} añadió a esta persona" },
   "history.s.person.changed": { one: "{author} cambió sus datos", other: "{author} cambió sus datos" },
   "history.s.person.removed": { one: "{author} quitó a esta persona del árbol", other: "{author} quitó a esta persona del árbol" },

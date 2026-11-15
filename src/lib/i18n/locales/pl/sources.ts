@@ -87,6 +87,7 @@ export default {
   "sources.err.picture_gone": "Tego obrazu nie ma już w galerii.",
   "sources.err.picture_of_a_post": "Obraz udostępniony w wiadomości do rodziny należy do tej wiadomości: nie może być podstawą źródła.",
   "sources.err.cited_changed": "W międzyczasie ponownie powołano się na to źródło. Obejrzyj je jeszcze raz, zanim je usuniesz.",
+  "sources.supplied_by_suggestion": "Przysłane z sugestią od: {name}",
   "exchange.issue.date_event": "Data: {subject}: {note}",
   "exchange.issue.source_missing": "{count}× powołano się na źródło, którego nie ma w pliku; te przypisy pominięto",
   "exchange.loss.death_citations_gedcom": {

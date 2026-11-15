@@ -77,6 +77,7 @@ export default {
   "sources.err.picture_gone": "Quell’immagine non è più nella galleria.",
   "sources.err.picture_of_a_post": "Un’immagine condivisa in un messaggio alla famiglia resta con quel messaggio: una fonte non può poggiare su di essa.",
   "sources.err.cited_changed": "Nel frattempo la fonte è stata citata di nuovo. Guardala ancora una volta prima di eliminarla.",
+  "sources.supplied_by_suggestion": "Inviato con un suggerimento di {name}",
   "exchange.issue.date_event": "Data di {subject}: {note}",
   "exchange.issue.source_missing": "{count}× è stata citata una fonte che il file non contiene; quelle citazioni sono state lasciate fuori",
   "exchange.loss.death_citations_gedcom": { one: "{count} citazione della morte di qualcuno segnato in vita non viene esportata", other: "{count} citazioni delle morti di persone segnate in vita non vengono esportate" },
