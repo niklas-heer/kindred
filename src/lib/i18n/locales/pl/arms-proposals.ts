@@ -3,8 +3,8 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/arms-proposals.ts";
 
 export default {
-  "arms.vote.question": "Jaki herb powinien nosić ród {house}?",
-  "arms.vote.keep": "Zachować nasz obecny herb",
+  "arms.vote.question": "Jaki herb ma nosić ród {house}?",
+  "arms.vote.keep": "Zachowajmy obecny herb",
 
   "arms.propose": "Zaproponuj herb",
   "arms.propose.title": "Zaproponuj herb",

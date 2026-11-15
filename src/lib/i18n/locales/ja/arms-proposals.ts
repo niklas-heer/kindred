@@ -3,8 +3,8 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/arms-proposals.ts";
 
 export default {
-  "arms.vote.question": "{house}にはどの紋章がふさわしいでしょうか？",
-  "arms.vote.keep": "今の紋章のままにする",
+  "arms.vote.question": "{house}家はどの紋章を掲げますか？",
+  "arms.vote.keep": "今の紋章のままにします",
 
   "arms.propose": "紋章を提案",
   "arms.propose.title": "紋章を提案",

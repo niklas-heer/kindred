@@ -3,7 +3,7 @@ import type { Strings } from "../../types.ts";
 import type { en } from "../../areas/arms-proposals.ts";
 
 export default {
-  "arms.vote.question": "Welk wapen moet het huis {house} voeren?",
+  "arms.vote.question": "Welk wapen moet het Huis {house} voeren?",
   "arms.vote.keep": "Ons huidige wapen houden",
 
   "arms.propose": "Een wapen voorstellen",

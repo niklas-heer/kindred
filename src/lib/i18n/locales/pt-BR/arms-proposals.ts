@@ -4,7 +4,7 @@ import type { en } from "../../areas/arms-proposals.ts";
 
 export default {
   "arms.vote.question": "Qual brasão a casa {house} deve usar?",
-  "arms.vote.keep": "Manter o nosso brasão atual",
+  "arms.vote.keep": "Manter nosso brasão atual",
 
   "arms.propose": "Propor um brasão",
   "arms.propose.title": "Propor um brasão",
