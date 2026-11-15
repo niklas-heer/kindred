@@ -84,21 +84,31 @@ export interface SourcePayload {
 
 export type SuggestionPayload = DetailsPayload | RelativePayload | EventPayload | SourcePayload;
 
-/** One suggestion as a reader sees it. */
+/**
+ * One suggestion as a reader sees it: a reviewer (any waiting one), or its suggester (their own). Nobody else reads one
+ * (reads.server.ts).
+ */
 export interface SuggestionView {
   id: string;
   kind: SuggestionKind;
   person: string | null;
   payload: SuggestionPayload;
-  basis: string | null;
+  /** For a reviewer: the values on record a correction was made against (`basis`), else null. */
+  basis: Record<string, unknown> | null;
+  /** For a reviewer: the record's values now of the fields a correction changes, for "current → suggested", else null. */
+  current: Record<string, unknown> | null;
   note: string;
   status: SuggestionStatus;
-  adjusted: boolean;
+  /** Approved with changes; null when that is not known (closed as partly applied, with no decision to tell). */
+  adjusted: boolean | null;
+  /** Approved only in part: an approval that could not finish, closed with what it had written. */
+  partial: boolean;
   reason: string | null;
   author: { name: string; person: string | null; guest: boolean };
   createdAt: string;
   decidedAt: string | null;
   files: { id: string; name: string; mime: string; size: number }[];
   mine: boolean;
-  may: { withdraw: boolean; approve: boolean; decline: boolean };
+  /** What this reader may do now; `close` is closing a begun approval as partly applied (a reviewer's). */
+  may: { withdraw: boolean; approve: boolean; decline: boolean; close: boolean };
 }

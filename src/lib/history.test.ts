@@ -370,7 +370,7 @@ test('the weekly push says what the week brought, and nothing when it brought no
   assert.equal(quiet, null);
   const m = push.weeklyMessage(TREE, 'The Quills', 'de', {
     since: '', first: false, total: 4, replies: [], posts: [],
-    groups: [{ person: 'ada', name: 'Ada Quill', lines: [{ author: 'Mara Quill', kind: 'photo', action: 'added', count: 3, label: null }] }],
+    groups: [{ person: 'ada', name: 'Ada Quill', lines: [{ author: 'Mara Quill', kind: 'photo', action: 'added', count: 3, label: null, suggestedBy: null }] }],
   })!;
   assert.equal(m.title, 'Diese Woche bei The Quills');
   assert.equal(m.body, 'Ada Quill: Mara Quill hat 3 Fotos hinzugefügt');

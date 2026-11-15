@@ -475,6 +475,48 @@ test('private research stays hidden from a guest, file included', async () => {
   assert.equal((await get('research.$tree.$key', { tree: TREE, key: PRIVATE_DOC })).status, 200, 'the control: a steward gets the private one');
 });
 
+test('a suggestion’s pending file goes to its own guest and to reviewers; a source’s file never to a guest', async () => {
+  const d = dbs.db(TREE);
+  const voter = await load<typeof import('../votes/guest-voter.server.ts')>('/src/lib/votes/guest-voter.server.ts');
+  const COOKIE = `kindred_voter=${'v'.repeat(43)}`;
+  const key = (await voter.guestVoterKey(new Request('http://localhost/', { headers: { cookie: COOKIE } }), TREE))!;
+  const FILE = '00000000-0000-4000-8000-0000000005f1';
+  const SOURCE_FILE = '00000000-0000-4000-8000-0000000005f2.png';
+  const png = new Uint8Array([137, 80, 78, 71]);
+  await d.run("INSERT INTO suggestion (id, kind, person, payload, status, guest_key, author_name, created_at) VALUES ('sg1', 'source', NULL, '{\"title\":\"Parish book\"}', 'waiting', ?, 'Hal Hazel', '2026-11-15')", key);
+  await d.run("INSERT INTO suggestion_file (id, suggestion, key, mime, size, name, created_at) VALUES (?, 'sg1', 'suggest/sg1.png', 'image/png', 4, 'page.png', '2026-11-15')", FILE);
+  await d.run("INSERT INTO source (id, title, note, created_at, updated_at) VALUES ('src9', 'Parish book', '', '2026-11-15', '2026-11-15')");
+  await d.run("INSERT INTO source_file (source, media_key, mime, name, ord, added_at) VALUES ('src9', ?, 'image/png', 'page.png', 0, '2026-11-15')", `source/${SOURCE_FILE}`);
+  await dbs.media.put(TREE, 'suggest/sg1.png', png, 'image/png');
+  await dbs.media.put(TREE, `source/${SOURCE_FILE}`, png, 'image/png');
+  const fetch = async (route: string, params: Record<string, string>, cookie?: string) => {
+    const { Route } = await load<{ Route: { options: unknown } }>(`/src/routes/api/${route}.ts`);
+    const { GET } = (Route.options as { server: { handlers: { GET: (c: { params: Record<string, string>; request: Request }) => Promise<Response> } } }).server.handlers;
+    return GET({ params, request: new Request('http://localhost/', { headers: cookie ? { cookie } : {} }) });
+  };
+  const pending = { tree: TREE, id: FILE };
+  const source = { tree: TREE, key: SOURCE_FILE };
+
+  asGuest(guestOfTree);
+  const own = await fetch('suggestion-file.$tree.$id', pending, COOKIE);
+  assert.equal(own.status, 200, 'the guest who suggested it');
+  assert.equal(own.headers.get('content-type'), 'image/png');
+  assert.equal(own.headers.get('cache-control'), 'private, no-store');
+  assert.equal(own.headers.get('x-content-type-options'), 'nosniff');
+  assert.match(own.headers.get('content-disposition')!, /^inline; filename="page\.png"/);
+  assert.equal((await fetch('suggestion-file.$tree.$id', pending)).status, 404, 'not a guest without that cookie');
+  assert.equal((await fetch('suggestion-file.$tree.$id', pending, `kindred_voter=${'w'.repeat(43)}`)).status, 404, 'nor another guest');
+  assert.equal((await fetch('source-file.$tree.$key', source, COOKIE)).status, 404, 'a guest gets no source’s file');
+  asNobody();
+  assert.equal((await fetch('suggestion-file.$tree.$id', pending, COOKIE)).status, 401, 'nothing without a visit');
+  asSteward();
+  assert.equal((await fetch('suggestion-file.$tree.$id', pending)).status, 200, 'a reviewer');
+  const kept = await fetch('source-file.$tree.$key', source);
+  assert.equal(kept.status, 200, 'a member gets the source’s file');
+  assert.equal(kept.headers.get('cache-control'), 'private, max-age=3600');
+  assert.equal((await fetch('source-file.$tree.$key', { tree: TREE, key: 'sg1.png' })).status, 404, 'a malformed key is no file');
+});
+
 test('guests do not appear as members and are no accounts', async () => {
   const made = await makeLink();
   const usersBefore = await store.userCount();
@@ -514,10 +556,10 @@ test('the session payload a guest gets is a viewer of one family, with no accoun
 // ---------- the guest host, for sites behind Cloudflare Access ----------
 
 test('the guest host answers only what a guest needs', () => {
-  for (const ok of ['/', '/share/abc', '/_serverFn/xyz', '/assets/app.js', '/api/health', '/api/photo/fam/p1', '/api/portrait/fam/p1', '/api/media/fam/a.jpg', '/api/research/fam/a.pdf', '/fam', '/fam/atlas', '/fam/chronicle', '/fam/house/h1', '/fam/person/p1', '/fam/PERSON/p1', '/fam/votes', '/fam/votes/00000000-0000-4000-8000-000000000001', '/favicon.svg']) {
+  for (const ok of ['/', '/share/abc', '/_serverFn/xyz', '/assets/app.js', '/api/health', '/api/photo/fam/p1', '/api/portrait/fam/p1', '/api/media/fam/a.jpg', '/api/research/fam/a.pdf', '/api/suggestion-file/fam/x', '/fam', '/fam/atlas', '/fam/chronicle', '/fam/house/h1', '/fam/person/p1', '/fam/PERSON/p1', '/fam/votes', '/fam/votes/00000000-0000-4000-8000-000000000001', '/favicon.svg']) {
     assert.equal(guestHost.guestHostAllows(ok), true, ok);
   }
-  for (const no of ['/signin', '/setup', '/invite/abc', '/ui', '/api/auth/signout', '/api/export/fam', '/api/backup/fam', '/api/move/fam', '/api/paint/fam/a.png', '/fam/access', '/fam/new-section', '/fam/new-section/x', '/fam/persons/p1', '/fam/settings/ai', '/fam/settings/import', '/_not', '/api/other', '/Invite/abc', '/API/auth/signout', '/API/export/fam', '/fam/ACCESS', '/MODERN/Settings/Feedback', '/%69nvite/abc', '/fam/%41ccess', '/%E0%A4%A']) {
+  for (const no of ['/signin', '/setup', '/invite/abc', '/ui', '/api/auth/signout', '/api/export/fam', '/api/backup/fam', '/api/move/fam', '/api/paint/fam/a.png', '/api/source-file/fam/a.png', '/fam/access', '/fam/new-section', '/fam/new-section/x', '/fam/persons/p1', '/fam/settings/ai', '/fam/settings/import', '/_not', '/api/other', '/Invite/abc', '/API/auth/signout', '/API/export/fam', '/fam/ACCESS', '/MODERN/Settings/Feedback', '/%69nvite/abc', '/fam/%41ccess', '/%E0%A4%A']) {
     assert.equal(guestHost.guestHostAllows(no), false, no);
   }
 });

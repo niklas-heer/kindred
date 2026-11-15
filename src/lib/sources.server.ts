@@ -4,6 +4,8 @@
 // Sources and citations are for members: a share-link guest gets none of them (the server functions use `requireMember`,
 // and every read here refuses a guest as well). Changing them is an editor's (`edit-person`), as changing the facts is.
 // A source linked to a private research document shows that link only to those who may see private research.
+// A source's files (`source_file`, an approved suggestion's) are listed with it, and served to members alone
+// (src/routes/api/source-file.$tree.$key.ts).
 //
 // Deleting a source: the database refuses to drop a source that a citation uses (migration 0024). `removeSource` takes the
 // number of citations the editor was shown and confirmed; it deletes those citations and the source in one batch, guarded on
@@ -16,6 +18,8 @@ import type { Citation, CitationInput, EventType, Fact, Quality, Source, SourceI
 import { seesPrivateResearch } from './research.ts';
 
 const now = () => new Date().toISOString();
+/** Where a source's files are in media storage (`source_file.media_key`). */
+export const SOURCE_FILES = 'source/';
 const clean = (s: string | null | undefined) => (s && s.trim() ? s.trim() : null);
 
 /** Sources are for members only. */
@@ -58,17 +62,25 @@ const CITATION_SELECT = `SELECT c.*, s.title AS source_title, e.person AS event_
 export async function listSources(tree: string, who: LifeReader): Promise<Source[]> {
   needsMember(who);
   const see = seesPrivateResearch(who.role);
-  const rows = await db(tree).all<SourceRow>(
-    `SELECT s.*, (SELECT count(*) FROM citation c WHERE c.source = s.id) AS citations,
+  const [rows, fileRows] = (await db(tree).readBatch([
+    q(`SELECT s.*, (SELECT count(*) FROM citation c WHERE c.source = s.id) AS citations,
        d.title AS doc_title, d.project AS doc_project, (CASE WHEN d.id IS NULL THEN NULL WHEN d.private = 1 OR p.private = 1 THEN 1 ELSE 0 END) AS doc_private
      FROM source s LEFT JOIN research_document d ON d.id = s.document LEFT JOIN research_project p ON p.id = d.project
-     ORDER BY s.title COLLATE NOCASE, s.id`,
-  );
+     ORDER BY s.title COLLATE NOCASE, s.id`),
+    q('SELECT source, media_key, name, mime FROM source_file ORDER BY source, ord'),
+  ])) as unknown as [SourceRow[], { source: string; media_key: string; name: string; mime: string }[]];
+  const files = new Map<string, Source['files']>();
+  for (const f of fileRows) {
+    let list = files.get(f.source);
+    if (!list) files.set(f.source, (list = []));
+    list.push({ key: f.media_key.slice(SOURCE_FILES.length), name: f.name, mime: f.mime });
+  }
   return rows.map((r) => ({
     id: r.id, title: r.title, author: r.author, publication: r.publication, reference: r.reference, date: r.date, note: r.note,
     document: r.document && r.doc_title && r.doc_project && (see || r.doc_private === 0) ? { id: r.document, title: r.doc_title, project: r.doc_project } : null,
     media: r.media,
     citations: r.citations,
+    files: files.get(r.id) ?? [],
   }));
 }
 

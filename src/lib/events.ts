@@ -109,6 +109,11 @@ export interface Source {
   media: string | null;
   /** How many facts cite it. */
   citations: number;
+  /**
+   * Its files, in order (tree migration 0039; an approved suggestion's): `key` is what /api/source-file/<tree>/<key> takes
+   * (the storage key without `source/`).
+   */
+  files: { key: string; name: string; mime: string }[];
 }
 
 export interface SourceInput {

@@ -65,6 +65,8 @@ export interface HistoryItem {
   fields: HistoryFieldChange[];
   /** The fields this reader may put back to their earlier value (an editor, a person's own facts). */
   restorable: string[];
+  /** Who suggested the change, when it applies an approved suggestion: the name they gave (a guest's too), else null. */
+  suggestedBy: string | null;
 }
 
 export interface HistoryPage {
@@ -83,6 +85,8 @@ export interface WhatsNewLine {
   count: number;
   /** The record's label when the line is about a single record. */
   label: string | null;
+  /** Who suggested these changes, when they apply an approved suggestion (`HistoryItem.suggestedBy`), else null. */
+  suggestedBy: string | null;
 }
 
 /** "What's new", grouped by the person it is about; `person` null is the family as a whole. */

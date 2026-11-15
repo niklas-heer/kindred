@@ -16,6 +16,8 @@
 // editors and stewards, `personal` for its owner alone. A Personal field's row is personal and never carries its content.
 // Private research is `editors`. A value only editors may read inside a family row (a source's link to a private document)
 // is held back from everyone else. A share-link guest reads no history at all.
+// A row of a change that applied an approved suggestion names who suggested it (`suggestedBy`, the suggestion's author's
+// name, a guest's given name too) to whoever may read the row; the reviewer who approved it is its author.
 import { HOUSE_NAME_OF, questionIn } from './arms-proposals/vote-text.ts';
 import { accounts } from './auth/store.server.ts';
 import type { Locale } from './i18n/dictionary.ts';
@@ -207,6 +209,8 @@ interface StoredRow {
   id: number; at: string; account: string | null; name: string; kind: HistoryKind; record: string; person: string | null; person_name: string | null;
   label: string | null; action: HistoryAction; level: Visibility; owner: string | null; fields: string | null; count: number; fn: string;
   suggestion: string | null;
+  /** Read with SUGGESTED_BY: the name of whoever suggested the change, when it applied an approved suggestion. */
+  suggested_by?: string | null;
 }
 
 /**
@@ -260,6 +264,12 @@ export async function historyWrites(d: Db, fn: string, actor: Actor, entries: re
 }
 
 // ---------- reading ----------
+
+/**
+ * The column a read of `history` adds for "suggested by": the suggestion's `author_name` (a guest's given name too; deletion
+ * pseudonymises it), for whoever may read the row. A suggestion deleted since names nobody.
+ */
+const SUGGESTED_BY = '(SELECT author_name FROM suggestion WHERE suggestion.id = history.suggestion) AS suggested_by';
 
 /** A SQL condition on `history` for the rows this audience may read, and its parameters. A guest matches nothing. */
 export function historyVisibleTo(a: Audience): { sql: string; params: string[] } {
@@ -320,6 +330,7 @@ export async function itemOf(tree: string, a: Audience, r: StoredRow): Promise<H
     restorable: editor && r.kind === 'person' && r.action === 'changed' && r.level === 'family'
       ? fields.filter((f) => isRestorable(f.name) && !f.opaque && !f.truncated && !f.hidden).map((f) => f.name)
       : [],
+    suggestedBy: r.suggested_by ?? null,
   };
 }
 
@@ -350,7 +361,7 @@ export async function historyPage(tree: string, d: Db, a: Audience, o: HistoryQu
     else if (!acc) return { items: [], next: null, authors: await authorsOf(tree, d, a) };
     else { where.push('account = ?'); params.push(acc); }
   }
-  const rows = await d.all<StoredRow>(`SELECT * FROM history WHERE ${where.join(' AND ')} ORDER BY id DESC LIMIT ?`, ...params, limit + 1);
+  const rows = await d.all<StoredRow>(`SELECT *, ${SUGGESTED_BY} FROM history WHERE ${where.join(' AND ')} ORDER BY id DESC LIMIT ?`, ...params, limit + 1);
   const more = rows.length > limit;
   const page = rows.slice(0, limit);
   return {
@@ -372,7 +383,7 @@ async function authorsOf(tree: string, d: Db, a: Audience): Promise<{ key: strin
 
 /** One row, if this reader may read it. */
 export async function historyRow(d: Db, a: Audience, id: number): Promise<StoredRow | undefined> {
-  const r = await d.get<StoredRow>('SELECT * FROM history WHERE id = ?', id);
+  const r = await d.get<StoredRow>(`SELECT *, ${SUGGESTED_BY} FROM history WHERE id = ?`, id);
   return r && mayReadRow(a, r) ? r : undefined;
 }
 
@@ -392,7 +403,7 @@ export async function whatsNew(d: Db, a: Audience, since: number, first = false,
   const empty: WhatsNew = { since: iso(since), first, groups: [], replies: [], posts: [], total: 0 };
   if (vis.sql === '0') return empty;
   const [historyRows, postRows] = await d.readBatch([
-    q(`SELECT * FROM history WHERE ${vis.sql} AND at > ? AND account IS NOT ? ORDER BY id DESC LIMIT ?`, ...vis.params, iso(since), a.account, NEWS_ROWS),
+    q(`SELECT *, ${SUGGESTED_BY} FROM history WHERE ${vis.sql} AND at > ? AND account IS NOT ? ORDER BY id DESC LIMIT ?`, ...vis.params, iso(since), a.account, NEWS_ROWS),
     q('SELECT max(author_name) AS author, count(*) AS n FROM post WHERE created_at > ? AND account IS NOT ? GROUP BY account ORDER BY max(created_at) DESC LIMIT 20', iso(since), a.account),
   ]);
   const rows = historyRows as unknown as StoredRow[];
@@ -402,9 +413,11 @@ export async function whatsNew(d: Db, a: Audience, since: number, first = false,
     const key = r.person ?? '';
     let g = groups.get(key);
     if (!g) groups.set(key, (g = { person: r.person, name: r.person_name, lines: [], records: new Map() }));
-    const lineKey = `${r.name}\n${r.kind}\n${r.action}`;
-    let line = g.lines.find((l) => `${l.author}\n${l.kind}\n${l.action}` === lineKey);
-    if (!line) g.lines.push((line = { author: r.name, kind: r.kind, action: r.action, count: 0, label: r.label } satisfies WhatsNewLine));
+    // A reviewer's own changes and those they approved from someone's suggestion are separate lines.
+    const suggestedBy = r.suggested_by ?? null;
+    const lineKey = `${r.name}\n${r.kind}\n${r.action}\n${suggestedBy ?? ''}`;
+    let line = g.lines.find((l) => `${l.author}\n${l.kind}\n${l.action}\n${l.suggestedBy ?? ''}` === lineKey);
+    if (!line) g.lines.push((line = { author: r.name, kind: r.kind, action: r.action, count: 0, label: r.label, suggestedBy } satisfies WhatsNewLine));
     // A change counts each record once, however many saves it took; an addition or a removal counts what it stands for.
     let records = g.records.get(lineKey);
     if (!records) g.records.set(lineKey, (records = new Set()));

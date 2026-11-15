@@ -77,6 +77,8 @@ import { Route as ApiPortraitTreeIdRouteImport } from './routes/api/portrait.$tr
 import { Route as ApiQuizPictureTreeDayRouteImport } from './routes/api/quiz-picture.$tree.$day'
 import { Route as ApiRecipeTreeKeyRouteImport } from './routes/api/recipe.$tree.$key'
 import { Route as ApiResearchTreeKeyRouteImport } from './routes/api/research.$tree.$key'
+import { Route as ApiSourceFileTreeKeyRouteImport } from './routes/api/source-file.$tree.$key'
+import { Route as ApiSuggestionFileTreeIdRouteImport } from './routes/api/suggestion-file.$tree.$id'
 import { Route as ApiAuthOidcProviderCallbackRouteImport } from './routes/api/auth/oidc.$provider.callback'
 
 const IndexRoute = IndexRouteImport.update({
@@ -419,6 +421,16 @@ const ApiResearchTreeKeyRoute = ApiResearchTreeKeyRouteImport.update({
   path: '/api/research/$tree/$key',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSourceFileTreeKeyRoute = ApiSourceFileTreeKeyRouteImport.update({
+  id: '/api/source-file/$tree/$key',
+  path: '/api/source-file/$tree/$key',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSuggestionFileTreeIdRoute = ApiSuggestionFileTreeIdRouteImport.update({
+  id: '/api/suggestion-file/$tree/$id',
+  path: '/api/suggestion-file/$tree/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthOidcProviderCallbackRoute =
   ApiAuthOidcProviderCallbackRouteImport.update({
     id: '/api/auth/oidc/$provider/callback',
@@ -495,6 +507,8 @@ export interface FileRoutesByFullPath {
   '/api/quiz-picture/$tree/$day': typeof ApiQuizPictureTreeDayRoute
   '/api/recipe/$tree/$key': typeof ApiRecipeTreeKeyRoute
   '/api/research/$tree/$key': typeof ApiResearchTreeKeyRoute
+  '/api/source-file/$tree/$key': typeof ApiSourceFileTreeKeyRoute
+  '/api/suggestion-file/$tree/$id': typeof ApiSuggestionFileTreeIdRoute
   '/api/auth/oidc/$provider/callback': typeof ApiAuthOidcProviderCallbackRoute
 }
 export interface FileRoutesByTo {
@@ -565,6 +579,8 @@ export interface FileRoutesByTo {
   '/api/quiz-picture/$tree/$day': typeof ApiQuizPictureTreeDayRoute
   '/api/recipe/$tree/$key': typeof ApiRecipeTreeKeyRoute
   '/api/research/$tree/$key': typeof ApiResearchTreeKeyRoute
+  '/api/source-file/$tree/$key': typeof ApiSourceFileTreeKeyRoute
+  '/api/suggestion-file/$tree/$id': typeof ApiSuggestionFileTreeIdRoute
   '/api/auth/oidc/$provider/callback': typeof ApiAuthOidcProviderCallbackRoute
 }
 export interface FileRoutesById {
@@ -637,6 +653,8 @@ export interface FileRoutesById {
   '/api/quiz-picture/$tree/$day': typeof ApiQuizPictureTreeDayRoute
   '/api/recipe/$tree/$key': typeof ApiRecipeTreeKeyRoute
   '/api/research/$tree/$key': typeof ApiResearchTreeKeyRoute
+  '/api/source-file/$tree/$key': typeof ApiSourceFileTreeKeyRoute
+  '/api/suggestion-file/$tree/$id': typeof ApiSuggestionFileTreeIdRoute
   '/api/auth/oidc/$provider/callback': typeof ApiAuthOidcProviderCallbackRoute
 }
 export interface FileRouteTypes {
@@ -710,6 +728,8 @@ export interface FileRouteTypes {
     | '/api/quiz-picture/$tree/$day'
     | '/api/recipe/$tree/$key'
     | '/api/research/$tree/$key'
+    | '/api/source-file/$tree/$key'
+    | '/api/suggestion-file/$tree/$id'
     | '/api/auth/oidc/$provider/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -780,6 +800,8 @@ export interface FileRouteTypes {
     | '/api/quiz-picture/$tree/$day'
     | '/api/recipe/$tree/$key'
     | '/api/research/$tree/$key'
+    | '/api/source-file/$tree/$key'
+    | '/api/suggestion-file/$tree/$id'
     | '/api/auth/oidc/$provider/callback'
   id:
     | '__root__'
@@ -851,6 +873,8 @@ export interface FileRouteTypes {
     | '/api/quiz-picture/$tree/$day'
     | '/api/recipe/$tree/$key'
     | '/api/research/$tree/$key'
+    | '/api/source-file/$tree/$key'
+    | '/api/suggestion-file/$tree/$id'
     | '/api/auth/oidc/$provider/callback'
   fileRoutesById: FileRoutesById
 }
@@ -893,6 +917,8 @@ export interface RootRouteChildren {
   ApiQuizPictureTreeDayRoute: typeof ApiQuizPictureTreeDayRoute
   ApiRecipeTreeKeyRoute: typeof ApiRecipeTreeKeyRoute
   ApiResearchTreeKeyRoute: typeof ApiResearchTreeKeyRoute
+  ApiSourceFileTreeKeyRoute: typeof ApiSourceFileTreeKeyRoute
+  ApiSuggestionFileTreeIdRoute: typeof ApiSuggestionFileTreeIdRoute
   ApiAuthOidcProviderCallbackRoute: typeof ApiAuthOidcProviderCallbackRoute
 }
 
@@ -1374,6 +1400,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiResearchTreeKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/source-file/$tree/$key': {
+      id: '/api/source-file/$tree/$key'
+      path: '/api/source-file/$tree/$key'
+      fullPath: '/api/source-file/$tree/$key'
+      preLoaderRoute: typeof ApiSourceFileTreeKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/suggestion-file/$tree/$id': {
+      id: '/api/suggestion-file/$tree/$id'
+      path: '/api/suggestion-file/$tree/$id'
+      fullPath: '/api/suggestion-file/$tree/$id'
+      preLoaderRoute: typeof ApiSuggestionFileTreeIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/oidc/$provider/callback': {
       id: '/api/auth/oidc/$provider/callback'
       path: '/api/auth/oidc/$provider/callback'
@@ -1491,6 +1531,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiQuizPictureTreeDayRoute: ApiQuizPictureTreeDayRoute,
   ApiRecipeTreeKeyRoute: ApiRecipeTreeKeyRoute,
   ApiResearchTreeKeyRoute: ApiResearchTreeKeyRoute,
+  ApiSourceFileTreeKeyRoute: ApiSourceFileTreeKeyRoute,
+  ApiSuggestionFileTreeIdRoute: ApiSuggestionFileTreeIdRoute,
   ApiAuthOidcProviderCallbackRoute: ApiAuthOidcProviderCallbackRoute,
 }
 export const routeTree = rootRouteImport

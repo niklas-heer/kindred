@@ -9,7 +9,8 @@
 const GUEST_SECTIONS = new Set(['almanac', 'atlas', 'chronicle', 'gallery', 'house', 'houses', 'needed', 'people', 'person', 'research', 'votes']);
 /** First path segments that are not families and that a guest must not reach: the routes for accounts and setup. */
 const NOT_GUEST_ROOTS = new Set(['signin', 'setup', 'invite', 'reset', 'ui', 'ui_', 'api', 'operator']);
-const GUEST_MEDIA = /^\/api\/(?:photo|portrait|media|research)\/[^/]+\/[^/]+$/;
+/** The files a guest may fetch; `suggestion-file` is a guest's own suggestion's (a source's file never is a guest's). */
+const GUEST_MEDIA = /^\/api\/(?:photo|portrait|media|research|suggestion-file)\/[^/]+\/[^/]+$/;
 
 /** Whether the guest host may answer a path: an allow-list, so a route added later stays closed until it is added here. */
 export function guestHostAllows(rawPath: string): boolean {
