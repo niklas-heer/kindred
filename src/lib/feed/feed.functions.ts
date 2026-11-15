@@ -41,7 +41,9 @@ export const getFeed = createServerFn({ method: 'GET' })
   .validator(z.object({ tree, cursor: z.string().max(300).nullish() }))
   .handler(async ({ data }): Promise<FeedPage> => {
     const me = await who(data.tree);
-    return (await import('./feed.server')).feedPage(data.tree, me, data.cursor);
+    // In the reader's language, as the page is rendered: an arms vote's question and Keep.
+    const { locale } = await (await import('../i18n/request.server')).localeOfRequest();
+    return (await import('./feed.server')).feedPage(data.tree, me, data.cursor, undefined, undefined, locale);
   });
 
 /** The feed, a page at a time: each page's `next` is the cursor of the page after it. */

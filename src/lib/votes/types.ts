@@ -1,4 +1,5 @@
 // Shared by the browser and the server: limits and result shapes for family votes. No server imports.
+import type { ArmsJson } from '../arms-proposals/types.ts';
 import type { FeedAuthor } from '../feed/types.ts';
 
 export const MIN_OPTIONS = 2;
@@ -28,7 +29,8 @@ export type VoteResult =
     };
 
 /**
- * A vote in the list, as this reader may see it. A guest's carries no author (`name` empty, no face). `closesAt` is when it
+ * A vote in the list, as this reader may see it. A guest's carries no author (`name` empty, no face). A house's arms vote's
+ * `question` (and its Keep option's label, in `winners` and `options`) is in the reader's language. `closesAt` is when it
  * closes, or when it closed; `voterCount` counts the voters a steward has not struck; `voted` is the reader's own; `winners`
  * are option labels, only once it has closed (empty when nobody voted, more than one for a tie).
  */
@@ -55,12 +57,14 @@ export interface VoteSummary {
  * - `voters`, who has voted, by name: members only (guests get null); `struck` only for a steward, and only a steward sees a
  *   struck guest at all.
  * - A guest reads no member's name or face, and no other guest's: `author` and every `addedBy` are empty for them.
+ * - A house's arms vote's options carry their shield (`arms`: the proposal's, or for Keep the arms the vote started from);
+ *   a guest gets only `{ id, label, arms }` of each, a member also `addedBy` (the proposer; empty for Keep).
  * - `may` is what the server would let this reader do now; all false for a guest.
  */
 export interface VoteView extends VoteSummary {
   description: string;
   addOptions: boolean;
-  options: { id: string; label: string; addedBy: string }[];
+  options: { id: string; label: string; addedBy?: string; arms?: ArmsJson }[];
   mine: string[] | null;
   voters: { id: string; name: string; person: string | null; guest: boolean; struck?: boolean }[] | null;
   ballots: { name: string; person: string | null; guest: boolean; choices: string[] }[] | null;

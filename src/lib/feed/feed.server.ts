@@ -13,7 +13,8 @@
 //   vote     a member started a vote (votes.server.ts), at its start
 //   vote_result  a vote closed, at its closing time (`closed_at`, else `closes_at` once that has passed), with the winners'
 //            labels alone: nothing about any voter, in a secret vote or an open one. Reactions and comments on either entry
-//            are on the vote itself (target `('vote', id)`)
+//            are on the vote itself (target `('vote', id)`). A house's arms vote's question and Keep are in the reader's
+//            language (arms-proposals/vote-text.ts)
 //
 // Who reads what. Every member reads the same posts, memories, photos, people and votes. Updates follow the change history's
 // levels (history.server.ts): what is for editors (an address, which starts there) only an editor reads, and a Personal
@@ -33,9 +34,11 @@
 // groups rows (photos by day, people by day) reads a window of rows: when the window was full it says how far down it
 // looked (its floor), and the page ends there, so nothing a later page would bring is skipped. Updates group in SQL, by
 // whole days, so one member's busy day cannot push another's updates of that day out of the window.
+import { HOUSE_NAME_OF, labelIn, questionIn } from '../arms-proposals/vote-text';
 import { db, q, type Query } from '../db.server';
 import { fieldText, isContactType, isSensitiveType, type FieldType } from '../fields/model';
 import { authorKey, type Diff } from '../history.server';
+import type { Locale } from '../i18n/dictionary';
 import { can } from '../roles';
 import { maySee, type Audience } from '../visibility';
 import { winnerLabels } from '../votes/votes.server';
@@ -87,10 +90,13 @@ interface UpdateRow {
 }
 interface SeasonRow { season: number; ended: string; winner: string | null }
 /** A vote at its start; `closes_at` is when it closes, or when it closed. */
-interface VoteRow { id: string; account: string; author_name: string; author_person: string | null; question: string; created_at: string; closes_at: string }
+interface VoteRow {
+  id: string; account: string; author_name: string; author_person: string | null; question: string; created_at: string; closes_at: string;
+  subject_kind: string | null; house_name: string | null;
+}
 /** A vote that has closed, at its closing time (`ended`), with what its winners need: its options, ballots and struck voters. */
-interface VoteResultRow { id: string; question: string; kind: VoteKind; secret: number; ended: string }
-interface VoteOptionRow { vote: string; id: string; label: string }
+interface VoteResultRow { id: string; question: string; kind: VoteKind; secret: number; ended: string; subject_kind: string | null; house_name: string | null }
+interface VoteOptionRow { vote: string; id: string; label: string; proposal: string | null }
 interface VoteBallotRow { vote: string; voter: string; choices: string }
 interface VoteStruckRow { vote: string; account: string | null; guest_key: string | null }
 
@@ -315,9 +321,9 @@ function updateEntries(rows: UpdateRow[], keys: Map<string, string>, reader: Aud
 /**
  * One page of the feed for a member, after `cursor` (a page's `next`), newest first. What a viewer may not read (private
  * research, editors' notes) is in none of its sources; an update to what only editors read is in an editor's alone. `now`
- * decides which votes have closed.
+ * decides which votes have closed; `locale` is the reader's language, for an arms vote's question and Keep.
  */
-export async function feedPage(tree: string, who: Who, cursor?: string | null, limit: number = FEED_PAGE, now: Date = new Date()): Promise<FeedPage> {
+export async function feedPage(tree: string, who: Who, cursor?: string | null, limit: number = FEED_PAGE, now: Date = new Date(), locale: Locale = 'en'): Promise<FeedPage> {
   needsMember(who);
   const n = Math.min(Math.max(limit, 1), 50);
   const c = decodeCursor(cursor);
@@ -363,10 +369,11 @@ export async function feedPage(tree: string, who: Who, cursor?: string | null, l
        FROM ranked WHERE n <= ? ORDER BY at DESC, record DESC`, upper, UPDATES_WINDOW - 1, upper, UPDATES_PER_ENTRY, UPDATES_PER_ENTRY),
     q(`SELECT season, ended, json_extract(result, '$.winner.name') AS winner FROM campaign_season
        WHERE ended IS NOT NULL${after('ended', "('season:' || season)")} ORDER BY ended DESC LIMIT ?`, ...afterParams, SEASONS),
-    q(`SELECT v.id, v.account, v.author_name, v.author_person, v.question, v.created_at, ${VOTE_ENDED} AS closes_at FROM vote v
+    q(`SELECT v.id, v.account, v.author_name, v.author_person, v.question, v.created_at, ${VOTE_ENDED} AS closes_at, v.subject_kind, ${HOUSE_NAME_OF('v')} AS house_name FROM vote v
        WHERE 1 = 1${after('v.created_at', "('vote:' || v.id)")} ORDER BY v.created_at DESC, v.id DESC LIMIT ?`, ...afterParams, n + 1),
-    q(`SELECT v.id, v.question, v.kind, v.secret, ${VOTE_ENDED} AS ended FROM vote v WHERE v.id IN (${resultIds}) ORDER BY ended DESC, v.id DESC`, ...resultParams),
-    q(`SELECT vote, id, label FROM vote_option WHERE vote IN (${resultIds}) ORDER BY vote, ord`, ...resultParams),
+    q(`SELECT v.id, v.question, v.kind, v.secret, ${VOTE_ENDED} AS ended, v.subject_kind, ${HOUSE_NAME_OF('v')} AS house_name FROM vote v
+       WHERE v.id IN (${resultIds}) ORDER BY ended DESC, v.id DESC`, ...resultParams),
+    q(`SELECT vote, id, label, proposal FROM vote_option WHERE vote IN (${resultIds}) ORDER BY vote, ord`, ...resultParams),
     q(`SELECT vote, voter, choices FROM ballot WHERE vote IN (${resultIds})`, ...resultParams),
     q(`SELECT vote, account, guest_key FROM vote_voter WHERE struck = 1 AND vote IN (${resultIds})`, ...resultParams),
   ];
@@ -389,8 +396,8 @@ export async function feedPage(tree: string, who: Who, cursor?: string | null, l
   // A result's winners, counted from what was read (a struck guest's ballot left out: a hash, not a read).
   const [options, ballots, struck] = [byVote(voteOptions), byVote(voteBallots), byVote(voteStruck)];
   const results = await Promise.all(resultRows.map(async (v): Promise<FeedItem> => ({
-    type: 'vote_result', at: v.ended, key: `vote_result:${v.id}`, id: v.id, question: v.question,
-    winners: await winnerLabels(v, options.get(v.id) ?? [], ballots.get(v.id) ?? [], struck.get(v.id) ?? []),
+    type: 'vote_result', at: v.ended, key: `vote_result:${v.id}`, id: v.id, question: questionIn(locale, v),
+    winners: await winnerLabels(v, (options.get(v.id) ?? []).map((o) => ({ id: o.id, label: labelIn(locale, v, o) })), ballots.get(v.id) ?? [], struck.get(v.id) ?? []),
   })));
   const sources: Found[] = [
     { items: postViews(who, postRows, postMedia, postPeople, standing).map((post): FeedItem => ({ type: 'post', at: post.at, key: `post:${post.id}`, post })), floor: postRows.length > n ? postRows[n]!.created_at : null },
@@ -404,7 +411,7 @@ export async function feedPage(tree: string, who: Who, cursor?: string | null, l
     { items: updateEntries(updates.rows, keys, { account: who.id, role: who.role, guest: who.guest === true }), floor: updates.floor },
     { items: seasonRows.map((s): FeedItem => ({ type: 'season', at: s.ended, key: `season:${s.season}`, season: s.season, winner: s.winner })), floor: seasonRows.length >= SEASONS ? seasonRows[SEASONS - 1]!.ended : null },
     {
-      items: voteRows.map((v): FeedItem => ({ type: 'vote', at: v.created_at, key: `vote:${v.id}`, id: v.id, question: v.question, author: authorOf(v, standing), closesAt: v.closes_at })),
+      items: voteRows.map((v): FeedItem => ({ type: 'vote', at: v.created_at, key: `vote:${v.id}`, id: v.id, question: questionIn(locale, v), author: authorOf(v, standing), closesAt: v.closes_at })),
       floor: voteRows.length > n ? voteRows[n]!.created_at : null,
     },
     { items: results, floor: resultRows.length > n ? resultRows[n]!.ended : null },

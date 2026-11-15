@@ -210,6 +210,30 @@ test('a struck guest\'s ballot does not count toward the winner', async () => {
   assert.equal((await proposal(t, stag))?.status, 'declined');
 });
 
+test('a winner over arms that are no longer the ones the vote started from settles as no change, with one log line and no names', async () => {
+  const { t, vote, stag, eagle, o } = await stagAndEagle();
+  await V.castBallot(t, member(carl), vote, [o[stag]!], later(2 * HOUR));
+  // The house's arms changed around the freeze (a write from before it, a restored backup): Keep's snapshot no longer holds.
+  await db.db(t).run("UPDATE house SET arms = ? WHERE id = 'h1'", JSON.stringify(arms('rose')));
+  const historyBefore = (await houseHistory(t)).length;
+  const errors = await errorsDuring(async () => assert.deepEqual(await S.settleArmsVotes(t, AFTER), { settled: 1, started: 0 }));
+  assert.deepEqual(await houseArms(t), arms('rose'), 'the arms saved meanwhile are never overwritten');
+  assert.equal((await voteRow(t, vote))?.settled_at, AFTER.toISOString(), 'settled, so it is not tried for ever');
+  for (const p of [stag, eagle]) assert.deepEqual([(await proposal(t, p))?.status, (await proposal(t, p))?.reason], ['declined', 'not_chosen']);
+  assert.equal((await houseHistory(t)).length, historyBefore);
+  assert.equal(errors.length, 1);
+  assert.doesNotMatch(errors[0]!, /Birch|stag|eagle|Ada|Bo |Carl|acc-|h1/);
+  assert.deepEqual(await errorsDuring(async () => assert.deepEqual(await S.settleArmsVotes(t, later(DAY, AFTER)), { settled: 0, started: 0 })), []);
+});
+
+test('arms that differ from the snapshot only in how they are written still take the winner', async () => {
+  const { t, vote, stag, o } = await stagAndEagle();
+  await V.castBallot(t, member(carl), vote, [o[stag]!], later(2 * HOUR));
+  await db.db(t).run("UPDATE house SET arms = ? WHERE id = 'h1'", JSON.stringify({ chargeTincture: 'or', charge: 'lion', division: 'plain', field: 'azure' }));
+  assert.deepEqual(await S.settleArmsVotes(t, AFTER), { settled: 1, started: 0 });
+  assert.deepEqual(await houseArms(t), arms('stag'));
+});
+
 // ---------- two steps, once ----------
 
 test('two settlements at once apply the vote once', async () => {

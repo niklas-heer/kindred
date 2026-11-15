@@ -54,13 +54,16 @@ async function guestKeyOf(t: string, reader: { guest: boolean }): Promise<string
   return guestVoterKey(getRequest(), t);
 }
 
+/** The reader's language, as the page is rendered in it: an arms vote's question and Keep are written in it. */
+const readerLocale = async () => (await (await import('../i18n/request.server')).localeOfRequest()).locale;
+
 // ---------- reads ----------
 
 export const getVotes = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }): Promise<VoteSummary[]> => {
     const reader = await (await guard()).requireReader(data.tree);
-    return (await votes()).listVotes(data.tree, reader, await guestKeyOf(data.tree, reader));
+    return (await votes()).listVotes(data.tree, reader, await guestKeyOf(data.tree, reader), undefined, await readerLocale());
   });
 
 export const votesQuery = (t: string) => queryOptions({ queryKey: ['votes', t], queryFn: () => getVotes({ data: { tree: t } }), staleTime: 30_000 });
@@ -69,7 +72,7 @@ export const getVote = createServerFn({ method: 'GET' })
   .validator(z.object({ tree, id: voteId }))
   .handler(async ({ data }): Promise<VoteView | null> => {
     const reader = await (await guard()).requireReader(data.tree);
-    return (await votes()).voteView(data.tree, reader, data.id, await guestKeyOf(data.tree, reader));
+    return (await votes()).voteView(data.tree, reader, data.id, await guestKeyOf(data.tree, reader), undefined, await readerLocale());
   });
 
 export const voteQuery = (t: string, id: string) =>

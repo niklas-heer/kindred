@@ -10,9 +10,11 @@
 //   each member who has a device that asked and has not voted; whether they voted is read from `vote_voter.account`, never
 //   from a ballot, so a secret vote is reminded alike and nothing is read of anyone's choice. The claim is the member's
 //   `vote_reminded` row, written before the send: one reminder per member and vote, however often the job runs.
-// Both name the question, never a choice, a tally or who voted. Gentle by rule: never to someone who is no longer a member,
+// Both name the question, never a choice, a tally or who voted; a house's arms vote's in each device's language, with the
+// house's name now (arms-proposals/vote-text.ts). Gentle by rule: never to someone who is no longer a member,
 // never to a device unopened for STALE_DAYS, nothing from a demo or a steward's preview, and never a throw: a push that
 // fails must not fail the vote or the job. Nothing is logged that names a person or a device.
+import { HOUSE_NAME_OF, questionIn } from '../arms-proposals/vote-text';
 import { accounts, q } from '../auth/store.server';
 import { db } from '../db.server';
 import { translate } from '../i18n/dictionary';
@@ -62,7 +64,8 @@ export async function notifyVote(tree: string, by: { id: string; name: string },
   try {
     const vapid = await pushKeys(tree, options);
     if (!vapid) return 0;
-    const row = await db(tree).get<{ question: string }>('SELECT question FROM vote WHERE id = ?', vote);
+    const row = await db(tree).get<{ question: string; subject_kind: string | null; house_name: string | null }>(
+      `SELECT v.question AS question, v.subject_kind AS subject_kind, ${HOUSE_NAME_OF('v')} AS house_name FROM vote v WHERE v.id = ?`, vote);
     if (!row) return 0;
     // Members' devices only: a row whose owner has left is not sent to (and is removed with the membership anyway).
     const devices = (await accounts().all<PushRow>(
@@ -73,7 +76,7 @@ export async function notifyVote(tree: string, by: { id: string; name: string },
     if (!devices.length) return 0;
     const family = await familyName(tree);
     for (const device of devices) {
-      const vars = { name: by.name, question: row.question, family };
+      const vars = { name: by.name, question: questionIn(device.locale, row), family };
       const message = { title: translate(device.locale, 'votes.push.title', vars), body: translate(device.locale, 'votes.push.body', vars), tag: `kindred-votes-${tree}`, url: voteUrl(tree, vote) };
       if (!fitsPush(message)) continue;
       const claim = await accounts().run(
@@ -99,8 +102,9 @@ export async function remindVotes(tree: string, now: Date = new Date(), options:
     const vapid = await pushKeys(tree, options);
     if (!vapid) return 0;
     const d = db(tree);
-    const votes = await d.all<{ id: string; question: string }>(
-      'SELECT id, question FROM vote WHERE closed_at IS NULL AND closes_at > ? AND closes_at <= ? ORDER BY closes_at, id',
+    const votes = await d.all<{ id: string; question: string; subject_kind: string | null; house_name: string | null }>(
+      `SELECT v.id AS id, v.question AS question, v.subject_kind AS subject_kind, ${HOUSE_NAME_OF('v')} AS house_name FROM vote v
+       WHERE v.closed_at IS NULL AND v.closes_at > ? AND v.closes_at <= ? ORDER BY v.closes_at, v.id`,
       now.toISOString(), new Date(at + (REMIND_HOURS + REMIND_SLACK_HOURS) * HOUR_MS).toISOString(),
     );
     if (!votes.length) return 0;
@@ -122,7 +126,7 @@ export async function remindVotes(tree: string, now: Date = new Date(), options:
         const claim = await d.run('INSERT INTO vote_reminded (vote, account) VALUES (?, ?) ON CONFLICT DO NOTHING', vote.id, user);
         if (claim.changes !== 1) continue;
         for (const row of rows) {
-          const vars = { question: vote.question, family };
+          const vars = { question: questionIn(row.locale, vote), family };
           const message = { title: translate(row.locale, 'votes.push.remind_title', vars), body: translate(row.locale, 'votes.push.remind_body', vars), tag: `kindred-votes-${tree}-${vote.id}`, url: voteUrl(tree, vote.id) };
           if (fitsPush(message) && (await deliver(row, message, vapid, options.fetchImpl ?? fetch))) sent += 1;
         }

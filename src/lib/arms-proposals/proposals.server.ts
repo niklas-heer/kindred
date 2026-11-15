@@ -1,9 +1,10 @@
 // Arms proposals on the server (tree migration 0038): the family's setting, proposing arms for a house, withdrawing and
-// declining a proposal, a steward's Accept, and putting a proposal to the house's arms vote. Settling a vote is
-// settle.server.ts; what each reader sees comes later.
+// declining a proposal, a steward's Accept, putting a proposal to the house's arms vote, and reading a house's proposals.
+// Settling a vote is settle.server.ts.
 //
+//   (member)      viewer       read a house's open proposals, and your own in any state
 //   propose-arms  contributor  propose arms for a house; withdraw your own
-//   edit-house    steward      accept, decline, put to a vote; change the family's setting
+//   edit-house    steward      accept, decline, put to a vote; change the family's setting; how many wait per house
 //
 // What it promises:
 // - A proposal is the family talking, not a record: it writes no change history (NOT_A_RECORD). Accept writes the house's
@@ -15,6 +16,8 @@
 //   `status = 'voting'` is written in the batch that inserts the proposal's option; leaving a vote (withdraw, decline) is
 //   allowed only while the vote is open with no ballot, and the last proposal leaving a vote removes the vote.
 // - Every check that another request could undo meanwhile is restated as a guard in the batch, so the plan decides again.
+// - Members only read proposals: a guest is refused (`needsMember`), so a proposer's name and note never reach one. A
+//   member's read first settles the family's closed arms votes (`settleForReader`), never a guest's.
 // - Errors are translation keys (`arms.err.*`), translated where they are shown:
 //     gone        the house or the proposal is not there      same       the design equals the house's current arms
 //     name        the design's name is empty or too long      note       the note is too long
@@ -26,14 +29,14 @@
 import { fail } from '../auth/guard.server';
 import { forbidden } from '../auth/errors';
 import { canonical, change, db, guard, houseWritePlan, normalArms, NOT_A_RECORD, once, q, type Db, type HouseSeen, type OpKey, type Query } from '../db.server';
-import { needsMember, type Who } from '../feed/posts.server';
+import { authorOf, needsMember, standingFor, type Who } from '../feed/posts.server';
 import { cleanComment } from '../responses';
 import { can, needs as lowestRole, type Action } from '../roles';
 import type { House } from '../types';
 import { removeVoteWrites } from '../votes/votes.server';
 import {
   ARMS_VOTE_DAYS, MAX_DECLINE_REASON, MAX_OPEN_PER_MEMBER, MAX_PROPOSAL_NAME, MAX_PROPOSAL_NOTE, MAX_PROPOSALS_PER_VOTE,
-  type ArmsMode, type ProposalStatus,
+  type ArmsMode, type ProposalStatus, type ProposalView,
 } from './types';
 
 /** An arms vote's question as stored: the English fallback, which the reads translate for each reader. */
@@ -147,7 +150,7 @@ const joinWrites = (vote: string, house: string, proposal: string, at: string): 
  * proposal still waiting and in no other vote. The caller checks that no proposal equals the current arms.
  * The one way an arms vote starts: Put to a vote, vote mode's proposing, and settlement's next vote.
  */
-export async function startArmsVotePlan(d: Db, house: string, proposalIds: readonly string[], starter: Starter, now: Date): Promise<{ writes: Query[]; vote: string }> {
+export async function startArmsVotePlan(d: Db, house: string, proposalIds: readonly string[], starter: Starter, now: Date): Promise<{ writes: Query[]; vote: string; started: true }> {
   if (!proposalIds.length || proposalIds.length > MAX_PROPOSALS_PER_VOTE) throw new Error('arms.err.vote_busy');
   const h = await houseOf(d, house);
   const { guests } = await settingsIn(d);
@@ -156,6 +159,7 @@ export async function startArmsVotePlan(d: Db, house: string, proposalIds: reado
   const closesAt = new Date(now.getTime() + ARMS_VOTE_DAYS * DAY_MS).toISOString();
   return {
     vote,
+    started: true,
     writes: [
       // One unsettled arms vote per house: one started meanwhile makes the plan decide again (and join it, or wait).
       guard(`NOT EXISTS (SELECT 1 FROM vote WHERE ${UNSETTLED})`, house),
@@ -172,15 +176,16 @@ export async function startArmsVotePlan(d: Db, house: string, proposalIds: reado
 
 /**
  * A waiting proposal into the house's arms vote: joining the unsettled one while it is open, has no ballot and fewer than
- * nineteen proposals, or starting one when there is none. Null when the vote takes no more (the proposal waits).
+ * nineteen proposals, or starting one when there is none (`started`). Null when the vote takes no more (the proposal waits).
  */
-async function toVote(d: Db, house: string, h: HouseRow, proposal: string, starter: Starter, now: Date): Promise<{ writes: Query[]; vote: string } | null> {
+async function toVote(d: Db, house: string, h: HouseRow, proposal: string, starter: Starter, now: Date): Promise<{ writes: Query[]; vote: string; started: boolean } | null> {
   const v = await d.get<ArmsVoteRow>(`SELECT ${ARMS_VOTE_COLUMNS} FROM vote v WHERE v.subject_kind = 'house' AND v.subject = ? AND v.settled_at IS NULL`, house);
   if (!v) return startArmsVotePlan(d, house, [proposal], starter, now);
   const at = now.toISOString();
   if (!isOpen(v, at) || v.ballots || v.proposals >= MAX_PROPOSALS_PER_VOTE) return null;
   return {
     vote: v.id,
+    started: false,
     writes: [
       // Still open, unsettled and without a ballot, with room: a ballot cast meanwhile makes the plan decide again.
       guard(`EXISTS (SELECT 1 FROM vote WHERE id = ? AND ${UNSETTLED} AND closed_at IS NULL AND closes_at > ?)`, v.id, house, at),
@@ -208,11 +213,12 @@ function textOf(text: string | undefined, max: number, code: string): string {
 /**
  * Proposes arms for a house under the member's name, waiting for the family to settle it. Refused when the design equals the
  * house's arms, another open proposal for the house has its name (in any case), or the member has three open for the house.
- * In vote mode it goes to the house's arms vote in the same batch when it can (`vote` is then that vote's id).
+ * In vote mode it goes to the house's arms vote in the same batch when it can (`vote` is then that vote's id, and `started`
+ * says it started that vote, which the caller tells the family's devices about as a new vote).
  */
 export async function proposeArms(
   tree: string, who: Who, house: string, input: { name: string; note?: string; arms: House['arms'] }, op?: OpKey, now: Date = new Date(),
-): Promise<{ id: string; vote: string | null }> {
+): Promise<{ id: string; vote: string | null; started: boolean }> {
   needs(who, 'propose-arms');
   const name = nameOf(input.name);
   const note = textOf(input.note, MAX_PROPOSAL_NOTE, 'arms.err.note');
@@ -242,7 +248,7 @@ export async function proposeArms(
         ...(voting?.writes ?? []),
       ],
       history: NOT_A_RECORD,
-      result: { id, vote: voting?.vote ?? null },
+      result: { id, vote: voting?.vote ?? null, started: voting?.started ?? false },
     };
   });
 }
@@ -328,9 +334,10 @@ export async function acceptProposal(tree: string, who: Who, id: string, before:
 
 /**
  * Puts a waiting proposal to the house's arms vote (a steward, in choose or vote mode), clearing a `vote_removed` mark:
- * it joins the unsettled vote while that has no ballot and room, starts one when there is none, else `vote_busy`.
+ * it joins the unsettled vote while that has no ballot and room, starts one when there is none (`started`: the caller tells
+ * the family's devices of it as a new vote), else `vote_busy`.
  */
-export async function putToVote(tree: string, who: Who, id: string, op?: OpKey, now: Date = new Date()): Promise<{ vote: string }> {
+export async function putToVote(tree: string, who: Who, id: string, op?: OpKey, now: Date = new Date()): Promise<{ vote: string; started: boolean }> {
   needs(who, 'edit-house');
   const starter = starterOf(who);
   return once(tree, op, 'putToVote', async (d) => {
@@ -342,6 +349,70 @@ export async function putToVote(tree: string, who: Who, id: string, op?: OpKey, 
     if (sameArms(JSON.parse(h.arms), JSON.parse(p.arms))) throw new Error('arms.err.same');
     const voting = await toVote(d, p.house, h, id, starter, now);
     if (!voting) throw new Error('arms.err.vote_busy');
-    return { writes: [sameMode(settings.stored), ...voting.writes], history: NOT_A_RECORD, result: { vote: voting.vote } };
+    return { writes: [sameMode(settings.stored), ...voting.writes], history: NOT_A_RECORD, result: { vote: voting.vote, started: voting.started } };
   });
+}
+
+// ---------- reads ----------
+
+interface ReadRow {
+  id: string; house: string; account: string; author_name: string; author_person: string | null; name: string; note: string;
+  arms: string; status: ProposalStatus; reason: string | null; decided_at: string | null; created_at: string; in_vote: string | null;
+}
+
+/**
+ * A house's proposals as this member may read them, oldest first: the open ones (waiting, or in a vote) with shield, name,
+ * note, proposer and date, and the member's own in any state, with the reason a steward gave. `may` is what the server would
+ * let them do now. A guest is refused. The read first settles the family's closed arms votes (never a guest's).
+ */
+export async function houseProposals(tree: string, who: Who, house: string, now: Date = new Date()): Promise<{ proposals: ProposalView[]; mode: ArmsMode }> {
+  needsMember(who);
+  await (await import('./settle.server')).settleForReader(tree, who, now);
+  const d = db(tree);
+  const [houses, rows, votes] = (await d.readBatch([
+    q('SELECT name, arms FROM house WHERE id = ?', house),
+    q(`SELECT p.id AS id, p.house AS house, p.account AS account, p.author_name AS author_name, p.author_person AS author_person, p.name AS name,
+         p.note AS note, p.arms AS arms, p.status AS status, p.reason AS reason, p.decided_at AS decided_at, p.created_at AS created_at,
+         (SELECT o.vote FROM vote_option o JOIN vote v ON v.id = o.vote WHERE o.proposal = p.id AND v.settled_at IS NULL) AS in_vote
+       FROM arms_proposal p WHERE p.house = ? AND (p.${OPEN_STATUS} OR p.account = ?) ORDER BY p.created_at, p.id`, house, who.id),
+    q(`SELECT ${ARMS_VOTE_COLUMNS} FROM vote v WHERE v.subject_kind = 'house' AND v.subject = ? AND v.settled_at IS NULL`, house),
+  ])) as unknown as [HouseRow[], ReadRow[], ArmsVoteRow[]];
+  const h = houses[0];
+  if (!h) throw new Error('arms.err.gone');
+  const { mode } = await settingsIn(d);
+  const authors = await standingFor(tree, rows.map((r) => r.account));
+  const at = now.toISOString();
+  // The house's unsettled arms vote: while it runs the arms are frozen (no Accept); a proposal leaves or joins it only while
+  // it is open with no ballot, and joins only while it has room.
+  const vote = votes[0];
+  const movable = !!vote && isOpen(vote, at) && !vote.ballots;
+  const steward = can(who.role, 'edit-house');
+  const current = JSON.parse(h.arms);
+  return {
+    mode,
+    proposals: rows.map((r): ProposalView => {
+      const mine = r.account === who.id;
+      const waiting = r.status === 'waiting';
+      const leavable = waiting || (r.status === 'voting' && movable);
+      const differs = !sameArms(JSON.parse(r.arms), current);
+      return {
+        id: r.id, house: r.house, name: r.name, note: r.note || null, arms: JSON.parse(r.arms), status: r.status, reason: r.reason,
+        author: authorOf(r, authors), createdAt: r.created_at, decidedAt: r.decided_at, inVote: r.in_vote, mine,
+        may: {
+          withdraw: mine && can(who.role, 'propose-arms') && leavable,
+          accept: steward && mode !== 'vote' && waiting && !vote && differs,
+          decline: steward && leavable,
+          putToVote: steward && mode !== 'steward' && waiting && differs && (!vote || (movable && vote.proposals < MAX_PROPOSALS_PER_VOTE)),
+        },
+      };
+    }),
+  };
+}
+
+/** How many proposals wait for each house (by house id), for a steward; nobody else is told. A guest is refused. */
+export async function proposalCounts(tree: string, who: Who): Promise<Record<string, number>> {
+  needsMember(who);
+  if (!can(who.role, 'edit-house')) return {};
+  const rows = await db(tree).all<{ house: string; n: number }>("SELECT house, count(*) AS n FROM arms_proposal WHERE status = 'waiting' GROUP BY house");
+  return Object.fromEntries(rows.map((r) => [r.house, r.n]));
 }

@@ -8,6 +8,7 @@ import aiStream from "./ai-stream.ts";
 import aiTasks from "./ai-tasks.ts";
 import aiThreads from "./ai-threads.ts";
 import almanac from "./almanac.ts";
+import armsProposals from "./arms-proposals.ts";
 import atlas from "./atlas.ts";
 import backup from "./backup.ts";
 import campaign from "./campaign.ts";
@@ -74,6 +75,7 @@ export default {
   ...aiTasks,
   ...aiThreads,
   ...almanac,
+  ...armsProposals,
   ...atlas,
   ...backup,
   ...campaign,

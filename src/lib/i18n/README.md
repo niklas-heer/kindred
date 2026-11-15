@@ -22,7 +22,7 @@ and other family-written text are never translated. Translators start at [docs/t
 | `../../components/LanguagePicker.tsx` | The language picker (a flag and a list of native names) and `LanguageChoices`, the phone's row. |
 | `kinship.ts`, `kinship/` | `kinshipLabel`, `yourKinship`, `yourKinshipParts`: relation words in each language from graph labels, and "your …" with the possessive agreeing with the word ("dein Vater", "deine Cousine", "die Ehefrau deines Cousins"), one module per language (`kinship/<locale>.ts`, a neutral stub until written) and `kinship/cases.ts`, the table every module answers. Never build "your {kin}" from a key. |
 | `titles.ts` | `localizeTitle`: the section word of a page title in each language. |
-| `request.ts` | `requestLocale`: the locale for a request, for the root route to serialise. |
+| `request.ts`, `request.server.ts` | `requestLocale`: the locale for a request, for the root route to serialise; `localeOfRequest` is the same choice for a server function that writes words for the reader (an arms vote's question). |
 | `i18n.test.ts` | Areas hold English only and every language has its files; the registry agrees with Intl; plurals, negotiation and the instance's languages; no key is in two areas. |
 | `no-hardcoded.test.ts`, `hardcoded-scan.ts` | The guard: no English written into a screen, no thrown sentence the dictionary lacks, and every check of `check.ts` on every complete language (no key missing, no entry still in English, du and jy throughout, placeholders and plurals). Its short allowlists hold the genuine exceptions. |
 
@@ -80,6 +80,7 @@ Stamboom (the phone tab says „Boom“).
 | `campaign` | The Campaign: the game between the houses, its practice skirmish, the Today card and the stewards' Games page (`campaign.*`) |
 | `history` | The change history: the History page, a person's history, "What's new" and the weekly push (`history.*`) |
 | `feed` | The family's feed on Today: messages, the composer, the stream's lines, the strip of cards on a phone, the push about a new message (`feed.*`) |
+| `arms-proposals` | Arms proposals: a house's arms vote's question and "keep" option, translated on the server for each reader and device (`arms.*`) |
 | `recipes` | Recipes: the Cookbook, a recipe's page, cooking mode and the recipe form (`recipes.*`) |
 | `faiths`, `favourites`, `occupations` | The vocabularies: faiths (`faith.tradition.*`, `faith.name.*`), colours and favourite words (`colour.*`, `favourite.*`), occupations (`occupation.*`) |
 | `atlas`, `almanac`, `chronicle`, `contacts`, `needed` | Empty until the translation sweep moves those pages' text here |

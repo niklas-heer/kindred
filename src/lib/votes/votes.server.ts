@@ -26,7 +26,9 @@
 //   ballot, secret ones included. Casting is an upsert of the voter's one row and one ballot, so sending it twice is harmless.
 // - A reader sees what "What a reader sees" allows (VoteView in types.ts): tallies in an open vote only after voting, in a
 //   secret one only after closing; who chose what only in an open vote and only to members; a guest no member's name or
-//   face and no other guest's. A vote past its closing time reads as closed, and the first member to read it marks it closed
+//   face and no other guest's. An arms vote's options carry their shields (`arms`: the proposal's, or Keep's snapshot), and
+//   a guest gets only `{ id, label, arms }` of each; its question and Keep are in the reader's language
+//   (arms-proposals/vote-text.ts). A vote past its closing time reads as closed, and the first member to read it marks it closed
 //   at that time (never a guest, a demo or a preview). A member's read also settles the family's closed arms votes
 //   (arms-proposals/settle.server.ts), as does a steward's close of one.
 // - Errors are translation keys (`votes.err.*`), translated where they are shown:
@@ -41,7 +43,10 @@
 import { fail, type Reader } from '../auth/guard.server';
 import { forbidden } from '../auth/errors';
 import { db, guard, NOT_A_RECORD, once, q, type Db, type OpKey, type Query } from '../db.server';
+import { HOUSE_NAME_OF, labelIn, questionIn } from '../arms-proposals/vote-text';
+import type { ArmsJson } from '../arms-proposals/types';
 import { authorOf, needsMember, standingFor, type Who } from '../feed/posts.server';
+import type { Locale } from '../i18n/dictionary';
 import type { FeedAuthor } from '../feed/types';
 import { readOnly } from '../read-only';
 import { cleanComment } from '../responses';
@@ -415,14 +420,15 @@ function readingOf(reader: Reader, guestKey?: string): Reading {
   return { guest: false, voterId: reader.user.id, role: reader.role };
 }
 
-interface ReadRow extends VoteRow { author_name: string; author_person: string | null; voter_count: number; voted: number }
-interface OptionRow { vote: string; id: string; label: string; added_by_name: string }
+interface ReadRow extends VoteRow { author_name: string; author_person: string | null; house_name: string | null; voter_count: number; voted: number }
+/** An option as read: `proposal` and `arms` (the proposal's shield, or Keep's snapshot) only in an arms vote. */
+interface OptionRow { vote: string; id: string; label: string; added_by_name: string; proposal: string | null; arms: string | null }
 interface BallotRow { vote: string; voter: string; choices: string }
 interface VoterRow { vote: string; id: string; account: string | null; guest_key: string | null; name: string; person: string | null; struck: number }
 
 /** A vote's columns for a reader, `v` being the vote: how many unstruck voters, and whether the reader (`?`) is one. */
 const readColumns = (r: Reading) => `${VOTE_COLUMNS.split(', ').map((c) => `v.${c} AS ${c}`).join(', ')}, v.author_name AS author_name, v.author_person AS author_person,
-  (SELECT count(*) FROM vote_voter vv WHERE vv.vote = v.id AND vv.struck = 0) AS voter_count,
+  ${HOUSE_NAME_OF('v')} AS house_name, (SELECT count(*) FROM vote_voter vv WHERE vv.vote = v.id AND vv.struck = 0) AS voter_count,
   EXISTS (SELECT 1 FROM vote_voter vv WHERE vv.vote = v.id AND vv.${r.guest ? 'guest_key' : 'account'} = ?) AS voted`;
 const OPEN_V = 'v.closed_at IS NULL AND v.closes_at > ?';
 const NO_AUTHOR: FeedAuthor = { name: '', person: null };
@@ -455,9 +461,13 @@ export async function winnerLabels(
   return labelsOf((await resultOf(v, options, ballots, struck)).winners, options);
 }
 
-function summaryOf(v: ReadRow, r: Reading, authors: Map<string, { person: string | null }>, at: string, winners: string[] | null): VoteSummary {
+/** The options with their labels in the reader's language (an arms vote's Keep). */
+const labelled = <O extends { label: string; proposal: string | null }>(locale: Locale, v: Pick<VoteRow, 'subject_kind'>, options: readonly O[]): O[] =>
+  options.map((o) => ({ ...o, label: labelIn(locale, v, o) }));
+
+function summaryOf(v: ReadRow, r: Reading, authors: Map<string, { person: string | null }>, at: string, winners: string[] | null, locale: Locale): VoteSummary {
   return {
-    id: v.id, question: v.question, kind: v.kind, secret: !!v.secret, guests: !!v.guests,
+    id: v.id, question: questionIn(locale, v), kind: v.kind, secret: !!v.secret, guests: !!v.guests,
     author: r.guest ? NO_AUTHOR : authorOf(v, authors),
     createdAt: v.created_at, closesAt: v.closed_at ?? v.closes_at, closed: !isOpen(v, at),
     voterCount: v.voter_count, voted: !!v.voted, winners,
@@ -505,9 +515,10 @@ const settle = async (tree: string, now: Date) => {
 
 /**
  * The votes this reader may read: open ones first, closing soonest first, then closed ones, newest first, at most fifty. A
- * guest (with the key of their voter cookie, when they have one) gets only the votes that allow guests.
+ * guest (with the key of their voter cookie, when they have one) gets only the votes that allow guests. `locale` is the
+ * reader's language, for an arms vote's question and Keep.
  */
-export async function listVotes(tree: string, reader: Reader, guestKey?: string, now: Date = new Date()): Promise<VoteSummary[]> {
+export async function listVotes(tree: string, reader: Reader, guestKey?: string, now: Date = new Date(), locale: Locale = 'en'): Promise<VoteSummary[]> {
   const r = readingOf(reader, guestKey);
   const at = now.toISOString();
   const only = r.guest ? ' AND v.guests = 1' : '';
@@ -517,7 +528,7 @@ export async function listVotes(tree: string, reader: Reader, guestKey?: string,
     q(`SELECT ${columns} FROM vote v WHERE ${OPEN_V}${only} ORDER BY v.closes_at, v.id`, r.voterId, at),
     q(`SELECT ${columns} FROM vote v WHERE v.id IN (${closedIds}) ORDER BY coalesce(v.closed_at, v.closes_at) DESC, v.id DESC`, r.voterId, at),
     // What the closed votes' winners need: their options, ballots and struck voters.
-    q(`SELECT vote, id, label FROM vote_option WHERE vote IN (${closedIds}) ORDER BY vote, ord`, at),
+    q(`SELECT vote, id, label, proposal FROM vote_option WHERE vote IN (${closedIds}) ORDER BY vote, ord`, at),
     q(`SELECT vote, voter, choices FROM ballot WHERE vote IN (${closedIds})`, at),
     q(`SELECT vote, account, guest_key FROM vote_voter WHERE struck = 1 AND vote IN (${closedIds})`, at),
   ])) as unknown as [ReadRow[], ReadRow[], OptionRow[], BallotRow[], VoterRow[]];
@@ -526,21 +537,27 @@ export async function listVotes(tree: string, reader: Reader, guestKey?: string,
   if (!r.guest) await settle(tree, now);
   const authors = r.guest ? new Map<string, { person: string | null }>() : await standingFor(tree, [...open, ...closed].map((v) => v.account));
   const [options, ballots, struck] = [groupBy(optionRows), groupBy(ballotRows), groupBy(struckRows)];
-  const winners = await Promise.all(closed.map((v) => winnerLabels(v, options.get(v.id) ?? [], ballots.get(v.id) ?? [], struck.get(v.id) ?? [])));
-  return [...open.map((v) => summaryOf(v, r, authors, at, null)), ...closed.map((v, i) => summaryOf(v, r, authors, at, winners[i]))];
+  const winners = await Promise.all(closed.map((v) => winnerLabels(v, labelled(locale, v, options.get(v.id) ?? []), ballots.get(v.id) ?? [], struck.get(v.id) ?? [])));
+  return [...open.map((v) => summaryOf(v, r, authors, at, null, locale)), ...closed.map((v, i) => summaryOf(v, r, authors, at, winners[i], locale))];
 }
 
-/** One vote as this reader may see it, or null when it is not there or (for a guest) does not allow guests. */
-export async function voteView(tree: string, reader: Reader, id: string, guestKey?: string, now: Date = new Date()): Promise<VoteView | null> {
+/**
+ * One vote as this reader may see it, or null when it is not there or (for a guest) does not allow guests. `locale` is the
+ * reader's language, for an arms vote's question and Keep.
+ */
+export async function voteView(tree: string, reader: Reader, id: string, guestKey?: string, now: Date = new Date(), locale: Locale = 'en'): Promise<VoteView | null> {
   const r = readingOf(reader, guestKey);
   const at = now.toISOString();
-  const [[v], options, voters, ballots] = (await db(tree).readBatch([
+  const [[v], read, voters, ballots] = (await db(tree).readBatch([
     q(`SELECT ${readColumns(r)} FROM vote v WHERE v.id = ?`, r.voterId, id),
-    q('SELECT vote, id, label, added_by_name FROM vote_option WHERE vote = ? ORDER BY ord', id),
+    // An arms vote's shields: a proposal's own, or Keep's snapshot.
+    q(`SELECT o.vote AS vote, o.id AS id, o.label AS label, o.added_by_name AS added_by_name, o.proposal AS proposal, coalesce(o.arms, p.arms) AS arms
+       FROM vote_option o LEFT JOIN arms_proposal p ON p.id = o.proposal WHERE o.vote = ? ORDER BY o.ord`, id),
     q('SELECT vote, id, account, guest_key, name, person, struck FROM vote_voter WHERE vote = ?', id),
     q('SELECT vote, voter, choices FROM ballot WHERE vote = ?', id),
   ])) as unknown as [ReadRow[], OptionRow[], VoterRow[], BallotRow[]];
   if (!v || (r.guest && !v.guests)) return null;
+  const options = labelled(locale, v, read);
   const open = isOpen(v, at);
   if (!open && !v.closed_at) await closeOnRead(tree, r, [id], at);
   if (!open && !r.guest && isArmsVote(v)) await settle(tree, now);
@@ -578,10 +595,15 @@ export async function voteView(tree: string, reader: Reader, id: string, guestKe
       strike: open && steward,
     };
   return {
-    ...summaryOf(v, r, faces, at, result && !open ? labelsOf(result.winners, options) : null),
+    ...summaryOf(v, r, faces, at, result && !open ? labelsOf(result.winners, options) : null, locale),
     description: v.description,
     addOptions: !!v.add_options,
-    options: options.map((o) => ({ id: o.id, label: o.label, addedBy: r.guest ? '' : o.added_by_name })),
+    options: options.map((o) => {
+      if (!isArmsVote(v)) return { id: o.id, label: o.label, addedBy: r.guest ? '' : o.added_by_name };
+      const arms = o.arms ? (JSON.parse(o.arms) as ArmsJson) : undefined;
+      // A guest: the shield and the design's name only. A member: who proposed it too (Keep is nobody's).
+      return r.guest ? { id: o.id, label: o.label, arms } : { id: o.id, label: o.label, addedBy: o.proposal ? o.added_by_name : '', arms };
+    }),
     mine: own ? (JSON.parse(own.choices) as string[]) : null,
     voters: voterList,
     ballots: ballotList,

@@ -1,6 +1,6 @@
 // Settling a house's arms vote (`settleArmsVotes`), and in vote mode starting the house's next one. Run by a member's read
-// of the votes or of the houses, a steward's close of an arms vote, and the daily votes job; never by the feed, a guest, a
-// demo or a preview.
+// of the votes or of a house's proposals (`settleForReader`), a steward's close of an arms vote, and the daily votes job;
+// never by the feed, a guest, a demo or a preview.
 //
 // What it promises:
 // - Two steps, never one batch. First a vote past its closing time is marked closed at that time, in its own guarded write
@@ -11,7 +11,9 @@
 //   through the house-write plan (`houseWritePlan` with `settlingVote`, over the Keep snapshot, so arms saved since the
 //   start are never overwritten), credited to the family's vote (`FAMILY_VOTE`, account NULL); it is `accepted` and the
 //   others `declined` (`not_chosen`). Keep winning, no ballots or any tie → the arms stay, and every proposal is not
-//   chosen. `settled_at` is written for every outcome, which ends the house's freeze. `decided_by` stays NULL: a vote.
+//   chosen. So too when the house's arms are no longer Keep's snapshot (compared canonically): the vote chose over arms the
+//   house no longer bears, so it changes nothing, and one line without names is logged. `settled_at` is written for every
+//   outcome, which ends the house's freeze. `decided_by` stays NULL: a vote.
 // - In vote mode, each house with waiting proposals (not back from a removed vote, `vote_removed`) and no unsettled arms
 //   vote gets one (`startArmsVotePlan`): the oldest nineteen, started for the proposer of the oldest, after declining
 //   (`not_chosen`) any whose arms equal the house's. The start is guarded, so two runs start one; a start that failed is
@@ -69,12 +71,21 @@ export async function settleArmsVotes(tree: string, now: Date = new Date()): Pro
   return out;
 }
 
+/** Settles for a reader's read: a member's settles (in a demo or a preview nothing is stored), a guest's never. Never throws. */
+export async function settleForReader(tree: string, reader: { guest?: boolean }, now: Date = new Date()): Promise<{ settled: number; started: number }> {
+  if (reader.guest) return { settled: 0, started: 0 };
+  return settleArmsVotes(tree, now);
+}
+
 interface VoteRow { id: string; kind: VoteKind; secret: number; subject: string; closed_at: string | null; settled_at: string | null }
 interface OptionRow { id: string; label: string; proposal: string | null; arms: string | null }
 
 /** Settles one closed arms vote, credited to the family's vote. False when there was nothing to settle (any more). */
-function settleVote(tree: string, id: string, now: Date): Promise<boolean> {
-  return once(tree, undefined, 'settleArmsVote', async (d) => {
+async function settleVote(tree: string, id: string, now: Date): Promise<boolean> {
+  // The winner's arms went nowhere: the house no longer bears what the vote started from. Logged once the settlement holds.
+  let moved = false;
+  const done = await once(tree, undefined, 'settleArmsVote', async (d) => {
+    moved = false;
     const nothing = { writes: [], history: NOT_A_RECORD, result: false };
     const settled = async () => {
       const v = await d.get<VoteRow>("SELECT id, kind, secret, subject, closed_at, settled_at FROM vote WHERE id = ? AND subject_kind = 'house'", id);
@@ -95,10 +106,15 @@ function settleVote(tree: string, id: string, now: Date): Promise<boolean> {
     let house: { writes: Query[]; history: Awaited<ReturnType<typeof houseWritePlan>>['history'] } | null = null;
     if (won) {
       const p = await d.get<{ arms: string }>('SELECT arms FROM arms_proposal WHERE id = ?', won);
-      const h = await d.get<{ name: string; motto: string | null }>('SELECT name, motto FROM house WHERE id = ?', v.subject);
+      const h = await d.get<{ name: string; motto: string | null; arms: string }>('SELECT name, motto, arms FROM house WHERE id = ?', v.subject);
       const keep = options.find((o) => !o.proposal)?.arms;
+      // Arms that are no longer Keep's snapshot: no change. Unless another run settled it meanwhile (then the arms are its winner's).
+      if (h && keep && !sameArms(JSON.parse(h.arms), JSON.parse(keep))) {
+        if (!(await settled())) return nothing;
+        moved = true;
+      }
       // A house that is gone takes nothing (its proposals went with it); the vote is settled all the same.
-      if (p && h && keep) {
+      if (p && h && keep && !moved) {
         try {
           // Over the Keep snapshot: arms that are no longer what the vote started from are never overwritten.
           house = await houseWritePlan(d, v.subject, { name: h.name, motto: h.motto, arms: JSON.parse(p.arms) as House['arms'] }, { name: h.name, motto: h.motto, arms: JSON.parse(keep) }, { settlingVote: id });
@@ -123,6 +139,9 @@ function settleVote(tree: string, id: string, now: Date): Promise<boolean> {
       result: true,
     };
   }, { actor: FAMILY_VOTE });
+  // The fact only: no family, house, proposal or proposer.
+  if (done && moved) console.error('[arms] settled an arms vote without change: the house no longer bore the arms it started from');
+  return done;
 }
 
 interface WaitingRow { id: string; account: string; author_name: string; author_person: string | null; arms: string }
