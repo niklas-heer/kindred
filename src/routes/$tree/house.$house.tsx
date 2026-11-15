@@ -8,6 +8,7 @@ import { ChevronLeft, Lightbulb, ListOrdered, Lock, Network, PenLine, ScrollText
 import { useId, useMemo, useState, type CSSProperties } from 'react';
 import { ArmsEditor } from '~/components/ArmsEditor';
 import { HouseProposals } from '~/components/arms-proposals/HouseProposals';
+import { houseProposalsQuery } from '~/lib/arms-proposals/proposals.functions';
 import { GameIcon } from '~/components/GameIcon';
 import { Arms, TINCTURE_HEX } from '~/components/Heraldry';
 import { asV2 } from '~/lib/heraldry/convert';
@@ -78,6 +79,9 @@ function HousePage() {
   const [proposing, setProposing] = useState(false);
   // The arms vote a proposal just went into, for the link above the proposals.
   const [inVote, setInVote] = useState<string | null>(null);
+  // The house's unsettled arms vote (its proposals' read, shared with the list below): it holds the arms, so the steward's
+  // designer says so before anything is designed.
+  const frozen = useQuery({ ...houseProposalsQuery(tree, id), enabled: member }).data?.proposals.find((p) => p.inVote)?.inVote ?? null;
   const settingsQ = useHouseSettings(tree);
   const [armsOpen, setArmsOpen] = useState(false);
   // Which tab the arms designer opens on: its own design, or the suggestions from the name.
@@ -253,7 +257,7 @@ function HousePage() {
         // The designer reads the house's country (for its flag and its name suggestions) from the house object.
         <ArmsEditor
           open onClose={() => { setArmsOpen(false); setArmsRevise(undefined); setProposing(false); }} house={{ ...house, country: country ?? undefined } as House} tree={tree}
-          initialTab={armsTab} revise={proposing ? undefined : armsRevise} propose={proposing} onProposed={(r) => setInVote(r.vote)}
+          initialTab={armsTab} revise={proposing ? undefined : armsRevise} propose={proposing} onProposed={(r) => setInVote(r.vote)} frozen={proposing ? null : frozen}
         />
       )}
     </div>

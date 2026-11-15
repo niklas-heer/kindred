@@ -114,9 +114,15 @@ test('arms proposals: a contributor proposes, the family votes, the steward acce
   await expect(list.getByText('In the vote')).toBeVisible();
   await checkAxe(page, 'house, with a proposal in a vote');
 
-  // While the vote runs, the steward's designer cannot change the arms.
+  // While the vote runs, the steward's designer cannot change the arms, and says so before anything is designed; the name
+  // and motto stay editable.
   await page.getByRole('button', { name: 'Edit arms' }).click();
   const designer = page.getByRole('dialog', { name: 'Coat of arms' });
+  const frozen = designer.getByRole('note');
+  await expect(frozen).toContainText("The family is voting on this house's arms.");
+  await expect(frozen.getByRole('link', { name: 'Open the vote' })).toHaveAttribute('href', new RegExp(`/${tree}/votes/[0-9a-f-]{36}$`));
+  await expect(designer.getByRole('textbox', { name: 'House name' })).toBeEditable();
+  await expect(designer.getByRole('textbox', { name: 'Motto' })).toBeEditable();
   await designer.getByRole('button', { name: 'Charges', exact: true }).click();
   await designer.getByRole('button', { name: 'Seal the arms' }).click();
   await expect(designer.getByRole('alert')).toContainText("The family is voting on this house's arms.");

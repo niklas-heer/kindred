@@ -6,6 +6,7 @@
 //   {canEdit && <ArmsEditor open={open} onClose={() => setOpen(false)} house={house} tree={tree} />}
 // `initialTab="name"` opens it on the suggestions ("Suggest arms from the name"); the default is the design itself.
 // `propose` (Contributor and up) proposes the arms instead of sealing them; `onProposed` hears the proposal and its vote.
+// `frozen` is the house's unsettled arms vote: the steward's designer says the arms are held by it.
 import { lazy, Suspense, useEffect, useState } from 'react';
 import type { ArmsReview } from '~/lib/house-meaning';
 import type { House } from '~/lib/types';
@@ -15,12 +16,14 @@ import type { DesignerTab, Proposed } from './heraldry/Designer';
 
 const Designer = lazy(() => import('./heraldry/Designer'));
 
-export function ArmsEditor({ open, onClose, house, tree, initialTab = 'design', revise, propose, onProposed }: {
+export function ArmsEditor({ open, onClose, house, tree, initialTab = 'design', revise, propose, onProposed, frozen }: {
   open: boolean; onClose: () => void; house: House; tree: string; initialTab?: DesignerTab;
   /** The check the steward asked suggestions from ("Suggest new arms from this"): the designer asks for them once. */
   revise?: ArmsReview;
   propose?: boolean;
   onProposed?: (r: Proposed) => void;
+  /** The house's unsettled arms vote, if any: the designer says the arms are frozen, with a link to it. */
+  frozen?: string | null;
 }) {
   // Mount on first open and stay mounted, so closing can animate and reopening is instant.
   const [opened, setOpened] = useState(open);
@@ -30,7 +33,7 @@ export function ArmsEditor({ open, onClose, house, tree, initialTab = 'design', 
   if (!opened && !open) return null;
   return (
     <Suspense fallback={null}>
-      <Designer open={open} onClose={onClose} house={house} tree={tree} initialTab={initialTab} revise={revise} propose={propose} onProposed={onProposed} />
+      <Designer open={open} onClose={onClose} house={house} tree={tree} initialTab={initialTab} revise={revise} propose={propose} onProposed={onProposed} frozen={frozen} />
     </Suspense>
   );
 }

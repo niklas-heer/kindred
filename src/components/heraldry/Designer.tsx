@@ -4,10 +4,12 @@
 //
 // A steward seals the arms (with the house's name and motto). In propose mode (`propose`, Contributor and up) the same
 // designer proposes them instead: no name, motto or AI tools, a name and a note for the design, and "Propose these arms"
-// (src/lib/arms-proposals/, docs/arms-proposals.md).
+// (src/lib/arms-proposals/, docs/arms-proposals.md). While an arms vote holds the house's arms (`frozen`), a steward is
+// told so up front, with the way to the vote; the name and motto still save.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import {
-  ArrowDown, ArrowUp, Crown, Dices, Info, Layers, Plus, Redo2, RotateCcw, Search, Shield, Sparkles, Trash2, Undo2, Wand2,
+  ArrowDown, ArrowUp, Crown, Dices, Info, Layers, Lock, Plus, Redo2, RotateCcw, Search, Shield, Sparkles, Trash2, Undo2, Wand2,
 } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { graphQuery, opKeys, updateHouse } from '~/lib/api';
@@ -93,13 +95,15 @@ export type DesignerTab = 'design' | 'presets' | 'name';
 /** What proposing answered: the proposal, and the house's arms vote it started or joined (null while it waits). */
 export interface Proposed { id: string; vote: string | null; started: boolean }
 
-export default function Designer({ open, onClose, house, tree, initialTab = 'design', revise, propose = false, onProposed }: {
+export default function Designer({ open, onClose, house, tree, initialTab = 'design', revise, propose = false, onProposed, frozen = null }: {
   open: boolean; onClose: () => void; house: House; tree: string; initialTab?: DesignerTab;
   /** The check the steward asked suggestions from: the name tab asks for them once, when the designer opens with it. */
   revise?: ArmsReview;
   /** Propose the arms instead of sealing them. */
   propose?: boolean;
   onProposed?: (r: Proposed) => void;
+  /** The house's unsettled arms vote, which holds its arms: a steward is told before designing (the name and motto still save). */
+  frozen?: string | null;
 }) {
   const qc = useQueryClient();
   const tr = useT();
@@ -336,6 +340,13 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
               {!armsChanged && <p className="subtle ae-lead">{tr('arms.propose.unchanged')}</p>}
             </div>
           ) : (
+          <>
+          {frozen && (
+            <p className="ae-warn ae-frozen" role="note">
+              <Lock size={16} aria-hidden />
+              <span>{tr('arms.err.frozen')} <Link className="ae-fix" to="/$tree/votes/$vote" params={{ tree, vote: frozen }}>{tr('arms.open_vote')}</Link></span>
+            </p>
+          )}
           <div className="ae-texts">
             <label className="field">
               <span>{tr('heraldry.house_name')}</span>
@@ -346,6 +357,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
               <input className="input" value={draft.motto} maxLength={160} placeholder={tr('heraldry.motto_placeholder')} onChange={(e) => h.set({ ...draft, motto: e.target.value }, 'motto')} />
             </label>
           </div>
+          </>
           )}
         </div>
         </div>

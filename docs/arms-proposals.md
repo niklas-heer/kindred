@@ -51,7 +51,8 @@ at stake:
 - A house has at most one unsettled arms vote. A proposal **joins** it only before the first ballot, and only while it has
   fewer than **19 proposals** (20 options with Keep). Otherwise it waits. After the first ballot the options never change.
 - **The house's arms are frozen** while its arms vote is unsettled: a steward cannot save different arms or Accept a
-  proposal (the name and motto still save). The vote cannot overwrite arms saved after it started either.
+  proposal (the name and motto still save). The steward's designer says so as it opens, with a link to the vote. The vote
+  cannot overwrite arms saved after it started either.
 - **Same arms** means the same design, as the designer draws it: older arms stored without a design are the same as the
   designer's drawing of them. So a save that only changes the name or motto is never frozen, and while a vote runs it keeps
   the stored arms exactly as they are, so the vote's Keep still matches them. A proposal or Accept of the arms the house
