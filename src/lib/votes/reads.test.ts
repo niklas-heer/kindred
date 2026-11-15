@@ -246,6 +246,33 @@ test('a struck guest’s ballot does not count, open vote or secret; only a stew
   }
 });
 
+test('a read survives a failing close: the vote reads as closed, the log names nobody, and a later read marks it', async () => {
+  const t = await family();
+  const { id } = await V.createVote(t, ada, input({ question: 'Which cake for Ada?', closesAt: later(HOUR).toISOString() }), undefined, NOW);
+  const [beach] = await optionIds(t, id);
+  await V.castBallot(t, member(bo), id, [beach], later(1000));
+  const past = later(2 * HOUR);
+  // The mark is the only write a read makes: a trigger refuses it, as a full disk or a lost connection would.
+  await db.db(t).run("CREATE TRIGGER refuse_close BEFORE UPDATE OF closed_at ON vote BEGIN SELECT RAISE(ABORT, 'the write failed'); END");
+  const logged: unknown[][] = [];
+  const error = console.error;
+  console.error = (...args: unknown[]) => { logged.push(args); };
+  try {
+    const [summary] = await V.listVotes(t, reader(carl), undefined, past);
+    assert.deepEqual([summary.id, summary.closed, summary.winners], [id, true, ['Beach']]);
+    const v = await view(t, reader(carl), id, past);
+    assert.deepEqual([v.closed, v.winners], [true, ['Beach']]);
+  } finally {
+    console.error = error;
+    await db.db(t).run('DROP TRIGGER refuse_close');
+  }
+  assert.equal(logged.length, 2, 'each failed mark is logged');
+  assert.doesNotMatch(JSON.stringify(logged.map((args) => args.map(String))), /Ada|Bo |Birch|Carl|cake|acc-/i, 'without a name or the question');
+  assert.equal(await closedAt(t, id), null);
+  await view(t, reader(carl), id, past);
+  assert.equal(await closedAt(t, id), later(HOUR).toISOString(), 'the next member’s read marks it');
+});
+
 test('a vote past its closing time reads as closed; the first member to read it marks it so, never a guest or a demo', async () => {
   const t = await family();
   const { id } = await V.createVote(t, ada, input({ guests: true, kind: 'ranked', closesAt: later(HOUR).toISOString() }), undefined, NOW);

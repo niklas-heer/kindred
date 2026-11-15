@@ -425,7 +425,9 @@ function summaryOf(v: ReadRow, r: Reading, authors: Map<string, { person: string
 
 /**
  * Marks votes past their closing time as closed at that time (not the read's), for the first member who reads them. A
- * guest's read, a demo and a preview store nothing; the vote reads as closed all the same. Writes only `closed_at`.
+ * guest's read, a demo and a preview store nothing; the vote reads as closed all the same. Writes only `closed_at`. A mark
+ * that fails is logged (the error only: no family, question or reader) and the read goes on: the next
+ * member's read tries again.
  */
 async function closeOnRead(tree: string, r: Reading, ids: readonly string[], at: string): Promise<void> {
   if (r.guest || !ids.length || readOnly()) return;
@@ -441,7 +443,7 @@ async function closeOnRead(tree: string, r: Reading, ids: readonly string[], at:
       history: NOT_A_RECORD,
       result: undefined,
     };
-  });
+  }).catch((e: unknown) => console.error('[votes] could not mark votes closed on read', e instanceof Error ? e.message : e));
 }
 
 /**
