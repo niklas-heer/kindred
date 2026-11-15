@@ -515,6 +515,66 @@ test('two reviewers deciding at once: a retry finishes with the decision the wri
   assert.equal((await db.db(t).get<{ title: string }>('SELECT title FROM source WHERE id = ?', r.applied.source!))?.title, 'Fay’s files');
 });
 
+test('two approvals interleaved with different decisions: the later one is refused, and it finishes on one decision', async () => {
+  const t = await family();
+  asReviewer(gus);
+  const { id } = await suggest(t, member(ada), 'details', 'bo', { born: '1919' });
+  await S.addSuggestionFile(t, member(ada), id, file('image/png', PNG()), NOW);
+  // Fay decided first (d1) and has not written a step yet.
+  const fay1 = { payload: { born: '1918' }, adjusted: true, existing: null, title: 'Fay’s files' };
+  await db.once(t, { key: `sugg:${id}:d1`, user: `suggestion:${id}`, payload: fay1 }, 'decideSuggestion', () => ({ writes: [], history: 'not-a-record' as const, result: fay1 }));
+  // Gus reads it as not begun and decides otherwise (d2); before his first step, Fay's first step lands under d1.
+  const d = db.db(t);
+  const get = d.get.bind(d);
+  let fired = false;
+  d.get = (async (sql: string, ...params: unknown[]) => {
+    if (!fired && sql === 'SELECT result, user, fn, fingerprint FROM op WHERE key = ?') {
+      fired = true;
+      H.actingAs({ account: fay.id, name: fay.name });
+      await P.correctPerson(t, 'bo', { born: '1918' }, { born: '1920' }, { key: `sugg:${id}:1`, user: `suggestion:${id}`, payload: { decision: 1 } }, { suggestion: id });
+      asReviewer(gus);
+    }
+    return get(sql, ...(params as never[]));
+  }) as typeof d.get;
+  try {
+    assert.equal(await refusal(R.approveSuggestion(t, gus, id, { born: '1917' }, { sourceTitle: 'Gus’s files' })), 'suggest.err.decided');
+  } finally {
+    d.get = get;
+  }
+  assert.equal((await personRow(t, 'bo'))!.born, '1918', 'Gus wrote nothing');
+  assert.equal(await count(t, 'source'), 0);
+  // Approved again (by either of them, with any values), it finishes on Fay's decision.
+  const r = await R.approveSuggestion(t, gus, id, { born: '1917' });
+  assert.equal((await personRow(t, 'bo'))!.born, '1918');
+  assert.equal((await db.db(t).get<{ title: string }>('SELECT title FROM source WHERE id = ?', r.applied.source!))?.title, 'Fay’s files');
+  assert.deepEqual([(await row(t, id))!.status, (await row(t, id))!.adjusted], ['approved', 1]);
+  assert.equal(await count(t, 'history', `suggestion = '${id}' AND kind = 'person'`), 1);
+});
+
+test('a step key of an approval written by anyone else blocks it as stuck and is never replayed', async () => {
+  const t = await family();
+  asReviewer(fay);
+  const { id } = await suggest(t, member(ada), 'details', 'bo', { born: '1919' });
+  await db.db(t).run("INSERT INTO op (key, fn, result, at, user, fingerprint) VALUES (?, 'correctPerson', 'null', ?, 'acc-eli', 'f')", `sugg:${id}:1`, NOW.toISOString());
+  assert.equal(await refusal(R.approveSuggestion(t, fay, id)), 'suggest.err.stuck');
+  assert.equal((await personRow(t, 'bo'))!.born, '1920');
+  assert.equal((await row(t, id))!.status, 'waiting');
+
+  // Its own steps bound to two different decisions: no decision is trusted.
+  const mixed = await suggest(t, member(ada), 'details', 'cara', { born: '1923' });
+  const user = `suggestion:${mixed.id}`;
+  for (const k of [1, 2]) {
+    const dk = { payload: { born: `192${3 + k}` }, adjusted: true, existing: null, title: 'x' };
+    await db.once(t, { key: `sugg:${mixed.id}:d${k}`, user, payload: dk }, 'decideSuggestion', () => ({ writes: [], history: 'not-a-record' as const, result: dk }));
+  }
+  for (const [n, k] of [[1, 1], [4, 2]]) {
+    await db.db(t).run("INSERT INTO op (key, fn, result, at, user, fingerprint) VALUES (?, 'x', 'null', ?, ?, ?)",
+      `sugg:${mixed.id}:${n}`, NOW.toISOString(), user, await db.fingerprintOf('x', { decision: k }));
+  }
+  assert.equal(await refusal(R.approveSuggestion(t, fay, mixed.id)), 'suggest.err.stuck');
+  assert.equal((await personRow(t, 'cara'))!.born, '1922');
+});
+
 test('an approval that cannot finish is closed as partly applied: what was written stays, the files go', async () => {
   const t = await family();
   asReviewer(fay);
@@ -540,6 +600,14 @@ test('an approval that cannot finish is closed as partly applied: what was writt
   assert.deepEqual(await stored(t, 'suggest/'), [], 'its files are deleted from storage');
   assert.equal(await refusal(R.approveSuggestion(t, fay, id)), 'suggest.err.state');
   assert.equal(await refusal(R.closePartlyApplied(t, fay, id)), 'suggest.err.state');
+
+  // Its steps' keys lost: whether it was adjusted is not known, and the row says so rather than "not adjusted".
+  const lost = await suggest(t, member(ada), 'details', 'cara', { born: '1923' });
+  await S.addSuggestionFile(t, member(ada), lost.id, file('image/png', PNG()), NOW);
+  await refusal(R.approveSuggestion(t, fay, lost.id, { born: '1924' }));
+  await db.db(t).run("DELETE FROM op WHERE key LIKE 'sugg:%'");
+  const closed = await R.closePartlyApplied(t, fay, lost.id);
+  assert.deepEqual(closed.applied, { partial: true, person: 'cara', adjustedUnknown: true });
 });
 
 test('an approval begun whose steps are lost is refused rather than written twice', async () => {

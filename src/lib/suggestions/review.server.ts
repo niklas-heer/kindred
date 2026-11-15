@@ -37,6 +37,7 @@
 //     files     a file was attached while it was being approved: approve it again
 //     partial   an approval of it has begun: approve it again to finish     stuck  an approval begun but its steps are lost
 //     not_partial  closing as partly applied a suggestion no approval has changed records for: decline or approve it
+//     decided   another reviewer is approving it meanwhile with other values: reload, then approve it again to finish
 import { forbidden, AuthError } from '../auth/errors.ts';
 import { fail } from '../auth/guard.server.ts';
 import { db, fingerprintOf, media, NOT_A_RECORD, once, q, guard, change, type Db, type OnceOptions, type OpKey } from '../db.server.ts';
@@ -106,6 +107,8 @@ export interface Applied {
   files?: string[];
   /** Closed as partly applied (`closePartlyApplied`): only what is named here was written. */
   partial?: true;
+  /** Closed as partly applied with no decision its steps match: whether the values were adjusted is not known (`adjusted` is 0). */
+  adjustedUnknown?: true;
 }
 
 export interface ApproveOptions {
@@ -310,17 +313,23 @@ async function decisions(d: Db, id: string): Promise<{ k: number; decision: Deci
     .filter((x) => Number.isInteger(x.k) && x.k > 0).sort((a, b) => b.k - a.k);
 }
 
+/** Whether a written step's key is bound to decision `k`. */
+const boundTo = async (step: { fn: string; fingerprint: string | null }, k: number) => step.fingerprint === (await fingerprintOf(step.fn, { decision: k }));
+
 /**
  * The decision an approval's written steps are bound to (each step's key is bound to `{ decision: k }`), or null when no
- * step is written yet; `stuck` when steps are written but match no kept decision.
+ * step is written yet; `stuck` when they match no kept decision, or not all the same one.
  */
 async function boundDecision(d: Db, id: string, kept: { k: number; decision: Decision }[]): Promise<{ k: number; decision: Decision } | null> {
   const keys = stepKeys(id);
   const steps = await d.all<{ fn: string; fingerprint: string | null }>(
     `SELECT fn, fingerprint FROM op WHERE key IN (${keys.map(() => '?').join(', ')}) AND user = ?`, ...keys, keyUser(id));
   if (!steps.length) return null;
-  const step = steps[0]!;
-  for (const x of kept) if ((await fingerprintOf(step.fn, { decision: x.k })) === step.fingerprint) return x;
+  for (const x of kept) {
+    let all = true;
+    for (const step of steps) all &&= await boundTo(step, x.k);
+    if (all) return x;
+  }
   throw err('stuck');
 }
 
@@ -374,10 +383,20 @@ export async function approveSuggestion(
     opts: { suggestion: id },
     step: async <T>(n: number, run: (op: OpKey) => Promise<T>) => {
       const op = opOf(n);
-      const done = await d.get<{ result: string; user: string | null }>('SELECT result, user FROM op WHERE key = ?', op.key);
+      const written = () => d.get<{ result: string; user: string | null; fn: string; fingerprint: string | null }>('SELECT result, user, fn, fingerprint FROM op WHERE key = ?', op.key);
+      const done = await written();
       // A key of this approval's that someone else wrote (no request's key can look like one, but a steward's import key could).
       if (done && done.user !== op.user) throw err('stuck');
-      return done ? (JSON.parse(done.result) as T) : run(op);
+      // Written under another decision: another reviewer is approving it meanwhile, with other values.
+      if (done && !(await boundTo(done, k))) throw err('decided');
+      if (done) return JSON.parse(done.result) as T;
+      try {
+        return await run(op);
+      } catch (e) {
+        // The same step written meanwhile under another decision: `once` refuses the key; say why.
+        const now = await written();
+        throw now && now.user === op.user && !(await boundTo(now, k)) ? err('decided') : e;
+      }
     },
   };
 
@@ -480,7 +499,9 @@ export async function closePartlyApplied(tree: string, who: Who, id: string, now
       else if (r.kind === 'source' && r.action === 'added') applied.source ??= r.record;
       else if (r.kind === 'citation' && r.action === 'added') (applied.citations ??= []).push(r.record);
     }
+    // The decision its steps are bound to says whether it was adjusted; with none matching, the row says it is not known.
     const bound = await boundDecision(d, id, await decisions(d, id)).catch(() => null);
+    if (!bound) applied.adjustedUnknown = true;
     const keys = (await d.all<{ key: string }>('SELECT key FROM suggestion_file WHERE suggestion = ?', id)).map((r) => r.key);
     return {
       writes: [
