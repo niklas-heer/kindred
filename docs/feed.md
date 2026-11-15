@@ -173,8 +173,9 @@ device is told when someone starts a vote, at most one such push in six hours (i
 never on the creator's own devices. And about a day before an open vote closes, each member with a device that asked and
 who has not voted gets one reminder on those devices. Whether someone voted is read from the list of who took part, never
 from a ballot, so a secret vote is reminded alike. The reminders come from the daily job (`votes`): the jobs run once a
-day, so each run reminds of the open votes that close within the next 24 hours, and a vote started after a day's run that
-closes before the next one gets none. Each member is reminded once per vote (the family's `vote_reminded` row, written
+day, so each run reminds of the open votes that close within the next 30 hours (a day, and six hours for a run that comes
+late; the claim below keeps a vote in two runs' windows to one reminder), and a vote started after a day's run that closes
+before the next one gets none. Each member is reminded once per vote (the family's `vote_reminded` row, written
 before the send); a member with no device that asked is not, so turning the switch on later still brings the reminder.
 Both pushes name the question, never a choice, a tally or who voted. A demo and a preview send nothing.
 

@@ -108,16 +108,17 @@ test('the reminder: open votes closing within a day, to members who asked and ha
   await device(tree, dee.id, 'dee-off', 0);
   const vapid = await vapidKeys();
   const { sent, fetchImpl } = service();
-  const { id: open } = await V.createVote(tree, ada, input({ closesAt: later(30 * HOUR).toISOString() }), undefined, NOW);
-  const { id: secret } = await V.createVote(tree, ada, input({ secret: true, question: 'Which name for the dog?', options: ['Rex', 'Fido'], closesAt: later(30 * HOUR).toISOString() }), undefined, NOW);
+  // Closing 36 hours on: 28 hours after the run at `at`, inside the day and the six hours' slack for a run that comes late.
+  const { id: open } = await V.createVote(tree, ada, input({ closesAt: later(36 * HOUR).toISOString() }), undefined, NOW);
+  const { id: secret } = await V.createVote(tree, ada, input({ secret: true, question: 'Which name for the dog?', options: ['Rex', 'Fido'], closesAt: later(36 * HOUR).toISOString() }), undefined, NOW);
   const { id: far } = await V.createVote(tree, ada, input({ closesAt: later(3 * DAY).toISOString() }), undefined, NOW);
-  const { id: closed } = await V.createVote(tree, ada, input({ closesAt: later(30 * HOUR).toISOString() }), undefined, NOW);
+  const { id: closed } = await V.createVote(tree, ada, input({ closesAt: later(36 * HOUR).toISOString() }), undefined, NOW);
   await V.closeVote(tree, ada, closed, undefined, later(HOUR));
   await V.castBallot(tree, { kind: 'member', who: bo }, open, [(await optionIds(tree, open))[0]!], later(HOUR));
   await V.castBallot(tree, { kind: 'member', who: bo }, secret, [(await optionIds(tree, secret))[1]!], later(HOUR));
   await V.castBallot(tree, { kind: 'member', who: ada }, open, [(await optionIds(tree, open))[2]!], later(HOUR));
 
-  assert.equal(await Push.remindVotes(tree, later(2 * HOUR), { vapid, fetchImpl }), 0, 'more than a day before closing: nothing yet');
+  assert.equal(await Push.remindVotes(tree, later(5 * HOUR), { vapid, fetchImpl }), 0, 'more than a day and six hours before closing: nothing yet');
   const at = later(8 * HOUR);
   assert.equal(await Push.remindVotes(tree, at, { vapid: null, fetchImpl }), 0, 'nothing without the server’s keys');
   assert.equal(await Push.remindVotes(tree, at, { vapid, fetchImpl }), 3);
@@ -127,8 +128,8 @@ test('the reminder: open votes closing within a day, to members who asked and ha
   assert.deepEqual(new Set(reminded.map((r) => `${r.vote}:${r.account}`)), new Set([`${open}:${carl.id}`, `${secret}:${ada.id}`, `${secret}:${carl.id}`]));
   assert.ok(!reminded.some((r) => r.vote === far || r.vote === closed));
 
-  assert.equal(await Push.remindVotes(tree, later(9 * HOUR), { vapid, fetchImpl }), 0, 'once per member and vote');
-  assert.equal(await Push.remindVotes(tree, later(31 * HOUR), { vapid, fetchImpl }), 0, 'a vote that has closed is not reminded');
+  assert.equal(await Push.remindVotes(tree, later(20 * HOUR), { vapid, fetchImpl }), 0, 'once per member and vote, though the next run’s window has it too');
+  assert.equal(await Push.remindVotes(tree, later(37 * HOUR), { vapid, fetchImpl }), 0, 'a vote that has closed is not reminded');
   assert.equal(sent.length, 3);
 });
 

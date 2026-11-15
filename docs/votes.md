@@ -78,9 +78,9 @@ The feed gets an entry when a vote **starts** ("Ada asked the family: Where do w
 A device switch under Reminders, **A new vote, and a reminder before it closes**, is off until turned on:
 
 - a push when a vote starts, at most one in **6 hours** per device, never to the creator's own devices;
-- **one reminder** for a vote that closes within the next 24 hours, to a member who has not voted. It comes from the daily
-  job (`votes`), so a vote started after a day's run that closes before the next one gets none, and a closing time moved
-  later gets no second reminder.
+- **one reminder** for a vote that closes within about a day, to a member who has not voted. It comes from the daily job
+  (`votes`), which looks 30 hours ahead, so a run that comes a few hours late misses no vote. A vote started after a day's
+  run that closes before the next one gets none, and a closing time moved later gets no second reminder.
 
 Pushes name the question, never a ballot or the tally of a secret vote. Who has voted is read from the list of voters, never
 from a ballot. A demo and a steward's *View as* send nothing.
