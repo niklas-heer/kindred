@@ -6,6 +6,8 @@ import { parseFurther } from '../further-given.ts';
 import type { Key } from '../i18n/dictionary.ts';
 import type { Vars } from '../i18n/types.ts';
 import type { Db } from '../store/db.ts';
+import { countVote } from '../votes/count.ts';
+import type { VoteKind, VoteResult } from '../votes/types.ts';
 import type { EventType, Fact, Quality } from '../events.ts';
 
 export type Sex = 'm' | 'f' | 'x';
@@ -134,6 +136,28 @@ export interface ExPost {
   comments: ExComment[];
 }
 
+/**
+ * A family vote (tree migration 0037, docs/votes.md), for the Markdown archive only. `result` is set once the vote has closed
+ * and counts the ballots a steward did not strike; `ballots` (who chose what, by option label) only for a closed open vote.
+ * A secret vote keeps just its totals and `voters`, who voted; a vote still open carries neither result nor ballots.
+ */
+export interface ExVote {
+  id: string;
+  author: string;
+  at: string;
+  question: string;
+  description: string;
+  kind: VoteKind;
+  secret: boolean;
+  /** When it closes, or closed. */
+  closes: string;
+  closed: boolean;
+  options: { id: string; label: string }[];
+  voters: { name: string; guest: boolean; struck: boolean }[];
+  result: VoteResult | null;
+  ballots: { name: string; guest: boolean; choices: string[] }[] | null;
+}
+
 export interface ExTree {
   id: string;
   name: string;
@@ -148,6 +172,8 @@ export interface ExTree {
   stories?: ExStory[];
   /** The posts of the family's feed and their comments, oldest first, for the Markdown archive. */
   posts?: ExPost[];
+  /** The family's votes, oldest first, for the Markdown archive. */
+  votes?: ExVote[];
   /**
    * What the tree holds beyond this model, counted for the loss report. `photoComments` (migration 0027) are the comments
    * on gallery photos, which no export carries, as the photos themselves are not in one.
@@ -238,6 +264,7 @@ export async function readTree(d: Db): Promise<ExTree> {
   for (const r of postPeople) peopleOf.set(r.post, [...(peopleOf.get(r.post) ?? []), r.person]);
   const postCommentsOf = new Map<string, ExComment[]>();
   for (const c of postComments) postCommentsOf.set(c.target, [...(postCommentsOf.get(c.target) ?? []), { author: c.author_name, at: c.created_at, edited: c.edited_at, body: c.body }]);
+  const votes = await readVotes(d);
   const count = async (sql: string) => (await d.get<{ n: number }>(sql))?.n ?? 0;
   return {
     id: meta.id ?? '',
@@ -269,6 +296,7 @@ export async function readTree(d: Db): Promise<ExTree> {
     citations: citations.map((r) => ({ id: r.id, source: r.source, target: citationTarget(r), page: or(r.page), quality: or(r.quality), transcription: r.transcription })),
     stories: stories.map((r) => ({ ...r, title: or(r.title), context: or(r.context), comments: commentsOf.get(r.id) ?? [], ...(recipeOf.has(r.id) ? { recipe: recipeOf.get(r.id)! } : {}) })),
     posts: posts.map((r) => ({ id: r.id, author: r.author_name, at: r.created_at, edited: r.edited_at, body: r.body, people: peopleOf.get(r.id) ?? [], pictures: r.pictures, comments: postCommentsOf.get(r.id) ?? [] })),
+    votes,
     extras: {
       stories: await count('SELECT count(*) AS n FROM story'),
       fields: await count("SELECT count(*) AS n FROM person_field WHERE visibility <> 'personal'"), // a personal item is its author's alone, even as a number
@@ -277,6 +305,53 @@ export async function readTree(d: Db): Promise<ExTree> {
       photoComments: await count("SELECT count(*) AS n FROM comment WHERE target_kind = 'media'"),
     },
   };
+}
+
+/**
+ * The family's votes for the archive. A secret ballot is stored under an HMAC the server alone can compute, so one is looked
+ * up (to leave out a struck guest's) only when there is something struck, and the module that knows the secret is then loaded.
+ */
+async function readVotes(d: Db): Promise<ExVote[]> {
+  const rows = await d.all<{ id: string; author_name: string; created_at: string; question: string; description: string; kind: VoteKind; secret: number; closes_at: string; closed_at: string | null }>(
+    'SELECT id, author_name, created_at, question, description, kind, secret, closes_at, closed_at FROM vote ORDER BY created_at, id',
+  );
+  if (!rows.length) return [];
+  const options = await d.all<{ vote: string; id: string; label: string }>('SELECT vote, id, label FROM vote_option ORDER BY vote, ord');
+  const voters = await d.all<{ vote: string; account: string | null; guest_key: string | null; name: string; struck: number }>('SELECT vote, account, guest_key, name, struck FROM vote_voter ORDER BY vote, name, id');
+  const ballots = await d.all<{ vote: string; voter: string; choices: string }>('SELECT vote, voter, choices FROM ballot');
+  const now = new Date().toISOString();
+  const out: ExVote[] = [];
+  for (const v of rows) {
+    const opts = options.filter((o) => o.vote === v.id);
+    const label = (id: string) => opts.find((o) => o.id === id)?.label ?? '';
+    const mine = voters.filter((x) => x.vote === v.id);
+    const closed = !!v.closed_at || v.closes_at <= now;
+    let result: VoteResult | null = null;
+    let named: ExVote['ballots'] = null;
+    if (closed) {
+      const own = ballots.filter((b) => b.vote === v.id);
+      const key = async (x: (typeof mine)[number]) => {
+        const id = (x.account ?? x.guest_key)!;
+        return v.secret ? (await import('../votes/votes.server.ts')).voterKey(v.id, true, id) : id;
+      };
+      const struck = new Set(await Promise.all(mine.filter((x) => x.struck).map(key)));
+      const counted = own.filter((b) => !struck.has(b.voter));
+      result = countVote(v.kind, opts.map((o) => o.id), counted.map((b) => JSON.parse(b.choices) as string[]));
+      if (!v.secret) {
+        const byKey = new Map(mine.map((x) => [(x.account ?? x.guest_key)!, x]));
+        named = counted.flatMap((b) => {
+          const x = byKey.get(b.voter);
+          return x ? [{ name: x.name, guest: !x.account, choices: (JSON.parse(b.choices) as string[]).map(label) }] : [];
+        }).sort((a, b) => a.name.localeCompare(b.name));
+      }
+    }
+    out.push({
+      id: v.id, author: v.author_name, at: v.created_at, question: v.question, description: v.description, kind: v.kind, secret: !!v.secret,
+      closes: v.closed_at ?? v.closes_at, closed, options: opts.map((o) => ({ id: o.id, label: o.label })),
+      voters: mine.map((x) => ({ name: x.name, guest: !x.account, struck: !!x.struck })), result, ballots: named,
+    });
+  }
+  return out;
 }
 
 /** A recipe's tags from their JSON column: a list of words, or none when it is not one. */

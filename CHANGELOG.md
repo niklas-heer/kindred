@@ -9,6 +9,9 @@ moving to before you upgrade ([docs/self-host.md](docs/self-host.md), "Upgrading
 
 Changes on `main` since 2.6.0. They are not in a release yet.
 
+### Added
+- **Family votes** ([docs/votes.md](docs/votes.md)): a member asks the family a question with single or ranked choice, open or secret, with guests taking part where a vote allows them. Votes appear in the feed and as opt-in pushes (a new vote, and one reminder before it closes). Tree migration 0037, accounts migration 0060 and a new daily job, `votes`, which sends the reminders. The Markdown archive has `votes/<year>.md`, and a member's data download lists their own ballots.
+
 ## [2.6.0] - 2026-11-14
 
 Simpler sign-in: a sign-in code by email, and a guided setup for Google and personal Microsoft accounts. Accounts migrations

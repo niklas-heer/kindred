@@ -23,8 +23,12 @@
 // The family's feed (migration 0029, docs/feed.md) is in feed/, one file per year, oldest first: each post with who wrote it
 // and when, its text quoted, the people it is about as links, how many pictures it had (the pictures are the gallery's,
 // which no archive holds) and its comments. The v1 tools and import-kindred.ts leave feed/ alone.
+//
+// The family's votes (migration 0037, docs/votes.md) are in votes/, one file per year of starting, oldest first: the question,
+// the options and, once it has closed, the result (each round of a ranked one). A closed open vote lists each ballot by name;
+// a secret one only its totals and who voted, so the archive never tells who chose what. A vote still open has no result.
 import { allGiven } from '../further-given.ts';
-import type { ExCitation, ExParent, ExPerson, ExPost, ExStory, ExTree, ExUnion } from './model.ts';
+import type { ExCitation, ExParent, ExPerson, ExPost, ExStory, ExTree, ExUnion, ExVote } from './model.ts';
 
 export interface ArchiveFile {
   path: string;
@@ -218,6 +222,9 @@ export function markdownArchive(tree: ExTree, portraits: Set<string> = new Set()
   const postsOf = new Map<string, ExPost[]>();
   for (const x of tree.posts ?? []) postsOf.set(x.at.slice(0, 4), [...(postsOf.get(x.at.slice(0, 4)) ?? []), x]);
   for (const [year, list] of postsOf) files.push({ path: `feed/${year}.md`, data: feedNote(tree.name, year, list, (id) => (byId.has(id) ? link(id) : null)) });
+  const votesOf = new Map<string, ExVote[]>();
+  for (const x of tree.votes ?? []) votesOf.set(x.at.slice(0, 4), [...(votesOf.get(x.at.slice(0, 4)) ?? []), x]);
+  for (const [year, list] of votesOf) files.push({ path: `votes/${year}.md`, data: votesNote(tree.name, year, list) });
   const recipePictures = (tree.stories ?? []).reduce((n, x) => n + (x.recipe?.pictures ?? 0), 0);
   if (recipePictures) losses.push(`${recipePictures} ${recipePictures === 1 ? 'recipe picture is' : 'recipe pictures are'} not in the archive; the recipes are, written out`);
   const postPictures = (tree.posts ?? []).reduce((n, x) => n + x.pictures, 0);
@@ -246,7 +253,7 @@ export function markdownArchive(tree: ExTree, portraits: Set<string> = new Set()
       'once, on the note of the partner whose id sorts first. Life events are in each person\'s events; sources are in',
       'sources/, and each person\'s citations name the source and the fact it backs. Memories, sayings and recipes are in',
       'memories/, one file per person, each with the comments the family wrote under it. What the family wrote to each',
-      'other in the feed is in feed/, one file per year.',
+      'other in the feed is in feed/, one file per year, and its votes with their results are in votes/.',
       '',
       ...(losses.length ? ['Not in this archive:', ...losses.map((l) => `- ${l}`), ''] : []),
     ].join('\n'),
@@ -290,6 +297,38 @@ export function feedNote(family: string, year: string, posts: ExPost[], personLi
       out.push('### Comments', '');
       for (const c of x.comments) out.push(`**${c.author ? plainMarkdown(c.author.replace(/\s+/g, ' ')) : 'A former member'}**, ${c.at.slice(0, 10)}${c.edited ? ' (changed)' : ''}:`, '', quoted(plainMarkdown(c.body)), '');
     }
+  }
+  return `${out.join('\n').trimEnd()}\n`;
+}
+
+/** One line of a name or label: written as text, with white space folded. */
+const inline = (text: string) => plainMarkdown(text.replace(/\s+/g, ' ').trim());
+
+/** A year of the family's votes, oldest first. A secret vote has only totals and who voted; a vote still open no result. */
+export function votesNote(family: string, year: string, votes: ExVote[]): string {
+  const out: string[] = [`# ${family}: the votes, ${year}`, ''];
+  for (const v of votes) {
+    out.push(`## ${v.at.slice(0, 10)}, ${inline(v.author) || 'a former member'}: ${inline(v.question)}`, '');
+    if (v.description.trim()) out.push(quoted(plainMarkdown(v.description.trim())), '');
+    out.push(`*${v.kind === 'ranked' ? 'Ranked choice' : 'Single choice'}, ${v.secret ? 'secret' : 'open'} vote. ${v.closed ? 'Closed' : 'Still open, closes'} ${v.closes.slice(0, 10)}.*`, '');
+    out.push('Options:', ...v.options.map((o) => `- ${inline(o.label)}`), '');
+    const voted = v.voters.map((x) => `${inline(x.name)}${x.guest || x.struck ? ` (${[x.guest ? 'guest' : '', x.struck ? 'struck' : ''].filter(Boolean).join(', ')})` : ''}`);
+    if (!v.closed) {
+      out.push(`${v.voters.length} ${v.voters.length === 1 ? 'person has' : 'people have'} voted so far. No result is written until it has closed.`, '');
+      continue;
+    }
+    const r = v.result;
+    const label = (id: string) => inline(v.options.find((o) => o.id === id)?.label ?? '');
+    const tallies = (t: Record<string, number>) => v.options.filter((o) => o.id in t).map((o) => `- ${inline(o.label)}: ${t[o.id]}`);
+    if (r?.kind === 'ranked') {
+      r.rounds.forEach((round, i) => out.push(`Round ${i + 1}:`, ...tallies(round.tallies), ...(round.exhausted ? [`- (no choice left: ${round.exhausted})`] : []), ''));
+    } else if (r) {
+      out.push('Result:', ...tallies(r.tallies), '');
+    }
+    out.push(r && r.winners.length ? `${r.winners.length > 1 ? 'Tie' : 'Winner'}: ${r.winners.map(label).join(', ')}.` : 'Nobody voted.', '');
+    if (v.ballots) out.push('Ballots:', ...v.ballots.map((b) => `- ${inline(b.name)}${b.guest ? ' (guest)' : ''}: ${b.choices.map(inline).join(' > ')}`), '');
+    else out.push(`Voted: ${voted.join(', ') || 'nobody'}.`, '');
+    if (v.ballots && v.voters.some((x) => x.struck)) out.push(`Struck guests, not counted: ${v.voters.filter((x) => x.struck).map((x) => inline(x.name)).join(', ')}.`, '');
   }
   return `${out.join('\n').trimEnd()}\n`;
 }

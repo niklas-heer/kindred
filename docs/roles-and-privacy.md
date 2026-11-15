@@ -215,7 +215,9 @@ have voted, and the result under the same rules as for members. Never who voted 
 guest's name. The name a guest gives when they vote is shown to the family's members, beside the ballot's count. The vote is
 tied to the guest by a `kindred_voter` cookie, set only when they vote; only its hash is stored, and it lasts 90 days or until the
 link ends, whichever is first. No address is kept: the limits on guest voters count an 18-bit hash of the network, which stands
-for thousands of addresses.
+for thousands of addresses. The browser also remembers the name the guest gave, so the next vote needs no typing: it is kept in the
+browser's local storage under `kindred:vote-guest-name:<family>` and goes nowhere else until the guest votes. How votes work is in
+[votes.md](votes.md).
 
 Before you share a link, decide what it should show: anyone who has the link and the password can read the names, the dates
 of the dead (and of the living, if the link does not protect them), biographies and stories, for as long as the link works,

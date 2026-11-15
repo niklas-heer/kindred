@@ -24,6 +24,7 @@ import { AuthError } from '../auth/errors.ts';
 import { families } from '../auth/trees.server.ts';
 import { db, once } from '../db.server.ts';
 import { translate } from '../i18n/dictionary.ts';
+import { voterKey } from '../votes/votes.server.ts';
 import { guard, isGuardError, q, store, type Db, type Query } from '../store/index.ts';
 import { ident, isText, tablesOf, type Table } from './schema.ts';
 
@@ -230,7 +231,30 @@ async function familyRows(d: Db, tables: Table[], userId: string): Promise<Recor
     const rows = await d.all<Record<string, unknown>>(`SELECT ${cols} FROM ${ident(t.name)} WHERE ${where}`, ...owner.map(() => userId));
     if (rows.length) out[t.name] = rows.map(clean);
   }
+  if (tables.some((t) => t.name === 'ballot')) {
+    const ballots = await ballotRows(d, userId);
+    if (ballots.length) out.ballot = ballots;
+  }
   return out;
+}
+
+/**
+ * The account's own ballots, each with its vote's question and the choices as the options' labels. A ballot has no account
+ * column (a secret vote's is stored under a key only the server can compute), so they are found through the account's
+ * `vote_voter` rows and `voterKey`, which is how a secret ballot is found for its voter and for nobody else.
+ */
+async function ballotRows(d: Db, userId: string): Promise<Record<string, unknown>[]> {
+  const votes = await d.all<{ id: string; question: string; secret: number }>(
+    'SELECT v.id, v.question, v.secret FROM vote v JOIN vote_voter vv ON vv.vote = v.id WHERE vv.account = ? ORDER BY v.created_at, v.id', userId,
+  );
+  const rows: Record<string, unknown>[] = [];
+  for (const v of votes) {
+    const b = await d.get<{ choices: string; changed_at: string | null }>('SELECT choices, changed_at FROM ballot WHERE vote = ? AND voter = ?', v.id, await voterKey(v.id, !!v.secret, userId));
+    if (!b) continue;
+    const labels = new Map((await d.all<{ id: string; label: string }>('SELECT id, label FROM vote_option WHERE vote = ?', v.id)).map((o) => [o.id, o.label]));
+    rows.push({ vote: v.id, question: v.question, secret: v.secret, choices: (JSON.parse(b.choices) as string[]).map((id) => labels.get(id) ?? ''), changed_at: b.changed_at });
+  }
+  return rows;
 }
 
 /** Everything about the account, as JSON: its own rows in the accounts database and what it wrote in each family. */

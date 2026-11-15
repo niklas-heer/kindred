@@ -2,7 +2,7 @@
 // browser share. Members only; a share-link guest gets none of it (docs/responses.md). Safe to import anywhere.
 
 /**
- * What a reaction or a comment is on: a story (its id), a gallery photo (its media key), a post in the feed (its id), or
+ * What a reaction or a comment is on: a story (its id), a gallery photo (its media key), a post in the feed (its id), a family vote (its id), or
  * an event of the feed drawn from the change history or the calendar (its key, see `EVENT_TARGET`).
  */
 export type TargetKind = 'story' | 'media' | 'post' | 'event' | 'vote';

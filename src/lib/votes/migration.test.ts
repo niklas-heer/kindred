@@ -70,7 +70,7 @@ test('reactions and comments of the older kinds survive the migration with their
   const n = (sql: string) => (d.prepare(sql).get() as { n: number }).n;
   assert.equal(n('SELECT count(*) AS n FROM reaction'), 2);
   assert.equal(n("SELECT count(*) AS n FROM comment WHERE id = 'c0' AND body = 'Nice'"), 1);
-  const indexes = (d.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'reaction_%' OR name LIKE 'comment_%'").all() as { name: string }[]).map((r) => r.name);
+  const indexes = (d.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND (name LIKE 'reaction_%' OR name LIKE 'comment_%')").all() as { name: string }[]).map((r) => r.name);
   for (const i of ['reaction_created', 'reaction_account', 'comment_target', 'comment_created']) assert.ok(indexes.includes(i), i);
   d.exec("DELETE FROM post WHERE id = 'p1'");
   assert.equal(n('SELECT count(*) AS n FROM comment'), 0);

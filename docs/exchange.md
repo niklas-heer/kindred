@@ -102,6 +102,7 @@ that is not counted.
 
 - stories, memories, sayings and recipes (a recipe's ingredients, steps and pictures with them), and the comments and reactions on them and on photos;
 - the messages of the family's feed, and their comments;
+- the family's votes and their results;
 - contact details and other person fields, private or not;
 - houses and their arms;
 - place coordinates (place names are kept);
@@ -139,6 +140,7 @@ id, made safe for any file system.
 | Recipe written with the recipe form ([recipes.md](recipes.md)) | as a memory, in `memories/<person>.md`: its text is the whole recipe written out (what it serves and how long it takes, the ingredients as a list with its parts, the method numbered, the notes), then its tags and how many pictures it has. The pictures themselves are not in the archive |
 | Comment on a story | under its story, in `### Comments`: the name it was written under, the date (and "changed" when its writer changed it), and the plain text, quoted line by line |
 | Message in the family's feed | a section of `feed/<year>.md` (one file per year, oldest first): the date and who wrote it, the text quoted line by line, the people it is about as links, how many pictures it had, and its comments as under a story |
+| Family vote ([votes.md](votes.md)) | a section of `votes/<year>.md` (one file per year it was started, oldest first): who asked and when, the question, the kind and whether it was open or secret, the options and, once it has closed, the result (each round of a ranked vote). A closed open vote lists each ballot by name; a secret one only its totals and who voted, never who chose what. A vote still open gets no result. A guest's ballot a steward struck is not counted and is marked struck |
 
 A partnership belongs to the note of its lower-id partner, so it is declared once.
 
@@ -149,8 +151,8 @@ and the script says how many.
 **What the archive leaves out:** step-parent links, because v1 has no step relation and writing one as a biological
 claim would be a false fact in v1; contact details and other fields; houses and arms; pictures other than portraits, and
 the comments on gallery photos; the pictures of the feed's messages (they are gallery pictures); and reactions. Stories
-and their comments are in `memories/` and the feed's messages in `feed/`, which the v1 tools and `import-kindred.ts` do
-not read.
+and their comments are in `memories/`, the feed's messages in `feed/` and the votes in `votes/`, which the v1 tools and
+`import-kindred.ts` do not read.
 
 ## The nightly archive
 

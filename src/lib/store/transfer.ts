@@ -52,7 +52,7 @@ export const COPIED_TABLES: readonly string[] = [
   'recipe',
   'recipe_image',
   // Family votes (migration 0037): the question, its options, who took part and each ballot. A voter keeps the name they
-  // took part under; the account is not copied, so on the target nobody can change a ballot, and the result reads as before.
+  // took part under; the account ids are copied but name nobody on the target (as for posts), so on the target nobody can change a ballot, and the result reads as before.
   'vote',
   'vote_option',
   'vote_voter',

@@ -64,6 +64,7 @@ const fam = await load<typeof import('../families.server.ts')>('/src/lib/familie
 const dbs = await load<typeof import('../db.server.ts')>('/src/lib/db.server.ts');
 const acc = await load<typeof import('../auth/store.server.ts')>('/src/lib/auth/store.server.ts');
 const tokens = await load<typeof import('../auth/tokens.server.ts')>('/src/lib/auth/tokens.server.ts');
+const votes = await load<typeof import('../votes/votes.server.ts')>('/src/lib/votes/votes.server.ts');
 const { closeDatabases } = await load<typeof import('../store/node.ts')>('/src/lib/store/node.ts');
 
 after(async () => {
@@ -269,6 +270,24 @@ test('downloading an account: its own rows, no secrets, nothing of anyone else',
   assert.deepEqual(Object.keys(x.families.brackwell!.tables.history![0]!).sort(), ['action', 'at', 'kind'], 'the history keeps what they did, not about whom');
   assert.ok(!JSON.stringify(x).includes('Aunt Name'));
   assert.ok(!JSON.stringify(x).includes('Not mine'));
+});
+
+test('downloading an account: its own ballots, a secret vote\'s too, and nobody else\'s', async () => {
+  const lone = { id: LONE.id, name: LONE.name, role: 'steward' as const, person: null, personConfirmed: false };
+  const other = { id: 'acc-other', name: 'Otto Other', role: 'contributor' as const, person: null, personConfirmed: false };
+  const closesAt = new Date(Date.now() + 7 * DAY).toISOString();
+  const mk = (question: string, secret: boolean) => votes.createVote('brackwell', lone, { question, kind: 'single', secret, addOptions: false, guests: false, closesAt, options: ['Beach', 'Lake'] });
+  const open = await mk('Where to meet?', false);
+  const hidden = await mk('Which cake?', true);
+  const choose = async (id: string, label: string) => (await dbs.db('brackwell').get<{ id: string }>('SELECT id FROM vote_option WHERE vote = ? AND label = ?', id, label))!.id;
+  await votes.castBallot('brackwell', { kind: 'member', who: lone }, open.id, [await choose(open.id, 'Beach')]);
+  await votes.castBallot('brackwell', { kind: 'member', who: lone }, hidden.id, [await choose(hidden.id, 'Lake')]);
+  await votes.castBallot('brackwell', { kind: 'member', who: other }, hidden.id, [await choose(hidden.id, 'Beach')]);
+  const x = await account.exportAccount(LONE.id);
+  const ballots = x.families.brackwell!.tables.ballot as { vote: string; question: string; choices: string[] }[];
+  assert.deepEqual(ballots.map((b) => [b.question, b.choices]).sort(), [['Where to meet?', ['Beach']], ['Which cake?', ['Lake']]], 'the secret ballot is found through its key');
+  assert.ok(ballots.every((b) => b.vote), 'each names its vote');
+  assert.equal(JSON.stringify(x).includes('Otto Other'), false, 'nothing of anyone else\'s ballot');
 });
 
 // ---------- a person in the tree ----------
