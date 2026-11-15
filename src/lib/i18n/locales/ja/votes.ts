@@ -52,7 +52,6 @@ export default {
   "votes.ballot.single": "1つ選んでください",
   "votes.ballot.ranked": "好きな順にタップしてください",
   "votes.ballot.ranked_hint": "もう一度タップすると外れます。すべてに順位をつけなくてもかまいません。",
-  "votes.ballot.choice": "{option}（{n}番目）",
   "votes.ballot.again": "やり直す",
   "votes.ballot.cast": "投票する",
   "votes.ballot.change": "投票を変える",

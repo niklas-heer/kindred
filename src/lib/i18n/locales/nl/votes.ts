@@ -52,7 +52,6 @@ export default {
   "votes.ballot.single": "Kies er één",
   "votes.ballot.ranked": "Tik op de opties in de volgorde waarin je ze het liefst hebt",
   "votes.ballot.ranked_hint": "Tik nog een keer op een optie om hem weg te halen. Je hoeft niet alles op volgorde te zetten.",
-  "votes.ballot.choice": "{option}, keuze {n}",
   "votes.ballot.again": "Opnieuw beginnen",
   "votes.ballot.cast": "Stemmen",
   "votes.ballot.change": "Mijn stem wijzigen",

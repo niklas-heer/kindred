@@ -52,7 +52,6 @@ export default {
   "votes.ballot.single": "Elige una",
   "votes.ballot.ranked": "Toca las opciones en el orden en que las prefieres",
   "votes.ballot.ranked_hint": "Toca una opción otra vez para quitarla. No hace falta ordenarlas todas.",
-  "votes.ballot.choice": "{option}, elección {n}",
   "votes.ballot.again": "Empezar de nuevo",
   "votes.ballot.cast": "Votar",
   "votes.ballot.change": "Cambiar mi voto",

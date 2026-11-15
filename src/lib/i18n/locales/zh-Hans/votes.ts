@@ -52,7 +52,6 @@ export default {
   "votes.ballot.single": "选一个",
   "votes.ballot.ranked": "按你喜欢的顺序依次点选",
   "votes.ballot.ranked_hint": "再点一次可以取消。不必给所有选项排序。",
-  "votes.ballot.choice": "{option}，第 {n} 选择",
   "votes.ballot.again": "重新开始",
   "votes.ballot.cast": "投票",
   "votes.ballot.change": "修改我的投票",

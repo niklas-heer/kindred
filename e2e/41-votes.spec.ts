@@ -7,6 +7,8 @@ import { addPasskeyDevice, checkAxe, expect, openFamily, settled, STEWARD, test,
 import type { Browser, Page } from '@playwright/test';
 
 const ME = `${STEWARD.given} ${STEWARD.surname}`;
+/** A time zone no test machine runs in (UTC+14), for a reader far from the server. */
+const FAR_ZONE = 'Pacific/Kiritimati';
 
 /** Starts a vote from the Votes page and waits for its own page. */
 async function startVote(page: Page, tree: string, v: { question: string; options: string[]; ranked?: boolean; secret?: boolean; guests?: boolean }) {
@@ -65,19 +67,24 @@ test('votes: a ranked vote, two members vote, the creator closes it and the roun
   await startVote(page, tree, { question: 'Where shall we eat after the reunion?', options: ["Bo's Bistro", "Carl's Canteen", "Dot's Diner"], ranked: true });
   const voteUrl = new URL(page.url()).pathname;
   const ballot = page.getByRole('group', { name: 'Tap the options in the order you prefer them' });
-  await ballot.getByRole('button', { name: "Carl's Canteen" }).click();
-  await ballot.getByRole('button', { name: "Bo's Bistro" }).click();
-  await expect(ballot.getByRole('button', { name: "Carl's Canteen, choice 1" })).toHaveAttribute('aria-pressed', 'true');
-  await expect(ballot.getByRole('button', { name: "Bo's Bistro, choice 2" })).toBeVisible();
+  // Each option is named by its label; its place in the order is its description.
+  const bo = ballot.getByRole('button', { name: "Bo's Bistro", exact: true });
+  const carl = ballot.getByRole('button', { name: "Carl's Canteen", exact: true });
+  await carl.click();
+  await bo.click();
+  await expect(carl).toHaveAttribute('aria-pressed', 'true');
+  await expect(carl).toHaveAccessibleDescription('1');
+  await expect(bo).toHaveAccessibleDescription('2');
   // Tapped again, an option comes out, and the next moves up.
-  await ballot.getByRole('button', { name: "Carl's Canteen, choice 1" }).click();
-  await expect(ballot.getByRole('button', { name: "Bo's Bistro, choice 1" })).toBeVisible();
-  await ballot.getByRole('button', { name: "Carl's Canteen" }).click();
-  await expect(ballot.getByRole('button', { name: "Carl's Canteen, choice 2" })).toBeVisible();
-  await ballot.getByRole('button', { name: "Bo's Bistro, choice 1" }).click();
-  await ballot.getByRole('button', { name: "Bo's Bistro" }).click();
-  await expect(ballot.getByRole('button', { name: "Carl's Canteen, choice 1" })).toBeVisible();
-  await expect(ballot.getByRole('button', { name: "Bo's Bistro, choice 2" })).toBeVisible();
+  await carl.click();
+  await expect(carl).toHaveAttribute('aria-pressed', 'false');
+  await expect(bo).toHaveAccessibleDescription('1');
+  await carl.click();
+  await expect(carl).toHaveAccessibleDescription('2');
+  await bo.click();
+  await bo.click();
+  await expect(carl).toHaveAccessibleDescription('1');
+  await expect(bo).toHaveAccessibleDescription('2');
   await page.getByRole('button', { name: 'Vote', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Your vote is in.' })).toBeVisible();
   // An open vote: having voted, the steward sees the tally and who chose what.
@@ -99,7 +106,7 @@ test('votes: a ranked vote, two members vote, the creator closes it and the roun
   const theirBallot = them.getByRole('group', { name: 'Tap the options in the order you prefer them' });
   await theirBallot.getByRole('button', { name: "Carl's Canteen" }).click();
   await theirBallot.getByRole('button', { name: "Dot's Diner" }).click();
-  await expect(theirBallot.getByRole('button', { name: "Dot's Diner, choice 2" })).toBeVisible();
+  await expect(theirBallot.getByRole('button', { name: "Dot's Diner", exact: true })).toHaveAccessibleDescription('2');
   const scrolls = await them.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(scrolls, 'no sideways scrolling at 390 px').toBe(false);
   await them.getByRole('button', { name: 'Vote', exact: true }).click();
@@ -169,7 +176,8 @@ test('votes: a guest votes where guests may, under a name, and sees no other vot
 
   // The tree a guest lands on asks for what only members read, and is refused, as in journey 5.
   issues.allow(/Failed to load resource: the server responded with a status of 40[13]/);
-  const visit = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
+  // The guest is in a time zone far from the server's: dates must be written in theirs.
+  const visit = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] }, timezoneId: FAR_ZONE });
   issues.watch(visit);
   const guest = await visit.newPage();
   await guest.goto(url);
@@ -209,6 +217,15 @@ test('votes: a guest votes where guests may, under a name, and sees no other vot
   await settled(guest);
   await expect(guest.getByRole('heading', { name: 'This vote is not here' })).toBeVisible();
   await expect(guest.getByText('Who brings the cake?')).toHaveCount(0);
+  // Opened directly, the list arrives with the page from the server; its closing time is still in the guest's own zone.
+  await guest.goto(`/${tree}/votes`);
+  await settled(guest);
+  const closing = guest.getByRole('link', { name: /Which colour for the reunion shirts\?/ }).locator('time');
+  await expect(closing).toContainText(/^Closes /);
+  const [at, written] = [await closing.getAttribute('datetime'), await closing.textContent()];
+  const hour = (zone: string) => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: zone }).format(new Date(at!));
+  expect(hour(FAR_ZONE), 'the far zone differs from the server’s').not.toBe(hour(Intl.DateTimeFormat().resolvedOptions().timeZone));
+  expect(written, 'the closing time in the guest’s zone').toContain(hour(FAR_ZONE));
   await visit.close();
 
   // The steward sees the guest among those who voted, marked as a guest.

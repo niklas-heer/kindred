@@ -14,8 +14,8 @@ import { castVote } from '~/lib/votes/votes.functions';
 import { MAX_GUEST_NAME, type VoteView } from '~/lib/votes/types';
 import { GuestName } from './GuestName';
 
-/** Where this browser keeps the name a guest last voted under. A convenience: without it the guest types it again. */
-const NAME_KEY = 'kindred:vote-guest-name';
+/** Where this browser keeps the name a guest last voted under in a family. A convenience: without it the guest types it again. */
+const nameKey = (tree: string) => `kindred:vote-guest-name:${tree}`;
 
 export function Ballot({ tree, view }: { tree: string; view: VoteView }) {
   const t = useT();
@@ -30,16 +30,16 @@ export function Ballot({ tree, view }: { tree: string; view: VoteView }) {
   useEffect(() => {
     if (!guest) return;
     try {
-      const kept = localStorage.getItem(NAME_KEY) ?? '';
+      const kept = localStorage.getItem(nameKey(tree)) ?? '';
       if (kept) { setName(kept); setRemembered(true); }
     } catch {}
-  }, [guest]);
+  }, [guest, tree]);
 
   const cast = useMutation({
     mutationFn: () => castVote({ data: { tree, id: view.id, choices, ...(guest ? { name: name.trim() } : {}) } }),
     onSuccess: async () => {
       if (guest) {
-        try { localStorage.setItem(NAME_KEY, name.trim()); } catch {}
+        try { localStorage.setItem(nameKey(tree), name.trim()); } catch {}
         setRemembered(true);
       }
       setSaved(true);
@@ -74,11 +74,13 @@ export function Ballot({ tree, view }: { tree: string; view: VoteView }) {
             return (
               <button
                 key={o.id} type="button" className="vt-choice vt-rank" aria-pressed={n > 0} onClick={() => tap(o.id)}
-                aria-label={n ? t('votes.ballot.choice', { option: o.label, n }) : undefined}
+                aria-describedby={n ? `${id}-n-${o.id}` : undefined}
               >
-                {/* The number is drawn by the stylesheet, so the button's visible words stay inside its name ("…, choice 2"). */}
+                {/* The name is the option; its place is the description. The number is drawn by the stylesheet, so the
+                    button's visible words are its name. */}
                 <span className="vt-rank-n" data-n={n || undefined} aria-hidden />
                 <span>{o.label}</span>
+                {n > 0 && <span id={`${id}-n-${o.id}`} hidden>{n}</span>}
               </button>
             );
           })}

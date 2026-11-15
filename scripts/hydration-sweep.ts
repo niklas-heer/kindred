@@ -23,7 +23,7 @@ const engines = list("engines", "webkit");
 const langs = list("langs", "en,de,af");
 const zones = list("zones", "Europe/Berlin,Pacific/Kiritimati,Pacific/Pago_Pago");
 const trees = list("trees", "modern,realm");
-const PAGES = ["", "today", "people", "chronicle", "almanac", "atlas", "campaign", "houses", "history", "sources", "print", "gallery", "contacts", "statistics", "research"];
+const PAGES = ["", "today", "people", "chronicle", "almanac", "atlas", "campaign", "houses", "history", "sources", "print", "gallery", "contacts", "statistics", "research", "votes"];
 const CHROME = process.env.KINDRED_E2E_BROWSER || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 const found = new Map<string, Set<string>>();

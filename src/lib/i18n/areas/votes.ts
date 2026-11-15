@@ -50,7 +50,6 @@ export const en = {
   "votes.ballot.single": "Choose one",
   "votes.ballot.ranked": "Tap the options in the order you prefer them",
   "votes.ballot.ranked_hint": "Tap an option again to take it out. You don't have to rank them all.",
-  "votes.ballot.choice": "{option}, choice {n}",
   "votes.ballot.again": "Start again",
   "votes.ballot.cast": "Vote",
   "votes.ballot.change": "Change my vote",
