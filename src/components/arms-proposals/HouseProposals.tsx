@@ -11,7 +11,7 @@ import { useId, useState } from 'react';
 import { Arms } from '~/components/Heraldry';
 import { Portrait } from '~/components/Portrait';
 import { When } from '~/components/votes/When';
-import { ConfirmDialog, Dialog } from '~/components/ui';
+import { ConfirmDialog, Dialog, ErrorState } from '~/components/ui';
 import { opKeys } from '~/lib/api';
 import {
   acceptProposalFn, armsKeys, declineProposalFn, houseProposalsQuery, putToVoteFn, withdrawProposalFn,
@@ -47,6 +47,15 @@ export function HouseProposals({ tree, house, steward, notice, onNotice }: {
   const id = useId();
   const q = useQuery(houseProposalsQuery(tree, house.id));
   const list = q.data?.proposals ?? [];
+  // A read that failed says so, with a retry, rather than looking like a house with no proposals.
+  if (q.isError && !q.data) {
+    return (
+      <section className="hp-section ap-section" aria-labelledby={`${id}-h`}>
+        <h2 className="rule" id={`${id}-h`}>{t('arms.list.heading')}</h2>
+        <ErrorState message={errorText(q.error, t.locale)} onRetry={() => void q.refetch()} />
+      </section>
+    );
+  }
   if (!list.length) return null;
   return (
     <section className="hp-section ap-section" aria-labelledby={`${id}-h`}>
