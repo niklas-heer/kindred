@@ -6,7 +6,7 @@ import { rankByName, searchPeople } from '~/lib/search';
 // (protect-living.ts), so the places offered are only those its remaining records name.
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useNavigate } from '@tanstack/react-router';
-import { CalendarHeart, MapPin, Flame, CircleHelp, Contact, Landmark, Languages, Map as MapIcon, Crown, GitFork, Moon, Network, ScrollText, Shield, Sparkles, Sun, UserRound, FolderSearch, Images, Inbox, MessageSquarePlus, Swords } from 'lucide-react';
+import { CalendarHeart, MapPin, Flame, CircleHelp, Contact, Landmark, Languages, Map as MapIcon, Crown, GitFork, Moon, Network, ScrollText, Shield, Sparkles, Sun, UserRound, FolderSearch, Images, Inbox, MessageSquarePlus, Swords, Vote } from 'lucide-react';
 import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useFamily, useMe, useMeChosen, useTreeId } from '~/lib/family';
 import { displayName, kinship, lifespan, ancestorDepths, stepsFrom, type Family } from '~/lib/graph';
@@ -72,8 +72,11 @@ export function PersonRow({ f, tree, id, who, anc, note }: { f: Family; tree: st
 
 const groupOf = (it: Item, t: Translator) => it.group ?? (it.person ? t('shell.palette.people') : t('shell.palette.commands'));
 
-/** The commands this reader can use. A guest has no Contacts and no Today: the shell hides them and the server refuses them. */
-export const commandsForReader = <T extends { key: string }>(cmds: T[], guest: boolean): T[] => (guest ? cmds.filter((c) => c.key !== 'contacts' && c.key !== 'today' && c.key !== 'campaign') : cmds);
+/**
+ * The commands this reader can use. A guest has no Contacts and no Today: the shell hides them and the server refuses them.
+ * Votes are in a guest's bar only while a vote lets guests in, so the palette leaves them to the bar.
+ */
+export const commandsForReader = <T extends { key: string }>(cmds: T[], guest: boolean): T[] => (guest ? cmds.filter((c) => c.key !== 'contacts' && c.key !== 'today' && c.key !== 'campaign' && c.key !== 'votes') : cmds);
 
 // The search itself lives in ~/lib/search; other pickers import it from here.
 export { searchPeople };
@@ -152,6 +155,7 @@ export function Palette() {
       { key: 'almanac', icon: <CalendarHeart size={16} />, label: t('shell.cmd.almanac'), hint: t('shell.cmd.almanacHint'), run: () => { navigate({ to: '/$tree/almanac', params: { tree } }); close(); } },
       { key: 'atlas', icon: <MapIcon size={16} />, label: t('shell.cmd.atlas'), hint: t('shell.cmd.atlasHint'), run: () => { navigate({ to: '/$tree/atlas', params: { tree } }); close(); } },
       { key: 'research', icon: <FolderSearch size={16} />, label: t('research.title'), hint: t('research.cmd_hint'), run: () => { navigate({ to: '/$tree/research', params: { tree } }); close(); } },
+      { key: 'votes', icon: <Vote size={16} />, label: t('votes.title'), hint: t('votes.nav_hint'), run: () => { navigate({ to: '/$tree/votes', params: { tree } }); close(); } },
       { key: 'houses', icon: <Landmark size={16} />, label: t('shell.cmd.houses'), hint: t('shell.cmd.housesHint'), run: () => { navigate({ to: '/$tree/houses', params: { tree } }); close(); } },
       // The Campaign is found here whether it is on or resting.
       { key: 'campaign', icon: <Swords size={16} />, label: t('campaign.card.open'), hint: t('campaign.nav_hint'), run: () => { navigate({ to: '/$tree/campaign', params: { tree } }); close(); } },

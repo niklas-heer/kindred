@@ -40,6 +40,7 @@ import { Route as TreePrintRouteImport } from './routes/$tree/print'
 import { Route as TreeResearchRouteImport } from './routes/$tree/research'
 import { Route as TreeStatisticsRouteImport } from './routes/$tree/statistics'
 import { Route as TreeTodayRouteImport } from './routes/$tree/today'
+import { Route as TreeVotesRouteImport } from './routes/$tree/votes'
 import { Route as TreeWhoIsThisRouteImport } from './routes/$tree/who-is-this'
 import { Route as ApiCspReportRouteImport } from './routes/api/csp-report'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
@@ -62,6 +63,7 @@ import { Route as TreeSettingsAiRouteImport } from './routes/$tree/settings.ai'
 import { Route as TreeSettingsFeedbackRouteImport } from './routes/$tree/settings.feedback'
 import { Route as TreeSettingsGamesRouteImport } from './routes/$tree/settings.games'
 import { Route as TreeSettingsImportRouteImport } from './routes/$tree/settings.import'
+import { Route as TreeVotesVoteRouteImport } from './routes/$tree/votes_.$vote'
 import { Route as ApiAiChatTreeRouteImport } from './routes/api/ai-chat.$tree'
 import { Route as ApiAuthActionRouteImport } from './routes/api/auth/$action'
 import { Route as ApiBackupTreeRouteImport } from './routes/api/backup.$tree'
@@ -232,6 +234,11 @@ const TreeTodayRoute = TreeTodayRouteImport.update({
   path: '/today',
   getParentRoute: () => TreeRoute,
 } as any)
+const TreeVotesRoute = TreeVotesRouteImport.update({
+  id: '/votes',
+  path: '/votes',
+  getParentRoute: () => TreeRoute,
+} as any)
 const TreeWhoIsThisRoute = TreeWhoIsThisRouteImport.update({
   id: '/who-is-this',
   path: '/who-is-this',
@@ -342,6 +349,11 @@ const TreeSettingsImportRoute = TreeSettingsImportRouteImport.update({
   path: '/settings/import',
   getParentRoute: () => TreeRoute,
 } as any)
+const TreeVotesVoteRoute = TreeVotesVoteRouteImport.update({
+  id: '/votes_/$vote',
+  path: '/votes/$vote',
+  getParentRoute: () => TreeRoute,
+} as any)
 const ApiAiChatTreeRoute = ApiAiChatTreeRouteImport.update({
   id: '/api/ai-chat/$tree',
   path: '/api/ai-chat/$tree',
@@ -445,6 +457,7 @@ export interface FileRoutesByFullPath {
   '/$tree/research': typeof TreeResearchRoute
   '/$tree/statistics': typeof TreeStatisticsRoute
   '/$tree/today': typeof TreeTodayRoute
+  '/$tree/votes': typeof TreeVotesRoute
   '/$tree/who-is-this': typeof TreeWhoIsThisRoute
   '/api/csp-report': typeof ApiCspReportRoute
   '/api/health': typeof ApiHealthRoute
@@ -468,6 +481,7 @@ export interface FileRoutesByFullPath {
   '/$tree/settings/feedback': typeof TreeSettingsFeedbackRoute
   '/$tree/settings/games': typeof TreeSettingsGamesRoute
   '/$tree/settings/import': typeof TreeSettingsImportRoute
+  '/$tree/votes/$vote': typeof TreeVotesVoteRoute
   '/api/ai-chat/$tree': typeof ApiAiChatTreeRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
   '/api/backup/$tree': typeof ApiBackupTreeRoute
@@ -513,6 +527,7 @@ export interface FileRoutesByTo {
   '/$tree/research': typeof TreeResearchRoute
   '/$tree/statistics': typeof TreeStatisticsRoute
   '/$tree/today': typeof TreeTodayRoute
+  '/$tree/votes': typeof TreeVotesRoute
   '/$tree/who-is-this': typeof TreeWhoIsThisRoute
   '/api/csp-report': typeof ApiCspReportRoute
   '/api/health': typeof ApiHealthRoute
@@ -536,6 +551,7 @@ export interface FileRoutesByTo {
   '/$tree/settings/feedback': typeof TreeSettingsFeedbackRoute
   '/$tree/settings/games': typeof TreeSettingsGamesRoute
   '/$tree/settings/import': typeof TreeSettingsImportRoute
+  '/$tree/votes/$vote': typeof TreeVotesVoteRoute
   '/api/ai-chat/$tree': typeof ApiAiChatTreeRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
   '/api/backup/$tree': typeof ApiBackupTreeRoute
@@ -583,6 +599,7 @@ export interface FileRoutesById {
   '/$tree/research': typeof TreeResearchRoute
   '/$tree/statistics': typeof TreeStatisticsRoute
   '/$tree/today': typeof TreeTodayRoute
+  '/$tree/votes': typeof TreeVotesRoute
   '/$tree/who-is-this': typeof TreeWhoIsThisRoute
   '/api/csp-report': typeof ApiCspReportRoute
   '/api/health': typeof ApiHealthRoute
@@ -606,6 +623,7 @@ export interface FileRoutesById {
   '/$tree/settings/feedback': typeof TreeSettingsFeedbackRoute
   '/$tree/settings/games': typeof TreeSettingsGamesRoute
   '/$tree/settings/import': typeof TreeSettingsImportRoute
+  '/$tree/votes_/$vote': typeof TreeVotesVoteRoute
   '/api/ai-chat/$tree': typeof ApiAiChatTreeRoute
   '/api/auth/$action': typeof ApiAuthActionRoute
   '/api/backup/$tree': typeof ApiBackupTreeRoute
@@ -654,6 +672,7 @@ export interface FileRouteTypes {
     | '/$tree/research'
     | '/$tree/statistics'
     | '/$tree/today'
+    | '/$tree/votes'
     | '/$tree/who-is-this'
     | '/api/csp-report'
     | '/api/health'
@@ -677,6 +696,7 @@ export interface FileRouteTypes {
     | '/$tree/settings/feedback'
     | '/$tree/settings/games'
     | '/$tree/settings/import'
+    | '/$tree/votes/$vote'
     | '/api/ai-chat/$tree'
     | '/api/auth/$action'
     | '/api/backup/$tree'
@@ -722,6 +742,7 @@ export interface FileRouteTypes {
     | '/$tree/research'
     | '/$tree/statistics'
     | '/$tree/today'
+    | '/$tree/votes'
     | '/$tree/who-is-this'
     | '/api/csp-report'
     | '/api/health'
@@ -745,6 +766,7 @@ export interface FileRouteTypes {
     | '/$tree/settings/feedback'
     | '/$tree/settings/games'
     | '/$tree/settings/import'
+    | '/$tree/votes/$vote'
     | '/api/ai-chat/$tree'
     | '/api/auth/$action'
     | '/api/backup/$tree'
@@ -791,6 +813,7 @@ export interface FileRouteTypes {
     | '/$tree/research'
     | '/$tree/statistics'
     | '/$tree/today'
+    | '/$tree/votes'
     | '/$tree/who-is-this'
     | '/api/csp-report'
     | '/api/health'
@@ -814,6 +837,7 @@ export interface FileRouteTypes {
     | '/$tree/settings/feedback'
     | '/$tree/settings/games'
     | '/$tree/settings/import'
+    | '/$tree/votes_/$vote'
     | '/api/ai-chat/$tree'
     | '/api/auth/$action'
     | '/api/backup/$tree'
@@ -1091,6 +1115,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TreeTodayRouteImport
       parentRoute: typeof TreeRoute
     }
+    '/$tree/votes': {
+      id: '/$tree/votes'
+      path: '/votes'
+      fullPath: '/$tree/votes'
+      preLoaderRoute: typeof TreeVotesRouteImport
+      parentRoute: typeof TreeRoute
+    }
     '/$tree/who-is-this': {
       id: '/$tree/who-is-this'
       path: '/who-is-this'
@@ -1245,6 +1276,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TreeSettingsImportRouteImport
       parentRoute: typeof TreeRoute
     }
+    '/$tree/votes_/$vote': {
+      id: '/$tree/votes_/$vote'
+      path: '/votes/$vote'
+      fullPath: '/$tree/votes/$vote'
+      preLoaderRoute: typeof TreeVotesVoteRouteImport
+      parentRoute: typeof TreeRoute
+    }
     '/api/ai-chat/$tree': {
       id: '/api/ai-chat/$tree'
       path: '/api/ai-chat/$tree'
@@ -1363,6 +1401,7 @@ interface TreeRouteChildren {
   TreeResearchRoute: typeof TreeResearchRoute
   TreeStatisticsRoute: typeof TreeStatisticsRoute
   TreeTodayRoute: typeof TreeTodayRoute
+  TreeVotesRoute: typeof TreeVotesRoute
   TreeWhoIsThisRoute: typeof TreeWhoIsThisRoute
   TreeIndexRoute: typeof TreeIndexRoute
   TreeHouseHouseRoute: typeof TreeHouseHouseRoute
@@ -1375,6 +1414,7 @@ interface TreeRouteChildren {
   TreeSettingsFeedbackRoute: typeof TreeSettingsFeedbackRoute
   TreeSettingsGamesRoute: typeof TreeSettingsGamesRoute
   TreeSettingsImportRoute: typeof TreeSettingsImportRoute
+  TreeVotesVoteRoute: typeof TreeVotesVoteRoute
 }
 
 const TreeRouteChildren: TreeRouteChildren = {
@@ -1394,6 +1434,7 @@ const TreeRouteChildren: TreeRouteChildren = {
   TreeResearchRoute: TreeResearchRoute,
   TreeStatisticsRoute: TreeStatisticsRoute,
   TreeTodayRoute: TreeTodayRoute,
+  TreeVotesRoute: TreeVotesRoute,
   TreeWhoIsThisRoute: TreeWhoIsThisRoute,
   TreeIndexRoute: TreeIndexRoute,
   TreeHouseHouseRoute: TreeHouseHouseRoute,
@@ -1406,6 +1447,7 @@ const TreeRouteChildren: TreeRouteChildren = {
   TreeSettingsFeedbackRoute: TreeSettingsFeedbackRoute,
   TreeSettingsGamesRoute: TreeSettingsGamesRoute,
   TreeSettingsImportRoute: TreeSettingsImportRoute,
+  TreeVotesVoteRoute: TreeVotesVoteRoute,
 }
 
 const TreeRouteWithChildren = TreeRoute._addFileChildren(TreeRouteChildren)

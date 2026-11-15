@@ -1,7 +1,7 @@
 import { useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, notFound, Outlet, redirect, useLocation, useNavigate } from '@tanstack/react-router';
-import { ArrowLeftRight, BarChart3, BookOpen, CalendarHeart, ChevronDown, CircleHelp, Compass, Contact, Flame, LayoutGrid, FolderSearch, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, SlidersHorizontal, Sparkles, Swords, Users, Inbox, MessageSquarePlus, Gamepad2 } from 'lucide-react';
+import { ArrowLeftRight, BarChart3, BookOpen, CalendarHeart, ChevronDown, CircleHelp, Compass, Contact, Flame, LayoutGrid, FolderSearch, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, SlidersHorizontal, Sparkles, Swords, Users, Inbox, MessageSquarePlus, Gamepad2, Vote } from 'lucide-react';
 import { AccountMenu } from '~/components/AccountMenu';
 import { AssistantButton, AssistantHost } from '~/components/assistant/Launcher';
 import { useAiSetupNeeded } from '~/components/assistant/AiSetup';
@@ -42,6 +42,7 @@ import { HereNow, PageFaces } from '~/components/presence/Faces';
 import { setPref, THEMES, usePref } from '~/lib/prefs';
 import { treeTitle } from '~/lib/title';
 import { arrivedIn, leftFamily, opensOnToday } from '~/lib/today/opening';
+import { votesQuery } from '~/lib/votes/votes.functions';
 
 export const Route = createFileRoute('/$tree')({
   // Signed out: to /signin and back. Not a member: "You don't have access" (whether or not the family exists).
@@ -66,11 +67,11 @@ export const Route = createFileRoute('/$tree')({
     // What the bar draws from (the AI controls, the Campaign's section, the dot for news) is read here, on the server
     // too, so its first render is the browser's. Otherwise an answer that arrives while a slow device is still hydrating
     // changes the bar under React, which then fails hydration and draws the page again. Never fails the page; a guest
-    // is not asked for what only members get.
+    // is not asked for what only members get. A guest's bar shows Votes only when a vote lets guests in, so it asks.
     const guest = context.queryClient.getQueryData(sessionQuery.queryKey)?.guest?.tree === params.tree;
     await Promise.all([
       context.queryClient.prefetchQuery(aiStatusQuery(params.tree)),
-      ...(guest ? [] : [context.queryClient.prefetchQuery(campaignStatusQuery(params.tree)), context.queryClient.prefetchQuery(newsCountQuery(params.tree))]),
+      ...(guest ? [context.queryClient.prefetchQuery(votesQuery(params.tree))] : [context.queryClient.prefetchQuery(campaignStatusQuery(params.tree)), context.queryClient.prefetchQuery(newsCountQuery(params.tree))]),
     ]);
   },
   head: (ctx) => ({ meta: [{ title: treeTitle(ctx) }] }),
@@ -147,6 +148,9 @@ function TreeLayout() {
   const topbar = useTopbarFit();
   // The Campaign has its section only while a steward has it switched on. Members only: a guest is never asked.
   const campaign = !!useQuery({ ...campaignStatusQuery(tree), enabled: !guest }).data?.enabled;
+  // Votes are every member's; a guest has them only while a vote lets guests in (the server lists only those to a guest).
+  const guestVotes = useQuery({ ...votesQuery(tree), enabled: guest }).data?.length ?? 0;
+  const votes = !guest || guestVotes > 0;
 
   // A reader who chose Today as the opening page (src/lib/today/opening.ts) and arrives at the family's own address
   // goes there. Only on arrival: from then on the Tree section is the tree. A client navigation is turned in the
@@ -219,7 +223,7 @@ function TreeLayout() {
               <Swords size={16} /><span className="nav-label">{t("campaign.nav")}</span>
             </Link>
           )}
-          <NavMore tree={tree} guest={guest} campaign={campaign} />
+          <NavMore tree={tree} guest={guest} campaign={campaign} votes={votes} />
         </nav>
         <span className="spacer" />
         <button className="btn search-trigger" data-tour="search" onClick={() => palette.open()}>
@@ -270,7 +274,7 @@ function TreeLayout() {
         <button type="button" data-tour="more" onClick={() => setMore(true)} aria-expanded={more} aria-haspopup="dialog">
           <MoreHorizontal size={21} /><span>{t("shell.more")}</span></button>
       </nav>
-      <MoreSheet open={more} onClose={() => setMore(false)} tree={tree} multiple={multiple} campaign={campaign} />
+      <MoreSheet open={more} onClose={() => setMore(false)} tree={tree} multiple={multiple} campaign={campaign} votes={votes} />
       <Palette />
       {/* The one assistant drawer for this family; it draws itself only when the button opened it. */}
       <AssistantHost tree={tree} />
@@ -289,11 +293,11 @@ function TreeLayout() {
 
 /**
  * The sections the top bar does not show by name, under one "More" button, in groups: looking around (the Almanac, the
- * Atlas, the Register, the Houses), finding out (Needed, Research) and playing (the Campaign while it is off, so that
+ * Atlas, the Register, the Houses), finding out (Needed, Research, Votes) and playing (the Campaign while it is off, so that
  * it can be found: "resting"). Inside one of them, the button carries that section's icon and name, so the bar still
  * says where the reader is. A plain disclosure: a button and a list of links, closed by Escape, a press outside or a choice.
  */
-function NavMore({ tree, guest, campaign }: { tree: string; guest: boolean; campaign: boolean }) {
+function NavMore({ tree, guest, campaign, votes }: { tree: string; guest: boolean; campaign: boolean; votes: boolean }) {
   const t = useT();
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -301,7 +305,7 @@ function NavMore({ tree, guest, campaign }: { tree: string; guest: boolean; camp
   const wrap = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const path = useLocation({ select: (l) => l.pathname });
-  type Section = { seg: string; to: '/$tree/almanac' | '/$tree/atlas' | '/$tree/people' | '/$tree/houses' | '/$tree/needed' | '/$tree/research' | '/$tree/campaign'; icon: (size: number) => ReactNode; label: string; hint: string; also?: string };
+  type Section = { seg: string; to: '/$tree/almanac' | '/$tree/atlas' | '/$tree/people' | '/$tree/houses' | '/$tree/needed' | '/$tree/research' | '/$tree/votes' | '/$tree/campaign'; icon: (size: number) => ReactNode; label: string; hint: string; also?: string };
   const groups: { name: string; sections: Section[] }[] = [
     { name: t('shell.group.explore'), sections: [
       // A guest has the Almanac in the bar.
@@ -313,6 +317,7 @@ function NavMore({ tree, guest, campaign }: { tree: string; guest: boolean; camp
     { name: t('shell.group.find_out'), sections: [
       { seg: 'needed', to: '/$tree/needed', icon: (n) => <CircleHelp size={n} />, label: t('shell.needed'), hint: t('shell.information_needed') },
       { seg: 'research', to: '/$tree/research', icon: (n) => <FolderSearch size={n} />, label: t('research.title'), hint: t('research.nav_hint') },
+      ...(votes ? [{ seg: 'votes', to: '/$tree/votes' as const, icon: (n: number) => <Vote size={n} />, label: t('votes.title'), hint: t('votes.nav_hint') }] : []),
     ] },
     // The Campaign is in the bar while it is on. While it is off it is listed here for members, so it can be found.
     ...(guest || campaign ? [] : [{ name: t('shell.group.play'), sections: [
@@ -379,7 +384,7 @@ function NavMore({ tree, guest, campaign }: { tree: string; guest: boolean; camp
  * feed), then looking around, finding out, playing, and for those who run the family, looking after it. Then language,
  * theme and sound.
  */
-function MoreSheet({ open, onClose, tree, multiple, campaign }: { open: boolean; onClose: () => void; tree: string; multiple: boolean; campaign: boolean }) {
+function MoreSheet({ open, onClose, tree, multiple, campaign, votes }: { open: boolean; onClose: () => void; tree: string; multiple: boolean; campaign: boolean; votes: boolean }) {
   const guest = useSession()?.guest?.tree === tree;
   const t = useT();
   const theme = useTheme();
@@ -405,6 +410,7 @@ function MoreSheet({ open, onClose, tree, multiple, campaign }: { open: boolean;
         {group(t("shell.group.find_out"))}
         <li><Link to="/$tree/needed" params={{ tree }}><CircleHelp size={19} /> {t("shell.needed")} <small>{t("shell.information_needed")}</small></Link></li>
         <li><Link to="/$tree/research" params={{ tree }}><FolderSearch size={19} /> {t("research.title")} <small>{t("research.nav_hint")}</small></Link></li>
+        {votes && <li><Link to="/$tree/votes" params={{ tree }}><Vote size={19} /> {t("votes.title")} <small>{t("votes.nav_hint")}</small></Link></li>}
         {assistant && <li><button type="button" onClick={() => { onClose(); openAssistant(); }}><Sparkles size={19} /> {t("ai.askCommand")}</button></li>}
         {/* Always there for a member, so the game can be found: "resting" while a steward has not turned it on. */}
         {!guest && group(t("shell.group.play"))}

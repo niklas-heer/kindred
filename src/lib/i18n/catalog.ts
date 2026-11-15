@@ -65,6 +65,7 @@ import * as tourArea from "./areas/tour.ts";
 import * as treeArea from "./areas/tree.ts";
 import * as updateArea from "./areas/update.ts";
 import * as viewasArea from "./areas/viewas.ts";
+import * as votesArea from "./areas/votes.ts";
 import * as whoisArea from "./areas/whois.ts";
 import af from "./locales/af/index.ts";
 import de from "./locales/de/index.ts";
@@ -142,6 +143,7 @@ export const AREAS = [
   printArea,
   viewasArea,
   whoisArea,
+  votesArea,
   // The vocabularies' names come last, so a thrown sentence is never matched to one of them (translateMessage).
   chargeLibraryArea,
   faithsArea,

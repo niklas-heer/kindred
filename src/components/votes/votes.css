@@ -1,0 +1,104 @@
+/* Family votes (src/components/votes/): the list's cards, a vote's page, the composer, the ballot (radio choices, or options
+   tapped in order with their numbers), the result's bars and rounds, and who has voted. Tokens only, so the three themes
+   dress it. */
+
+.vt-page { max-width: 760px; }
+.vt-h { margin: 0 0 8px; font-family: var(--font-title); font-size: var(--fs-4); font-weight: 600; line-height: var(--lh-tight); }
+[data-theme='codex'] .vt-h { color: var(--accent); }
+.vt-note { margin: 0; font-family: var(--font-ui); font-size: var(--fs-3); line-height: var(--lh-ui); text-wrap: pretty; }
+.vt-note.subtle { font-size: var(--fs-2); }
+.vt-error { color: var(--danger, var(--text)); }
+.vt-label { font-family: var(--font-ui); font-size: var(--fs-3); font-weight: 600; color: var(--text); }
+.vt-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.vt-back { margin-top: 18px; }
+
+/* ---------- the list ---------- */
+
+.vt-group + .vt-group { margin-top: 10px; }
+.vt-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.vt-list > li { min-width: 0; }
+.vt-card { display: grid; gap: 8px; color: var(--text); text-decoration: none; }
+.vt-card-title { margin: 0; font-family: var(--font-title); font-size: var(--fs-5); font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+[data-theme='codex'] .vt-card-title { color: var(--accent); }
+.vt-badges { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.vt-voted { color: var(--accent); }
+.vt-meta { margin: 0; display: flex; flex-wrap: wrap; gap: 2px 14px; font-family: var(--font-ui); font-size: var(--fs-2); }
+.vt-outcome { margin: 0; display: flex; align-items: center; gap: 8px; font-family: var(--font-ui); font-size: var(--fs-4); font-weight: 600; overflow-wrap: anywhere; }
+.vt-outcome svg { flex: none; color: var(--accent); }
+
+/* ---------- a vote ---------- */
+
+.vt-detail { display: grid; gap: 14px; }
+.vt-detail > .ui-card { min-width: 0; }
+.vt-description { margin: 0; max-width: 68ch; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-4); line-height: var(--lh-body); }
+.vt-secret { margin: 0; display: flex; align-items: baseline; gap: 8px; padding: 8px 12px; border-radius: var(--radius); background: var(--panel-2); font-family: var(--font-ui); font-size: var(--fs-3); }
+.vt-secret svg { flex: none; position: relative; top: 2px; color: var(--muted); }
+
+/* The ballot: a radio list, or buttons tapped in order. Each is a full-width row a finger can hit. */
+.vt-ballot { display: grid; gap: 12px; }
+.vt-choices { display: grid; gap: 8px; }
+.vt-choices .vt-h { margin: 0; }
+.vt-choice {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: var(--ctl-lg, 44px); padding: 8px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-2); color: var(--text);
+  font-family: var(--font-ui); font-size: var(--fs-4); line-height: var(--lh-ui); text-align: left; cursor: pointer;
+  overflow-wrap: anywhere; transition: border-color var(--dur-1), background-color var(--dur-1);
+}
+.vt-choice:hover { background: var(--panel-3); }
+.vt-choice[data-chosen], .vt-choice[aria-pressed='true'] { border-color: var(--accent); }
+.vt-choice:focus-within:has(input:focus-visible), .vt-rank:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.vt-choice input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.vt-rank-n {
+  flex: none; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 999px;
+  border: 1px dashed var(--edge, var(--border)); font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.vt-rank-n::before { content: attr(data-n); }
+.vt-rank[aria-pressed='true'] .vt-rank-n { border-style: solid; border-color: transparent; background: var(--accent); color: var(--accent-text); }
+.vt-saved { font-family: var(--font-ui); font-size: var(--fs-3); color: var(--accent); }
+.vt-saved:empty { display: none; }
+.vt-guest-name { display: grid; gap: 4px; }
+.vt-guest-name label { font-family: var(--font-ui); font-size: var(--fs-3); font-weight: 600; }
+
+/* The result: a bar per option, and for a ranked vote one block per round. */
+.vt-results { display: grid; gap: 10px; }
+.vt-results .vt-h { margin: 0; }
+.vt-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.vt-bars li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: baseline; font-family: var(--font-ui); font-size: var(--fs-3); }
+.vt-bar-label { overflow-wrap: anywhere; }
+.vt-bar-count { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vt-bar { grid-column: 1 / -1; height: 8px; border-radius: 999px; background: var(--panel-2); overflow: hidden; }
+.vt-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--edge, var(--muted)); transition: width var(--dur-2) var(--ease-out); }
+.vt-bars li[data-won] .vt-bar > span { background: var(--accent); }
+.vt-bars li[data-won] .vt-bar-label { font-weight: 600; }
+.vt-rounds { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.vt-rounds > li { display: grid; gap: 6px; }
+.vt-rounds > li + li { padding-top: 12px; border-top: 1px solid var(--border); }
+.vt-round-h { margin: 0; font-family: var(--font-ui); font-size: var(--fs-2); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+
+/* Who has voted, and who chose what. */
+.vt-people ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.vt-people li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-family: var(--font-ui); font-size: var(--fs-3); }
+.vt-people li[data-struck] .vt-person-name { text-decoration: line-through; color: var(--muted); }
+.vt-person { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.vt-person-name { overflow-wrap: anywhere; }
+.vt-person-choice { color: var(--muted); overflow-wrap: anywhere; }
+.vt-initial {
+  width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: var(--radius);
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); font-size: var(--fs-1);
+}
+
+/* What the creator, an editor or a steward may do. */
+.vt-manage { display: grid; gap: 12px; }
+.vt-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.vt-inline .input { flex: 1 1 200px; width: auto; min-width: 0; }
+.vt-inline .vt-error { flex-basis: 100%; }
+
+/* ---------- the composer ---------- */
+
+.vt-composer { display: grid; gap: 16px; }
+.vt-field { display: grid; gap: 6px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.vt-options legend { margin-bottom: 6px; padding: 0; }
+.vt-option-row { display: flex; gap: 6px; align-items: center; }
+.vt-option-row .input { flex: 1 1 auto; min-width: 0; }
+.vt-add { justify-self: start; }
+.vt-when { max-width: 280px; }
