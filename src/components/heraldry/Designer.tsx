@@ -260,7 +260,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
             <button type="button" className="btn ghost" onClick={h.redo} disabled={!h.canRedo} aria-keyshortcuts="Meta+Shift+Z Control+Y" title={tr('heraldry.redo_title')}>
               <Redo2 size={16} aria-hidden /> <span className="ae-tool-label">{tr('heraldry.redo')}</span>
             </button>
-            <button type="button" className="btn ghost" onClick={() => { fromSuggestion.current = false; h.set(draftOf(house)); }} disabled={!dirty}>
+            <button type="button" className="btn ghost" onClick={() => { fromSuggestion.current = false; h.set(draftOf(house)); setDesign(''); setNote(''); }} disabled={!dirty}>
               <RotateCcw size={16} aria-hidden /> <span className="ae-tool-label">{tr('heraldry.reset')}</span>
             </button>
           </div>
