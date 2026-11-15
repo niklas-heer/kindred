@@ -60,6 +60,8 @@ export default {
   "arms.settings.guests": "Gaste mag oor wapens stem",
   "arms.settings.guests_hint": "Gaste wat met die familie se deelskakel ingekom het, stem oor die skilde en hul name, en sien nooit wie dit voorgestel het nie.",
   "arms.settings.saved": "Gestoor",
+  "arms.settings.vote_confirm_title": "Laat die familie oor elke voorstel stem?",
+  "arms.settings.vote_confirm_text": { one: "{count} voorstel wag. Dit gaan na sy huis se wapenstemming, en 'n rentmeester kan dit nie meer direk aanvaar nie.", other: "{count} voorstelle wag. Hulle gaan na hul huise se wapenstemmings, en 'n rentmeester kan hulle nie meer direk aanvaar nie." },
 
   "arms.err.gone": "Hierdie huis of hierdie voorstel is nie meer hier nie.",
   "arms.err.same": "Dit is reeds die huis se wapen. Verander eers iets.",

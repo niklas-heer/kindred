@@ -60,6 +60,8 @@ export default {
   "arms.settings.guests": "ゲストも紋章に投票できる",
   "arms.settings.guests_hint": "家族の共有リンクから入ったゲストは、盾とその名前に投票できます。誰が提案したかは見えません。",
   "arms.settings.saved": "保存しました",
+  "arms.settings.vote_confirm_title": "すべての提案を家族の投票にしますか？",
+  "arms.settings.vote_confirm_text": { other: "{count}件の提案が待っています。それぞれの家系の紋章投票にかけられ、世話役が直接採用することはできなくなります。" },
 
   "arms.err.gone": "この家系、またはこの提案はもうありません。",
   "arms.err.same": "すでに家系の紋章と同じです。先に何か変更してください。",

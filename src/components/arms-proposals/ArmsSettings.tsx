@@ -1,13 +1,14 @@
 // The family's setting for arms proposals (docs/arms-proposals.md), on the Houses page for stewards: how proposals are
 // settled (a steward decides, always a vote, or a steward chooses each time) and whether guests may vote on arms. Each
-// change saves at once; the server checks the role again.
+// change saves at once, except a switch to "Always a vote" while proposals wait, which the steward confirms first (they
+// would go to a vote); the server checks the role again.
 //
 //   {canEdit && <ArmsSettings tree={tree} />}
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
-import { Switch } from '~/components/ui';
+import { ConfirmDialog, Switch } from '~/components/ui';
 import { opKeys } from '~/lib/api';
-import { armsSettingsQuery, setArmsSettings } from '~/lib/arms-proposals/proposals.functions';
+import { armsSettingsQuery, proposalCountsQuery, setArmsSettings } from '~/lib/arms-proposals/proposals.functions';
 import type { ArmsMode } from '~/lib/arms-proposals/types';
 import { errorText } from '~/lib/errortext';
 import { useT, type Key } from '~/lib/i18n';
@@ -27,6 +28,9 @@ export function ArmsSettings({ tree }: { tree: string }) {
   const qc = useQueryClient();
   const [keys] = useState(opKeys);
   const q = useQuery(armsSettingsQuery(tree));
+  // How many proposals wait across the houses: switching to "Always a vote" would put them to votes, so it asks first.
+  const waiting = Object.values(useQuery(proposalCountsQuery(tree)).data ?? {}).reduce((sum, n) => sum + n, 0);
+  const [confirming, setConfirming] = useState(false);
   // The choice shows at once; a refusal puts back what the server has.
   const [chosen, setChosen] = useState<Settings | null>(null);
   const save = useMutation({
@@ -48,6 +52,10 @@ export function ArmsSettings({ tree }: { tree: string }) {
     setChosen(next);
     save.mutate(next);
   };
+  const choose = (mode: ArmsMode) => {
+    if (mode === 'vote' && now.mode !== 'vote' && waiting > 0) setConfirming(true);
+    else change({ mode });
+  };
 
   return (
     <section className="hp-section ap-settings" aria-labelledby={`${id}-h`}>
@@ -58,7 +66,7 @@ export function ArmsSettings({ tree }: { tree: string }) {
           <legend className="ap-label">{t('arms.settings.mode')}</legend>
           {MODES.map((m) => (
             <label key={m.mode} className="ap-mode" data-chosen={now.mode === m.mode || undefined}>
-              <input type="radio" name={`${id}-mode`} value={m.mode} checked={now.mode === m.mode} onChange={() => change({ mode: m.mode })} aria-describedby={`${id}-${m.mode}`} />
+              <input type="radio" name={`${id}-mode`} value={m.mode} checked={now.mode === m.mode} onChange={() => choose(m.mode)} aria-describedby={`${id}-${m.mode}`} />
               <span>
                 <b>{t(m.label)}</b>
                 <small className="subtle" id={`${id}-${m.mode}`}>{t(m.hint)}</small>
@@ -73,6 +81,12 @@ export function ArmsSettings({ tree }: { tree: string }) {
         <span role="status" className="ap-saved">{save.isSuccess ? t('arms.settings.saved') : ''}</span>
         {save.isError && <p role="alert" className="ap-error">{errorText(save.error, t.locale)}</p>}
       </div>
+      <ConfirmDialog
+        open={confirming} onClose={() => setConfirming(false)} onConfirm={() => { setConfirming(false); change({ mode: 'vote' }); }}
+        title={t('arms.settings.vote_confirm_title')} confirmLabel={t('arms.mode.vote')}
+      >
+        <p>{t('arms.settings.vote_confirm_text', { count: waiting })}</p>
+      </ConfirmDialog>
     </section>
   );
 }

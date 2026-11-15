@@ -60,6 +60,8 @@ export default {
   "arms.settings.guests": "Gli ospiti possono votare sugli stemmi",
   "arms.settings.guests_hint": "Gli ospiti arrivati con il link di condivisione della famiglia votano sugli scudi e sui loro nomi, senza mai vedere chi li ha proposti.",
   "arms.settings.saved": "Salvato",
+  "arms.settings.vote_confirm_title": "Far votare la famiglia su ogni proposta?",
+  "arms.settings.vote_confirm_text": { one: "{count} proposta è in attesa. Va alla votazione sullo stemma della sua casata, e un custode non può più accettarla direttamente.", other: "{count} proposte sono in attesa. Vanno alle votazioni sugli stemmi delle loro casate, e un custode non può più accettarle direttamente." },
 
   "arms.err.gone": "Questa casata o questa proposta non c’è più.",
   "arms.err.same": "Questo è già lo stemma della casata. Prima cambia qualcosa.",

@@ -213,6 +213,13 @@ test('arms proposals: a contributor proposes, the family votes, the steward acce
   await page.goto(`/${tree}/houses`);
   await settled(page);
   await expect(page.getByRole('link', { name: /Starling/ }).getByText('1 proposal waits')).toBeVisible();
+  // Switching to "Always a vote" with a proposal waiting asks first: it would go to a vote.
+  await setting.getByRole('radio', { name: 'Always a vote' }).click();
+  const switching = page.getByRole('dialog', { name: 'Let the family vote on every proposal?' });
+  await expect(switching).toContainText('1 proposal waits.');
+  await switching.getByRole('button', { name: 'Cancel' }).click();
+  await expect(switching).toBeHidden();
+  await expect(setting.getByRole('radio', { name: 'A steward decides' })).toBeChecked();
   await page.goto(house);
   await settled(page);
   await expect(list.getByRole('button', { name: 'Put to a vote' })).toHaveCount(0);

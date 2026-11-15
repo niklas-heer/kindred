@@ -60,6 +60,8 @@ export default {
   "arms.settings.guests": "Les invités peuvent voter sur les armoiries",
   "arms.settings.guests_hint": "Les invités arrivés avec le lien de partage de la famille votent sur les écus et leurs noms, sans jamais voir qui les a proposés.",
   "arms.settings.saved": "Enregistré",
+  "arms.settings.vote_confirm_title": "Laisser la famille voter sur chaque proposition ?",
+  "arms.settings.vote_confirm_text": { one: "{count} proposition attend. Elle passe au vote sur les armoiries de sa maison, et un gardien ne peut plus l’accepter directement.", other: "{count} propositions attendent. Elles passent aux votes sur les armoiries de leurs maisons, et un gardien ne peut plus les accepter directement." },
 
   "arms.err.gone": "Cette maison ou cette proposition n’existe plus.",
   "arms.err.same": "Ce sont déjà les armoiries de la maison. Change d’abord quelque chose.",

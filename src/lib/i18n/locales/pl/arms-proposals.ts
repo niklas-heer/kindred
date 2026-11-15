@@ -65,6 +65,13 @@ export default {
   "arms.settings.guests": "Goście mogą głosować nad herbami",
   "arms.settings.guests_hint": "Goście, którzy weszli przez link rodziny do udostępniania, głosują nad tarczami i ich nazwami, nigdy nie widząc, kto je zaproponował.",
   "arms.settings.saved": "Zapisano",
+  "arms.settings.vote_confirm_title": "Niech rodzina głosuje nad każdą propozycją?",
+  "arms.settings.vote_confirm_text": {
+    one: "{count} propozycja czeka. Trafi do głosowania nad herbem swojego rodu, a opiekun nie będzie mógł już przyjąć jej bezpośrednio.",
+    few: "{count} propozycje czekają. Trafią do głosowań nad herbami swoich rodów, a opiekun nie będzie mógł już przyjąć ich bezpośrednio.",
+    many: "{count} propozycji czeka. Trafią do głosowań nad herbami swoich rodów, a opiekun nie będzie mógł już przyjąć ich bezpośrednio.",
+    other: "{count} propozycji czeka. Trafią do głosowań nad herbami swoich rodów, a opiekun nie będzie mógł już przyjąć ich bezpośrednio.",
+  },
 
   "arms.err.gone": "Tego rodu albo tej propozycji już nie ma.",
   "arms.err.same": "To już jest herb rodu. Najpierw coś zmień.",

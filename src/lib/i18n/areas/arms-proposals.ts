@@ -60,6 +60,8 @@ export const en = {
   "arms.settings.guests": "Guests may vote on arms",
   "arms.settings.guests_hint": "Guests who came in with the family's share link vote on the shields and their names, never seeing who proposed them.",
   "arms.settings.saved": "Saved",
+  "arms.settings.vote_confirm_title": "Let the family vote on every proposal?",
+  "arms.settings.vote_confirm_text": { one: "{count} proposal waits. It goes to its house's arms vote, and a steward can no longer accept it directly.", other: "{count} proposals wait. They go to their houses' arms votes, and a steward can no longer accept them directly." },
 
   "arms.err.gone": "This house or this proposal is no longer here.",
   "arms.err.same": "These are the house's arms already. Change something first.",

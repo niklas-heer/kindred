@@ -60,6 +60,8 @@ export default {
   "arms.settings.guests": "Gasten mogen over wapens stemmen",
   "arms.settings.guests_hint": "Gasten die via de deellink van de familie binnenkwamen, stemmen over de schilden en hun namen en zien nooit wie ze voorstelde.",
   "arms.settings.saved": "Opgeslagen",
+  "arms.settings.vote_confirm_title": "De familie over elk voorstel laten stemmen?",
+  "arms.settings.vote_confirm_text": { one: "{count} voorstel wacht. Het gaat naar de wapenstemming van zijn huis, en een beheerder kan het niet meer direct aannemen.", other: "{count} voorstellen wachten. Ze gaan naar de wapenstemmingen van hun huizen, en een beheerder kan ze niet meer direct aannemen." },
 
   "arms.err.gone": "Dit huis of dit voorstel bestaat niet meer.",
   "arms.err.same": "Dit is al het wapen van het huis. Verander eerst iets.",
