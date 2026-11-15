@@ -386,6 +386,8 @@ test('a guest is refused on every server function that is not one of the allowed
   }
   // The family's feed (docs/feed.md) is the members': reading it, a person's posts, and writing, changing and removing one.
   for (const feed of ['getFeed', 'getPersonPosts', 'createPost', 'editPost', 'removePost', 'discardPostPictures']) assert.ok(refused.includes(feed), `${feed} was refused`);
+  // Arms proposals (src/lib/arms-proposals/) are the members': a proposer's name and note never reach a guest, who sees an arms vote only through getVote.
+  for (const arms of ['getHouseProposals', 'getProposalCounts', 'getArmsSettings', 'setArmsSettings', 'proposeArmsFn', 'withdrawProposalFn', 'acceptProposalFn', 'declineProposalFn', 'putToVoteFn']) assert.ok(refused.includes(arms), `${arms} was refused`);
 });
 
 test('the allowed reads work for a guest of this family and nobody else', async () => {

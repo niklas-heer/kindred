@@ -3,7 +3,7 @@
 // Settling a vote is settle.server.ts.
 //
 //   (member)      viewer       read a house's open proposals, and your own in any state
-//   propose-arms  contributor  propose arms for a house; withdraw your own
+//   propose-arms  contributor  propose arms for a house (withdrawing your own needs only membership)
 //   edit-house    steward      accept, decline, put to a vote; change the family's setting; how many wait per house
 //
 // What it promises:
@@ -274,9 +274,9 @@ async function leaving(d: Db, p: ProposalRow, now: Date): Promise<Query[]> {
   ];
 }
 
-/** Withdraws the member's own proposal, while it waits or is in a vote without a ballot. */
+/** Withdraws the member's own proposal, while it waits or is in a vote without a ballot (whatever their role is now: only membership). */
 export async function withdrawProposal(tree: string, who: Who, id: string, op?: OpKey, now: Date = new Date()): Promise<void> {
-  needs(who, 'propose-arms');
+  needsMember(who);
   return once(tree, op, 'withdrawProposal', async (d) => {
     const p = await proposalOf(d, id);
     if (p.account !== who.id) throw new Error('arms.err.not_yours');

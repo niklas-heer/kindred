@@ -85,7 +85,7 @@ const WITHHELD = [
   'KID-CAPTION-TEXT', '2016-07-07', 'Picnicford', 'SUGGESTED-CAPTION-TEXT', '2017-08-08', 'Suggestedholm',
 ];
 /** What the same guest still gets: the dead as they were, and the names of the living. */
-const KEPT = ['GRAN-RECIPE-TITLE', 'GRAN-RECIPE-ITEM', 'GRAN-RECIPE-TITLE-SOURCE', '1920-05-05', 'Oldhaven', 'GRAN-STORY-TEXT', 'GRAN-PROJECT-TITLE', 'Wren', 'Fernsby', 'GRAN-CAPTION-TEXT', '1950-06-06', 'Gransby', 'GRAN-EVENT-CHAPEL', 'Graveston'];
+const KEPT = ['ARMS-PROPOSAL-LABEL', 'GRAN-RECIPE-TITLE', 'GRAN-RECIPE-ITEM', 'GRAN-RECIPE-TITLE-SOURCE', '1920-05-05', 'Oldhaven', 'GRAN-STORY-TEXT', 'GRAN-PROJECT-TITLE', 'Wren', 'Fernsby', 'GRAN-CAPTION-TEXT', '1950-06-06', 'Gransby', 'GRAN-EVENT-CHAPEL', 'Graveston'];
 
 const KID_DOC = '00000000-0000-4000-8000-00000000d0c1.pdf';
 const GRAN_DOC = '00000000-0000-4000-8000-00000000d0c2.pdf';
@@ -97,6 +97,9 @@ const POST_PICTURE = '00000000-0000-4000-8000-0000000000e4.jpg';
 const LEFTOVER_PICTURE = '00000000-0000-4000-8000-0000000000e5.jpg';
 const POST = '00000000-0000-4000-8000-0000000000f1';
 /** The family's feed (docs/feed.md): a guest gets none of it, protected link or not, though this post is about the dead. */
+/** An arms vote's proposer and note: members' words, which the guest's view of the vote (options `{ id, label, arms }`) never carries. */
+let armsVote = '';
+const ARMS_MEMBERS_ONLY = ['ARMS-PROPOSER-NAME', 'ARMS-PROPOSAL-NOTE'];
 const FEED_ONLY = ['POST-TEXT-FOR-MEMBERS', 'POST-CAPTION-TEXT', 'POST-COMMENT-TEXT', POST_PICTURE, 'LEFTOVER-CAPTION-TEXT', LEFTOVER_PICTURE];
 
 /** The route's own GET handler, as the server calls it. */
@@ -179,6 +182,14 @@ before(async () => {
   for (const key of [PICTURE, GRAN_PICTURE, POST_PICTURE, LEFTOVER_PICTURE]) {
     await d.run("INSERT INTO research_picture (project, media, created_by, created_at) VALUES ('pgran', ?, 'x', '2026-01-01')", `gallery/${key}`);
   }
+  // An arms vote that allows guests: one proposal (its label is the design's name) with a proposer and a note.
+  await d.run("INSERT INTO house (id, name, motto, arms) VALUES ('h1', 'Fernsby', NULL, ?)", JSON.stringify({ field: 'azure', division: 'plain', charge: 'lion', chargeTincture: 'or' }));
+  await d.run("INSERT INTO meta (key, value) VALUES ('arms_mode', 'vote')");
+  const proposals = await load<typeof import('../arms-proposals/proposals.server.ts')>('/src/lib/arms-proposals/proposals.server.ts');
+  const started = await proposals.proposeArms(TREE, { id: 'acc-arms', name: 'ARMS-PROPOSER-NAME', role: 'contributor' }, 'h1',
+    { name: 'ARMS-PROPOSAL-LABEL', note: 'ARMS-PROPOSAL-NOTE', arms: { field: 'gules', division: 'plain', charge: 'stag', chargeTincture: 'or' } });
+  assert.ok(started.started && started.vote, 'the arms vote is running');
+  armsVote = started.vote;
   await store.accounts().run('INSERT INTO user (id, name, handle, created) VALUES (?, ?, ?, ?)', STEWARD, 'steward', 'handle-steward-living', Date.now());
   await store.accounts().run("INSERT INTO membership (user, tree, role, created) VALUES (?, ?, 'steward', ?)", STEWARD, TREE, Date.now());
 });
@@ -259,7 +270,7 @@ async function askEverything(protectLiving: boolean): Promise<Map<string, string
   const base = { tree: TREE, locale: 'de', key: 'k', house: 'h', mediaKey: `gallery/${PICTURE}`, token: 'x', format: 'gedcom', opKey: 'abcdefgh' };
   const answered = new Map<string, string>();
   for (const { name, call } of await everyServerFn()) {
-    for (const data of [{ ...base, id: 'kid', person: 'kid', personId: 'kid' }, { ...base, id: 'pkid', person: 'kid', project: 'pkid' }]) {
+    for (const data of [{ ...base, id: 'kid', person: 'kid', personId: 'kid' }, { ...base, id: 'pkid', person: 'kid', project: 'pkid' }, { ...base, id: armsVote }]) {
       asGuest(protectLiving);
       try {
         const out = await call({ data });
@@ -282,6 +293,7 @@ test('no server function gives a protected guest anything the protection withhol
   const all = [...answered.values()].join('');
   for (const kept of KEPT) assert.ok(all.includes(kept), `a protected guest still gets "${kept}"`);
   for (const feed of FEED_ONLY) assert.ok(!all.includes(feed), `a protected guest got "${feed}" from the family's feed`);
+  for (const secret of ARMS_MEMBERS_ONLY) assert.ok(!all.includes(secret), `a guest got "${secret}" from an arms vote`);
 });
 
 test('the control: with the setting off, the same guest gets what it got before', async () => {
