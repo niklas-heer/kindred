@@ -15,7 +15,7 @@ export default {
   "arms.propose.note_placeholder": "Co herb oznacza albo dlaczego pasuje do rodu",
   "arms.propose.unchanged": "Najpierw zmień herb: propozycja musi różnić się od herbu rodu.",
   "arms.propose.submit": "Zaproponuj ten herb",
-  "arms.propose.sending": "Wysyłanie propozycji…",
+  "arms.propose.sending": "Wysyłanie…",
   "arms.propose.done": "Herb zaproponowany",
 
   "arms.list.heading": "Proponowane herby",

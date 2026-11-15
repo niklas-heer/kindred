@@ -15,7 +15,7 @@ export default {
   "arms.propose.note_placeholder": "Was das Wappen bedeutet oder warum es zum Haus passt",
   "arms.propose.unchanged": "Ändere zuerst das Wappen: Ein Vorschlag muss sich vom Wappen des Hauses unterscheiden.",
   "arms.propose.submit": "Dieses Wappen vorschlagen",
-  "arms.propose.sending": "Wird vorgeschlagen…",
+  "arms.propose.sending": "Vorschlagen…",
   "arms.propose.done": "Wappen vorgeschlagen",
 
   "arms.list.heading": "Vorgeschlagene Wappen",
@@ -42,7 +42,7 @@ export default {
   "arms.decline_title": "„{name}“ ablehnen?",
   "arms.decline_reason": "Grund (wenn du magst)",
   "arms.decline_reason_hint": "Wer es vorgeschlagen hat, sieht den Grund.",
-  "arms.put_to_vote": "Zur Abstimmung stellen",
+  "arms.put_to_vote": "Abstimmen lassen",
 
   "arms.waiting_count": { one: "{count} Vorschlag wartet", other: "{count} Vorschläge warten" },
   "arms.settings.heading": "Wappenvorschläge",

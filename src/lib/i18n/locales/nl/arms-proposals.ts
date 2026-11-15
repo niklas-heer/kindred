@@ -6,7 +6,7 @@ export default {
   "arms.vote.question": "Welk wapen moet het Huis {house} voeren?",
   "arms.vote.keep": "Ons huidige wapen houden",
 
-  "arms.propose": "Een wapen voorstellen",
+  "arms.propose": "Wapen voorstellen",
   "arms.propose.title": "Een wapen voorstellen",
   "arms.propose.desc": "Ontwerp een nieuw wapen voor {house}. De familie beslist of het huis het gaat voeren.",
   "arms.propose.name": "Naam van je ontwerp",
@@ -15,7 +15,7 @@ export default {
   "arms.propose.note_placeholder": "Wat het wapen betekent, of waarom het bij het huis past",
   "arms.propose.unchanged": "Verander eerst het wapen: een voorstel moet verschillen van het wapen van het huis.",
   "arms.propose.submit": "Dit wapen voorstellen",
-  "arms.propose.sending": "Wordt voorgesteld…",
+  "arms.propose.sending": "Versturen…",
   "arms.propose.done": "Wapen voorgesteld",
 
   "arms.list.heading": "Voorgestelde wapens",

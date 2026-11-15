@@ -15,7 +15,7 @@ export default {
   "arms.propose.note_placeholder": "Ce que signifient les armoiries, ou pourquoi elles conviennent à la maison",
   "arms.propose.unchanged": "Modifie d’abord les armoiries : une proposition doit différer des armoiries de la maison.",
   "arms.propose.submit": "Proposer ces armoiries",
-  "arms.propose.sending": "Envoi de la proposition…",
+  "arms.propose.sending": "Envoi…",
   "arms.propose.done": "Armoiries proposées",
 
   "arms.list.heading": "Armoiries proposées",

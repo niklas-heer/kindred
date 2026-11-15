@@ -15,7 +15,7 @@ export default {
   "arms.propose.note_placeholder": "Cosa significa lo stemma, o perché si addice alla casata",
   "arms.propose.unchanged": "Prima modifica lo stemma: una proposta deve essere diversa dallo stemma della casata.",
   "arms.propose.submit": "Proponi questo stemma",
-  "arms.propose.sending": "Invio della proposta…",
+  "arms.propose.sending": "Invio…",
   "arms.propose.done": "Stemma proposto",
 
   "arms.list.heading": "Stemmi proposti",
