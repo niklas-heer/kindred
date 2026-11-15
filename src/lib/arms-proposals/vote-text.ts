@@ -2,7 +2,7 @@
 // fallback, read verbatim by the Markdown archive and the data request); the votes reads, the feed, "What's new" and the
 // pushes about votes name them in the reader's or the device's language instead, with the house's name as it is now.
 // Everything else of a vote (an ordinary vote's question, a proposal's name) is the family's own words and stays as written.
-import { translate, type Locale } from '../i18n/dictionary';
+import { translate, type Locale } from '../i18n/dictionary.ts';
 
 /** SQL for a vote aliased `v`: the house's name now when `v` is a house's arms vote, else NULL. Select it `AS house_name`. */
 export const HOUSE_NAME_OF = (v: string) => `(SELECT h.name FROM house h WHERE ${v}.subject_kind = 'house' AND h.id = ${v}.subject)`;
