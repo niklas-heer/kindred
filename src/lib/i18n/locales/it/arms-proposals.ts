@@ -38,6 +38,8 @@ export default {
   "arms.withdraw_text": "La tua proposta esce dall’elenco. Puoi proporre uno stemma di nuovo in qualsiasi momento.",
   "arms.accept": "Accetta",
   "arms.accepted": "{house} porta il suo nuovo stemma.",
+  "arms.accept_title": "Accettare «{name}»?",
+  "arms.accept_text": "La casata {house} porterà questo stemma.",
   "arms.decline": "Rifiuta",
   "arms.decline_title": "Rifiutare «{name}»?",
   "arms.decline_reason": "Motivo (se vuoi)",

@@ -77,7 +77,7 @@ function Card({ tree, house, steward, p, onNotice }: { tree: string; house: Hous
   const id = useId();
   const qc = useQueryClient();
   const [keys] = useState(opKeys);
-  const [asking, setAsking] = useState<'withdraw' | 'decline' | null>(null);
+  const [asking, setAsking] = useState<'withdraw' | 'accept' | 'decline' | null>(null);
   const [reason, setReason] = useState('');
   const refresh = () => Promise.all(armsKeys(tree).map((queryKey) => qc.invalidateQueries({ queryKey })));
 
@@ -89,6 +89,7 @@ function Card({ tree, house, steward, p, onNotice }: { tree: string; house: Hous
     // The house as this page shows it: an Accept over someone else's newer change is refused.
     mutationFn: () => acceptProposalFn({ data: { tree, id: p.id, opKey: keys.for('accept', p.id), before: { name: house.name, motto: house.motto ?? null, arms: house.arms } } }),
     onSuccess: async () => {
+      setAsking(null);
       await Promise.all([refresh(), qc.invalidateQueries({ queryKey: myFamiliesQuery.queryKey })]);
       toast({ title: t('arms.state.accepted'), body: t('arms.accepted', { house: house.name }), icon: 'crown' });
     },
@@ -105,7 +106,7 @@ function Card({ tree, house, steward, p, onNotice }: { tree: string; house: Hous
     onSuccess: async (r) => { onNotice(r.vote); await refresh(); },
   });
   const busy = withdraw.isPending || accept.isPending || decline.isPending || vote.isPending;
-  const failed = [accept, vote].find((m) => m.isError)?.error;
+  const failed = vote.isError ? vote.error : null;
   const reasonText = p.reason === 'not_chosen' ? t('arms.reason.not_chosen')
     : p.reason === 'vote_removed' ? t('arms.reason.vote_removed')
       : p.reason ? t('arms.reason.text', { reason: p.reason }) : null;
@@ -134,7 +135,7 @@ function Card({ tree, house, steward, p, onNotice }: { tree: string; house: Hous
         {(p.inVote || p.may.withdraw || p.may.accept || p.may.decline || p.may.putToVote) && (
           <div className="ap-actions">
             {p.inVote && <Link className="btn" to="/$tree/votes/$vote" params={{ tree, vote: p.inVote }}><Vote size={15} aria-hidden /> {t('arms.open_vote')}</Link>}
-            {p.may.accept && <button type="button" className="btn primary" disabled={busy} onClick={() => accept.mutate()}><Check size={15} aria-hidden /> {t('arms.accept')}</button>}
+            {p.may.accept && <button type="button" className="btn primary" disabled={busy} aria-haspopup="dialog" onClick={() => { accept.reset(); setAsking('accept'); }}><Check size={15} aria-hidden /> {t('arms.accept')}</button>}
             {p.may.putToVote && <button type="button" className="btn" disabled={busy} onClick={() => vote.mutate()}><Vote size={15} aria-hidden /> {t('arms.put_to_vote')}</button>}
             {p.may.decline && <button type="button" className="btn ghost" disabled={busy} aria-haspopup="dialog" onClick={() => { decline.reset(); setAsking('decline'); }}><X size={15} aria-hidden /> {t('arms.decline')}</button>}
             {p.may.withdraw && <button type="button" className="btn ghost" disabled={busy} aria-haspopup="dialog" onClick={() => { withdraw.reset(); setAsking('withdraw'); }}><Undo2 size={15} aria-hidden /> {t('arms.withdraw')}</button>}
@@ -142,6 +143,14 @@ function Card({ tree, house, steward, p, onNotice }: { tree: string; house: Hous
         )}
         {failed && <p role="alert" className="ap-error">{errorText(failed, t.locale)}</p>}
       </div>
+      {/* Accept changes the house's arms at once: the steward confirms it, as a Decline or a Withdraw. */}
+      <ConfirmDialog
+        open={asking === 'accept'} onClose={() => setAsking(null)} onConfirm={() => accept.mutate()} busy={accept.isPending}
+        title={t('arms.accept_title', { name: p.name })} confirmLabel={t('arms.accept')}
+        error={accept.isError ? errorText(accept.error, t.locale) : undefined}
+      >
+        <p>{t('arms.accept_text', { house: house.name })}</p>
+      </ConfirmDialog>
       <ConfirmDialog
         open={asking === 'withdraw'} onClose={() => setAsking(null)} onConfirm={() => withdraw.mutate()} busy={withdraw.isPending}
         title={t('arms.withdraw_title', { name: p.name })} confirmLabel={t('arms.withdraw')}

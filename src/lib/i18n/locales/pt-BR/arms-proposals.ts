@@ -38,6 +38,8 @@ export default {
   "arms.withdraw_text": "Sua proposta sai da lista. Você pode propor um brasão de novo a qualquer momento.",
   "arms.accept": "Aceitar",
   "arms.accepted": "{house} agora usa o seu novo brasão.",
+  "arms.accept_title": "Aceitar “{name}”?",
+  "arms.accept_text": "A casa {house} vai usar este brasão.",
   "arms.decline": "Recusar",
   "arms.decline_title": "Recusar “{name}”?",
   "arms.decline_reason": "Motivo (se quiser)",

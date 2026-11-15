@@ -38,6 +38,8 @@ export default {
   "arms.withdraw_text": "提案は一覧から消えます。紋章はいつでもまた提案できます。",
   "arms.accept": "採用する",
   "arms.accepted": "{house}が新しい紋章を掲げました。",
+  "arms.accept_title": "「{name}」を採用しますか？",
+  "arms.accept_text": "{house}家はこの紋章を掲げます。",
   "arms.decline": "見送る",
   "arms.decline_title": "「{name}」を見送りますか？",
   "arms.decline_reason": "理由（任意）",

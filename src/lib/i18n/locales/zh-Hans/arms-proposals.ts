@@ -38,6 +38,8 @@ export default {
   "arms.withdraw_text": "你的建议会从列表中消失。你随时可以再次建议纹章。",
   "arms.accept": "采用",
   "arms.accepted": "{house}启用了新纹章。",
+  "arms.accept_title": "采用“{name}”？",
+  "arms.accept_text": "{house}家将使用这枚纹章。",
   "arms.decline": "婉拒",
   "arms.decline_title": "婉拒“{name}”？",
   "arms.decline_reason": "原因（可选）",

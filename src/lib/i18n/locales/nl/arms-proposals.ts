@@ -38,6 +38,8 @@ export default {
   "arms.withdraw_text": "Je voorstel verdwijnt van de lijst. Je kunt altijd weer een wapen voorstellen.",
   "arms.accept": "Aannemen",
   "arms.accepted": "{house} voert nu zijn nieuwe wapen.",
+  "arms.accept_title": "“{name}” aannemen?",
+  "arms.accept_text": "Het Huis {house} gaat dit wapen voeren.",
   "arms.decline": "Afwijzen",
   "arms.decline_title": "“{name}” afwijzen?",
   "arms.decline_reason": "Reden (als je wilt)",

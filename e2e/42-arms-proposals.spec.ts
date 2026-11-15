@@ -3,7 +3,7 @@
 // default, the steward sees it beside the house's arms now and puts it to a vote; while the vote runs, the steward's own
 // designer cannot change the arms. Both members rank the shields; a guest of a share link sees the shields and their
 // names, never who proposed them. The steward closes the vote, and the house bears the new arms. In steward mode, set on
-// the Houses page, the Houses page counts the waiting proposal and the steward accepts it directly.
+// the Houses page, the Houses page counts the waiting proposal and the steward accepts it directly, after confirming it.
 import { addPasskeyDevice, checkAxe, expect, openFamily, settled, test, type Issues } from './fixtures.ts';
 import type { Browser, Page } from '@playwright/test';
 
@@ -199,6 +199,11 @@ test('arms proposals: a contributor proposes, the family votes, the steward acce
   await settled(page);
   await expect(list.getByRole('button', { name: 'Put to a vote' })).toHaveCount(0);
   await list.getByRole('button', { name: 'Accept' }).click();
+  // Accept changes the house's arms at once, so the steward confirms it.
+  const accepting = page.getByRole('dialog', { name: 'Accept “The lone star”?' });
+  await expect(accepting).toContainText(/House .*Starling will bear these arms\./);
+  await accepting.getByRole('button', { name: 'Accept' }).click();
+  await expect(accepting).toBeHidden();
   await expect(list.getByText('Accepted')).toBeVisible();
   expect(await armsNow(page, house)).toBe(lone);
 });

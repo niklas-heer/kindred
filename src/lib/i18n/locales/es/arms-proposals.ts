@@ -38,6 +38,8 @@ export default {
   "arms.withdraw_text": "Tu propuesta sale de la lista. Puedes proponer un escudo otra vez cuando quieras.",
   "arms.accept": "Aceptar",
   "arms.accepted": "{house} lleva ahora su nuevo escudo.",
+  "arms.accept_title": "¿Aceptar «{name}»?",
+  "arms.accept_text": "La casa {house} llevará este escudo.",
   "arms.decline": "Rechazar",
   "arms.decline_title": "¿Rechazar «{name}»?",
   "arms.decline_reason": "Motivo (si quieres)",

@@ -38,6 +38,8 @@ export default {
   "arms.withdraw_text": "Propozycja zniknie z listy. Herb możesz zaproponować ponownie w każdej chwili.",
   "arms.accept": "Przyjmij",
   "arms.accepted": "Ród {house} nosi teraz nowy herb.",
+  "arms.accept_title": "Przyjąć „{name}”?",
+  "arms.accept_text": "Ród {house} będzie nosić ten herb.",
   "arms.decline": "Odrzuć",
   "arms.decline_title": "Odrzucić „{name}”?",
   "arms.decline_reason": "Powód (jeśli chcesz)",

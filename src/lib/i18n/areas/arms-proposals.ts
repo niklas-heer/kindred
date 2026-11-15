@@ -38,6 +38,8 @@ export const en = {
   "arms.withdraw_text": "Your proposal leaves the list. You can propose arms again at any time.",
   "arms.accept": "Accept",
   "arms.accepted": "{house} bears its new arms.",
+  "arms.accept_title": "Accept “{name}”?",
+  "arms.accept_text": "House {house} will bear these arms.",
   "arms.decline": "Decline",
   "arms.decline_title": "Decline “{name}”?",
   "arms.decline_reason": "Reason (if you like)",

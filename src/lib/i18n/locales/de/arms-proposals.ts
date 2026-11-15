@@ -38,6 +38,8 @@ export default {
   "arms.withdraw_text": "Dein Vorschlag verschwindet aus der Liste. Du kannst jederzeit wieder ein Wappen vorschlagen.",
   "arms.accept": "Annehmen",
   "arms.accepted": "{house} führt sein neues Wappen.",
+  "arms.accept_title": "„{name}“ annehmen?",
+  "arms.accept_text": "Das Haus {house} wird dieses Wappen führen.",
   "arms.decline": "Ablehnen",
   "arms.decline_title": "„{name}“ ablehnen?",
   "arms.decline_reason": "Grund (wenn du magst)",

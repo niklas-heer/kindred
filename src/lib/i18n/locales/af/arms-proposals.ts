@@ -38,6 +38,8 @@ export default {
   "arms.withdraw_text": "Jou voorstel verdwyn van die lys. Jy kan enige tyd weer 'n wapen voorstel.",
   "arms.accept": "Aanvaar",
   "arms.accepted": "{house} dra sy nuwe wapen.",
+  "arms.accept_title": "Aanvaar “{name}”?",
+  "arms.accept_text": "Die huis {house} sal hierdie wapen dra.",
   "arms.decline": "Wys af",
   "arms.decline_title": "Wys “{name}” van die hand?",
   "arms.decline_reason": "Rede (as jy wil)",

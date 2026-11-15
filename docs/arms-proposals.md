@@ -31,7 +31,7 @@ changing it later leaves votes that are running alone and gives waiting proposal
 | **Always a vote** | goes to the house's arms vote at once, or waits for the next one | **Decline**, **Put to a vote** |
 | **Steward chooses each time** (default) | waits | **Accept**, **Decline**, **Put to a vote** |
 
-- **Accept** gives the house the proposal's arms, as the steward saw them: if the house's arms changed meanwhile, or are
+- **Accept** (after the steward confirms it) gives the house the proposal's arms, as the steward saw them: if the house's arms changed meanwhile, or are
   frozen by a running arms vote, it is refused. A design equal to the current arms is refused too.
 - **Decline** takes an optional reason (up to 300 characters) that the proposer sees. It is allowed while the proposal
   waits, or while its vote has no ballot.

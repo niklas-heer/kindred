@@ -38,6 +38,8 @@ export default {
   "arms.withdraw_text": "Ta proposition disparaît de la liste. Tu peux proposer des armoiries à tout moment.",
   "arms.accept": "Accepter",
   "arms.accepted": "{house} porte ses nouvelles armoiries.",
+  "arms.accept_title": "Accepter « {name} » ?",
+  "arms.accept_text": "La maison {house} portera ces armoiries.",
   "arms.decline": "Refuser",
   "arms.decline_title": "Refuser « {name} » ?",
   "arms.decline_reason": "Motif (si tu veux)",
