@@ -10,7 +10,7 @@ Each person has one role in each family they belong to. Roles are cumulative: ea
 | Role | Can do |
 | --- | --- |
 | **Viewer** | Browse the tree, the Atlas, the Almanac, the Chronicle, the gallery, the houses and the research, read the family's feed and everyone's public details, react to messages, memories, photos and the events of the feed, and vote. |
-| **Contributor** | Viewer, plus write messages to the family, start votes, add memories, sayings, recipes and photos, comment on messages, memories and photos, and add research projects, documents, notes and links, and change their own. |
+| **Contributor** | Viewer, plus write messages to the family, start votes, propose arms for a house, add memories, sayings, recipes and photos, comment on messages, memories and photos, and add research projects, documents, notes and links, and change their own. |
 | **Editor** | Contributor, plus add and edit people, parent and partner links, places and contacts, and remove people. Editors can also export the family, change or remove anyone's research, mark research private, remove anyone's comment, and close or remove anyone's vote. |
 | **Steward** | Editor, plus edit houses and their arms, delete albums, manage AI settings and who has access (invite, change roles, remove), import a GEDCOM file, and strike a guest's ballot from a vote. |
 
@@ -42,6 +42,7 @@ both what the browser shows and what the server allows.
 | Start a vote and change your own (after its first ballot only its closing time), and add an option where the vote allows it (`start-vote`); close or remove your own, whatever your role now | Contributor |
 | Close anyone's vote early, or remove it (`remove-vote`) | Editor |
 | Strike or restore a guest's ballot while the vote is open (`strike-voter`) | Steward |
+| Propose arms for a house; withdraw your own (`propose-arms`) | Contributor |
 | Remove your own comment | Any member |
 | Remove anyone's comment (`remove-comment`) | Editor |
 | Turn the Campaign on or off | Steward |

@@ -57,6 +57,9 @@ export const COPIED_TABLES: readonly string[] = [
   'vote_option',
   'vote_voter',
   'ballot',
+  // Arms proposals (migration 0038): a member's proposal for a house's arms, with the name it was written under; the account id
+  // is copied but names nobody on the target. The proposals' links from vote_option travel with that table's new columns.
+  'arms_proposal',
 ];
 
 /**
