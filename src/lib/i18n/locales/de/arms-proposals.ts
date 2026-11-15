@@ -71,7 +71,7 @@ export default {
   "arms.err.not_yours": "Nur wer einen Vorschlag gemacht hat, kann ihn zurückziehen.",
   "arms.err.state": "Mit diesem Vorschlag ist inzwischen etwas geschehen. Lade die Seite neu, um zu sehen, wo er steht.",
   "arms.err.mode": "Die Einstellung der Familie bietet das nicht mehr an. Lade die Seite neu, um zu sehen, was sie anbietet.",
-  "arms.err.vote_busy": "Die Wappenabstimmung des Hauses nimmt keine Vorschläge mehr: Jemand hat schon abgestimmt, oder sie ist voll. Dieser wartet auf die nächste Abstimmung.",
+  "arms.err.vote_busy": "Die Wappenabstimmung des Hauses nimmt keine Vorschläge mehr: Jemand hat schon abgestimmt, oder sie ist voll. Stell ihn wieder zur Abstimmung, sobald diese entschieden ist.",
   "arms.err.locked": "Jemand hat schon abgestimmt, darum bleibt dieser Vorschlag in der Abstimmung.",
   "arms.err.frozen": "Die Familie stimmt gerade über das Wappen dieses Hauses ab. Es lässt sich wieder ändern, sobald die Abstimmung entschieden ist.",
 } satisfies Strings<typeof en, "de">;

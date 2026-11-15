@@ -71,7 +71,7 @@ export const en = {
   "arms.err.not_yours": "Only whoever proposed it can withdraw a proposal.",
   "arms.err.state": "This proposal has moved on. Reload the page to see where it stands.",
   "arms.err.mode": "The family's setting no longer offers that. Reload the page to see what it offers.",
-  "arms.err.vote_busy": "The house's arms vote takes no more proposals: someone has voted, or it is full. This one waits for the next vote.",
+  "arms.err.vote_busy": "The house's arms vote takes no more proposals: someone has voted, or it is full. Put it to a vote again once this one is settled.",
   "arms.err.locked": "Someone has voted already, so this proposal stays in the vote.",
   "arms.err.frozen": "The family is voting on this house's arms. They can change again once the vote is settled.",
 } as const;

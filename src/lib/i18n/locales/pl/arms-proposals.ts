@@ -76,7 +76,7 @@ export default {
   "arms.err.not_yours": "Propozycję może wycofać tylko jej autor.",
   "arms.err.state": "Ta propozycja jest już na innym etapie. Odśwież stronę, by zobaczyć, na jakim.",
   "arms.err.mode": "Ustawienie rodziny już tego nie oferuje. Odśwież stronę, by zobaczyć, co oferuje.",
-  "arms.err.vote_busy": "Głosowanie nad herbem rodu nie przyjmuje już propozycji: ktoś już zagłosował albo jest pełne. Ta czeka na następne głosowanie.",
+  "arms.err.vote_busy": "Głosowanie nad herbem rodu nie przyjmuje już propozycji: ktoś już zagłosował albo jest pełne. Poddaj ją ponownie pod głosowanie, gdy to zostanie rozstrzygnięte.",
   "arms.err.locked": "Ktoś już zagłosował, więc ta propozycja zostaje w głosowaniu.",
   "arms.err.frozen": "Rodzina głosuje nad herbem tego rodu. Będzie można go znów zmienić, gdy głosowanie zostanie rozstrzygnięte.",
 } satisfies Strings<typeof en, "pl">;

@@ -71,7 +71,7 @@ export default {
   "arms.err.not_yours": "Net wie 'n voorstel gemaak het, kan dit terugtrek.",
   "arms.err.state": "Hierdie voorstel het intussen verander. Laai die bladsy weer om te sien waar dit staan.",
   "arms.err.mode": "Die familie se instelling bied dit nie meer aan nie. Laai die bladsy weer om te sien wat dit aanbied.",
-  "arms.err.vote_busy": "Die huis se wapenstemming neem nie meer voorstelle aan nie: iemand het reeds gestem, of dit is vol. Hierdie een wag vir die volgende stemming.",
+  "arms.err.vote_busy": "Die huis se wapenstemming neem nie meer voorstelle aan nie: iemand het reeds gestem, of dit is vol. Bring dit weer na 'n stemming sodra hierdie een besleg is.",
   "arms.err.locked": "Iemand het reeds gestem, daarom bly hierdie voorstel in die stemming.",
   "arms.err.frozen": "Die familie stem tans oor hierdie huis se wapen. Dit kan weer verander word sodra die stemming besleg is.",
 } satisfies Strings<typeof en, "af">;

@@ -71,7 +71,7 @@ export default {
   "arms.err.not_yours": "Só quem fez uma proposta pode retirá-la.",
   "arms.err.state": "Esta proposta mudou de etapa. Recarregue a página para ver em que pé ela está.",
   "arms.err.mode": "A configuração da família não oferece mais isso. Recarregue a página para ver o que ela oferece.",
-  "arms.err.vote_busy": "A votação do brasão da casa não aceita mais propostas: alguém já votou, ou ela está cheia. Esta aguarda a próxima votação.",
+  "arms.err.vote_busy": "A votação do brasão da casa não aceita mais propostas: alguém já votou, ou ela está cheia. Coloque-a em votação de novo quando esta for decidida.",
   "arms.err.locked": "Alguém já votou, então esta proposta continua na votação.",
   "arms.err.frozen": "A família está votando o brasão desta casa. Ele poderá mudar de novo quando a votação for decidida.",
 } satisfies Strings<typeof en, "pt-BR">;

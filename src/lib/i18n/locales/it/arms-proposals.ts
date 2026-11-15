@@ -71,7 +71,7 @@ export default {
   "arms.err.not_yours": "Solo chi ha fatto una proposta può ritirarla.",
   "arms.err.state": "Questa proposta nel frattempo è cambiata. Ricarica la pagina per vedere a che punto è.",
   "arms.err.mode": "L’impostazione della famiglia non offre più questa possibilità. Ricarica la pagina per vedere cosa offre.",
-  "arms.err.vote_busy": "La votazione sullo stemma della casata non accetta più proposte: qualcuno ha già votato, oppure è piena. Questa aspetta la prossima votazione.",
+  "arms.err.vote_busy": "La votazione sullo stemma della casata non accetta più proposte: qualcuno ha già votato, oppure è piena. Rimettila ai voti quando questa sarà conclusa.",
   "arms.err.locked": "Qualcuno ha già votato, perciò questa proposta resta nella votazione.",
   "arms.err.frozen": "La famiglia sta votando sullo stemma di questa casata. Potrà cambiare di nuovo quando la votazione sarà conclusa.",
 } satisfies Strings<typeof en, "it">;

@@ -71,7 +71,7 @@ export default {
   "arms.err.not_yours": "Seul l’auteur d’une proposition peut la retirer.",
   "arms.err.state": "Cette proposition a évolué entre-temps. Recharge la page pour voir où elle en est.",
   "arms.err.mode": "Le réglage de la famille ne propose plus cela. Recharge la page pour voir ce qu’il propose.",
-  "arms.err.vote_busy": "Le vote sur les armoiries de la maison n’accepte plus de propositions : quelqu’un a déjà voté, ou il est complet. Celle-ci attend le prochain vote.",
+  "arms.err.vote_busy": "Le vote sur les armoiries de la maison n’accepte plus de propositions : quelqu’un a déjà voté, ou il est complet. Soumets-la de nouveau au vote une fois celui-ci tranché.",
   "arms.err.locked": "Quelqu’un a déjà voté, cette proposition reste donc au vote.",
   "arms.err.frozen": "La famille vote sur les armoiries de cette maison. Elles pourront de nouveau changer une fois le vote tranché.",
 } satisfies Strings<typeof en, "fr">;

@@ -71,7 +71,7 @@ export default {
   "arms.err.not_yours": "Solo quien hizo una propuesta puede retirarla.",
   "arms.err.state": "Esta propuesta ha cambiado de estado. Recarga la página para ver en qué punto está.",
   "arms.err.mode": "El ajuste de la familia ya no ofrece eso. Recarga la página para ver qué ofrece.",
-  "arms.err.vote_busy": "La votación del escudo de la casa ya no admite propuestas: alguien ha votado o está llena. Esta espera a la siguiente votación.",
+  "arms.err.vote_busy": "La votación del escudo de la casa ya no admite propuestas: alguien ha votado o está llena. Vuelve a someterla a votación cuando esta se haya resuelto.",
   "arms.err.locked": "Alguien ya ha votado, así que esta propuesta se queda en la votación.",
   "arms.err.frozen": "La familia está votando el escudo de esta casa. Se podrá cambiar de nuevo cuando se resuelva la votación.",
 } satisfies Strings<typeof en, "es">;

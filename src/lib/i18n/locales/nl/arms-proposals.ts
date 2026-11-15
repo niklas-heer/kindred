@@ -71,7 +71,7 @@ export default {
   "arms.err.not_yours": "Alleen wie een voorstel deed, kan het intrekken.",
   "arms.err.state": "Dit voorstel is inmiddels verder. Laad de pagina opnieuw om te zien hoe het ervoor staat.",
   "arms.err.mode": "De instelling van de familie biedt dat niet meer aan. Laad de pagina opnieuw om te zien wat ze aanbiedt.",
-  "arms.err.vote_busy": "De wapenstemming van het huis neemt geen voorstellen meer aan: iemand heeft al gestemd, of ze is vol. Dit voorstel wacht op de volgende stemming.",
+  "arms.err.vote_busy": "De wapenstemming van het huis neemt geen voorstellen meer aan: iemand heeft al gestemd, of ze is vol. Breng het opnieuw in stemming zodra deze is afgerond.",
   "arms.err.locked": "Iemand heeft al gestemd, dus dit voorstel blijft in de stemming.",
   "arms.err.frozen": "De familie stemt over het wapen van dit huis. Het kan weer veranderen zodra de stemming is afgerond.",
 } satisfies Strings<typeof en, "nl">;

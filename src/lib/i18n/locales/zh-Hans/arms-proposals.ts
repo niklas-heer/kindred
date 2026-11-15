@@ -71,7 +71,7 @@ export default {
   "arms.err.not_yours": "只有建议的人才能撤回建议。",
   "arms.err.state": "这个建议的状态已经变了。请刷新页面查看最新情况。",
   "arms.err.mode": "家族的设置已不再提供这个选项。请刷新页面查看现有的选项。",
-  "arms.err.vote_busy": "支系的纹章投票不再接受新建议：已有人投票，或者已满。这个建议会等到下一次投票。",
+  "arms.err.vote_busy": "支系的纹章投票不再接受新建议：已有人投票，或者已满。这次投票有结果后，请再次交付投票。",
   "arms.err.locked": "已有人投票，所以这个建议会留在投票中。",
   "arms.err.frozen": "家人正在为这个支系的纹章投票。投票有结果后，才能再次更改。",
 } satisfies Strings<typeof en, "zh-Hans">;
