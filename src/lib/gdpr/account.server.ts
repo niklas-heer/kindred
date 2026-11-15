@@ -49,6 +49,8 @@ const NAME_OF: Record<string, string[]> = {
   updated_by: ['updated_by_name'],
   decided_by: ['decided_by_name'],
 };
+/** Columns emptied with a table's `account` when it is pseudonymised: who the writer was in the tree (a proposal's face). */
+const CLEARED_WITH_ACCOUNT: Record<string, string[]> = { arms_proposal: ['author_person'] };
 /** Columns older features fill with a display name instead of an account id. */
 const NAME_ONLY = new Set(['uploaded_by', 'tagged_by', 'named_by', 'updated_by', 'saved_by', 'checked_by', 'decided_by', 'author', 'created_by_name', 'updated_by_name', 'author_name', 'name']);
 
@@ -145,7 +147,8 @@ export function familyDeletion(tables: Table[], user: { id: string; name: string
       if (c.key) { out.push(q(`DELETE FROM ${ident(t.name)} WHERE ${ident(c.name)} = ?`, user.id)); continue; }
       // A table with `author_name` shows the writer there; its own `name` is something else (a proposal's design name).
       const names = (NAME_OF[c.name] ?? []).filter((n) => cols.has(n) && !(n === 'name' && cols.has('author_name')));
-      const sets = [`${ident(c.name)} = ?`, ...names.map((n) => `${ident(n)} = ?`)];
+      const cleared = c.name === 'account' ? (CLEARED_WITH_ACCOUNT[t.name] ?? []).filter((n) => cols.has(n)) : [];
+      const sets = [`${ident(c.name)} = ?`, ...names.map((n) => `${ident(n)} = ?`), ...cleared.map((n) => `${ident(n)} = NULL`)];
       out.push(q(`UPDATE ${ident(t.name)} SET ${sets.join(', ')} WHERE ${ident(c.name)} = ?`, pseudonym, ...names.map(() => former), user.id));
     }
     // Only in tables that record who wrote or did something: an album or a house that happens to share the name is left alone.

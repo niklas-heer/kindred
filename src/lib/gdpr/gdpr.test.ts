@@ -331,6 +331,31 @@ test('coat-of-arms proposals: deleting an account leaves no id or name of it, an
   assert.equal(stew!.decided_by, eve.id, 'a steward\'s decision on it is not hers');
 });
 
+test('coat-of-arms proposals: a deleted proposer\'s person in the tree goes too, so no face of theirs is shown', async () => {
+  const tree = 'fennick';
+  await dbs.provisionFamily(tree, 'The Fennicks');
+  const fay = user(53, 'Fay Fennick');
+  const gil = user(54, 'Gil Fennick');
+  for (const u of [fay, gil]) await addUser(u);
+  const d = dbs.db(tree);
+  await d.run("INSERT INTO person (id, given, surname, living) VALUES ('fay_pppppp', 'Fay', 'Fennick', 1)");
+  await d.run("INSERT INTO house (id, name, arms) VALUES ('h1', 'Fennick', ?)", JSON.stringify({ field: 'azure', division: 'plain', charge: 'lion', chargeTincture: 'or' }));
+  await member(fay, tree, 'contributor', 'fay_pppppp');
+  await a().run('UPDATE membership SET person_confirmed = 1 WHERE user = ? AND tree = ?', fay.id, tree);
+  await member(gil, tree, 'steward');
+  const proposal = await arms.proposeArms(tree, { id: fay.id, name: fay.name, role: 'contributor', person: 'fay_pppppp', personConfirmed: true }, 'h1',
+    { name: 'Red stag', arms: { field: 'gules', division: 'plain', charge: 'stag', chargeTincture: 'or' } as never });
+  const stored = () => d.get<{ author_person: string | null }>('SELECT author_person FROM arms_proposal WHERE id = ?', proposal.id);
+  assert.equal((await stored())!.author_person, 'fay_pppppp', 'her confirmed person, while she is a member');
+
+  await account.deleteAccount(fay, fay.name);
+  assert.equal((await stored())!.author_person, null, 'the stored person goes with the account');
+  const read = await arms.houseProposals(tree, { id: gil.id, name: gil.name, role: 'steward' }, 'h1');
+  const shown = read.proposals.find((p) => p.id === proposal.id)!;
+  assert.equal(shown.author!.person, null, 'no face beside it');
+  assert.equal(shown.author!.name, 'A former member');
+});
+
 test('downloading an account: its own rows, no secrets, nothing of anyone else', async () => {
   await run("INSERT INTO credential (id, user, public_key, created, device) VALUES ('cred-l', ?, x'0102', ?, 'Phone')", LONE.id, T);
   await run("INSERT INTO session (hash, user, created, expires, refreshed) VALUES ('sess-l', ?, ?, ?, ?)", LONE.id, T, T + DAY, T);

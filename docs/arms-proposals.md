@@ -99,7 +99,8 @@ shields with the design's name, their own ballot, how many voted and the result,
 - A proposal stays with its house, whatever its state, until the house is deleted. Nothing expires.
 - A member who **deletes their account** ([gdpr.md](gdpr.md)) keeps their proposals, shown as by "A former member": the
   account, the name beside it and the name of a steward who decided it are replaced by the deletion's pseudonym and
-  "A former member". The design's name, the note and the arms stay.
+  "A former member", and the person they stood for in the tree is cleared, so no face of theirs is shown beside it. The
+  design's name, the note and the arms stay.
 - A member's **data request** lists their own proposals: the house, the design's name, the note, the state, the reason, the
   dates and the arms as JSON.
 - The **Markdown archive** and GEDCOM do not hold proposals; their report lists them as "coat-of-arms proposals" among what
