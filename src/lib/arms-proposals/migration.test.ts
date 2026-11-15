@@ -31,7 +31,7 @@ test('the proposal table, its index and the new columns exist; the migration is 
   assert.ok(columns(f, 'vote').includes('settled_at'));
   const idx = (f.prepare("PRAGMA index_info(arms_proposal_house)").all() as { name: string }[]).map((c) => c.name);
   assert.deepEqual(idx, ['house', 'status']);
-  assert.throws(() => f.exec("INSERT INTO arms_proposal (id, house, account, author_name, name, arms, status, created_at) VALUES ('x', 'h', 'a', 'Ada', 'N', '{}', 'bogus', 't')"));
+  assert.throws(() => f.exec("INSERT INTO arms_proposal (id, house, account, author_name, name, arms, status, created_at) VALUES ('x', 'h', 'a', 'Ada', 'N', '{}', 'bogus', 't')"), /CHECK constraint/i);
   f.close();
 });
 
