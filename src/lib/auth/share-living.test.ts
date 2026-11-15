@@ -220,6 +220,7 @@ const ANSWERS_A_GUEST = new Set([
   'getHouseMeanings', 'getHouseTranslations', 'getHouseSettings', 'storyTranslations', 'getGallery', 'getPersonPhotos', 'aiStatus',
   'getPersonEvents', 'getEventPlaces',
   'getCookbook', 'getRecipe',
+  'getVotes', 'getVote',
   'fetchSession', 'fetchMyFamilies', 'fetchInvite', 'fetchShareEntry', 'openShareLink', 'leaveGuestVisit', 'fetchRemindersAvailable', 'forgetThisDevice',
   // "Ask to join": a guest's own request and what it would send, never another person's data (join.test.ts).
   'fetchJoinState', 'fetchJoinPreview', 'joinOptions', 'sendJoinRequest', 'sendJoinWithPassword',
@@ -250,6 +251,7 @@ const ANSWERS_A_GUEST = new Set([
   // A family's lifecycle bar (src/lib/lifecycle/): null for anyone who is not a member, a guest included.
   'fetchFamilyLifecycle',
   'fetchPublicHosting',
+  'castVote', // a guest's ballot (votes/functions.test.ts)
 ]);
 
 /** Asks every server function as a guest, once about the child and once about her research, and returns what answered. */

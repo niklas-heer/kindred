@@ -313,6 +313,7 @@ const GUEST_READS = new Set([
   'getGraph', 'getChronicle', 'getContacts', 'getPersonDetail', 'getResearchProjects', 'getResearchProject', 'getPersonResearch',
   'getHouseMeanings', 'getHouseTranslations', 'getHouseSettings', 'storyTranslations', 'getGallery', 'getPersonPhotos', 'aiStatus',
   'getPersonEvents', 'getEventPlaces', // life events: of the dead, and of the living unless the link protects them
+  'getVotes', 'getVote', // family votes: a guest reads the votes that allow guests
   'getCookbook', 'getRecipe', // recipes are stories: read as the Chronicle is, and none of a living person when the link protects them
 ]);
 /** Open to anyone: they check who is asking themselves, or hold nothing of a family's. */
@@ -349,6 +350,8 @@ const OPEN = new Set([
   // A family's lifecycle bar (src/lib/lifecycle/): null for anyone who is not a member, a guest included.
   'fetchFamilyLifecycle',
   'fetchPublicHosting', 'signupWaitlist',
+  // A guest casts a ballot where a vote allows guests: it checks who is asking itself, and a guest's name, key and limits (votes/functions.test.ts).
+  'castVote',
 ]);
 /** Everything a handler might read before its guard, so a failure can only be the guard's. */
 const DATA = { tree: TREE, id: 'ada', person: 'ada', personId: 'ada', key: 'k', house: 'h', mediaKey: 'gallery/x.jpg', locale: 'en', format: 'gedcom', name: 'x', text: 'x', user: STEWARD, role: 'viewer', confirm: true, token: 'x', endpoint: 'https://x/y', opKey: 'abcdefgh', people: [], links: [], places: [], items: [], photos: [], title: 'x', body: 'x', project: 'p1' };
