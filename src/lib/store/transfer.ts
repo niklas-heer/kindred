@@ -51,6 +51,12 @@ export const COPIED_TABLES: readonly string[] = [
   // keys, the pictures are in R2 (recipe/, and the covers' small copies in recipe-thumb/).
   'recipe',
   'recipe_image',
+  // Family votes (migration 0037): the question, its options, who took part and each ballot. A voter keeps the name they
+  // took part under; the account is not copied, so on the target nobody can change a ballot, and the result reads as before.
+  'vote',
+  'vote_option',
+  'vote_voter',
+  'ballot',
 ];
 
 /**
@@ -89,6 +95,8 @@ export const LEFT_OUT_TABLES: Record<string, string> = {
   // confirmed proposal is already a tag in `media_person`, which is copied with its `named_by`.
   tag_proposal: 'the "Who is this?" proposals, keyed by account ids, which are not copied; confirmed ones are tags already',
   tag_pass: 'the pictures a member passed on in "Who is this?", keyed by account ids',
+  // The reminder push about a closing vote (migration 0037): a push claim that names accounts, which are not copied.
+  vote_reminded: 'a push claim, names accounts',
 };
 
 /**

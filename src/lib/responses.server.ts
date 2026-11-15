@@ -57,6 +57,7 @@ const EXISTS: Record<Exclude<TargetKind, 'event'>, string> = {
   story: 'EXISTS (SELECT 1 FROM story WHERE id = ?)',
   media: 'EXISTS (SELECT 1 FROM media WHERE key = ?)',
   post: 'EXISTS (SELECT 1 FROM post WHERE id = ?)',
+  vote: 'EXISTS (SELECT 1 FROM vote WHERE id = ?)',
 };
 
 /**
@@ -294,7 +295,7 @@ export async function notifyAuthor(tree: string, r: Response, options: { now?: D
   try {
     const d = db(tree);
     // An event of the feed is the family's, not one member's: nobody is told about its answers.
-    if (r.kind === 'event') return 0;
+    if (r.kind === 'event' || r.kind === 'vote') return 0; // no push text for a vote's answers yet
     const owner = r.kind === 'story'
       ? await d.get<Owner>('SELECT s.author_account AS author, s.person, p.given, p.surname, p.current_given, p.current_surname FROM story s JOIN person p ON p.id = s.person WHERE s.id = ?', r.target)
       : r.kind === 'post'
@@ -315,7 +316,7 @@ export async function notifyAuthor(tree: string, r: Response, options: { now?: D
     for (const row of devices) {
       // Who answered and about whom; never the comment's words, which stay in the family's app.
       const vars = { name: r.by.name, person, reaction: r.what === 'reaction' ? r.reaction : '' };
-      const key = `responses.push.${r.what}_${r.kind as Exclude<TargetKind, 'event'>}` as const;
+      const key = `responses.push.${r.what}_${r.kind as Exclude<TargetKind, 'event' | 'vote'>}` as const;
       const message = {
         title: translate(row.locale, 'responses.push.title'),
         body: translate(row.locale, key, vars),

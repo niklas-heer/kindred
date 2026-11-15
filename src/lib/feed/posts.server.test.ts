@@ -91,7 +91,7 @@ test('the migration is plain SQL both drivers run; reactions and comments keep t
   // The same columns as before the tables were made again: "what's new" and the exports read them by name.
   assert.deepEqual(reaction, ['target_kind', 'target', 'account', 'kind', 'created_at']);
   assert.deepEqual(comment, ['id', 'target_kind', 'target', 'account', 'author_name', 'body', 'created_at', 'edited_at']);
-  assert.deepEqual(triggers, ['media_responses_go', 'post_responses_go', 'story_responses_go']);
+  assert.deepEqual(triggers, ['media_responses_go', 'post_responses_go', 'story_responses_go', 'vote_responses_go']);
 });
 
 test('a guest gets nothing: no post, no person’s posts, no change', async () => {

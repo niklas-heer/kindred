@@ -32,7 +32,7 @@ test('every table the current schema has is decided: copied, or left out on purp
   const present = tablesOf(d);
   const plan = T.planTables(present);
   assert.deepEqual(plan.copy, [...T.COPIED_TABLES], 'the copy list, in order');
-  assert.deepEqual(plan.leftOut, ['ancestry_rev', 'campaign', 'campaign_log', 'campaign_member', 'campaign_push', 'campaign_run', 'campaign_season', 'campaign_week', 'd1_migrations', 'history', 'op', 'quiz_answer', 'quiz_day', 'response_push', 'tag_pass', 'tag_proposal', 'today_settings'], 'bookkeeping, the games, the history and the push choices are left out on purpose');
+  assert.deepEqual(plan.leftOut, ['ancestry_rev', 'campaign', 'campaign_log', 'campaign_member', 'campaign_push', 'campaign_run', 'campaign_season', 'campaign_week', 'd1_migrations', 'history', 'op', 'quiz_answer', 'quiz_day', 'response_push', 'tag_pass', 'tag_proposal', 'today_settings', 'vote_reminded'], 'bookkeeping, the games, the history and the push choices are left out on purpose');
   for (const t of ['person_field', 'house_succession', 'album', 'media', 'media_person', 'occupation_translation']) {
     assert.ok(plan.copy.includes(t), `${t} is copied`);
   }
@@ -118,6 +118,11 @@ to Lindby', '${now}', NULL);
     INSERT INTO story (id, person, kind, title, body, author, at, context) VALUES ('s2', 'ada', 'recipe', 'Ada''s stew', '- 1 onion', 'Ben', '${now}', NULL);
     INSERT INTO recipe (story, source, servings, prep_minutes, cook_minutes, ingredients, steps, notes, tags, cover, updated_at) VALUES ('s2', 'Ada''s own', 4, 10, 90, '[{"name":"","items":[{"amount":"1","unit":"","item":"onion","note":""}]}]', '[{"text":"Chop it.","image":null}]', 'It''s better tomorrow', '["stew"]', 'recipe/r1.jpg', '${now}');
     INSERT INTO recipe_image (key, story, mime, width, height, thumb, created_at, gone_at) VALUES ('recipe/r1.jpg', 's2', 'image/jpeg', 1200, 800, 'recipe-thumb/r1.jpg', '${now}', NULL);
+    INSERT INTO vote (id, account, author_name, author_person, question, description, kind, secret, closes_at, created_at) VALUES ('vt1', 'u1', 'Ben', 'ben', 'Where is the reunion?', 'Pick one', 'single', 1, '${now}', '${now}');
+    INSERT INTO vote_option (id, vote, ord, label, added_by_account, added_by_name, created_at) VALUES ('vo1', 'vt1', 0, 'Lindby', 'u1', 'Ben', '${now}');
+    INSERT INTO vote_voter (id, vote, account, name) VALUES ('vv1', 'vt1', 'u1', 'Ben');
+    INSERT INTO ballot (vote, voter, choices) VALUES ('vt1', 'vv1', '["vo1"]');
+    INSERT INTO vote_reminded (vote, account) VALUES ('vt1', 'u1');
   `);
   return d;
 }

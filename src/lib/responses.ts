@@ -5,8 +5,8 @@
  * What a reaction or a comment is on: a story (its id), a gallery photo (its media key), a post in the feed (its id), or
  * an event of the feed drawn from the change history or the calendar (its key, see `EVENT_TARGET`).
  */
-export type TargetKind = 'story' | 'media' | 'post' | 'event';
-export const TARGET_KINDS = ['story', 'media', 'post', 'event'] as const satisfies readonly TargetKind[];
+export type TargetKind = 'story' | 'media' | 'post' | 'event' | 'vote';
+export const TARGET_KINDS = ['story', 'media', 'post', 'event', 'vote'] as const satisfies readonly TargetKind[];
 
 /**
  * An event's key, as the feed gives it:
