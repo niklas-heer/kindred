@@ -13,7 +13,7 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type R
 import { graphQuery, opKeys, updateHouse } from '~/lib/api';
 import { armsKeys, proposeArmsFn } from '~/lib/arms-proposals/proposals.functions';
 import { MAX_PROPOSAL_NAME, MAX_PROPOSAL_NOTE } from '~/lib/arms-proposals/types';
-import { errorText } from '~/lib/errortext';
+import { errorText, isRefusal } from '~/lib/errortext';
 import { aiArmsRevisions } from '~/lib/ai/arms.functions';
 import { checkArmsFit } from '~/lib/ai/arms-fit.functions';
 import { toAiLocale, type ArmsRevision } from '~/lib/ai/types';
@@ -267,8 +267,8 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
           {failed.isError && (
             <p className="ae-error" role="alert">
               {failed.error instanceof Error && failed.error.message ? errorText(failed.error, tr.locale) : tr('heraldry.save_failed')}
-              {/* While a vote holds the arms, trying again does not help. */}
-              {failed.error?.message !== 'arms.err.frozen' && <> {tr('heraldry.save_failed_hint')}</>}
+              {/* A refusal (a vote holds the arms, the name is taken, …) stays one however often it is tried. */}
+              {!isRefusal(failed.error) && <> {tr('heraldry.save_failed_hint')}</>}
             </p>
           )}
           <div className="ae-actions">

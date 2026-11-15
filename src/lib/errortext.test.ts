@@ -5,7 +5,7 @@ import { createServer } from 'vite';
 
 const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent', optimizeDeps: { noDiscovery: true } });
 after(() => vite.close());
-const { errorText } = await vite.ssrLoadModule('/src/lib/errortext.ts');
+const { errorText, isRefusal } = await vite.ssrLoadModule('/src/lib/errortext.ts');
 
 test('each browser\'s network failure is translated', () => {
   for (const m of ['Failed to fetch', 'Load failed', 'NetworkError when attempting to fetch resource.']) {
@@ -22,4 +22,13 @@ test('an English sentence the dictionary knows is translated, with its name', ()
 test('another error keeps its own message', () => {
   assert.equal(errorText(new Error('Failed to fetch'), 'en'), 'Failed to fetch');
   assert.equal(errorText(new TypeError('x is not a function'), 'en'), 'x is not a function');
+});
+
+test('a refusal is a message written for readers; a lost connection or an unknown error is not', () => {
+  assert.equal(isRefusal(new Error('arms.err.name_taken')), true);
+  assert.equal(isRefusal(new Error('Kerstin already has two parents.')), true);
+  assert.equal(isRefusal(new TypeError('Failed to fetch')), false);
+  assert.equal(isRefusal(new Error('x is not a function')), false);
+  assert.equal(isRefusal(new Error('')), false);
+  assert.equal(isRefusal(null), false);
 });
