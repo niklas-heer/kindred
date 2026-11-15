@@ -399,7 +399,7 @@ export async function houseProposals(tree: string, who: Who, house: string, now:
         id: r.id, house: r.house, name: r.name, note: r.note || null, arms: JSON.parse(r.arms), status: r.status, reason: r.reason,
         author: authorOf(r, authors), createdAt: r.created_at, decidedAt: r.decided_at, inVote: r.in_vote, mine,
         may: {
-          withdraw: mine && can(who.role, 'propose-arms') && leavable,
+          withdraw: mine && leavable,
           accept: steward && mode !== 'vote' && waiting && !vote && differs,
           decline: steward && leavable,
           putToVote: steward && mode !== 'steward' && waiting && differs && (!vote || (movable && vote.proposals < MAX_PROPOSALS_PER_VOTE)),

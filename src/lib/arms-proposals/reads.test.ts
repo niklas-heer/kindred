@@ -202,6 +202,15 @@ test('a house not there is refused; steward mode offers no vote, and vote mode n
   assert.deepEqual(voting.may, { withdraw: false, accept: false, decline: true, putToVote: false });
 });
 
+test('a proposer demoted to viewer still may withdraw their own waiting proposal', async () => {
+  const t = await family('choose');
+  const p = await propose(t, ada, 'The stag', arms('stag'));
+  const demoted = who('acc-ada', 'Ada Alder', 'viewer', 'ada');
+  const read = await P.houseProposals(t, demoted, 'h1', later(HOUR));
+  assert.deepEqual(read.proposals.map((x) => [x.id, x.mine, x.may.withdraw]), [[p.id, true, true]]);
+  await P.withdrawProposal(t, demoted, p.id);
+});
+
 test('a steward sees how many proposals wait for each house; nobody else does', async () => {
   const t = await family('choose');
   await db.db(t).run("INSERT INTO house (id, name, motto, arms) VALUES ('h2', 'Cedar', NULL, ?)", JSON.stringify(ARMS));
