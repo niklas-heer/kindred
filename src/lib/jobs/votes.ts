@@ -17,6 +17,6 @@ export const votesJob: DailyJob = {
     const { remindVotes } = await import('../votes/vote-push.server.ts');
     let sent = 0;
     for (const tree of ctx.trees) sent += await remindVotes(tree, ctx.now, { vapid });
-    ctx.log(`sent ${sent} reminders about votes closing within a day`);
+    ctx.log(`sent ${sent} reminders about votes closing within the next 30 hours`);
   },
 };

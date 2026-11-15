@@ -93,5 +93,5 @@ test('a family whose policy cannot be read gets no push, and the job still remin
     globalThis.fetch = realFetch;
   }
   assert.deepEqual(sent, ['https://web.push.apple.com/vgood/bo']);
-  assert.deepEqual(logs, ['sent 1 reminders about votes closing within a day']);
+  assert.deepEqual(logs, ['sent 1 reminders about votes closing within the next 30 hours']);
 });

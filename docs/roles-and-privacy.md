@@ -215,8 +215,8 @@ have voted, and the result under the same rules as for members. Never who voted 
 guest's name. The name a guest gives when they vote is shown to the family's members, beside the ballot's count. The vote is
 tied to the guest by a `kindred_voter` cookie, set only when they vote; only a hash of it and the family is stored, so one browser
 is a different guest in each family, and it lasts 90 days or until the link ends, whichever is first. No address is kept: the
-limits on guest voters count an 18-bit hash of the network and the vote, which stands for thousands of addresses and differs from
-one vote to the next. The browser also remembers the name the guest gave, so the next vote needs no typing: it is kept in the
+limits on guest voters count 18 bits of a keyed hash (with the server's secret) of the network and the vote, which stands for
+thousands of addresses, differs from one vote to the next, and cannot be tested against addresses from a copy of the database. The browser also remembers the name the guest gave, so the next vote needs no typing: it is kept in the
 browser's local storage under `kindred:vote-guest-name:<family>` and goes nowhere else until the guest votes. How votes work is in
 [votes.md](votes.md).
 

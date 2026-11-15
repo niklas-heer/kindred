@@ -11,9 +11,12 @@ import { createServer } from 'vite';
 const dir = mkdtempSync(join(tmpdir(), 'kindred-guest-voter-test-'));
 process.env.KINDRED_DATA_DIR = dir;
 process.env.KINDRED_ACCOUNTS_DB = join(dir, 'accounts.db');
+process.env.KINDRED_SECRET = 'guest-voter-test-secret';
 
 const vite = await createServer({ root: process.cwd(), logLevel: 'error', server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom' });
 const G = await vite.ssrLoadModule('/src/lib/votes/guest-voter.server.ts') as typeof import('./guest-voter.server.ts');
+const { hashToken } = await vite.ssrLoadModule('/src/lib/auth/tokens.server.ts') as typeof import('../auth/tokens.server.ts');
+const { networkOf } = await vite.ssrLoadModule('/src/lib/auth/join-rules.ts') as typeof import('../auth/join-rules.ts');
 
 test.after(async () => {
   await vite.close();
@@ -76,4 +79,23 @@ test('the same browser is another guest in another family, and the same network 
   const nets = new Set<number>();
   for (let i = 0; i < 8; i++) nets.add(await G.netOfAddress('203.0.113.7', `00000000-0000-4000-8000-00000000000${i}`));
   assert.ok(nets.size > 1, 'one network is not the same number in every vote');
+});
+
+test('the network value is keyed with the server secret, so a copy of the database cannot try every address against it', async () => {
+  const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  const unkeyed = async (ip: string, vote: string) =>
+    [...(await hashToken('share-ip', `vote:${vote}:${networkOf(ip)}`)).slice(0, 3)].reduce((n, c) => n * 64 + B64.indexOf(c), 0);
+  // Over several addresses, so one 18-bit coincidence cannot make the test pass or fail by chance.
+  const ips = ['203.0.113.7', '198.51.100.20', '192.0.2.33', '2001:db8:1:2::1'];
+  const keyed = await Promise.all(ips.map((ip) => G.netOfAddress(ip, VOTE)));
+  assert.notDeepEqual(keyed, await Promise.all(ips.map((ip) => unkeyed(ip, VOTE))), 'not the plain hash of the vote and the network');
+  process.env.KINDRED_SECRET = 'another-server-secret';
+  try {
+    const other = await Promise.all(ips.map((ip) => G.netOfAddress(ip, VOTE)));
+    assert.notDeepEqual(other, keyed, 'another secret, other values');
+    assert.ok(other.every((n) => Number.isInteger(n) && n >= 0 && n < 2 ** 18));
+  } finally {
+    process.env.KINDRED_SECRET = 'guest-voter-test-secret';
+  }
+  assert.deepEqual(await Promise.all(ips.map((ip) => G.netOfAddress(ip, VOTE))), keyed, 'the same secret, the same values');
 });

@@ -62,8 +62,8 @@ export interface VoteInput {
 
 /**
  * Who casts a ballot: a member, or a share-link guest. A guest's `key` is `g:` and the SHA-256 of the family and their
- * `kindred_voter` cookie, base64url; `link` is the guest link they came through and `net` an 18-bit hash of their network and
- * the vote (guest-voter.server.ts).
+ * `kindred_voter` cookie, base64url; `link` is the guest link they came through and `net` 18 bits of an HMAC of their network
+ * and the vote under the server's secret (guest-voter.server.ts).
  */
 export type Voter =
   | { kind: 'member'; who: Who }

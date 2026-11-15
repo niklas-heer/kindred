@@ -1,9 +1,11 @@
 // A guest who votes is told apart by the `kindred_voter` cookie, which the server makes the first time they cast a ballot and
 // never before. Only a hash of it and the family is stored (as the guest's key), so one browser is a different key in each
-// family and two families' databases cannot be joined on a guest. The address is never kept: the limits count an 18-bit hash
-// of the network and the vote, so the value differs from vote to vote and lines up a guest across none. The key comes only
-// from this cookie, so nothing here accepts one from the client.
+// family and two families' databases cannot be joined on a guest. The address is never kept: the limits count 18 bits of an
+// HMAC of the vote and the network under the server's secret, so the value differs from vote to vote, and a copy of the
+// database, which lacks the secret, cannot try every address against it to find a guest's. The key comes only from this
+// cookie, so nothing here accepts one from the client.
 import { cookie, tokenIn } from '../auth/join.server.ts';
+import { serverHmac } from '../auth/seal.server.ts';
 import { networkOf } from '../auth/join-rules.ts';
 import { clientIP } from '../auth/throttle.server.ts';
 import { hashToken, randomToken } from '../auth/tokens.server.ts';
@@ -31,14 +33,14 @@ export async function voterCookie(request: Request, tree: string, expires: numbe
   return { key: await keyOf(token, tree), setCookie: cookie(request, COOKIE, token, Math.max(0, seconds)) };
 }
 
-const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-
 /**
- * 18 bits of a hash of an address's network (an IPv6 /64, or the IPv4 address) and the vote: each value stands for thousands
- * of addresses, and the same network is another value in another vote.
+ * 18 bits of an HMAC, under the server's secret, of the vote and an address's network (an IPv6 /64, or the IPv4 address):
+ * each value stands for thousands of addresses, the same network is another value in another vote, and without the secret
+ * no address can be tested against it.
  */
 export async function netOfAddress(ip: string, vote: string): Promise<number> {
-  return [...(await hashToken('share-ip', `vote:${vote}:${networkOf(ip)}`)).slice(0, 3)].reduce((n, c) => n * 64 + B64.indexOf(c), 0);
+  const mac = await serverHmac('vote-net', new TextEncoder().encode(`${vote}:${networkOf(ip)}`));
+  return (mac[0]! << 10) | (mac[1]! << 2) | (mac[2]! >> 6);
 }
 
 /** The network of this request's client in the vote `vote`, as a number from 0 to 262143. */
