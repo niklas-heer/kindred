@@ -32,7 +32,7 @@ const accounts = () => store.accounts();
 const invalid = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => new AuthError('invalid', translate('en', key, vars));
 
 /** Columns that name the account a row belongs to. */
-const OWNER = new Set(['user', 'account', 'author_account', 'owner']);
+const OWNER = new Set(['user', 'account', 'author_account', 'added_by_account', 'owner']);
 /** Columns that only record who did something (`created_by`, `decided_by` …). */
 const isBy = (c: string) => /_by$/.test(c);
 /** Accounts tables kept as they are when an account goes: the operator's records (docs/gdpr.md). */
@@ -44,6 +44,7 @@ const NAME_OF: Record<string, string[]> = {
   account: ['name', 'author_name', 'user_name'],
   user: ['name', 'user_name'],
   author_account: ['author'],
+  added_by_account: ['added_by_name'],
   created_by: ['created_by_name'],
   updated_by: ['updated_by_name'],
 };
@@ -130,6 +131,9 @@ export function familyDeletion(tables: Table[], user: { id: string; name: string
   for (const t of tables) {
     // Retry keys can hold a change's result: they go.
     if (t.name === 'op') { out.push(q('DELETE FROM op WHERE user = ?', user.id)); continue; }
+    // An open vote's ballot is stored under the account id, which its `vote_voter` row (an owner column, below) changes to the
+    // pseudonym: the ballot follows, so it stays that voter's and keeps counting. A secret vote's is under an HMAC, not the id.
+    if (t.name === 'ballot') out.push(q('UPDATE ballot SET voter = ? WHERE voter = ? AND vote IN (SELECT id FROM vote WHERE secret = 0)', pseudonym, user.id));
     const cols = new Set(t.columns.map((c) => c.name));
     // A row only its owner could read (a personal note, its history) goes with the account.
     if (cols.has('owner')) out.push(q(`DELETE FROM ${ident(t.name)} WHERE owner = ?`, user.id));

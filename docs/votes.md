@@ -96,6 +96,9 @@ from a ballot. A demo and a steward's *View as* send nothing.
 - A member's **data request** (*Your data*) lists their own ballots, a secret one's too: the server finds it through the
   key only it can compute.
 - A member who leaves keeps their ballots: they still count, under the name they had, as comments do.
+- A member who **deletes their account** ([gdpr.md](gdpr.md)) keeps their votes, the options they added and their ballots, which
+  still count, all shown as by "A former member" under the deletion's pseudonym; nothing in the votes keeps their account id
+  or name.
 
 The tables are in [data-model.md](data-model.md) (migration `tree/0037_votes.sql`; `accounts/0060_vote_push.sql` adds the
 push switch), who may do what in [roles-and-privacy.md](roles-and-privacy.md).

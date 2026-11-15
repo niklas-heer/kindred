@@ -251,6 +251,46 @@ test('deleting an account reaches a family it left: what it wrote there gets the
   assert.equal(await one('SELECT 1 FROM family_left WHERE user = ?', ivy.id), undefined, 'and the memory of it goes with the account');
 });
 
+test('deleting an account: its votes, options and ballots keep counting under the pseudonym, and nothing names it', async () => {
+  const tree = 'cradwell';
+  await dbs.provisionFamily(tree, 'The Cradwells');
+  const vera = user(41, 'Vera Voteswell');
+  const finn = user(42, 'Finn Cradwell');
+  for (const u of [vera, finn]) await addUser(u);
+  await member(vera, tree, 'contributor');
+  await member(finn, tree, 'contributor');
+  const as = (u: U) => ({ id: u.id, name: u.name, role: 'contributor' as const, person: null, personConfirmed: false });
+  const closesAt = new Date(Date.now() + 7 * DAY).toISOString();
+  const mk = (by: U, question: string, secret: boolean) => votes.createVote(tree, as(by), { question, kind: 'single', secret, addOptions: true, guests: false, closesAt, options: ['Beach', 'Lake'] });
+  const d = dbs.db(tree);
+  const choose = async (id: string, label: string) => (await d.get<{ id: string }>('SELECT id FROM vote_option WHERE vote = ? AND label = ?', id, label))!.id;
+  const open = await mk(finn, 'Where to meet?', false);
+  const hidden = await mk(finn, 'Which cake?', true);
+  const hers = await mk(vera, 'Which song?', false);
+  await votes.addOption(tree, as(vera), open.id, 'Forest');
+  await votes.castBallot(tree, { kind: 'member', who: as(vera) }, open.id, [await choose(open.id, 'Forest')]);
+  await votes.castBallot(tree, { kind: 'member', who: as(vera) }, hidden.id, [await choose(hidden.id, 'Lake')]);
+  await votes.castBallot(tree, { kind: 'member', who: as(finn) }, open.id, [await choose(open.id, 'Beach')]);
+
+  await account.deleteAccount(vera, vera.name);
+  assert.deepEqual(await containing(d, vera.id), [], 'no vote, option, voter or ballot names her account');
+  assert.deepEqual(await containing(d, vera.name), [], 'nor her name');
+  const option = await d.get<{ added_by_account: string; added_by_name: string }>("SELECT added_by_account, added_by_name FROM vote_option WHERE label = 'Forest'");
+  assert.match(option!.added_by_account, /^former-/);
+  assert.equal(option!.added_by_name, 'A former member');
+  const voter = await d.get<{ account: string; name: string }>('SELECT account, name FROM vote_voter WHERE vote = ? AND account <> ?', open.id, finn.id);
+  assert.match(voter!.account, /^former-/);
+  assert.equal(voter!.name, 'A former member');
+  assert.equal(option!.added_by_account, voter!.account, 'one pseudonym for the deletion');
+  const ballot = await d.get<{ choices: string }>('SELECT choices FROM ballot WHERE vote = ? AND voter = ?', open.id, voter!.account);
+  assert.deepEqual(JSON.parse(ballot!.choices), [await choose(open.id, 'Forest')], 'her open ballot is still her voter row\'s, and still counts');
+  assert.equal((await d.get<{ n: number }>('SELECT count(*) AS n FROM ballot WHERE vote = ?', hidden.id))!.n, 1, 'her secret ballot still counts');
+  const vote = await d.get<{ account: string; author_name: string }>('SELECT account, author_name FROM vote WHERE id = ?', hers.id);
+  assert.match(vote!.account, /^former-/);
+  assert.equal(vote!.author_name, 'A former member');
+  assert.ok(await d.get('SELECT 1 FROM vote_voter WHERE account = ?', finn.id), 'the others are untouched');
+});
+
 test('downloading an account: its own rows, no secrets, nothing of anyone else', async () => {
   await run("INSERT INTO credential (id, user, public_key, created, device) VALUES ('cred-l', ?, x'0102', ?, 'Phone')", LONE.id, T);
   await run("INSERT INTO session (hash, user, created, expires, refreshed) VALUES ('sess-l', ?, ?, ?, ?)", LONE.id, T, T + DAY, T);
