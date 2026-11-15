@@ -62,6 +62,23 @@ const input = (over: Partial<Input> = {}): Input => ({
 const forbidden = /permission/;
 const count = async (tree: string, table: string, where = '1 = 1') => (await db.db(tree).get<{ n: number }>(`SELECT count(*) AS n FROM ${table} WHERE ${where}`))!.n;
 const optionIds = async (tree: string, vote: string) => (await db.db(tree).all<{ id: string }>('SELECT id FROM vote_option WHERE vote = ? ORDER BY ord', vote)).map((r) => r.id);
+/**
+ * Runs `between` just before the next batch family `t` sends, and counts that write's attempts: a change that lands between
+ * a plan's reads and its write, as another request's would.
+ */
+function beforeNextBatch(t: string, between: () => Promise<unknown>) {
+  const d = db.db(t);
+  const send = d.batch;
+  const seen = { attempts: 0 };
+  d.batch = async (queries) => {
+    seen.attempts++;
+    d.batch = send;
+    await between();
+    d.batch = async (again) => { seen.attempts++; return send.call(d, again); };
+    return send.call(d, queries);
+  };
+  return { seen, done: () => { d.batch = send; } };
+}
 
 test('a contributor starts a vote; a viewer may not; the sixth vote in an hour is refused', async () => {
   const t = await family();
@@ -118,8 +135,8 @@ test('a viewer casts a single-choice ballot and changes it: one voter row and on
   const t = await family();
   const { id } = await V.createVote(t, ada, input(), undefined, NOW);
   const [beach, mountains, lake] = await optionIds(t, id);
-  await V.castBallot(t, member(carl), id, [beach], undefined, later(1000));
-  await V.castBallot(t, member({ ...carl, name: 'Carl C.' }), id, [lake], undefined, later(2000));
+  await V.castBallot(t, member(carl), id, [beach], later(1000));
+  await V.castBallot(t, member({ ...carl, name: 'Carl C.' }), id, [lake], later(2000));
   assert.equal(await count(t, 'vote_voter', `vote = '${id}'`), 1);
   assert.equal(await count(t, 'ballot', `vote = '${id}'`), 1);
   const voter = await db.db(t).get<{ account: string; name: string; guest_key: string | null }>('SELECT account, name, guest_key FROM vote_voter WHERE vote = ?', id);
@@ -129,9 +146,9 @@ test('a viewer casts a single-choice ballot and changes it: one voter row and on
   assert.deepEqual(JSON.parse(ballot!.choices), [lake]);
   assert.equal(ballot?.changed_at, later(2000).toISOString());
   // A single choice is exactly one option.
-  await assert.rejects(V.castBallot(t, member(carl), id, [beach, mountains], undefined, later(3000)), /votes\.err\.choice/);
-  await assert.rejects(V.castBallot(t, member(carl), id, [], undefined, later(3000)), /votes\.err\.choice/);
-  await assert.rejects(V.castBallot(t, { kind: 'member', who: guestWho }, id, [beach], undefined, later(3000)), /access/i);
+  await assert.rejects(V.castBallot(t, member(carl), id, [beach, mountains], later(3000)), /votes\.err\.choice/);
+  await assert.rejects(V.castBallot(t, member(carl), id, [], later(3000)), /votes\.err\.choice/);
+  await assert.rejects(V.castBallot(t, { kind: 'member', who: guestWho }, id, [beach], later(3000)), /access/i);
 });
 
 test('a ranked ballot naming an option twice, or one that is not the vote’s, is refused', async () => {
@@ -140,12 +157,12 @@ test('a ranked ballot naming an option twice, or one that is not the vote’s, i
   const { id: otherVote } = await V.createVote(t, ada, input(), undefined, NOW);
   const [beach, mountains, lake] = await optionIds(t, id);
   const [foreign] = await optionIds(t, otherVote);
-  await assert.rejects(V.castBallot(t, member(carl), id, [beach, mountains, beach], undefined, later(1000)), /votes\.err\.choice/);
-  await assert.rejects(V.castBallot(t, member(carl), id, [beach, 'no-such-option'], undefined, later(1000)), /votes\.err\.choice/);
-  await assert.rejects(V.castBallot(t, member(carl), id, [beach, foreign], undefined, later(1000)), /votes\.err\.choice/);
-  await assert.rejects(V.castBallot(t, member(carl), id, [], undefined, later(1000)), /votes\.err\.choice/);
+  await assert.rejects(V.castBallot(t, member(carl), id, [beach, mountains, beach], later(1000)), /votes\.err\.choice/);
+  await assert.rejects(V.castBallot(t, member(carl), id, [beach, 'no-such-option'], later(1000)), /votes\.err\.choice/);
+  await assert.rejects(V.castBallot(t, member(carl), id, [beach, foreign], later(1000)), /votes\.err\.choice/);
+  await assert.rejects(V.castBallot(t, member(carl), id, [], later(1000)), /votes\.err\.choice/);
   assert.equal(await count(t, 'ballot'), 0);
-  await V.castBallot(t, member(carl), id, [lake, beach], undefined, later(1000));
+  await V.castBallot(t, member(carl), id, [lake, beach], later(1000));
   assert.deepEqual(JSON.parse((await db.db(t).get<{ choices: string }>('SELECT choices FROM ballot WHERE vote = ?', id))!.choices), [lake, beach]);
 });
 
@@ -163,7 +180,7 @@ test('after the first ballot only the closing time may change, never into the pa
   await assert.rejects(V.editVote(t, ada, id, { options: ['Beach'] }, undefined, later(1000)), /votes\.err\.options/);
 
   const [beach] = await optionIds(t, id);
-  await V.castBallot(t, member(carl), id, [beach], undefined, later(2000));
+  await V.castBallot(t, member(carl), id, [beach], later(2000));
   await assert.rejects(V.editVote(t, ada, id, { options: ['Beach', 'Forest', 'Lake'] }, undefined, later(3000)), /votes\.err\.locked/);
   await assert.rejects(V.editVote(t, ada, id, { question: 'Something else?' }, undefined, later(3000)), /votes\.err\.locked/);
   await assert.rejects(V.editVote(t, ada, id, { secret: true }, undefined, later(3000)), /votes\.err\.locked/);
@@ -186,11 +203,11 @@ test('an option may be added only where the vote allows it, by a contributor', a
   await assert.rejects(V.addOption(t, carl, id, 'Forest', undefined, later(1000)), forbidden);
   await assert.rejects(V.addOption(t, bo, id, ' LAKE ', undefined, later(1000)), /votes\.err\.options/);
   const [beach] = await optionIds(t, id);
-  await V.castBallot(t, member(carl), id, [beach], undefined, later(1500));
+  await V.castBallot(t, member(carl), id, [beach], later(1500));
   const { id: forest } = await V.addOption(t, bo, id, 'Forest', undefined, later(2000));
   const added = await db.db(t).get<{ label: string; ord: number; added_by_account: string; added_by_name: string }>('SELECT label, ord, added_by_account, added_by_name FROM vote_option WHERE id = ?', forest);
   assert.deepEqual({ ...added }, { label: 'Forest', ord: 3, added_by_account: bo.id, added_by_name: 'Bo Birch' });
-  await V.castBallot(t, member(carl), id, [forest], undefined, later(3000));
+  await V.castBallot(t, member(carl), id, [forest], later(3000));
 });
 
 test('a ballot, an option or an edit after the closing time is refused, though nothing marked the vote closed', async () => {
@@ -199,7 +216,7 @@ test('a ballot, an option or an edit after the closing time is refused, though n
   const [beach] = await optionIds(t, id);
   const after = later(2 * 3_600_000);
   assert.equal((await db.db(t).get<{ c: string | null }>('SELECT closed_at AS c FROM vote WHERE id = ?', id))?.c, null);
-  await assert.rejects(V.castBallot(t, member(carl), id, [beach], undefined, after), /votes\.err\.closed/);
+  await assert.rejects(V.castBallot(t, member(carl), id, [beach], after), /votes\.err\.closed/);
   await assert.rejects(V.addOption(t, bo, id, 'Forest', undefined, after), /votes\.err\.closed/);
   await assert.rejects(V.editVote(t, ada, id, { closesAt: later(DAY, after).toISOString() }, undefined, after), /votes\.err\.closed/);
   assert.equal(await count(t, 'ballot'), 0);
@@ -210,7 +227,7 @@ test('a ballot, an option or an edit after the closing time is refused, though n
   await assert.rejects(V.closeVote(t, bo, early, undefined, later(1000)), forbidden);
   await V.closeVote(t, ada, early, undefined, later(1000));
   assert.equal((await db.db(t).get<{ c: string | null }>('SELECT closed_at AS c FROM vote WHERE id = ?', early))?.c, later(1000).toISOString());
-  await assert.rejects(V.castBallot(t, member(carl), early, [first], undefined, later(2000)), /votes\.err\.closed/);
+  await assert.rejects(V.castBallot(t, member(carl), early, [first], later(2000)), /votes\.err\.closed/);
   // An editor may close anyone's.
   const { id: third } = await V.createVote(t, ada, input(), undefined, NOW);
   await V.closeVote(t, dee, third, undefined, later(1000));
@@ -221,7 +238,7 @@ test('removing a vote takes its options, voters and ballots: the creator’s own
   const t = await family();
   const { id } = await V.createVote(t, ada, input(), undefined, NOW);
   const [beach] = await optionIds(t, id);
-  await V.castBallot(t, member(carl), id, [beach], undefined, later(1000));
+  await V.castBallot(t, member(carl), id, [beach], later(1000));
   await assert.rejects(V.removeVote(t, bo, id), forbidden);
   assert.deepEqual(await V.removeVote(t, { ...ada, role: 'viewer' }, id), { removed: true });
   for (const table of ['vote', 'vote_option', 'vote_voter', 'ballot']) assert.equal(await count(t, table), 0, table);
@@ -234,38 +251,38 @@ test('a guest votes only where the vote allows guests, and only so many from one
   const t = await family();
   const { id: closedToGuests } = await V.createVote(t, ada, input(), undefined, NOW);
   const [x] = await optionIds(t, closedToGuests);
-  await assert.rejects(V.castBallot(t, guest(1), closedToGuests, [x], undefined, later(1000)), /votes\.err\.guests/);
+  await assert.rejects(V.castBallot(t, guest(1), closedToGuests, [x], later(1000)), /votes\.err\.guests/);
 
   const { id } = await V.createVote(t, ada, input({ guests: true }), undefined, NOW);
   const [beach, mountains] = await optionIds(t, id);
-  await assert.rejects(V.castBallot(t, guest(1, 1, 'link-1', '  '), id, [beach], undefined, later(1000)), /votes\.err\.name/);
-  await assert.rejects(V.castBallot(t, guest(1, 1, 'link-1', 'x'.repeat(61)), id, [beach], undefined, later(1000)), /votes\.err\.name/);
+  await assert.rejects(V.castBallot(t, guest(1, 1, 'link-1', '  '), id, [beach], later(1000)), /votes\.err\.name/);
+  await assert.rejects(V.castBallot(t, guest(1, 1, 'link-1', 'x'.repeat(61)), id, [beach], later(1000)), /votes\.err\.name/);
   // One network: twelve guests, not thirteen.
-  for (let n = 1; n <= GUEST_VOTERS_PER_NETWORK; n++) await V.castBallot(t, guest(n, 7), id, [beach], undefined, later(1000 + n));
-  await assert.rejects(V.castBallot(t, guest(100, 7), id, [beach], undefined, later(2000)), /votes\.err\.limit/);
+  for (let n = 1; n <= GUEST_VOTERS_PER_NETWORK; n++) await V.castBallot(t, guest(n, 7), id, [beach], later(1000 + n));
+  await assert.rejects(V.castBallot(t, guest(100, 7), id, [beach], later(2000)), /votes\.err\.limit/);
   // One already counted may still change their ballot.
-  await V.castBallot(t, guest(1, 7), id, [mountains], undefined, later(3000));
+  await V.castBallot(t, guest(1, 7), id, [mountains], later(3000));
   const row = await db.db(t).get<Record<string, unknown>>('SELECT account, guest_key, name, person, link, net FROM vote_voter WHERE guest_key = ?', 'g:key-1');
   assert.deepEqual({ ...row }, { account: null, guest_key: 'g:key-1', name: 'Guest 1', person: null, link: 'link-1', net: 7 });
   // One link: forty guests, not forty-one (each from a network of their own).
-  for (let n = GUEST_VOTERS_PER_NETWORK + 1; n <= GUEST_VOTERS_PER_LINK; n++) await V.castBallot(t, guest(n), id, [beach], undefined, later(4000 + n));
+  for (let n = GUEST_VOTERS_PER_NETWORK + 1; n <= GUEST_VOTERS_PER_LINK; n++) await V.castBallot(t, guest(n), id, [beach], later(4000 + n));
   assert.equal(await count(t, 'vote_voter', `vote = '${id}'`), GUEST_VOTERS_PER_LINK);
-  await assert.rejects(V.castBallot(t, guest(200), id, [beach], undefined, later(5000)), /votes\.err\.limit/);
+  await assert.rejects(V.castBallot(t, guest(200), id, [beach], later(5000)), /votes\.err\.limit/);
   // Another link's guests are counted apart.
-  await V.castBallot(t, guest(201, 201, 'link-2'), id, [beach], undefined, later(6000));
+  await V.castBallot(t, guest(201, 201, 'link-2'), id, [beach], later(6000));
   // Members are no guests: never limited by them.
-  await V.castBallot(t, member(carl), id, [beach], undefined, later(7000));
+  await V.castBallot(t, member(carl), id, [beach], later(7000));
 });
 
 test('a secret vote’s ballots carry no account, no time, and nothing a backup could join to who voted', async () => {
   const t = await family();
   const { id } = await V.createVote(t, ada, input({ secret: true, guests: true, kind: 'ranked' }), undefined, NOW);
   const [beach, mountains] = await optionIds(t, id);
-  await V.castBallot(t, member(carl), id, [beach], undefined, later(1000));
-  await V.castBallot(t, member(bo), id, [mountains, beach], undefined, later(2000));
-  await V.castBallot(t, guest(1), id, [mountains], undefined, later(3000));
+  await V.castBallot(t, member(carl), id, [beach], later(1000));
+  await V.castBallot(t, member(bo), id, [mountains, beach], later(2000));
+  await V.castBallot(t, guest(1), id, [mountains], later(3000));
   // Carl changes his: still one row, still no time.
-  await V.castBallot(t, member(carl), id, [mountains], undefined, later(4000));
+  await V.castBallot(t, member(carl), id, [mountains], later(4000));
   const ballots = await db.db(t).all<Record<string, unknown>>('SELECT * FROM ballot WHERE vote = ?', id);
   const voters = await db.db(t).all<Record<string, unknown>>('SELECT * FROM vote_voter WHERE vote = ?', id);
   assert.equal(ballots.length, 3);
@@ -288,8 +305,8 @@ test('a steward strikes and restores a guest’s ballot while the vote is open, 
   const t = await family();
   const { id } = await V.createVote(t, ada, input({ guests: true }), undefined, NOW);
   const [beach] = await optionIds(t, id);
-  await V.castBallot(t, guest(1), id, [beach], undefined, later(1000));
-  await V.castBallot(t, member(carl), id, [beach], undefined, later(1000));
+  await V.castBallot(t, guest(1), id, [beach], later(1000));
+  await V.castBallot(t, member(carl), id, [beach], later(1000));
   const rowOf = async (where: string) => (await db.db(t).get<{ id: string }>(`SELECT id FROM vote_voter WHERE vote = ? AND ${where}`, id))!.id;
   const guestRow = await rowOf('guest_key IS NOT NULL');
   const memberRow = await rowOf('account IS NOT NULL');
@@ -298,7 +315,7 @@ test('a steward strikes and restores a guest’s ballot while the vote is open, 
   await V.strikeVoter(t, eve, id, guestRow, true, undefined, later(2000));
   assert.equal(await count(t, 'vote_voter', 'struck = 1'), 1);
   // A struck guest votes no more.
-  await assert.rejects(V.castBallot(t, guest(1), id, [beach], undefined, later(2500)), /votes\.err\.guests/);
+  await assert.rejects(V.castBallot(t, guest(1), id, [beach], later(2500)), /votes\.err\.guests/);
   await V.strikeVoter(t, eve, id, guestRow, false, undefined, later(3000));
   assert.equal(await count(t, 'vote_voter', 'struck = 1'), 0);
   await V.closeVote(t, ada, id, undefined, later(4000));
@@ -309,7 +326,7 @@ test('a demo and a steward’s preview store nothing', async () => {
   const t = await family();
   const { id } = await V.createVote(t, ada, input({ addOptions: true, guests: true }), undefined, NOW);
   const [beach] = await optionIds(t, id);
-  await V.castBallot(t, guest(1), id, [beach], undefined, later(1000));
+  await V.castBallot(t, guest(1), id, [beach], later(1000));
   const guestRow = (await db.db(t).get<{ id: string }>('SELECT id FROM vote_voter WHERE vote = ?', id))!.id;
   const writes = () => [
     () => V.createVote(t, ada, input(), undefined, NOW),
@@ -317,8 +334,8 @@ test('a demo and a steward’s preview store nothing', async () => {
     () => V.closeVote(t, ada, id, undefined, later(1000)),
     () => V.removeVote(t, ada, id),
     () => V.addOption(t, bo, id, 'Forest', undefined, later(1000)),
-    () => V.castBallot(t, member(carl), id, [beach], undefined, later(1000)),
-    () => V.castBallot(t, guest(2), id, [beach], undefined, later(1000)),
+    () => V.castBallot(t, member(carl), id, [beach], later(1000)),
+    () => V.castBallot(t, guest(2), id, [beach], later(1000)),
     () => V.strikeVoter(t, eve, id, guestRow, true, undefined, later(1000)),
   ];
   const snapshot = async () => Promise.all(['vote', 'vote_option', 'vote_voter', 'ballot', 'vote WHERE closed_at IS NOT NULL', 'vote_voter WHERE struck = 1'].map((s) => count(t, s.split(' ')[0], s.split(' WHERE ')[1])));
@@ -336,4 +353,70 @@ test('a demo and a steward’s preview store nothing', async () => {
     readOnly.onRequestReadOnly(() => undefined);
   }
   assert.deepEqual(await snapshot(), before);
+});
+
+test('a ballot decides again when the vote turned secret or single-choice between its reading and its writing', async () => {
+  const t = await family();
+  const { id } = await V.createVote(t, ada, input(), undefined, NOW);
+  const [beach] = await optionIds(t, id);
+  const hook = beforeNextBatch(t, () => V.editVote(t, ada, id, { secret: true }, undefined, later(500)));
+  try {
+    await V.castBallot(t, member(carl), id, [beach], later(1000));
+  } finally {
+    hook.done();
+  }
+  const ballot = await db.db(t).get<{ voter: string; changed_at: string | null }>('SELECT voter, changed_at FROM ballot WHERE vote = ?', id);
+  assert.equal(ballot?.voter, await V.voterKey(id, true, carl.id), 'keyed as the secret vote it now is');
+  assert.equal(ballot?.changed_at, null);
+
+  const { id: ranked } = await V.createVote(t, ada, input({ kind: 'ranked' }), undefined, NOW);
+  const [first, second] = await optionIds(t, ranked);
+  const flip = beforeNextBatch(t, () => V.editVote(t, ada, ranked, { kind: 'single' }, undefined, later(500)));
+  try {
+    await assert.rejects(V.castBallot(t, member(carl), ranked, [first, second], later(1000)), /votes\.err\.choice/);
+  } finally {
+    flip.done();
+  }
+  assert.equal(await count(t, 'ballot', `vote = '${ranked}'`), 0);
+});
+
+test('a ballot leaves no retry key behind: the op table would keep who sent which choices', async () => {
+  const t = await family();
+  const { id } = await V.createVote(t, ada, input({ secret: true }), undefined, NOW);
+  const [beach] = await optionIds(t, id);
+  const before = await count(t, 'op');
+  await V.castBallot(t, member(carl), id, [beach], later(1000));
+  assert.equal(V.castBallot.length, 4, 'castBallot takes no retry key');
+  assert.equal(await count(t, 'op'), before);
+});
+
+test('changing the options and adding one decide again on the options as they are when they meet', async () => {
+  const t = await family();
+  const { id } = await V.createVote(t, ada, input({ addOptions: true }), undefined, NOW);
+  // Bo adds Forest while Ada saves the same list with Forest: hers decides again, finds it there, and keeps Bo's.
+  const added = beforeNextBatch(t, () => V.addOption(t, bo, id, 'Forest', undefined, later(500)));
+  try {
+    await V.editVote(t, ada, id, { options: ['Beach', 'Mountains', 'Lake', 'Forest'] }, undefined, later(1000));
+  } finally {
+    added.done();
+  }
+  assert.equal(added.seen.attempts, 2);
+  const forest = await db.db(t).get<{ added_by_account: string }>("SELECT added_by_account FROM vote_option WHERE vote = ? AND label = 'Forest'", id);
+  assert.equal(forest?.added_by_account, bo.id);
+
+  // Ada renames Mountains to Hills while Bo adds "hills": his decides again and finds the label taken.
+  const renamed = beforeNextBatch(t, () => V.editVote(t, ada, id, { options: ['Beach', 'Hills', 'Lake', 'Forest'] }, undefined, later(1500)));
+  try {
+    await assert.rejects(V.addOption(t, bo, id, 'hills', undefined, later(2000)), /votes\.err\.options/);
+  } finally {
+    renamed.done();
+  }
+  assert.equal(await count(t, 'vote_option', `vote = '${id}'`), 4);
+});
+
+test('a kind that is neither single nor ranked is refused with a key', async () => {
+  const t = await family();
+  await assert.rejects(V.createVote(t, ada, input({ kind: 'plural' as never }), undefined, NOW), /votes\.err\.kind/);
+  const { id } = await V.createVote(t, ada, input(), undefined, NOW);
+  await assert.rejects(V.editVote(t, ada, id, { kind: 'plural' as never }, undefined, later(1000)), /votes\.err\.kind/);
 });

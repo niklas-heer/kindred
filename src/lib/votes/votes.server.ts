@@ -16,6 +16,9 @@
 // - A secret vote's `ballot.voter` is an HMAC of the vote and the voter under the server's secret (`voterKey`), and its
 //   `changed_at` stays NULL: a backup of the family's database lists who voted (`vote_voter`) and the ballots, never which
 //   is whose. `vote_voter.id` is a random UUID, so nothing there derives from the key either.
+// - A ballot is never sent with a retry key: `once` would keep it in the `op` table for a month with the account and a
+//   fingerprint of the vote and the choices, which anyone with a copy of the database could match against every possible
+//   ballot, secret ones included. Casting is an upsert of the voter's one row and one ballot, so sending it twice is harmless.
 // - Errors are translation keys (`votes.err.*`), translated where they are shown:
 //     closed       the vote has closed           locked     it can no longer change that (a ballot exists, or no additions)
 //     options      the options are not 2 to 20 distinct labels of at most 120 characters
@@ -24,6 +27,7 @@
 //     limit        too many guests from this network or link   not_yours  only its creator may change a vote
 //     closes_at    the closing time is too soon or too far      question / description  empty or too long
 //     name         a guest's name is empty or too long         gone       the vote (or the voter) is not there
+//     kind         the kind is neither `single` nor `ranked`
 import { fail } from '../auth/guard.server';
 import { forbidden } from '../auth/errors';
 import { serverHmac } from '../auth/seal.server';
@@ -127,7 +131,15 @@ async function voteOf(d: Db, id: string): Promise<VoteRow> {
   if (!row) throw new Error('votes.err.gone');
   return row;
 }
-const labelsOf = async (d: Db, vote: string) => (await d.all<{ label: string }>('SELECT label FROM vote_option WHERE vote = ? ORDER BY ord', vote)).map((r) => r.label);
+const optionsRead = (d: Db, vote: string) => d.all<{ id: string; label: string }>('SELECT id, label FROM vote_option WHERE vote = ? ORDER BY ord', vote);
+/** A guard: the vote's options are exactly these, as read. An option added, replaced or removed meanwhile makes the plan decide again. */
+const sameOptions = (vote: string, ids: readonly string[]) =>
+  guard(`(SELECT count(*) FROM vote_option WHERE vote = ?) = ? AND (SELECT count(*) FROM vote_option WHERE vote = ? AND id IN (SELECT value FROM json_each(?))) = ?`,
+    vote, ids.length, vote, JSON.stringify(ids), ids.length);
+function kindOf(kind: unknown): VoteKind {
+  if (kind !== 'single' && kind !== 'ranked') throw new Error('votes.err.kind');
+  return kind;
+}
 const optionRows = (vote: string, labels: readonly string[], who: Who, at: string, from = 0): Query[] =>
   labels.map((label, i) => q('INSERT INTO vote_option (id, vote, ord, label, added_by_account, added_by_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', crypto.randomUUID(), vote, from + i, label, who.id, who.name, at));
 
@@ -138,6 +150,7 @@ export async function createVote(tree: string, who: Who, input: VoteInput, op?: 
   needs(who, 'start-vote');
   const question = questionOf(input.question);
   const description = descriptionOf(input.description);
+  const kind = kindOf(input.kind);
   const labels = optionsOf(input.options);
   const closesAt = closingOf(input.closesAt, now, now);
   return once(tree, op, 'createVote', async (d) => {
@@ -153,7 +166,7 @@ export async function createVote(tree: string, who: Who, input: VoteInput, op?: 
         // The hour's count as read: two votes sent at once cannot both be the fifth.
         guard('(SELECT count(*) FROM vote WHERE account = ? AND created_at > ?) < ?', who.id, hourAgo, MAX_VOTES_AN_HOUR),
         q(`INSERT INTO vote (id, account, author_name, author_person, question, description, kind, secret, add_options, guests, closes_at, created_at) VALUES (?, ?, ?, ${PERSON}, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          id, who.id, who.name, author, question, description, input.kind, input.secret ? 1 : 0, input.addOptions ? 1 : 0, input.guests ? 1 : 0, closesAt, at),
+          id, who.id, who.name, author, question, description, kind, input.secret ? 1 : 0, input.addOptions ? 1 : 0, input.guests ? 1 : 0, closesAt, at),
         ...optionRows(id, labels, who, at),
       ],
       history: NOT_A_RECORD,
@@ -173,11 +186,12 @@ export async function editVote(tree: string, who: Who, id: string, input: Partia
     if (row.account !== who.id) throw new Error('votes.err.not_yours');
     const at = now.toISOString();
     if (!isOpen(row, at)) throw new Error('votes.err.closed');
-    const labels = await labelsOf(d, id);
+    const read = await optionsRead(d, id);
+    const labels = read.map((o) => o.label);
     const question = input.question === undefined ? row.question : questionOf(input.question);
     const description = input.description === undefined ? row.description : descriptionOf(input.description);
     const options = input.options === undefined ? labels : optionsOf(input.options);
-    const flags = { kind: input.kind ?? row.kind, secret: +(input.secret ?? !!row.secret), add_options: +(input.addOptions ?? !!row.add_options), guests: +(input.guests ?? !!row.guests) };
+    const flags = { kind: input.kind === undefined ? row.kind : kindOf(input.kind), secret: +(input.secret ?? !!row.secret), add_options: +(input.addOptions ?? !!row.add_options), guests: +(input.guests ?? !!row.guests) };
     const optionsChanged = options.length !== labels.length || options.some((l, i) => l !== labels[i]);
     const changed = optionsChanged || question !== row.question || description !== row.description || flags.kind !== row.kind
       || flags.secret !== row.secret || flags.add_options !== row.add_options || flags.guests !== row.guests;
@@ -193,7 +207,8 @@ export async function editVote(tree: string, who: Who, id: string, input: Partia
           q('UPDATE vote SET question = ?, description = ?, kind = ?, secret = ?, add_options = ?, guests = ?, edited_at = ? WHERE id = ?',
             question, description, flags.kind, flags.secret, flags.add_options, flags.guests, at, id),
         ] : []),
-        ...(optionsChanged ? [q('DELETE FROM vote_option WHERE vote = ?', id), ...optionRows(id, options, who, at)] : []),
+        // The options as read: one added meanwhile makes the plan decide again, on the list as it is then.
+        ...(optionsChanged ? [sameOptions(id, read.map((o) => o.id)), q('DELETE FROM vote_option WHERE vote = ?', id), ...optionRows(id, options, who, at)] : []),
         ...(closesAt === row.closes_at ? [] : [q('UPDATE vote SET closes_at = ? WHERE id = ?', closesAt, id)]),
       ],
       history: NOT_A_RECORD,
@@ -245,15 +260,16 @@ export async function addOption(tree: string, who: Who, id: string, label: strin
     const at = now.toISOString();
     if (!isOpen(row, at)) throw new Error('votes.err.closed');
     if (!row.add_options) throw new Error('votes.err.locked');
-    const labels = await labelsOf(d, id);
+    const read = await optionsRead(d, id);
+    const labels = read.map((o) => o.label);
     if (labels.length >= MAX_OPTIONS) throw new Error('votes.err.options');
     const text = labelOf(label, labels);
     const option = crypto.randomUUID();
     return {
       writes: [
         guard(`EXISTS (SELECT 1 FROM vote WHERE ${OPEN} AND add_options = 1)`, id, at),
-        // The options as read: one added meanwhile (perhaps the same label) makes the plan decide again.
-        guard('(SELECT count(*) FROM vote_option WHERE vote = ?) = ?', id, labels.length),
+        // The options as read: one added or relabelled meanwhile (perhaps to the same label) makes the plan decide again.
+        sameOptions(id, read.map((o) => o.id)),
         q('INSERT INTO vote_option (id, vote, ord, label, added_by_account, added_by_name, created_at) VALUES (?, ?, (SELECT coalesce(max(ord), -1) + 1 FROM vote_option WHERE vote = ?), ?, ?, ?, ?)',
           option, id, id, text, who.id, who.name, at),
       ],
@@ -269,12 +285,13 @@ export async function addOption(tree: string, who: Who, id: string, label: strin
  * this vote. A guest votes only where the vote allows guests, within the network's and the link's limits, and not once
  * struck.
  */
-export async function castBallot(tree: string, voter: Voter, id: string, choices: string[], op?: OpKey, now: Date = new Date()): Promise<void> {
+export async function castBallot(tree: string, voter: Voter, id: string, choices: string[], now: Date = new Date()): Promise<void> {
   if (voter.kind === 'member') needs(voter.who, 'vote');
   const name = voter.kind === 'member' ? voter.who.name : oneLine(voter.name);
   if (voter.kind === 'guest' && !voter.key.startsWith('g:')) throw new Error('votes.err.guests');
   if (voter.kind === 'guest' && (!name || name.length > MAX_GUEST_NAME)) throw new Error('votes.err.name');
-  return once(tree, op, 'castBallot', async (d) => {
+  // No retry key, ever (above): the op table would keep the choices' fingerprint beside the account.
+  return once(tree, undefined, 'castBallot', async (d) => {
     const row = await voteOf(d, id);
     const at = now.toISOString();
     if (voter.kind === 'guest' && !row.guests) throw new Error('votes.err.guests');
@@ -286,7 +303,8 @@ export async function castBallot(tree: string, voter: Voter, id: string, choices
     const voterId = voter.kind === 'member' ? voter.who.id : voter.key;
     const key = await voterKey(id, !!row.secret, voterId);
     const writes: Query[] = [
-      guard(`EXISTS (SELECT 1 FROM vote WHERE ${OPEN}${voter.kind === 'guest' ? ' AND guests = 1' : ''})`, id, at),
+      // Open, and still as secret and of the kind as read: the key and the choices were decided on them.
+      guard(`EXISTS (SELECT 1 FROM vote WHERE ${OPEN} AND secret = ? AND kind = ?${voter.kind === 'guest' ? ' AND guests = 1' : ''})`, id, at, row.secret, row.kind),
       // The choices are still this vote's options (the creator may replace them until the first ballot).
       guard(`(SELECT count(*) FROM vote_option WHERE vote = ? AND id IN (${marks(choices)})) = ?`, id, ...choices, choices.length),
     ];
