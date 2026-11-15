@@ -312,11 +312,11 @@ export function votesNote(family: string, year: string, votes: ExVote[]): string
     if (v.description.trim()) out.push(quoted(plainMarkdown(v.description.trim())), '');
     out.push(`*${v.kind === 'ranked' ? 'Ranked choice' : 'Single choice'}, ${v.secret ? 'secret' : 'open'} vote. ${v.closed ? 'Closed' : 'Still open, closes'} ${v.closes.slice(0, 10)}.*`, '');
     out.push('Options:', ...v.options.map((o) => `- ${inline(o.label)}`), '');
-    const voted = v.voters.map((x) => `${inline(x.name)}${x.guest || x.struck ? ` (${[x.guest ? 'guest' : '', x.struck ? 'struck' : ''].filter(Boolean).join(', ')})` : ''}`);
     if (!v.closed) {
       out.push(`${v.voters.length} ${v.voters.length === 1 ? 'person has' : 'people have'} voted so far. No result is written until it has closed.`, '');
       continue;
     }
+    const voted = v.voters.map((x) => `${inline(x.name)}${x.guest || x.struck ? ` (${[x.guest ? 'guest' : '', x.struck ? 'struck' : ''].filter(Boolean).join(', ')})` : ''}`);
     const r = v.result;
     const label = (id: string) => inline(v.options.find((o) => o.id === id)?.label ?? '');
     const tallies = (t: Record<string, number>) => v.options.filter((o) => o.id in t).map((o) => `- ${inline(o.label)}: ${t[o.id]}`);
@@ -326,8 +326,9 @@ export function votesNote(family: string, year: string, votes: ExVote[]): string
       out.push('Result:', ...tallies(r.tallies), '');
     }
     out.push(r && r.winners.length ? `${r.winners.length > 1 ? 'Tie' : 'Winner'}: ${r.winners.map(label).join(', ')}.` : 'Nobody voted.', '');
-    if (v.ballots) out.push('Ballots:', ...v.ballots.map((b) => `- ${inline(b.name)}${b.guest ? ' (guest)' : ''}: ${b.choices.map(inline).join(' > ')}`), '');
+    if (v.ballots?.length) out.push('Ballots:', ...v.ballots.map((b) => `- ${inline(b.name)}${b.guest ? ' (guest)' : ''}: ${b.choices.map(inline).join(' > ')}`), '');
     else out.push(`Voted: ${voted.join(', ') || 'nobody'}.`, '');
+    if (v.strikesIgnored) out.push('Some guests\' ballots were struck by a steward, but this export could not tell which ballots were theirs, so the totals count them.', '');
     if (v.ballots && v.voters.some((x) => x.struck)) out.push(`Struck guests, not counted: ${v.voters.filter((x) => x.struck).map((x) => inline(x.name)).join(', ')}.`, '');
   }
   return `${out.join('\n').trimEnd()}\n`;

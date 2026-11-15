@@ -1,6 +1,6 @@
 // The exchange model: one family as plain data, read from a tree's database and written to or read from
-// a GEDCOM or Markdown file. Pure: it imports nothing from storage at runtime, so the Node scripts, the
-// Worker and the unit tests all share it. Dates are Kindred's partial dates ("1953", "1953-08",
+// a GEDCOM or Markdown file. Pure: it imports nothing from storage or the server at runtime, so the Node scripts, the
+// Worker and the unit tests all share it. What needs the server's secret (a secret vote's struck guests) is passed in. Dates are Kindred's partial dates ("1953", "1953-08",
 // "1953-08-08"), with "~" in front of an approximate one.
 import { parseFurther } from '../further-given.ts';
 import type { Key } from '../i18n/dictionary.ts';
@@ -156,6 +156,13 @@ export interface ExVote {
   voters: { name: string; guest: boolean; struck: boolean }[];
   result: VoteResult | null;
   ballots: { name: string; guest: boolean; choices: string[] }[] | null;
+  /** A secret vote with struck guests whose ballots could not be found (no `voterKey` was given), so the totals count them. */
+  strikesIgnored?: boolean;
+}
+
+/** What a reader of the tree may be given: the server's `voterKey` (votes.server.ts), only by callers that run on the server. */
+export interface ReadOptions {
+  voterKey?: (vote: string, secret: boolean, voterId: string) => Promise<string>;
 }
 
 export interface ExTree {
@@ -220,7 +227,7 @@ interface PersonRow {
 const or = <T>(v: T | null | undefined): T | null => (v === undefined || v === null ? null : v);
 
 /** A family's whole exchangeable record, read through the same `Db` the app uses. */
-export async function readTree(d: Db): Promise<ExTree> {
+export async function readTree(d: Db, opts: ReadOptions = {}): Promise<ExTree> {
   const meta = Object.fromEntries((await d.all<{ key: string; value: string }>('SELECT key, value FROM meta')).map((r) => [r.key, r.value]));
   const people = await d.all<PersonRow>(`SELECT p.id, p.given, p.further_given, p.surname, p.current_given, p.current_surname, p.sex, p.born, p.born_place,
       p.died, p.died_place, p.living, p.title, p.epithet, p.occupation, p.nickname, p.bio,
@@ -264,7 +271,7 @@ export async function readTree(d: Db): Promise<ExTree> {
   for (const r of postPeople) peopleOf.set(r.post, [...(peopleOf.get(r.post) ?? []), r.person]);
   const postCommentsOf = new Map<string, ExComment[]>();
   for (const c of postComments) postCommentsOf.set(c.target, [...(postCommentsOf.get(c.target) ?? []), { author: c.author_name, at: c.created_at, edited: c.edited_at, body: c.body }]);
-  const votes = await readVotes(d);
+  const votes = await readVotes(d, opts);
   const count = async (sql: string) => (await d.get<{ n: number }>(sql))?.n ?? 0;
   return {
     id: meta.id ?? '',
@@ -308,10 +315,10 @@ export async function readTree(d: Db): Promise<ExTree> {
 }
 
 /**
- * The family's votes for the archive. A secret ballot is stored under an HMAC the server alone can compute, so one is looked
- * up (to leave out a struck guest's) only when there is something struck, and the module that knows the secret is then loaded.
+ * The family's votes for the archive. A secret ballot is stored under an HMAC the server alone can compute: a struck guest's
+ * is left out only when the caller gave `voterKey`; without it nothing is left out and the vote says so (`strikesIgnored`).
  */
-async function readVotes(d: Db): Promise<ExVote[]> {
+async function readVotes(d: Db, read: ReadOptions): Promise<ExVote[]> {
   const rows = await d.all<{ id: string; author_name: string; created_at: string; question: string; description: string; kind: VoteKind; secret: number; closes_at: string; closed_at: string | null }>(
     'SELECT id, author_name, created_at, question, description, kind, secret, closes_at, closed_at FROM vote ORDER BY created_at, id',
   );
@@ -328,13 +335,16 @@ async function readVotes(d: Db): Promise<ExVote[]> {
     const closed = !!v.closed_at || v.closes_at <= now;
     let result: VoteResult | null = null;
     let named: ExVote['ballots'] = null;
+    let ignored = false;
     if (closed) {
       const own = ballots.filter((b) => b.vote === v.id);
+      const hmac = read.voterKey;
       const key = async (x: (typeof mine)[number]) => {
         const id = (x.account ?? x.guest_key)!;
-        return v.secret ? (await import('../votes/votes.server.ts')).voterKey(v.id, true, id) : id;
+        return v.secret ? hmac!(v.id, true, id) : id;
       };
-      const struck = new Set(await Promise.all(mine.filter((x) => x.struck).map(key)));
+      ignored = !!v.secret && !hmac && mine.some((x) => x.struck);
+      const struck = new Set(ignored ? [] : await Promise.all(mine.filter((x) => x.struck).map(key)));
       const counted = own.filter((b) => !struck.has(b.voter));
       result = countVote(v.kind, opts.map((o) => o.id), counted.map((b) => JSON.parse(b.choices) as string[]));
       if (!v.secret) {
@@ -348,7 +358,7 @@ async function readVotes(d: Db): Promise<ExVote[]> {
     out.push({
       id: v.id, author: v.author_name, at: v.created_at, question: v.question, description: v.description, kind: v.kind, secret: !!v.secret,
       closes: v.closed_at ?? v.closes_at, closed, options: opts.map((o) => ({ id: o.id, label: o.label })),
-      voters: mine.map((x) => ({ name: x.name, guest: !x.account, struck: !!x.struck })), result, ballots: named,
+      voters: mine.map((x) => ({ name: x.name, guest: !x.account, struck: !!x.struck })), result, ballots: named, ...(ignored ? { strikesIgnored: true } : {}),
     });
   }
   return out;

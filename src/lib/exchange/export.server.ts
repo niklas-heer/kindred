@@ -5,6 +5,7 @@ import { db, media } from '../db.server.ts';
 import type { ArchiveFile } from './markdown.ts';
 import { markdownArchive, noteNames, portraitPath } from './markdown.ts';
 import { writeGedcom } from './gedcom.ts';
+import { voterKey } from '../votes/votes.server.ts';
 import { readTree, type ExTree } from './model.ts';
 import { storeZip } from './zip.ts';
 import { researchArchive, researchGedcomLosses } from './research-archive.ts';
@@ -49,7 +50,7 @@ async function portraitFiles(tree: string, t: ExTree): Promise<ArchiveFile[]> {
  * storage). The whole file is built in memory before it is sent, which suits a family's size.
  */
 export async function markdownExport(tree: string, now: Date = new Date()) {
-  const t = await readTree(db(tree));
+  const t = await readTree(db(tree), { voterKey });
   const attachments = await portraitFiles(tree, t);
   const have = new Set(attachments.map((a) => a.path));
   const { files, losses } = markdownArchive(t, have, now);
@@ -67,13 +68,13 @@ export interface FamilySnapshot {
 
 /** The family's current data, read from its database and media storage. Read-only. */
 export async function familySnapshot(tree: string): Promise<FamilySnapshot> {
-  const t = await readTree(db(tree));
+  const t = await readTree(db(tree), { voterKey });
   return { tree: t, portraits: await portraitFiles(tree, t), research: (await researchArchive(tree)).files };
 }
 
 /** What the format leaves out, without building the file: the export page shows it before the download. */
 export async function exportLosses(tree: string, format: ExportFormat): Promise<string[]> {
-  const t = await readTree(db(tree));
+  const t = await readTree(db(tree), format === 'gedcom' ? {} : { voterKey });
   if (format === 'gedcom') return [...writeGedcom(t).losses, ...(await researchGedcomLosses(tree))];
   return [...markdownArchive(t).losses, ...(await researchArchive(tree)).losses];
 }

@@ -41,8 +41,8 @@ async function tree(id: string): Promise<string> {
 const optionOf = async (t: string, vote: string, label: string) => (await db.db(t).get<{ id: string }>('SELECT id FROM vote_option WHERE vote = ? AND label = ?', vote, label))!.id;
 const start = (t: string, question: string, over: object = {}, from = START) =>
   V.createVote(t, ada, { question, kind: 'single', secret: false, addOptions: false, guests: true, closesAt: new Date(from.getTime() + 7 * DAY).toISOString(), options: ['Beach', 'Lake'], ...over }, undefined, from);
-const archiveOf = async (t: string, name: string) => {
-  const { files } = markdownArchive(await readTree(db.db(t)), new Set(), new Date('2026-11-15T00:00:00Z'));
+const archiveOf = async (t: string, name: string, withKey = true) => {
+  const { files } = markdownArchive(await readTree(db.db(t), withKey ? { voterKey: V.voterKey } : {}), new Set(), new Date('2026-11-15T00:00:00Z'));
   return files.find((f) => f.path === name)?.data as string | undefined;
 };
 const vote = (t: string, id: string, w: ReturnType<typeof who>, labels: string[], at: Date) =>
@@ -115,4 +115,17 @@ test('a ranked vote shows each round, and a tree without votes writes no votes/ 
   assert.match(text, /Round 1/);
   assert.match(text, /Round 2/);
   assert.match(text, /Winner: Cy/);
+});
+
+test('without the server\'s key a struck guest of a secret vote does not make the read fail, and the archive says so', async () => {
+  const t = await tree('archive-nokey');
+  const { id } = await start(t, 'Which cake?', { secret: true, options: ['Plum', 'Apple'] });
+  const at = new Date(START.getTime() + DAY);
+  await vote(t, id, ada, ['Plum'], at);
+  await V.castBallot(t, { kind: 'guest', key: 'g:one', name: 'Gus Guest', link: 'l', net: 1 }, id, [await optionOf(t, id, 'Apple')], at);
+  await V.strikeVoter(t, eve, id, (await db.db(t).get<{ id: string }>("SELECT id FROM vote_voter WHERE guest_key = 'g:one'"))!.id, true, undefined, at);
+  await db.db(t).run('UPDATE vote SET closed_at = closes_at');
+  const text = (await archiveOf(t, 'votes/2026.md', false))!;
+  assert.match(text, /Apple: 1/, 'nothing is left out that cannot be identified');
+  assert.match(text, /could not tell which ballots were theirs/);
 });
