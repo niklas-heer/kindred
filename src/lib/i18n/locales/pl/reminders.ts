@@ -48,4 +48,8 @@ export default {
   "reminders.push.memorial": "{years}. rocznica śmierci: {name}",
   "reminders.push.more": "i jeszcze {count}",
   "reminders.push.testBody": "Przypomnienia działają na tym urządzeniu.",
+  "suggest.push.toggle": "Propozycje do sprawdzenia",
+  "suggest.push.toggle_hint": "Tylko ile czeka, nigdy kto co zaproponował ani co w nich jest. Na tym urządzeniu najwyżej jedno powiadomienie na kilka godzin.",
+  "suggest.push.title": "Propozycje do sprawdzenia",
+  "suggest.push.body": { one: "Czeka {count} propozycja", few: "Czekają {count} propozycje", many: "Czeka {count} propozycji", other: "Czeka {count} propozycji" },
 } satisfies Strings<typeof en, "pl">;

@@ -10,7 +10,7 @@ import { Sparkles } from 'lucide-react';
 import { useEffect, useId } from 'react';
 import { lineText } from '~/lib/history-text';
 import { whatsNewQuery } from '~/lib/history.functions';
-import { replyKey, type WhatsNewReply } from '~/lib/history';
+import { outcomeKey, replyKey, type WhatsNewReply } from '~/lib/history';
 import { formatDate, useT, type Translator } from '~/lib/i18n';
 import { useMember } from '~/lib/session';
 import '~/components/history/history.css';
@@ -46,7 +46,7 @@ export function WhatsNew({ tree, className = '' }: { tree: string; className?: s
       </div>
       {q.isPending ? <p className="subtle">{t('history.loading')}</p>
         : q.isError ? <p className="subtle" role="alert">{t('history.failed')}</p>
-        : news && !news.groups.length && !news.replies.length && !news.posts.length ? <p className="subtle">{t('history.nothing_new')}</p>
+        : news && !news.groups.length && !news.replies.length && !news.posts.length && !news.outcomes.length ? <p className="subtle">{t('history.nothing_new')}</p>
         : news && (
           <>
             {news.replies.length > 0 && (
@@ -57,6 +57,20 @@ export function WhatsNew({ tree, className = '' }: { tree: string; className?: s
                     <li key={`${r.kind}-${r.target}-${r.id}`}>
                       {replyText(t, r)}
                       {r.label && <span className="hist-label"> · {r.label}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {news.outcomes.length > 0 && (
+              <div className="whats-new-group">
+                <h3>{t('history.outcome.title')}</h3>
+                <ul>
+                  {news.outcomes.map((o) => (
+                    <li key={o.id}>
+                      {t(outcomeKey(o))}
+                      {o.about && <span className="hist-label"> · {o.about}</span>}
+                      {o.reason && <span className="hist-label"> · {t('history.outcome.reason', { reason: o.reason })}</span>}
                     </li>
                   ))}
                 </ul>

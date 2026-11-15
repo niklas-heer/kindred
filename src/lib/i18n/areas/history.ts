@@ -192,4 +192,11 @@ export const en = {
   "history.s.import.added": { one: "{author} imported a GEDCOM file with one person", other: "{author} imported a GEDCOM file with {count} people" },
   "history.s.import.changed": { one: "{author} imported a GEDCOM file", other: "{author} imported {count} GEDCOM files" },
   "history.s.import.removed": { one: "{author} imported a GEDCOM file", other: "{author} imported {count} GEDCOM files" },
+  "history.outcome.title": "Your suggestions",
+  "history.outcome.approved": "Your suggestion was approved",
+  "history.outcome.approved_changes": "Your suggestion was approved with changes",
+  "history.outcome.approved_part": "Your suggestion was approved in part",
+  "history.outcome.declined": "Your suggestion was declined",
+  "history.outcome.expired": "Your suggestion expired without an answer",
+  "history.outcome.reason": "Reason: {reason}",
 } as const;

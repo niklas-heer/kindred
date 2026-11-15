@@ -117,6 +117,26 @@ export const replyKey = (r: Pick<WhatsNewReply, 'kind' | 'target' | 'count'>) =>
     ? r.count === 1 ? (`history.reply.comment_by_${r.target}` as const) : (`history.reply.comments_${r.target}` as const)
     : (`history.reply.reaction_${r.target}` as const);
 
+/** What became of one of the reader's own suggestions since their last visit. Never who decided it. */
+export interface WhatsNewOutcome {
+  /** The suggestion's id. */
+  id: string;
+  status: 'approved' | 'declined' | 'expired';
+  /** Approved with changes; null when that is not known. */
+  adjusted: boolean | null;
+  /** Approved only in part. */
+  partial: boolean;
+  /** A decline's reason, if one was given. */
+  reason: string | null;
+  /** The person it was about, by name, if it was about one. */
+  about: string | null;
+}
+
+/** The sentence of an outcome. */
+export const outcomeKey = (o: Pick<WhatsNewOutcome, 'status' | 'adjusted' | 'partial'>) =>
+  o.status === 'approved' ? (o.partial ? 'history.outcome.approved_part' : o.adjusted ? 'history.outcome.approved_changes' : 'history.outcome.approved')
+    : o.status === 'declined' ? 'history.outcome.declined' : 'history.outcome.expired';
+
 export interface WhatsNew {
   /** Where the news is counted from (ISO), so the component can say "since Tuesday". */
   since: string;
@@ -129,6 +149,8 @@ export interface WhatsNew {
    * is not in the history, but it is news.
    */
   posts: WhatsNewPosts[];
+  /** What became of the reader's own suggestions since they last looked. */
+  outcomes: WhatsNewOutcome[];
   /** How many changes and posts in all, before grouping. */
   total: number;
 }

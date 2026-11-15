@@ -48,4 +48,8 @@ export default {
   "reminders.push.memorial": "{years} anni fa moriva {name}",
   "reminders.push.more": "e altri {count}",
   "reminders.push.testBody": "I promemoria funzionano su questo dispositivo.",
+  "suggest.push.toggle": "Suggerimenti da rivedere",
+  "suggest.push.toggle_hint": "Solo quanti sono in attesa, mai chi ha suggerito cosa né di cosa si tratta. Al massimo una notifica ogni poche ore su questo dispositivo.",
+  "suggest.push.title": "Suggerimenti da rivedere",
+  "suggest.push.body": { one: "{count} suggerimento in attesa", other: "{count} suggerimenti in attesa" },
 } satisfies Strings<typeof en, "it">;

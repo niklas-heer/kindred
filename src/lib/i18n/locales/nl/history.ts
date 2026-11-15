@@ -194,4 +194,11 @@ export default {
   "history.reply.comment_by_vote": "{author} reageerde op de stemming die je startte",
   "history.reply.comments_vote": { one: "{count} nieuwe reactie op de stemming die je startte", other: "{count} nieuwe reacties op de stemming die je startte" },
   "history.reply.reaction_vote": { one: "Iemand reageerde op de stemming die je startte", other: "{count} reacties op de stemming die je startte" },
+  "history.outcome.title": "Jouw suggesties",
+  "history.outcome.approved": "Je suggestie is goedgekeurd",
+  "history.outcome.approved_changes": "Je suggestie is met wijzigingen goedgekeurd",
+  "history.outcome.approved_part": "Je suggestie is gedeeltelijk goedgekeurd",
+  "history.outcome.declined": "Je suggestie is afgewezen",
+  "history.outcome.expired": "Je suggestie is verlopen zonder antwoord",
+  "history.outcome.reason": "Reden: {reason}",
 } satisfies Strings<typeof en, "nl">;

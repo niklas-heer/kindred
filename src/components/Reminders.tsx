@@ -85,6 +85,7 @@ export function RemindersDialog({ tree, open, onClose }: { tree: string; open: b
   const [weeklyDraft, setWeeklyDraft] = useState<boolean | null>(null);
   const [postsDraft, setPostsDraft] = useState<boolean | null>(null);
   const [votesDraft, setVotesDraft] = useState<boolean | null>(null);
+  const [suggestionsDraft, setSuggestionsDraft] = useState<boolean | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   useEffect(() => {
     if (open) {
@@ -95,6 +96,7 @@ export function RemindersDialog({ tree, open, onClose }: { tree: string; open: b
       setWeeklyDraft(null);
       setPostsDraft(null);
       setVotesDraft(null);
+      setSuggestionsDraft(null);
     }
   }, [open]);
 
@@ -122,6 +124,9 @@ export function RemindersDialog({ tree, open, onClose }: { tree: string; open: b
   const posts = postsDraft ?? (status.data?.subscribed ? status.data.posts : false);
   // A new vote, and a reminder before one closes that the reader has not voted in: off until asked for (votes/vote-push.server.ts).
   const votes = votesDraft ?? (status.data?.subscribed ? status.data.votes : false);
+  // Suggestions waiting for review: for a role that may review them; off until asked for (suggestions/push.server.ts).
+  const canReview = status.data?.canReview ?? false;
+  const suggestions = canReview && (suggestionsDraft ?? (status.data?.subscribed ? status.data.suggestions : false));
   const setOffsets = (change: (list: number[]) => number[]) => setOffsetsDraft((draft) => change(draft ?? storedOffsets));
   const setKinds = (change: (list: string[]) => string[]) => setKindsDraft((draft) => change(draft ?? storedKinds));
   // Once the stored choices are read again after a save or turning off, they are the truth and the draft is dropped.
@@ -132,6 +137,7 @@ export function RemindersDialog({ tree, open, onClose }: { tree: string; open: b
     setWeeklyDraft(null);
     setPostsDraft(null);
     setVotesDraft(null);
+    setSuggestionsDraft(null);
   };
 
   const subscribed = status.data?.subscribed ?? false;
@@ -159,6 +165,7 @@ export function RemindersDialog({ tree, open, onClose }: { tree: string; open: b
           weekly,
           posts,
           votes,
+          suggestions,
           locale: t.locale,
         },
       });
@@ -255,6 +262,14 @@ export function RemindersDialog({ tree, open, onClose }: { tree: string; open: b
               {t('votes.push.toggle')}
             </Switch>
             <p className="acct-help subtle">{t('votes.push.toggle_hint')}</p>
+            {canReview && (
+              <>
+                <Switch checked={suggestions} onChange={(on) => setSuggestionsDraft(on)} disabled={busy}>
+                  {t('suggest.push.toggle')}
+                </Switch>
+                <p className="acct-help subtle">{t('suggest.push.toggle_hint')}</p>
+              </>
+            )}
           </fieldset>
           <ResponsePushSwitch tree={tree} disabled={busy} />
           <div className="reminders-actions">

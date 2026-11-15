@@ -559,7 +559,7 @@ test('a post is news: "What’s new" names who wrote, the weekly push counts it,
   assert.ok((await H.newsCount(d(), { account: viewer.id, role: 'viewer', guest: false }, since)) >= 2);
   assert.equal(await H.newsCount(d(), { account: null, role: 'viewer', guest: true }, since), 0);
 
-  const message = WeekPush.weeklyMessage('family', 'The Alders', 'en', { since: '', first: false, groups: [], replies: [], posts: forViewer.posts, total: 2 })!;
+  const message = WeekPush.weeklyMessage('family', 'The Alders', 'en', { since: '', first: false, groups: [], replies: [], outcomes: [], posts: forViewer.posts, total: 2 })!;
   assert.equal(message.body, 'Wren Writer wrote 2 messages to the family');
   assert.equal(message.url, '/family/today', 'a week of only messages opens where they are');
 });

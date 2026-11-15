@@ -194,4 +194,11 @@ export default {
   "history.s.import.added": "{author}さんが{count}人のGEDCOMファイルを取り込みました",
   "history.s.import.changed": "{author}さんがGEDCOMファイルを{count}件取り込みました",
   "history.s.import.removed": "{author}さんがGEDCOMファイルを{count}件取り込みました",
+  "history.outcome.title": "あなたの提案",
+  "history.outcome.approved": "あなたの提案は承認されました",
+  "history.outcome.approved_changes": "あなたの提案は変更つきで承認されました",
+  "history.outcome.approved_part": "あなたの提案は一部が承認されました",
+  "history.outcome.declined": "あなたの提案は却下されました",
+  "history.outcome.expired": "あなたの提案は返事のないまま期限切れになりました",
+  "history.outcome.reason": "理由：{reason}",
 } satisfies Strings<typeof en, "ja">;

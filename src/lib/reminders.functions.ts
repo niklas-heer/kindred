@@ -41,13 +41,17 @@ export interface ReminderStatus {
   posts: boolean;
   /** This device is also told of a new vote, and reminded before one closes that its owner has not voted in. */
   votes: boolean;
+  /** The reader's role may review suggestions: the switch for "Suggestions to review" is shown. */
+  canReview: boolean;
+  /** This device is also told that suggestions wait for review. */
+  suggestions: boolean;
 }
 
 export const reminderStatus = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, endpoint: endpoint.optional() }))
   .handler(async ({ data }): Promise<ReminderStatus> => {
     const [{ requireMember }, r] = await Promise.all([member(), remind()]);
-    const { user } = await requireMember(data.tree);
+    const { user, role } = await requireMember(data.tree);
     const vapid = r.vapidFrom(r.envSetting);
     const row = data.endpoint ? await r.subscriptionOf(user.id, data.tree, data.endpoint) : undefined;
     const choices = row ? r.choicesOf(row) : null;
@@ -62,23 +66,25 @@ export const reminderStatus = createServerFn({ method: 'POST' })
       weekly: row?.weekly === 1,
       posts: row?.posts === 1,
       votes: row?.votes === 1,
+      canReview: (await import('./roles.ts')).can(role, 'review-suggestions'),
+      suggestions: row?.suggestions === 1,
     };
   });
 
 /** Turns reminders on for this device in this family, or saves changed choices. */
 export const saveReminders = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, subscription, offsets: z.array(z.number()).max(3), kinds: z.array(z.string()).max(3), locale: z.enum(LOCALES), weekly: z.boolean().optional(), posts: z.boolean().optional(), votes: z.boolean().optional() }))
+  .validator(z.object({ tree, subscription, offsets: z.array(z.number()).max(3), kinds: z.array(z.string()).max(3), locale: z.enum(LOCALES), weekly: z.boolean().optional(), posts: z.boolean().optional(), votes: z.boolean().optional(), suggestions: z.boolean().optional() }))
   .handler(async ({ data }) => {
     try {
       const [{ requireMember }, r, { translate }, { parseChoices }, { AuthError }] = await Promise.all([
         member(), remind(), import('./i18n/dictionary.ts'), import('./reminders.ts'), import('./auth/errors.ts'),
       ]);
-      const { user } = await requireMember(data.tree);
+      const { user, role } = await requireMember(data.tree);
       if (!r.vapidFrom(r.envSetting)) throw new AuthError('invalid', translate('en', 'reminders.err.unavailable'));
       const choices = parseChoices(data.offsets, data.kinds);
       if (!choices) throw new AuthError('invalid', translate('en', 'reminders.chooseSomething'));
       await r.checkSubscription(data.subscription);
-      await r.saveRegistration({ user: user.id, tree: data.tree, subscription: data.subscription, choices, locale: data.locale, weekly: data.weekly === true, posts: data.posts === true, votes: data.votes === true });
+      await r.saveRegistration({ user: user.id, tree: data.tree, subscription: data.subscription, choices, locale: data.locale, weekly: data.weekly === true, posts: data.posts === true, votes: data.votes === true, suggestions: data.suggestions === true && (await import('./roles.ts')).can(role, 'review-suggestions') });
     } catch (e) {
       throw await refuse(e);
     }

@@ -194,4 +194,11 @@ export default {
   "history.s.import.added": { one: "{author} importou um arquivo GEDCOM com uma pessoa", other: "{author} importou um arquivo GEDCOM com {count} pessoas" },
   "history.s.import.changed": { one: "{author} importou um arquivo GEDCOM", other: "{author} importou {count} arquivos GEDCOM" },
   "history.s.import.removed": { one: "{author} importou um arquivo GEDCOM", other: "{author} importou {count} arquivos GEDCOM" },
+  "history.outcome.title": "Suas sugestões",
+  "history.outcome.approved": "Sua sugestão foi aprovada",
+  "history.outcome.approved_changes": "Sua sugestão foi aprovada com alterações",
+  "history.outcome.approved_part": "Sua sugestão foi aprovada em parte",
+  "history.outcome.declined": "Sua sugestão foi recusada",
+  "history.outcome.expired": "Sua sugestão expirou sem resposta",
+  "history.outcome.reason": "Motivo: {reason}",
 } satisfies Strings<typeof en, "pt-BR">;

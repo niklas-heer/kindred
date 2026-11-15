@@ -48,4 +48,8 @@ export default {
   "reminders.push.memorial": "{name} faleceu há {years} anos",
   "reminders.push.more": "e mais {count}",
   "reminders.push.testBody": "Os lembretes estão funcionando neste aparelho.",
+  "suggest.push.toggle": "Sugestões para revisar",
+  "suggest.push.toggle_hint": "Só quantas estão esperando, nunca quem sugeriu o quê nem o que diz. No máximo uma notificação a cada poucas horas neste dispositivo.",
+  "suggest.push.title": "Sugestões para revisar",
+  "suggest.push.body": { one: "{count} sugestão aguardando", other: "{count} sugestões aguardando" },
 } satisfies Strings<typeof en, "pt-BR">;

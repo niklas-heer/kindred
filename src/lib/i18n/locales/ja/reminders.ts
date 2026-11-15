@@ -48,4 +48,8 @@ export default {
   "reminders.push.memorial": "{name}さんが亡くなって{years}年",
   "reminders.push.more": "ほか{count}件",
   "reminders.push.testBody": "この端末でリマインダーが動いています。",
+  "suggest.push.toggle": "確認待ちの提案",
+  "suggest.push.toggle_hint": "待っている件数だけをお知らせします。誰が何を提案したか、内容は決して含みません。この端末への通知は数時間に1回までです。",
+  "suggest.push.title": "確認待ちの提案",
+  "suggest.push.body": "{count}件の提案が待っています",
 } satisfies Strings<typeof en, "ja">;

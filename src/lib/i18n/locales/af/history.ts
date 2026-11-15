@@ -194,4 +194,11 @@ export default {
   "history.s.import.added": { one: "{author} het ’n GEDCOM-lêer met een persoon ingelees", other: "{author} het ’n GEDCOM-lêer met {count} mense ingelees" },
   "history.s.import.changed": { one: "{author} het ’n GEDCOM-lêer ingelees", other: "{author} het {count} GEDCOM-lêers ingelees" },
   "history.s.import.removed": { one: "{author} het ’n GEDCOM-lêer ingelees", other: "{author} het {count} GEDCOM-lêers ingelees" },
+  "history.outcome.title": "Jou voorstelle",
+  "history.outcome.approved": "Jou voorstel is goedgekeur",
+  "history.outcome.approved_changes": "Jou voorstel is met veranderinge goedgekeur",
+  "history.outcome.approved_part": "Jou voorstel is gedeeltelik goedgekeur",
+  "history.outcome.declined": "Jou voorstel is van die hand gewys",
+  "history.outcome.expired": "Jou voorstel het verval sonder 'n antwoord",
+  "history.outcome.reason": "Rede: {reason}",
 } satisfies Strings<typeof en, "af">;

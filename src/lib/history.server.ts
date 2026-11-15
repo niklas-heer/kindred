@@ -27,7 +27,7 @@ import { guard, q, type Db, type Query } from './store/index.ts';
 import type { Audience, Visibility } from './visibility.ts';
 import {
   HISTORY_FILTERS, isRestorable, VOTE_AUTHOR, type HistoryAction, type HistoryFieldChange, type HistoryFilter, type HistoryItem, type HistoryKind,
-  type HistoryPage, type HistoryValue, type WhatsNew, type WhatsNewGroup, type WhatsNewLine, type WhatsNewPosts, type WhatsNewReply,
+  type HistoryPage, type HistoryValue, type WhatsNew, type WhatsNewGroup, type WhatsNewLine, type WhatsNewOutcome, type WhatsNewPosts, type WhatsNewReply,
 } from './history.ts';
 
 // ---------- what a plan says ----------
@@ -400,7 +400,7 @@ const NEWS_ROWS = 1000;
  */
 export async function whatsNew(d: Db, a: Audience, since: number, first = false, locale: Locale = 'en'): Promise<WhatsNew> {
   const vis = historyVisibleTo(a);
-  const empty: WhatsNew = { since: iso(since), first, groups: [], replies: [], posts: [], total: 0 };
+  const empty: WhatsNew = { since: iso(since), first, groups: [], replies: [], posts: [], outcomes: [], total: 0 };
   if (vis.sql === '0') return empty;
   const [historyRows, postRows] = await d.readBatch([
     q(`SELECT *, ${SUGGESTED_BY} FROM history WHERE ${vis.sql} AND at > ? AND account IS NOT ? ORDER BY id DESC LIMIT ?`, ...vis.params, iso(since), a.account, NEWS_ROWS),
@@ -408,6 +408,7 @@ export async function whatsNew(d: Db, a: Audience, since: number, first = false,
   ]);
   const rows = historyRows as unknown as StoredRow[];
   const posts = (postRows as { author: string; n: number }[]).map((r): WhatsNewPosts => ({ author: r.author, count: r.n }));
+  const outcomes = a.account ? await outcomesOf(d, a.account, since) : [];
   const groups = new Map<string, WhatsNewGroup & { records: Map<string, Set<string>> }>();
   for (const r of rows) {
     const key = r.person ?? '';
@@ -433,8 +434,33 @@ export async function whatsNew(d: Db, a: Audience, since: number, first = false,
     groups: ordered.map(({ person, name, lines }) => ({ person, name, lines })),
     replies: a.account ? await repliesTo(d, a.account, since, locale) : [],
     posts,
-    total: rows.length + posts.reduce((n, p) => n + p.count, 0),
+    outcomes,
+    total: rows.length + posts.reduce((n, p) => n + p.count, 0) + outcomes.length,
   };
+}
+
+/**
+ * What became of this account's own suggestions since `since`: approved (with changes, in part), declined (with the reason
+ * given) or expired. Their own decisions on their own suggestions are no news. Never who decided; withdrawn ones are not here.
+ */
+export async function outcomesOf(d: Db, account: string, since: number): Promise<WhatsNewOutcome[]> {
+  const rows = await d.all<{ id: string; status: WhatsNewOutcome['status']; adjusted: number; applied: string | null; reason: string | null; about: string | null }>(
+    `SELECT s.id, s.status, s.adjusted, s.applied, s.reason,
+       (SELECT trim(p.given || ' ' || coalesce(p.surname, '')) FROM person p WHERE p.id = s.person) AS about
+     FROM suggestion s WHERE s.account = ? AND s.status IN ('approved', 'declined', 'expired') AND s.decided_at > ? AND s.decided_by IS NOT ?
+     ORDER BY s.decided_at DESC, s.id LIMIT 20`, account, iso(since), account);
+  return rows.map((r) => {
+    let partial = false;
+    let adjustedUnknown = false;
+    try {
+      const applied = r.applied ? (JSON.parse(r.applied) as { partial?: boolean; adjustedUnknown?: boolean }) : {};
+      partial = applied.partial === true;
+      adjustedUnknown = applied.adjustedUnknown === true;
+    } catch {
+      // An unreadable `applied` says nothing more than that it was approved.
+    }
+    return { id: r.id, status: r.status, adjusted: r.status === 'approved' ? (adjustedUnknown ? null : r.adjusted === 1) : null, partial, reason: r.status === 'declined' ? r.reason : null, about: r.about || null };
+  });
 }
 
 /**
@@ -498,8 +524,9 @@ export async function newsCount(d: Db, a: Audience, after: number, cap = 99): Pr
   if (vis.sql === '0') return 0;
   const r = await d.get<{ n: number }>(
     `SELECT (SELECT count(*) FROM (SELECT 1 FROM history WHERE ${vis.sql} AND at > ? AND account IS NOT ? LIMIT ?))
-       + (SELECT count(*) FROM (SELECT 1 FROM post WHERE created_at > ? AND account IS NOT ? LIMIT ?)) AS n`,
-    ...vis.params, iso(after), a.account, cap, iso(after), a.account, cap,
+       + (SELECT count(*) FROM (SELECT 1 FROM post WHERE created_at > ? AND account IS NOT ? LIMIT ?))
+       + (SELECT count(*) FROM (SELECT 1 FROM suggestion WHERE account = ? AND status IN ('approved', 'declined', 'expired') AND decided_at > ? AND decided_by IS NOT ? LIMIT ?)) AS n`,
+    ...vis.params, iso(after), a.account, cap, iso(after), a.account, cap, a.account, iso(after), a.account, cap,
   );
   return Math.min(r?.n ?? 0, cap);
 }

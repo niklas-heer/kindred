@@ -48,4 +48,8 @@ export const en = {
   "reminders.push.memorial": "{name} died {years} years ago",
   "reminders.push.more": "and {count} more",
   "reminders.push.testBody": "Reminders are working on this device.",
+  "suggest.push.toggle": "Suggestions to review",
+  "suggest.push.toggle_hint": "Only how many are waiting, never who suggested what or what it says. At most one push every few hours on this device.",
+  "suggest.push.title": "Suggestions to review",
+  "suggest.push.body": { one: "{count} suggestion is waiting", other: "{count} suggestions are waiting" },
 };

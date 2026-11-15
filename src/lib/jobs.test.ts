@@ -26,8 +26,8 @@ const ctxFor = (logs: string[], env: (name: string) => string | undefined = () =
   log: (message: string) => logs.push(message),
 });
 
-test('the registry runs the reminders, the archive, the background AI job, the statistics clean-up, the ask-to-join clean-up, the history, the feed’s leftovers, the votes’ reminders, the removed recipes’ pictures, storage, statistics, the update check, retention, the backups and the restore drill, and the lifecycle, in that order', () => {
-  assert.deepEqual(DAILY_JOBS.map((job) => job.name), ['reminders', 'archive', 'ai-tasks', 'stats', 'join', 'history', 'feed', 'votes', 'recipes', 'storage', 'instance-stats', 'update-check', 'retention', 'backup', 'backup-drill', 'lifecycle', 'breach-notices']);
+test('the registry runs the reminders, the archive, the background AI job, the statistics clean-up, the ask-to-join clean-up, the history, the feed’s leftovers, the votes’ reminders, the suggestions’ expiry, the removed recipes’ pictures, storage, statistics, the update check, retention, the backups and the restore drill, and the lifecycle, in that order', () => {
+  assert.deepEqual(DAILY_JOBS.map((job) => job.name), ['reminders', 'archive', 'ai-tasks', 'stats', 'join', 'history', 'feed', 'votes', 'suggestions', 'recipes', 'storage', 'instance-stats', 'update-check', 'retention', 'backup', 'backup-drill', 'lifecycle', 'breach-notices']);
 });
 
 test('a job that throws is logged with its name, and the jobs after it still run', async () => {

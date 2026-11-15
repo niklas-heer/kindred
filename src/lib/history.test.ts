@@ -366,10 +366,10 @@ test('What’s new groups others’ changes by person, leaves out the reader’s
 });
 
 test('the weekly push says what the week brought, and nothing when it brought nothing', () => {
-  const quiet = push.weeklyMessage(TREE, 'The Quills', 'en', { since: '', first: false, groups: [], replies: [], posts: [], total: 0 });
+  const quiet = push.weeklyMessage(TREE, 'The Quills', 'en', { since: '', first: false, groups: [], replies: [], outcomes: [], posts: [], total: 0 });
   assert.equal(quiet, null);
   const m = push.weeklyMessage(TREE, 'The Quills', 'de', {
-    since: '', first: false, total: 4, replies: [], posts: [],
+    since: '', first: false, total: 4, replies: [], outcomes: [], posts: [],
     groups: [{ person: 'ada', name: 'Ada Quill', lines: [{ author: 'Mara Quill', kind: 'photo', action: 'added', count: 3, label: null, suggestedBy: null }] }],
   })!;
   assert.equal(m.title, 'Diese Woche bei The Quills');
@@ -385,7 +385,7 @@ test('a line from an approved suggestion says who suggested it, in the page and 
   assert.equal(lineText(en, { ...line, suggestedBy: 'Ada Alder' }), `${lineText(en, line)} (suggested by Ada Alder)`);
   assert.equal(lineText(en, { ...line, suggestedBy: null }), lineText(en, line), 'an own change names nobody else');
   const m = push.weeklyMessage(TREE, 'The Quills', 'de', {
-    since: '', first: false, total: 2, replies: [], posts: [],
+    since: '', first: false, total: 2, replies: [], outcomes: [], posts: [],
     groups: [{ person: 'ada', name: 'Ada Quill', lines: [
       { author: 'Mara Quill', kind: 'photo', action: 'added', count: 1, label: null, suggestedBy: 'Hal Hazel' },
       { author: 'Mara Quill', kind: 'photo', action: 'added', count: 2, label: null, suggestedBy: null },

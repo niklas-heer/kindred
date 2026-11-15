@@ -194,4 +194,11 @@ export default {
   "history.s.import.added": "{author}导入了一个包含{count}人的 GEDCOM 文件",
   "history.s.import.changed": "{author}导入了{count}个 GEDCOM 文件",
   "history.s.import.removed": "{author}导入了{count}个 GEDCOM 文件",
+  "history.outcome.title": "你的建议",
+  "history.outcome.approved": "你的建议已获批准",
+  "history.outcome.approved_changes": "你的建议已带修改获批准",
+  "history.outcome.approved_part": "你的建议已部分获批准",
+  "history.outcome.declined": "你的建议已被拒绝",
+  "history.outcome.expired": "你的建议因无人答复而过期",
+  "history.outcome.reason": "原因：{reason}",
 } satisfies Strings<typeof en, "zh-Hans">;

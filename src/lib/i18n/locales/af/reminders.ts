@@ -48,4 +48,8 @@ export default {
   "reminders.push.memorial": "{name} is al {years} jaar oorlede",
   "reminders.push.more": "en {count} meer",
   "reminders.push.testBody": "Herinneringe werk op hierdie toestel.",
+  "suggest.push.toggle": "Voorstelle om na te gaan",
+  "suggest.push.toggle_hint": "Net hoeveel wag, nooit wie wat voorgestel het of wat dit sê nie. Hoogstens een kennisgewing elke paar uur op hierdie toestel.",
+  "suggest.push.title": "Voorstelle om na te gaan",
+  "suggest.push.body": { one: "{count} voorstel wag", other: "{count} voorstelle wag" },
 } satisfies Strings<typeof en, "af">;

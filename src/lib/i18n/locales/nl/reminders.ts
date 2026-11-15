@@ -48,4 +48,8 @@ export default {
   "reminders.push.memorial": "{name} overleed {years} jaar geleden",
   "reminders.push.more": "en nog {count}",
   "reminders.push.testBody": "Herinneringen werken op dit apparaat.",
+  "suggest.push.toggle": "Suggesties om te beoordelen",
+  "suggest.push.toggle_hint": "Alleen hoeveel er wachten, nooit wie wat voorstelde of wat erin staat. Hooguit één melding om de paar uur op dit apparaat.",
+  "suggest.push.title": "Suggesties om te beoordelen",
+  "suggest.push.body": { one: "{count} suggestie wacht", other: "{count} suggesties wachten" },
 } satisfies Strings<typeof en, "nl">;

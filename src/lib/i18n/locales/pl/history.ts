@@ -214,4 +214,11 @@ export default {
   "history.reply.comment_by_vote": "{author} komentuje Twoje głosowanie",
   "history.reply.comments_vote": { one: "{count} nowy komentarz do Twojego głosowania", few: "{count} nowe komentarze do Twojego głosowania", many: "{count} nowych komentarzy do Twojego głosowania", other: "{count} nowego komentarza do Twojego głosowania" },
   "history.reply.reaction_vote": { one: "Reakcja na Twoje głosowanie", few: "{count} reakcje na Twoje głosowanie", many: "{count} reakcji na Twoje głosowanie", other: "{count} reakcji na Twoje głosowanie" },
+  "history.outcome.title": "Twoje propozycje",
+  "history.outcome.approved": "Twoja propozycja została zatwierdzona",
+  "history.outcome.approved_changes": "Twoja propozycja została zatwierdzona ze zmianami",
+  "history.outcome.approved_part": "Twoja propozycja została zatwierdzona częściowo",
+  "history.outcome.declined": "Twoja propozycja została odrzucona",
+  "history.outcome.expired": "Twoja propozycja wygasła bez odpowiedzi",
+  "history.outcome.reason": "Powód: {reason}",
 } satisfies Strings<typeof en, "pl">;

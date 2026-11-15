@@ -194,4 +194,11 @@ export default {
   "history.s.import.added": { one: "{author} hat eine GEDCOM-Datei mit einer Person eingelesen", other: "{author} hat eine GEDCOM-Datei mit {count} Personen eingelesen" },
   "history.s.import.changed": { one: "{author} hat eine GEDCOM-Datei eingelesen", other: "{author} hat {count} GEDCOM-Dateien eingelesen" },
   "history.s.import.removed": { one: "{author} hat eine GEDCOM-Datei eingelesen", other: "{author} hat {count} GEDCOM-Dateien eingelesen" },
+  "history.outcome.title": "Deine Vorschläge",
+  "history.outcome.approved": "Dein Vorschlag wurde angenommen",
+  "history.outcome.approved_changes": "Dein Vorschlag wurde mit Änderungen angenommen",
+  "history.outcome.approved_part": "Dein Vorschlag wurde teilweise angenommen",
+  "history.outcome.declined": "Dein Vorschlag wurde abgelehnt",
+  "history.outcome.expired": "Dein Vorschlag ist ohne Antwort abgelaufen",
+  "history.outcome.reason": "Grund: {reason}",
 } satisfies Strings<typeof en, "de">;

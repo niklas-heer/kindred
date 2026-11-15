@@ -48,4 +48,8 @@ export default {
   "reminders.push.memorial": "{name}去世{years}周年",
   "reminders.push.more": "另有{count}条",
   "reminders.push.testBody": "这台设备上的提醒正常。",
+  "suggest.push.toggle": "待审核的建议",
+  "suggest.push.toggle_hint": "只告诉你有多少条在等待，绝不包含谁提了什么或内容。此设备上每隔几小时最多一条通知。",
+  "suggest.push.title": "待审核的建议",
+  "suggest.push.body": "有{count}条建议在等待",
 } satisfies Strings<typeof en, "zh-Hans">;

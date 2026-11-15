@@ -30,11 +30,11 @@ export const REMIND_SLACK_HOURS = 6;
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 
-interface PushOptions { now?: Date; vapid?: VapidConfig | null; fetchImpl?: typeof fetch }
-type Message = { title: string; body: string; tag: string; url: string };
+export interface PushOptions { now?: Date; vapid?: VapidConfig | null; fetchImpl?: typeof fetch }
+export type Message = { title: string; body: string; tag: string; url: string };
 
 /** The server's keys, when pushes may go out from here for this family now; else null. */
-async function pushKeys(tree: string, options: PushOptions): Promise<VapidConfig | null> {
+export async function pushKeys(tree: string, options: PushOptions): Promise<VapidConfig | null> {
   if (readOnly()) return null;
   const vapid = options.vapid === undefined ? vapidFrom(envSetting) : options.vapid;
   if (!vapid || !(await (await import('../operator/policy.server.ts')).familyAllows(tree, 'feature.push'))) return null;
@@ -42,7 +42,7 @@ async function pushKeys(tree: string, options: PushOptions): Promise<VapidConfig
 }
 
 /** Sends one message to one device; true when the push service took it. A device the service no longer knows is forgotten. */
-async function deliver(row: PushRow, message: Message, vapid: VapidConfig, fetchImpl: typeof fetch): Promise<boolean> {
+export async function deliver(row: PushRow, message: Message, vapid: VapidConfig, fetchImpl: typeof fetch): Promise<boolean> {
   try {
     const response = await sendPush(subscriptionFrom(row), message, vapid, fetchImpl);
     await response.body?.cancel();

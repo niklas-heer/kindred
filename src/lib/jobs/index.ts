@@ -14,6 +14,7 @@ import { remindersJob } from './reminders.ts';
 import { retentionJob } from './retention.ts';
 import { statsJob } from './stats.ts';
 import { storageJob } from './storage.ts';
+import { suggestionsJob } from './suggestions.ts';
 import { updateCheckJob } from './update-check.ts';
 import { votesJob } from './votes.ts';
 import { failureCode } from './failure.ts';
@@ -31,6 +32,7 @@ export const DAILY_JOBS: readonly DailyJob[] = [
   historyJob,
   feedJob,
   votesJob,
+  suggestionsJob,
   recipesJob,
   storageJob,
   instanceStatsJob,
