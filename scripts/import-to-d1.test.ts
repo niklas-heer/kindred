@@ -123,6 +123,7 @@ to Lindby', '${now}', NULL);
     INSERT INTO vote_voter (id, vote, account, name) VALUES ('vv1', 'vt1', 'u1', 'Ben');
     INSERT INTO ballot (vote, voter, choices) VALUES ('vt1', 'vv1', '["vo1"]');
     INSERT INTO vote_reminded (vote, account) VALUES ('vt1', 'u1');
+    INSERT INTO arms_proposal (id, house, account, author_name, name, note, arms, status, created_at) VALUES ('ap1', 'h1', 'u1', 'Ben', 'Silver tower', 'A tower', '{"field":"azure"}', 'waiting', '${now}');
   `);
   return d;
 }
