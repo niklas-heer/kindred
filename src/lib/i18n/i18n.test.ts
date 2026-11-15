@@ -11,6 +11,7 @@ import {
   LOCALES,
   formatDate,
   kinshipLabel,
+  listText,
   localizeTitle,
   missingKeys,
   negotiateLocale,
@@ -71,6 +72,12 @@ test('German imperatives are the full du-forms (“versuche”, “prüfe”, �
       for (const s of parts) assert.doesNotMatch(s, clipped, `${file.replace(/\.ts$/, '')}: ${key}`);
     }
   }
+});
+
+test('a list is written in the language’s own words: a tie between two options reads as one', () => {
+  assert.equal(listText(['Beach', 'Lake'], 'en'), 'Beach and Lake');
+  assert.equal(listText(['Beach', 'Lake', 'Park'], 'de'), 'Beach, Lake und Park');
+  assert.equal(listText(['Beach'], 'fr'), 'Beach');
 });
 
 test('no key is defined in two areas', () => {

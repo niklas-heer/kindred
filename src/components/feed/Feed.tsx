@@ -29,7 +29,7 @@ import type { ContactKind, FeedItem, UpdatePerson, UpdateValue } from '~/lib/fee
 import { isContactType, type FieldType } from '~/lib/fields/model';
 import { displayName, type Family } from '~/lib/graph';
 import { fieldName, valueText } from '~/lib/history-text';
-import { datePrecision, formatDate, richText, useT, type Key, type Translator } from '~/lib/i18n';
+import { datePrecision, formatDate, listText, richText, useT, type Key, type Translator } from '~/lib/i18n';
 import { mediaUrl } from '~/lib/photos/types';
 import { useCan, useMember, useSession } from '~/lib/session';
 import type { GPerson, Story } from '~/lib/types';
@@ -257,7 +257,7 @@ function VoteEntry({ item, tree, now }: { item: Extract<FeedItem, { type: 'vote'
   if (item.type === 'vote') line = richText(t, 'votes.feed.started', { author: <b>{item.author.name || t('feed.someone')}</b>, question });
   else if (!item.winners.length) line = richText(t, 'votes.feed.result_none', { question });
   else if (item.winners.length === 1) line = richText(t, 'votes.feed.result', { question, winner: <b>{item.winners[0]}</b> });
-  else line = richText(t, 'votes.feed.result_tie', { question, winners: <b>{item.winners.join(', ')}</b> });
+  else line = richText(t, 'votes.feed.result_tie', { question, winners: <b>{listText(item.winners, t.locale)}</b> });
   return (
     <Quiet icon={<Vote size={16} />} after={<Responses tree={tree} kind="vote" target={item.id} compact />}>
       <span>{line}</span>

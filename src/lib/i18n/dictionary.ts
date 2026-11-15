@@ -241,6 +241,15 @@ export function datePrecision(value: string): DatePrecision {
   return !m || m[2] ? "day" : m[1] ? "month" : "year";
 }
 
+/** Items as one list in the language's own words ("Beach and Lake", "Beach und Lake"); a comma list where Intl has none. */
+export function listText(items: readonly string[], locale: Locale = "en"): string {
+  try {
+    return new Intl.ListFormat(locale, { style: "long", type: "conjunction" }).format(items);
+  } catch {
+    return items.join(", ");
+  }
+}
+
 export function formatDate(
   value?: string | number | Date | null,
   locale: Locale = "en",

@@ -380,7 +380,7 @@ interface BallotRow { vote: string; voter: string; choices: string }
 interface VoterRow { vote: string; id: string; account: string | null; guest_key: string | null; name: string; person: string | null; struck: number }
 
 /** A vote's columns for a reader, `v` being the vote: how many unstruck voters, and whether the reader (`?`) is one. */
-const readColumns = (r: Reading) => `${VOTE_COLUMNS.split(', ').map((c) => `v.${c}`).join(', ')}, v.author_name, v.author_person,
+const readColumns = (r: Reading) => `${VOTE_COLUMNS.split(', ').map((c) => `v.${c} AS ${c}`).join(', ')}, v.author_name AS author_name, v.author_person AS author_person,
   (SELECT count(*) FROM vote_voter vv WHERE vv.vote = v.id AND vv.struck = 0) AS voter_count,
   EXISTS (SELECT 1 FROM vote_voter vv WHERE vv.vote = v.id AND vv.${r.guest ? 'guest_key' : 'account'} = ?) AS voted`;
 const OPEN_V = 'v.closed_at IS NULL AND v.closes_at > ?';

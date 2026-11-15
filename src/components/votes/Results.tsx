@@ -6,7 +6,7 @@
 //   <Results view={vote} />
 import { Trophy } from 'lucide-react';
 import { useId } from 'react';
-import { useT } from '~/lib/i18n';
+import { listText, useT } from '~/lib/i18n';
 import type { VoteResult, VoteView } from '~/lib/votes/types';
 
 export function Results({ view }: { view: VoteView }) {
@@ -40,7 +40,7 @@ export function Outcome({ winners }: { winners: string[] }) {
   return (
     <p className="vt-outcome">
       <Trophy size={18} aria-hidden />
-      <span>{winners.length === 0 ? t('votes.nobody') : winners.length === 1 ? t('votes.winner', { option: winners[0] }) : t('votes.tie', { options: winners.join(', ') })}</span>
+      <span>{winners.length === 0 ? t('votes.nobody') : winners.length === 1 ? t('votes.winner', { option: winners[0] }) : t('votes.tie', { options: listText(winners, t.locale) })}</span>
     </p>
   );
 }
@@ -76,7 +76,7 @@ function Rounds({ result, order, closed, labelOf }: { result: Extract<VoteResult
           <li key={i}>
             <h3 className="vt-round-h">{t('votes.round', { n: i + 1 })}</h3>
             <Bars tallies={round.tallies} order={order} total={inPlay} winners={closed && last ? result.winners : []} labelOf={labelOf} />
-            {round.out.length > 0 && <p className="vt-note">{t('votes.round_out', { options: round.out.map(labelOf).join(', ') })}</p>}
+            {round.out.length > 0 && <p className="vt-note">{t('votes.round_out', { options: listText(round.out.map(labelOf), t.locale) })}</p>}
             {round.exhausted > 0 && <p className="vt-note subtle">{t('votes.exhausted', { count: round.exhausted })}</p>}
           </li>
         );
