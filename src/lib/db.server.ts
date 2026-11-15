@@ -561,10 +561,20 @@ export function upsertPlaces(tree: string, places: { name: string; lat: number; 
 export const HOUSE_CHANGED = translate('en', 'houses.err.changed_since_opened');
 
 /** A value's JSON with its keys in order, so the same arms compare equal however their keys were sent. */
-const canonical = (v: unknown): string =>
+export const canonical = (v: unknown): string =>
   Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
     : v && typeof v === 'object' ? `{${Object.keys(v).filter((k) => (v as Record<string, unknown>)[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${canonical((v as Record<string, unknown>)[k])}`).join(',')}}`
     : JSON.stringify(v ?? null);
+
+/** Arms as a house stores them, whoever sends them (a steward's save, a proposal): only the fields the arms use. */
+export function normalArms(given: House['arms']): House['arms'] {
+  // A plain field keeps no second tincture.
+  const arms: House['arms'] = { field: given.field, division: given.division, charge: given.charge, chargeTincture: given.chargeTincture };
+  if (given.field2 && given.division !== 'plain') arms.field2 = given.field2;
+  // The v2 design, when there is one; the v1 fields above stay as its nearest summary for older readers.
+  if (given.v2) arms.v2 = given.v2;
+  return arms;
+}
 
 /** A house's name, motto and arms as the designer showed them when it opened. */
 export interface HouseSeen { name: string; motto: string | null; arms: unknown }
@@ -589,11 +599,7 @@ export async function houseWritePlan(d: Db, id: string, patch: { name: string; m
   const r = await d.get<{ name: string; motto: string | null; arms: string; founder: string | null }>('SELECT name, motto, arms, founder FROM house WHERE id = ?', id);
   if (!r) throw new Error('That house is not in this family.');
   if (r.name !== before.name || (r.motto ?? null) !== (before.motto ?? null) || canonical(JSON.parse(r.arms)) !== canonical(before.arms)) throw new Error(HOUSE_CHANGED);
-  // Store only the fields the arms use: a plain field keeps no second tincture.
-  const arms: House['arms'] = { field: patch.arms.field, division: patch.arms.division, charge: patch.arms.charge, chargeTincture: patch.arms.chargeTincture };
-  if (patch.arms.field2 && patch.arms.division !== 'plain') arms.field2 = patch.arms.field2;
-  // The v2 design, when there is one; the v1 fields above stay as its nearest summary for older readers.
-  if (patch.arms.v2) arms.v2 = patch.arms.v2;
+  const arms = normalArms(patch.arms);
   const armsChange = canonical(JSON.parse(r.arms)) !== canonical(arms);
   const settling = opts.settlingVote ?? null;
   if (armsChange && (await d.get(`SELECT 1 AS x WHERE ${ARMS_VOTE_RUNNING}`, id, settling))) throw new Error(ARMS_FROZEN);

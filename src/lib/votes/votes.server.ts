@@ -7,6 +7,10 @@
 //   remove-vote   editor       remove anyone's vote, close anyone's early (everyone may remove or close their own)
 //   strike-voter  steward      strike or restore a guest's ballot while the vote is open
 //
+// A house's arms vote (`subject_kind = 'house'`, started by arms-proposals/proposals.server.ts) is the family's, not its
+// starter's: only `edit-house` (a steward) closes it early, changes its closing time (nothing else) or removes it; nobody
+// adds an option. Removing it while unsettled returns its proposals to waiting (`vote_removed`); a settled one keeps theirs.
+//
 // What it promises:
 // - A vote is the family talking, not a record: it writes no change history (NOT_A_RECORD).
 // - The creator changes the question, description, rules and options only until the first ballot; after it only the
@@ -90,9 +94,15 @@ function needs(who: Who, action: Action) {
 
 interface VoteRow {
   id: string; account: string; question: string; description: string; kind: VoteKind; secret: number; add_options: number;
-  guests: number; closes_at: string; closed_at: string | null; created_at: string;
+  guests: number; closes_at: string; closed_at: string | null; created_at: string; subject_kind: string | null;
 }
-const VOTE_COLUMNS = 'id, account, question, description, kind, secret, add_options, guests, closes_at, closed_at, created_at';
+const VOTE_COLUMNS = 'id, account, question, description, kind, secret, add_options, guests, closes_at, closed_at, created_at, subject_kind';
+/** A house's arms vote: the family's, so its starter's rights do not apply (above). */
+const isArmsVote = (row: Pick<VoteRow, 'subject_kind'>) => row.subject_kind === 'house';
+/** Refuses anyone but a steward an arms vote's close, change or removal. */
+function needsSteward(who: Who) {
+  if (!can(who.role, 'edit-house')) throw fail(forbidden('edit-house', lowestRole('edit-house')));
+}
 const isOpen = (row: Pick<VoteRow, 'closes_at' | 'closed_at'>, at: string) => !row.closed_at && row.closes_at > at;
 
 function questionOf(text: string): string {
@@ -154,7 +164,8 @@ export async function createVote(tree: string, who: Who, input: VoteInput, op?: 
   const closesAt = closingOf(input.closesAt, now, now);
   return once(tree, op, 'createVote', async (d) => {
     const hourAgo = new Date(now.getTime() - HOUR_MS).toISOString();
-    const recent = await d.get<{ n: number }>('SELECT count(*) AS n FROM vote WHERE account = ? AND created_at > ?', who.id, hourAgo);
+    // Ordinary votes only: an arms vote started for a proposer's proposal uses none of their hour.
+    const recent = await d.get<{ n: number }>('SELECT count(*) AS n FROM vote WHERE account = ? AND created_at > ? AND subject_kind IS NULL', who.id, hourAgo);
     if ((recent?.n ?? 0) >= MAX_VOTES_AN_HOUR) throw new Error('votes.err.too_many');
     // The person signs the vote only when a steward has confirmed the link, and only while they are in the tree.
     const author = who.personConfirmed ? personOf(who.person) : null;
@@ -163,7 +174,7 @@ export async function createVote(tree: string, who: Who, input: VoteInput, op?: 
     return {
       writes: [
         // The hour's count as read: two votes sent at once cannot both be the fifth.
-        guard('(SELECT count(*) FROM vote WHERE account = ? AND created_at > ?) < ?', who.id, hourAgo, MAX_VOTES_AN_HOUR),
+        guard('(SELECT count(*) FROM vote WHERE account = ? AND created_at > ? AND subject_kind IS NULL) < ?', who.id, hourAgo, MAX_VOTES_AN_HOUR),
         q(`INSERT INTO vote (id, account, author_name, author_person, question, description, kind, secret, add_options, guests, closes_at, created_at) VALUES (?, ?, ?, ${PERSON}, ?, ?, ?, ?, ?, ?, ?, ?)`,
           id, who.id, who.name, author, question, description, kind, input.secret ? 1 : 0, input.addOptions ? 1 : 0, input.guests ? 1 : 0, closesAt, at),
         ...optionRows(id, labels, who, at),
@@ -176,13 +187,16 @@ export async function createVote(tree: string, who: Who, input: VoteInput, op?: 
 
 /**
  * Changes the member's own open vote. Until the first ballot, anything; after it only the closing time (at least an hour
- * from now, at most ninety days from the start). A field sent unchanged is no change, so a form may send them all.
+ * from now, at most ninety days from the start). A field sent unchanged is no change, so a form may send them all. An arms
+ * vote: a steward's, and only its closing time.
  */
 export async function editVote(tree: string, who: Who, id: string, input: Partial<VoteInput>, op?: OpKey, now: Date = new Date()): Promise<void> {
   needs(who, 'start-vote');
   return once(tree, op, 'editVote', async (d) => {
     const row = await voteOf(d, id);
-    if (row.account !== who.id) throw new Error('votes.err.not_yours');
+    const arms = isArmsVote(row);
+    if (arms) needsSteward(who);
+    else if (row.account !== who.id) throw new Error('votes.err.not_yours');
     const at = now.toISOString();
     if (!isOpen(row, at)) throw new Error('votes.err.closed');
     const read = await optionsRead(d, id);
@@ -196,10 +210,12 @@ export async function editVote(tree: string, who: Who, id: string, input: Partia
       || flags.secret !== row.secret || flags.add_options !== row.add_options || flags.guests !== row.guests;
     const sameClose = input.closesAt === undefined || Date.parse(input.closesAt) === Date.parse(row.closes_at);
     const closesAt = sameClose ? row.closes_at : closingOf(input.closesAt!, now, new Date(row.created_at));
+    // An arms vote's question, kind, secrecy, guests and options are fixed at its start.
+    if (changed && arms) throw new Error('votes.err.locked');
     if (changed && (await d.get('SELECT 1 AS x FROM ballot WHERE vote = ? LIMIT 1', id))) throw new Error('votes.err.locked');
     return {
       writes: [
-        guard(`EXISTS (SELECT 1 FROM vote WHERE ${OPEN} AND account = ?)`, id, at, who.id),
+        arms ? guard(`EXISTS (SELECT 1 FROM vote WHERE ${OPEN} AND subject_kind = 'house')`, id, at) : guard(`EXISTS (SELECT 1 FROM vote WHERE ${OPEN} AND account = ?)`, id, at, who.id),
         ...(changed ? [
           // No ballot yet, as read: one cast meanwhile makes the plan decide again, and refuse.
           guard('NOT EXISTS (SELECT 1 FROM ballot WHERE vote = ?)', id),
@@ -216,12 +232,16 @@ export async function editVote(tree: string, who: Who, id: string, input: Partia
   });
 }
 
-/** Closes an open vote now: its creator's, whatever their role now, or anyone's for an editor. A closed vote stays as it is. */
+/**
+ * Closes an open vote now: its creator's, whatever their role now, or anyone's for an editor; an arms vote only for a
+ * steward. A closed vote stays as it is.
+ */
 export async function closeVote(tree: string, who: Who, id: string, op?: OpKey, now: Date = new Date()): Promise<void> {
   needsMember(who);
   return once(tree, op, 'closeVote', async (d) => {
     const row = await voteOf(d, id);
-    if (row.account !== who.id && !can(who.role, 'remove-vote')) throw fail(forbidden('remove-vote', 'editor'));
+    if (isArmsVote(row)) needsSteward(who);
+    else if (row.account !== who.id && !can(who.role, 'remove-vote')) throw fail(forbidden('remove-vote', 'editor'));
     const at = now.toISOString();
     if (!isOpen(row, at)) return { writes: [], history: NOT_A_RECORD, result: undefined };
     return {
@@ -232,19 +252,33 @@ export async function closeVote(tree: string, who: Who, id: string, op?: OpKey, 
   });
 }
 
+/** The writes that delete a vote with its options, voters, ballots and reminder claims; its comments and reactions go by a trigger. */
+export const removeVoteWrites = (id: string): Query[] =>
+  // The foreign keys cascade, but each table is named, so no driver's foreign-key setting decides what stays.
+  ['ballot', 'vote_voter', 'vote_option', 'vote_reminded'].map((t) => q(`DELETE FROM ${t} WHERE vote = ?`, id)).concat(q('DELETE FROM vote WHERE id = ?', id));
+
 /**
- * Removes a vote with its options, voters and ballots: its creator's, whatever their role now, or anyone's for an editor.
- * Its comments and reactions go with it (a trigger).
+ * Removes a vote with its options, voters and ballots: its creator's, whatever their role now, or anyone's for an editor;
+ * an arms vote only for a steward. Its comments and reactions go with it (a trigger). An unsettled arms vote's proposals
+ * wait again, marked `vote_removed`; a settled one's keep their outcomes.
  */
 export async function removeVote(tree: string, who: Who, id: string, op?: OpKey): Promise<{ removed: boolean }> {
   needsMember(who);
   return once<{ removed: boolean }>(tree, op, 'removeVote', async (d) => {
-    const row = await d.get<{ account: string }>('SELECT account FROM vote WHERE id = ?', id);
+    const row = await d.get<{ account: string; subject_kind: string | null; settled_at: string | null }>('SELECT account, subject_kind, settled_at FROM vote WHERE id = ?', id);
     if (!row) return { writes: [], history: NOT_A_RECORD, result: { removed: false } };
-    if (row.account !== who.id && !can(who.role, 'remove-vote')) throw fail(forbidden('remove-vote', 'editor'));
+    const arms = isArmsVote(row);
+    if (arms) needsSteward(who);
+    else if (row.account !== who.id && !can(who.role, 'remove-vote')) throw fail(forbidden('remove-vote', 'editor'));
     return {
-      // The foreign keys cascade, but each table is named, so no driver's foreign-key setting decides what stays.
-      writes: ['ballot', 'vote_voter', 'vote_option', 'vote_reminded'].map((t) => q(`DELETE FROM ${t} WHERE vote = ?`, id)).concat(q('DELETE FROM vote WHERE id = ?', id)),
+      writes: [
+        ...(arms ? [
+          // Settled or not, as read: a settlement meanwhile makes the plan decide again, and leave the outcomes alone.
+          guard('EXISTS (SELECT 1 FROM vote WHERE id = ? AND settled_at IS ?)', id, row.settled_at),
+          ...(row.settled_at ? [] : [q("UPDATE arms_proposal SET status = 'waiting', reason = 'vote_removed' WHERE status = 'voting' AND id IN (SELECT proposal FROM vote_option WHERE vote = ? AND proposal IS NOT NULL)", id)]),
+        ] : []),
+        ...removeVoteWrites(id),
+      ],
       history: NOT_A_RECORD,
       result: { removed: true },
     };
@@ -256,6 +290,8 @@ export async function addOption(tree: string, who: Who, id: string, label: strin
   needs(who, 'start-vote');
   return once(tree, op, 'addVoteOption', async (d) => {
     const row = await voteOf(d, id);
+    // An arms vote's options are its proposals, which join through Put to a vote.
+    if (isArmsVote(row)) throw new Error('votes.err.locked');
     const at = now.toISOString();
     if (!isOpen(row, at)) throw new Error('votes.err.closed');
     if (!row.add_options) throw new Error('votes.err.locked');
@@ -266,7 +302,7 @@ export async function addOption(tree: string, who: Who, id: string, label: strin
     const option = crypto.randomUUID();
     return {
       writes: [
-        guard(`EXISTS (SELECT 1 FROM vote WHERE ${OPEN} AND add_options = 1)`, id, at),
+        guard(`EXISTS (SELECT 1 FROM vote WHERE ${OPEN} AND add_options = 1 AND subject_kind IS NULL)`, id, at),
         // The options as read: one added or relabelled meanwhile (perhaps to the same label) makes the plan decide again.
         sameOptions(id, read.map((o) => o.id)),
         q('INSERT INTO vote_option (id, vote, ord, label, added_by_account, added_by_name, created_at) VALUES (?, ?, (SELECT coalesce(max(ord), -1) + 1 FROM vote_option WHERE vote = ?), ?, ?, ?, ?)',
@@ -506,9 +542,11 @@ export async function voteView(tree: string, reader: Reader, id: string, guestKe
   }
 
   const creator = !r.guest && v.account === r.voterId;
+  // An arms vote: a steward closes it, changes its closing time and removes it; nobody adds an option.
+  const ofArms = !r.guest && can(r.role, 'edit-house');
   const may = r.guest
     ? { edit: false, close: false, remove: false, addOption: false, strike: false }
-    : {
+    : isArmsVote(v) ? { edit: open && ofArms, close: open && ofArms, remove: ofArms, addOption: false, strike: open && steward } : {
       edit: creator && open && can(r.role, 'start-vote'),
       close: open && (creator || can(r.role, 'remove-vote')),
       remove: creator || can(r.role, 'remove-vote'),
