@@ -38,6 +38,13 @@ const CLOSED = "SELECT id FROM vote WHERE subject_kind = 'house' AND closed_at I
 const WAITING = `SELECT DISTINCT p.house AS house FROM arms_proposal p WHERE p.status = 'waiting' AND p.reason IS NOT 'vote_removed'
   AND NOT EXISTS (SELECT 1 FROM vote v WHERE v.subject_kind = 'house' AND v.subject = p.house AND v.settled_at IS NULL)`;
 
+/**
+ * Whether a run has anything to do (`?` the time): a vote to mark closed or to settle, or in vote mode a house whose waiting
+ * proposals have no vote. One cheap read, so the reads that settle (every house page a member opens) cost little.
+ */
+const ANYTHING_DUE = `SELECT EXISTS (${DUE}) OR EXISTS (${CLOSED})
+  OR (coalesce((SELECT value FROM meta WHERE key = 'arms_mode'), '') = 'vote' AND EXISTS (${WAITING})) AS due`;
+
 const failed = (what: string) => (e: unknown) => {
   // The error only: no family, house, proposal or proposer.
   console.error(`[arms] could not ${what}`, e instanceof Error ? e.message : e);
@@ -48,13 +55,14 @@ const sameArms = (a: unknown, b: unknown) => canonical(a) === canonical(b);
 /**
  * Closes the family's arms votes whose closing time has passed, settles every closed one not yet settled, and in vote mode
  * starts the next vote for each house with waiting proposals. Answers how many it settled and started. Does nothing in a
- * demo or a preview; never throws.
+ * demo or a preview, and reads no more than one question when nothing is due; never throws.
  */
 export async function settleArmsVotes(tree: string, now: Date = new Date()): Promise<{ settled: number; started: number }> {
   const out = { settled: 0, started: 0 };
   if (readOnly()) return out;
   const at = now.toISOString();
   try {
+    if (!(await db(tree).get<{ due: number }>(ANYTHING_DUE, at))?.due) return out;
     const [due, closed] = (await db(tree).readBatch([q(DUE, at), q(CLOSED)])) as unknown as [{ id: string }[], { id: string }[]];
     // Step one, its own write: once marked closed, no ballot lands, so the count below is final.
     if (due.length) await markClosed(tree, due.map((v) => v.id), at, 'closeArmsVote').catch(failed('mark arms votes closed'));

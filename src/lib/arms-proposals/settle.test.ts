@@ -456,6 +456,27 @@ test('a read that settled an arms vote says so (the page then reads the house ag
   }
 });
 
+test('a run with nothing due asks one cheap question and stops, as on every house page a member opens', async () => {
+  const t = await family('vote');
+  const { vote } = await propose(t, ada, 'The stag', arms('stag'));
+  const d = db.db(t);
+  const reads: string[] = [];
+  const spied = { get: d.get, all: d.all, readBatch: d.readBatch };
+  d.get = ((sql: string, ...p: never[]) => { reads.push(sql); return spied.get.call(d, sql, ...p); }) as typeof d.get;
+  d.all = ((sql: string, ...p: never[]) => { reads.push(sql); return spied.all.call(d, sql, ...p); }) as typeof d.all;
+  d.readBatch = ((qs: Parameters<typeof d.readBatch>[0]) => { reads.push('batch'); return spied.readBatch.call(d, qs); }) as typeof d.readBatch;
+  try {
+    // The vote runs for a week yet, and no proposal waits without one.
+    assert.deepEqual(await S.settleArmsVotes(t, later(HOUR)), { settled: 0, started: 0 });
+    assert.equal(reads.length, 1, `one read, not ${reads.length}`);
+  } finally {
+    Object.assign(d, spied);
+  }
+  // Once something is due, the run does its work.
+  assert.deepEqual(await S.settleArmsVotes(t, AFTER), { settled: 1, started: 0 });
+  assert.ok((await voteRow(t, vote!))?.settled_at);
+});
+
 test('a steward closing an arms vote early settles it at once', async () => {
   const { t, vote, stag, o } = await stagAndEagle();
   await V.castBallot(t, member(carl), vote, [o[stag]!], later(2 * HOUR));
