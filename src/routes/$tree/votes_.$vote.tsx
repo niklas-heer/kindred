@@ -64,8 +64,8 @@ function VoteBody({ tree, view }: { tree: string; view: VoteView }) {
         </p>
         {view.description && <p className="vt-description">{view.description}</p>}
         {view.secret && <p className="vt-secret"><Lock size={14} aria-hidden /> {t('votes.secret_meaning')}</p>}
-        {/* A house's arms vote (its options are shields): what its outcome does to the house. */}
-        {view.options.some((o) => o.arms) && <p className="vt-secret"><Shield size={14} aria-hidden /> {t('arms.vote.outcome')}</p>}
+        {/* A house's arms vote (its options are shields), while it runs: what its outcome will do to the house. */}
+        {!view.closed && view.options.some((o) => o.arms) && <p className="vt-secret"><Shield size={14} aria-hidden /> {t('arms.vote.outcome')}</p>}
         {!view.closed ? (
           <Ballot key={view.id} tree={tree} view={view} />
         ) : view.mine ? (

@@ -198,6 +198,8 @@ test('arms proposals: a contributor proposes, the family votes, the steward acce
   await page.getByRole('dialog', { name: 'Close this vote now?' }).getByRole('button', { name: 'Close now' }).click();
   await expect(page.getByText('Chosen: The stars of Starling')).toBeVisible();
   await expect(page.getByRole('region', { name: 'Results' }).locator('.vt-arms').first()).toBeVisible();
+  // What a closing vote will do is not said once it has closed.
+  await expect(page.getByText("The chosen design becomes the house's arms when the vote closes")).toHaveCount(0);
   expect(await armsNow(page, house)).toBe(proposed);
   await them.goto(house);
   await settled(them);

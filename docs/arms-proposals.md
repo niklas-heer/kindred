@@ -48,8 +48,8 @@ at stake:
 
 - **Ranked** (instant runoff) and **secret**: nobody sees who chose what. It runs **7 days**.
 - Its options are the proposals, shown as shields with the design's name, and always **Keep our current arms**, a snapshot
-  of the arms when the vote started. Its page says what it decides: the chosen design becomes the house's arms when the
-  vote closes; a tie or no votes keeps the current arms.
+  of the arms when the vote started. While it runs, its page says what it decides: the chosen design becomes the house's
+  arms when the vote closes; a tie or no votes keeps the current arms.
 - **Guests** take part when the family's setting allows it.
 - A house has at most one unsettled arms vote. A proposal **joins** it only before the first ballot, and only while it has
   fewer than **19 proposals** (20 options with Keep). Otherwise it waits. After the first ballot the options never change.
