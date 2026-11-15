@@ -61,7 +61,8 @@ export default {
   "arms.settings.guests_hint": "通过家族分享链接进来的访客可以为盾徽及其名称投票，但看不到是谁建议的。",
   "arms.settings.saved": "已保存",
   "arms.settings.vote_confirm_title": "让家人对每个建议投票？",
-  "arms.settings.vote_confirm_text": { other: "{count} 条建议在等待。它们会进入各自支系的纹章投票，负责人不能再直接采纳。" },
+  "arms.settings.vote_confirm_text": { other: "{count} 条建议在等待。它们可能进入各自支系的纹章投票，负责人不能再直接采纳。" },
+  "arms.settings.vote_confirm_unknown": "等待中的建议可能进入各自支系的纹章投票，负责人不能再直接采纳。",
 
   "arms.err.gone": "这个支系或这个建议已经不存在了。",
   "arms.err.same": "这已经是支系现有的纹章了。请先改动一些地方。",

@@ -61,7 +61,8 @@ export default {
   "arms.settings.guests_hint": "Gäste, die über den geteilten Link der Familie gekommen sind, stimmen über die Schilde und ihre Namen ab und sehen nie, wer sie vorgeschlagen hat.",
   "arms.settings.saved": "Gespeichert",
   "arms.settings.vote_confirm_title": "Die Familie über jeden Vorschlag abstimmen lassen?",
-  "arms.settings.vote_confirm_text": { one: "{count} Vorschlag wartet. Er kommt in die Wappenabstimmung seines Hauses, und die Familienverwaltung kann ihn nicht mehr direkt annehmen.", other: "{count} Vorschläge warten. Sie kommen in die Wappenabstimmungen ihrer Häuser, und die Familienverwaltung kann sie nicht mehr direkt annehmen." },
+  "arms.settings.vote_confirm_text": { one: "{count} Vorschlag wartet. Er kann in die Wappenabstimmung seines Hauses kommen, und die Familienverwaltung kann ihn nicht mehr direkt annehmen.", other: "{count} Vorschläge warten. Sie können in die Wappenabstimmungen ihrer Häuser kommen, und die Familienverwaltung kann sie nicht mehr direkt annehmen." },
+  "arms.settings.vote_confirm_unknown": "Wartende Vorschläge können in die Wappenabstimmungen ihrer Häuser kommen, und die Familienverwaltung kann sie nicht mehr direkt annehmen.",
 
   "arms.err.gone": "Dieses Haus oder dieser Vorschlag ist nicht mehr da.",
   "arms.err.same": "Das ist schon das Wappen des Hauses. Ändere zuerst etwas.",

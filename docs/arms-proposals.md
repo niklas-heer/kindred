@@ -24,7 +24,8 @@ Stewards also see a count on the Houses page.
 
 A steward chooses the family's setting **How arms proposals are settled** (the setting acts when a proposal is made;
 changing it later leaves votes that are running alone and gives waiting proposals the new mode's actions; switching to
-**Always a vote** while proposals wait asks first, since they then go to their houses' votes):
+**Always a vote** while proposals wait, or while how many wait has not loaded, asks first, since they can then go to their
+houses' votes):
 
 | Mode | A new proposal | What a steward can do with a waiting proposal |
 | --- | --- | --- |

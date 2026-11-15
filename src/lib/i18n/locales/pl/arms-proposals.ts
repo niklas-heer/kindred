@@ -67,11 +67,12 @@ export default {
   "arms.settings.saved": "Zapisano",
   "arms.settings.vote_confirm_title": "Niech rodzina głosuje nad każdą propozycją?",
   "arms.settings.vote_confirm_text": {
-    one: "{count} propozycja czeka. Trafi do głosowania nad herbem swojego rodu, a opiekun nie będzie mógł już przyjąć jej bezpośrednio.",
-    few: "{count} propozycje czekają. Trafią do głosowań nad herbami swoich rodów, a opiekun nie będzie mógł już przyjąć ich bezpośrednio.",
-    many: "{count} propozycji czeka. Trafią do głosowań nad herbami swoich rodów, a opiekun nie będzie mógł już przyjąć ich bezpośrednio.",
-    other: "{count} propozycji czeka. Trafią do głosowań nad herbami swoich rodów, a opiekun nie będzie mógł już przyjąć ich bezpośrednio.",
+    one: "{count} propozycja czeka. Może trafić do głosowania nad herbem swojego rodu, a opiekun nie będzie mógł już przyjąć jej bezpośrednio.",
+    few: "{count} propozycje czekają. Mogą trafić do głosowań nad herbami swoich rodów, a opiekun nie będzie mógł już przyjąć ich bezpośrednio.",
+    many: "{count} propozycji czeka. Mogą trafić do głosowań nad herbami swoich rodów, a opiekun nie będzie mógł już przyjąć ich bezpośrednio.",
+    other: "{count} propozycji czeka. Mogą trafić do głosowań nad herbami swoich rodów, a opiekun nie będzie mógł już przyjąć ich bezpośrednio.",
   },
+  "arms.settings.vote_confirm_unknown": "Czekające propozycje mogą trafić do głosowań nad herbami swoich rodów, a opiekun nie będzie mógł już przyjąć ich bezpośrednio.",
 
   "arms.err.gone": "Tego rodu albo tej propozycji już nie ma.",
   "arms.err.same": "To już jest herb rodu. Najpierw coś zmień.",

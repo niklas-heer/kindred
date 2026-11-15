@@ -61,7 +61,8 @@ export default {
   "arms.settings.guests_hint": "Los visitantes que entraron con el enlace para compartir de la familia votan sobre los escudos y sus nombres, sin ver nunca quién los propuso.",
   "arms.settings.saved": "Guardado",
   "arms.settings.vote_confirm_title": "¿Dejar que la familia vote cada propuesta?",
-  "arms.settings.vote_confirm_text": { one: "{count} propuesta espera. Pasa a la votación del escudo de su casa, y un responsable ya no puede aceptarla directamente.", other: "{count} propuestas esperan. Pasan a las votaciones del escudo de sus casas, y un responsable ya no puede aceptarlas directamente." },
+  "arms.settings.vote_confirm_text": { one: "{count} propuesta espera. Puede pasar a la votación del escudo de su casa, y un responsable ya no puede aceptarla directamente.", other: "{count} propuestas esperan. Pueden pasar a las votaciones del escudo de sus casas, y un responsable ya no puede aceptarlas directamente." },
+  "arms.settings.vote_confirm_unknown": "Las propuestas que esperan pueden pasar a las votaciones del escudo de sus casas, y un responsable ya no puede aceptarlas directamente.",
 
   "arms.err.gone": "Esta casa o esta propuesta ya no existe.",
   "arms.err.same": "Ese ya es el escudo de la casa. Cambia algo primero.",

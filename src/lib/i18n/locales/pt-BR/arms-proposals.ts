@@ -61,7 +61,8 @@ export default {
   "arms.settings.guests_hint": "Visitantes que entraram pelo link de compartilhamento da família votam nos escudos e em seus nomes, sem nunca ver quem os propôs.",
   "arms.settings.saved": "Salvo",
   "arms.settings.vote_confirm_title": "Deixar a família votar em cada proposta?",
-  "arms.settings.vote_confirm_text": { one: "{count} proposta aguarda. Ela vai para a votação do brasão da sua casa, e um responsável não pode mais aceitá-la diretamente.", other: "{count} propostas aguardam. Elas vão para as votações dos brasões das suas casas, e um responsável não pode mais aceitá-las diretamente." },
+  "arms.settings.vote_confirm_text": { one: "{count} proposta aguarda. Ela pode ir para a votação do brasão da sua casa, e um responsável não pode mais aceitá-la diretamente.", other: "{count} propostas aguardam. Elas podem ir para as votações dos brasões das suas casas, e um responsável não pode mais aceitá-las diretamente." },
+  "arms.settings.vote_confirm_unknown": "As propostas que aguardam podem ir para as votações dos brasões das suas casas, e um responsável não pode mais aceitá-las diretamente.",
 
   "arms.err.gone": "Esta casa ou esta proposta não existe mais.",
   "arms.err.same": "Este já é o brasão da casa. Mude alguma coisa primeiro.",

@@ -1,7 +1,7 @@
 // The family's setting for arms proposals (docs/arms-proposals.md), on the Houses page for stewards: how proposals are
 // settled (a steward decides, always a vote, or a steward chooses each time) and whether guests may vote on arms. Each
-// change saves at once, except a switch to "Always a vote" while proposals wait, which the steward confirms first (they
-// would go to a vote); the server checks the role again.
+// change saves at once, except a switch to "Always a vote" while proposals wait (or while how many wait is not known), which
+// the steward confirms first (they can go to votes); the server checks the role again.
 //
 //   {canEdit && <ArmsSettings tree={tree} />}
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -28,8 +28,10 @@ export function ArmsSettings({ tree }: { tree: string }) {
   const qc = useQueryClient();
   const [keys] = useState(opKeys);
   const q = useQuery(armsSettingsQuery(tree));
-  // How many proposals wait across the houses: switching to "Always a vote" would put them to votes, so it asks first.
-  const waiting = Object.values(useQuery(proposalCountsQuery(tree)).data ?? {}).reduce((sum, n) => sum + n, 0);
+  // How many proposals wait across the houses: switching to "Always a vote" can put them to votes, so it asks first. Until
+  // the count has loaded (or when it failed), it asks too, without a number.
+  const counts = useQuery(proposalCountsQuery(tree));
+  const waiting = counts.isSuccess ? Object.values(counts.data).reduce((sum, n) => sum + n, 0) : null;
   const [confirming, setConfirming] = useState(false);
   // The choice shows at once; a refusal puts back what the server has.
   const [chosen, setChosen] = useState<Settings | null>(null);
@@ -53,7 +55,7 @@ export function ArmsSettings({ tree }: { tree: string }) {
     save.mutate(next);
   };
   const choose = (mode: ArmsMode) => {
-    if (mode === 'vote' && now.mode !== 'vote' && waiting > 0) setConfirming(true);
+    if (mode === 'vote' && now.mode !== 'vote' && waiting !== 0) setConfirming(true);
     else change({ mode });
   };
 
@@ -85,7 +87,7 @@ export function ArmsSettings({ tree }: { tree: string }) {
         open={confirming} onClose={() => setConfirming(false)} onConfirm={() => { setConfirming(false); change({ mode: 'vote' }); }}
         title={t('arms.settings.vote_confirm_title')} confirmLabel={t('arms.mode.vote')}
       >
-        <p>{t('arms.settings.vote_confirm_text', { count: waiting })}</p>
+        <p>{waiting === null ? t('arms.settings.vote_confirm_unknown') : t('arms.settings.vote_confirm_text', { count: waiting })}</p>
       </ConfirmDialog>
     </section>
   );
