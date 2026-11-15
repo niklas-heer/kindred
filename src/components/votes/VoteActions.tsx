@@ -9,6 +9,7 @@ import { useId, useState } from 'react';
 import { ConfirmDialog } from '~/components/ui';
 import { opKeys } from '~/lib/api';
 import { armsKeys } from '~/lib/arms-proposals/proposals.functions';
+import { myFamiliesQuery } from '~/lib/auth/functions';
 import { errorText } from '~/lib/errortext';
 import { useT } from '~/lib/i18n';
 import { MAX_CLOSE_DAYS, MAX_OPTION, MIN_CLOSE_MS, type VoteView } from '~/lib/votes/types';
@@ -45,8 +46,11 @@ export function VoteActions({ tree, view, onRemoved }: { tree: string; view: Vot
     mutationFn: () => endVote({ data: { tree, id: view.id, opKey: keys.for('close', view.id) } }),
     onSuccess: async () => {
       setAsking(null);
-      // Closing a house's arms vote settles it: the house may bear new arms, and its proposals move on.
-      await Promise.all(view.options.some((o) => o.arms) ? armsKeys(tree).map((queryKey) => qc.invalidateQueries({ queryKey })) : [refresh()]);
+      // Closing a house's arms vote settles it: the house may bear new arms (on the home page's shields too), and its
+      // proposals move on.
+      await Promise.all(view.options.some((o) => o.arms)
+        ? [...armsKeys(tree).map((queryKey) => qc.invalidateQueries({ queryKey })), qc.invalidateQueries({ queryKey: myFamiliesQuery.queryKey })]
+        : [refresh()]);
     },
   });
   const remove = useMutation({
