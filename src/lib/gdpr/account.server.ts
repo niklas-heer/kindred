@@ -24,7 +24,7 @@ import { AuthError } from '../auth/errors.ts';
 import { families } from '../auth/trees.server.ts';
 import { db, once } from '../db.server.ts';
 import { translate } from '../i18n/dictionary.ts';
-import { voterKey } from '../votes/votes.server.ts';
+import { voterKey } from '../votes/voter-key.server.ts';
 import { guard, isGuardError, q, store, type Db, type Query } from '../store/index.ts';
 import { ident, isText, tablesOf, type Table } from './schema.ts';
 

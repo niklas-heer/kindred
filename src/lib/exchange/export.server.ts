@@ -5,7 +5,7 @@ import { db, media } from '../db.server.ts';
 import type { ArchiveFile } from './markdown.ts';
 import { markdownArchive, noteNames, portraitPath } from './markdown.ts';
 import { writeGedcom } from './gedcom.ts';
-import { voterKey } from '../votes/votes.server.ts';
+import { voterKey } from '../votes/voter-key.server.ts';
 import { readTree, type ExTree } from './model.ts';
 import { storeZip } from './zip.ts';
 import { researchArchive, researchGedcomLosses } from './research-archive.ts';

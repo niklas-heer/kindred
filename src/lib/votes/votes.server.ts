@@ -35,15 +35,14 @@
 //     kind         the kind is neither `single` nor `ranked`
 import { fail, type Reader } from '../auth/guard.server';
 import { forbidden } from '../auth/errors';
-import { serverHmac } from '../auth/seal.server';
 import { db, guard, NOT_A_RECORD, once, q, type Db, type OpKey, type Query } from '../db.server';
 import { authorOf, needsMember, standingFor, type Who } from '../feed/posts.server';
 import type { FeedAuthor } from '../feed/types';
 import { readOnly } from '../read-only';
 import { cleanComment } from '../responses';
 import { can, needs as lowestRole, type Action, type Role } from '../roles';
-import { b64url } from '../webpush';
 import { countVote } from './count';
+import { voterKey } from './voter-key.server';
 import {
   GUEST_VOTERS_PER_LINK, GUEST_VOTERS_PER_NETWORK, MAX_CLOSE_DAYS, MAX_DESCRIPTION, MAX_GUEST_NAME, MAX_OPTION, MAX_OPTIONS,
   MAX_QUESTION, MAX_VOTES_AN_HOUR, MIN_CLOSE_MS, MIN_OPTIONS, type VoteKind, type VoteResult, type VoteSummary, type VoteView,
@@ -84,15 +83,6 @@ const OPEN = 'id = ? AND closes_at > ? AND closed_at IS NULL';
 function needs(who: Who, action: Action) {
   needsMember(who);
   if (!can(who.role, action)) throw fail(forbidden(action, lowestRole(action)));
-}
-
-/**
- * The key a ballot is stored under: the account id or guest key itself in an open vote, else an HMAC of the vote and it
- * under the server's secret, which is not in the family's database, so a backup cannot join a ballot to its voter.
- */
-export async function voterKey(vote: string, secret: boolean, voterId: string): Promise<string> {
-  if (!secret) return voterId;
-  return b64url(await serverHmac('vote-voter', new TextEncoder().encode(`${vote}:${voterId}`)));
 }
 
 // ---------- checks ----------

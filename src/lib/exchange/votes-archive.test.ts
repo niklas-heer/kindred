@@ -18,6 +18,7 @@ const load = <T>(path: string) => vite.ssrLoadModule(path) as Promise<T>;
 const { closeAccounts } = await load<typeof import('../store/node.ts')>('/src/lib/store/node.ts');
 const db = await load<typeof import('../db.server.ts')>('/src/lib/db.server.ts');
 const V = await load<typeof import('../votes/votes.server.ts')>('/src/lib/votes/votes.server.ts');
+const K = await load<typeof import('../votes/voter-key.server.ts')>('/src/lib/votes/voter-key.server.ts');
 const { readTree } = await load<typeof import('./model.ts')>('/src/lib/exchange/model.ts');
 const { markdownArchive } = await load<typeof import('./markdown.ts')>('/src/lib/exchange/markdown.ts');
 
@@ -42,7 +43,7 @@ const optionOf = async (t: string, vote: string, label: string) => (await db.db(
 const start = (t: string, question: string, over: object = {}, from = START) =>
   V.createVote(t, ada, { question, kind: 'single', secret: false, addOptions: false, guests: true, closesAt: new Date(from.getTime() + 7 * DAY).toISOString(), options: ['Beach', 'Lake'], ...over }, undefined, from);
 const archiveOf = async (t: string, name: string, withKey = true) => {
-  const { files } = markdownArchive(await readTree(db.db(t), withKey ? { voterKey: V.voterKey } : {}), new Set(), new Date('2026-11-15T00:00:00Z'));
+  const { files } = markdownArchive(await readTree(db.db(t), withKey ? { voterKey: K.voterKey } : {}), new Set(), new Date('2026-11-15T00:00:00Z'));
   return files.find((f) => f.path === name)?.data as string | undefined;
 };
 const vote = (t: string, id: string, w: ReturnType<typeof who>, labels: string[], at: Date) =>

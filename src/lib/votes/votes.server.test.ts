@@ -19,6 +19,7 @@ const load = <T>(path: string) => vite.ssrLoadModule(path) as Promise<T>;
 const { closeAccounts } = await load<typeof import('../store/node.ts')>('/src/lib/store/node.ts');
 const db = await load<typeof import('../db.server.ts')>('/src/lib/db.server.ts');
 const V = await load<typeof import('./votes.server.ts')>('/src/lib/votes/votes.server.ts');
+const K = await load<typeof import('./voter-key.server.ts')>('/src/lib/votes/voter-key.server.ts');
 const readOnly = await load<typeof import('../read-only.ts')>('/src/lib/read-only.ts');
 const { AuthError } = await load<typeof import('../auth/errors.ts')>('/src/lib/auth/errors.ts');
 const { MAX_OPTIONS, MAX_VOTES_AN_HOUR, MIN_CLOSE_MS, MAX_CLOSE_DAYS, GUEST_VOTERS_PER_NETWORK, GUEST_VOTERS_PER_LINK } =
@@ -294,10 +295,10 @@ test('a secret vote’s ballots carry no account, no time, and nothing a backup 
   const voterValues = new Set(voters.flatMap((v) => Object.entries(v).filter(([k]) => k !== 'vote').map(([, value]) => value)).filter((value) => value !== null));
   for (const b of ballots) for (const [k, value] of Object.entries(b)) if (k !== 'vote' && value !== null) assert.ok(!voterValues.has(value), `ballot.${k} equals a vote_voter column`);
   // The server can still find Carl's own ballot.
-  const key = await V.voterKey(id, true, carl.id);
+  const key = await K.voterKey(id, true, carl.id);
   assert.deepEqual(JSON.parse((await db.db(t).get<{ choices: string }>('SELECT choices FROM ballot WHERE vote = ? AND voter = ?', id, key))!.choices), [mountains]);
-  assert.notEqual(await V.voterKey('another-vote', true, carl.id), key, 'the key is the vote’s own');
-  assert.equal(await V.voterKey(id, false, carl.id), carl.id);
+  assert.notEqual(await K.voterKey('another-vote', true, carl.id), key, 'the key is the vote’s own');
+  assert.equal(await K.voterKey(id, false, carl.id), carl.id);
   assert.match(key, /^[A-Za-z0-9_-]{43}$/);
 });
 
@@ -366,7 +367,7 @@ test('a ballot decides again when the vote turned secret or single-choice betwee
     hook.done();
   }
   const ballot = await db.db(t).get<{ voter: string; changed_at: string | null }>('SELECT voter, changed_at FROM ballot WHERE vote = ?', id);
-  assert.equal(ballot?.voter, await V.voterKey(id, true, carl.id), 'keyed as the secret vote it now is');
+  assert.equal(ballot?.voter, await K.voterKey(id, true, carl.id), 'keyed as the secret vote it now is');
   assert.equal(ballot?.changed_at, null);
 
   const { id: ranked } = await V.createVote(t, ada, input({ kind: 'ranked' }), undefined, NOW);

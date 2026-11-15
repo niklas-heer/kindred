@@ -160,7 +160,7 @@ export interface ExVote {
   strikesIgnored?: boolean;
 }
 
-/** What a reader of the tree may be given: the server's `voterKey` (votes.server.ts), only by callers that run on the server. */
+/** What a reader of the tree may be given: the server's `voterKey` (votes/voter-key.server.ts), only by callers that run on the server. */
 export interface ReadOptions {
   voterKey?: (vote: string, secret: boolean, voterId: string) => Promise<string>;
 }
