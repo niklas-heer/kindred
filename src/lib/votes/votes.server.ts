@@ -423,6 +423,8 @@ function readingOf(reader: Reader, guestKey?: string): Reading {
 interface ReadRow extends VoteRow { author_name: string; author_person: string | null; house_name: string | null; voter_count: number; voted: number }
 /** An option as read: `proposal` and `arms` (the proposal's shield, or Keep's snapshot) only in an arms vote. */
 interface OptionRow { vote: string; id: string; label: string; added_by_name: string; proposal: string | null; arms: string | null }
+/** What the list reads of a closed vote's options: enough to name its winners. */
+type WinnerOptionRow = Pick<OptionRow, 'vote' | 'id' | 'label' | 'proposal'>;
 interface BallotRow { vote: string; voter: string; choices: string }
 interface VoterRow { vote: string; id: string; account: string | null; guest_key: string | null; name: string; person: string | null; struck: number }
 
@@ -531,7 +533,7 @@ export async function listVotes(tree: string, reader: Reader, guestKey?: string,
     q(`SELECT vote, id, label, proposal FROM vote_option WHERE vote IN (${closedIds}) ORDER BY vote, ord`, at),
     q(`SELECT vote, voter, choices FROM ballot WHERE vote IN (${closedIds})`, at),
     q(`SELECT vote, account, guest_key FROM vote_voter WHERE struck = 1 AND vote IN (${closedIds})`, at),
-  ])) as unknown as [ReadRow[], ReadRow[], OptionRow[], BallotRow[], VoterRow[]];
+  ])) as unknown as [ReadRow[], ReadRow[], WinnerOptionRow[], BallotRow[], VoterRow[]];
   await closeOnRead(tree, r, closed.filter((v) => !v.closed_at).map((v) => v.id), at);
   // A member's read also settles the arms votes that closed (a guest's never): the house takes the arms a vote chose.
   await settle(tree, r, now);
