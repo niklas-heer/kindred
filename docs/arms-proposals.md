@@ -52,6 +52,10 @@ at stake:
   fewer than **19 proposals** (20 options with Keep). Otherwise it waits. After the first ballot the options never change.
 - **The house's arms are frozen** while its arms vote is unsettled: a steward cannot save different arms or Accept a
   proposal (the name and motto still save). The vote cannot overwrite arms saved after it started either.
+- **Same arms** means the same design, as the designer draws it: older arms stored without a design are the same as the
+  designer's drawing of them. So a save that only changes the name or motto is never frozen, and while a vote runs it keeps
+  the stored arms exactly as they are, so the vote's Keep still matches them. A proposal or Accept of the arms the house
+  bears is refused on the same comparison.
 - **Chained votes in vote mode.** Each time a vote is settled, and on every daily run, a house that has waiting proposals
   and no unsettled arms vote gets a new vote: the oldest nineteen, with the proposer of the oldest as its starter. A
   proposal that came back from a removed vote (reason `vote_removed`) waits until a steward puts it to a vote. A waiting

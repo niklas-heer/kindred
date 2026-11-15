@@ -27,6 +27,7 @@ const P = await load<typeof import('./proposals.server.ts')>('/src/lib/arms-prop
 const { MAX_OPEN_PER_MEMBER, MAX_PROPOSALS_PER_VOTE, ARMS_VOTE_DAYS, MAX_PROPOSAL_NAME, MAX_PROPOSAL_NOTE, MAX_DECLINE_REASON } =
   await load<typeof import('./types.ts')>('/src/lib/arms-proposals/types.ts');
 const { MAX_VOTES_AN_HOUR } = await load<typeof import('../votes/types.ts')>('/src/lib/votes/types.ts');
+const { asV2, storeV2 } = await load<typeof import('../heraldry/convert.ts')>('/src/lib/heraldry/convert.ts');
 
 test.after(async () => {
   closeAccounts();
@@ -135,6 +136,8 @@ test('a contributor proposes arms, stored normalised and waiting; a viewer or a 
 test('a proposal equal to the current arms, or named like another open one, is refused', async () => {
   const t = await family('choose');
   await assert.rejects(propose(t, ada, 'The lion', { ...ARMS, field2: 'argent' }), /arms\.err\.same/);
+  // The designer sends its design (v2): the house's v1 arms read as v2 are the same arms.
+  await assert.rejects(propose(t, ada, 'The lion', storeV2(asV2(ARMS))), /arms\.err\.same/);
   const { id } = await propose(t, ada, 'The stag');
   await assert.rejects(propose(t, bo, ' THE STAG '), /arms\.err\.name_taken/);
   // A closed proposal's name is free again.

@@ -28,7 +28,7 @@
 //     locked      its vote has a ballot or has closed         frozen     (the house-write plan) a vote holds the arms
 import { fail } from '../auth/guard.server';
 import { forbidden } from '../auth/errors';
-import { canonical, change, db, guard, houseWritePlan, normalArms, NOT_A_RECORD, once, q, type Db, type HouseSeen, type OpKey, type Query } from '../db.server';
+import { change, db, guard, houseWritePlan, normalArms, NOT_A_RECORD, once, q, sameDesign, type Db, type HouseSeen, type OpKey, type Query } from '../db.server';
 import { authorOf, needsMember, standingFor, type Who } from '../feed/posts.server';
 import { namesInEveryLanguage } from '../i18n/dictionary';
 import { cleanComment } from '../responses';
@@ -56,7 +56,8 @@ const UNSETTLED = "subject_kind = 'house' AND subject = ? AND settled_at IS NULL
 const personOf = (p: string | null | undefined) => (p && p !== '-' ? p : null);
 const oneLine = (text: string) => cleanComment(text).replace(/\s+/g, ' ').trim();
 const sameName = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
-const sameArms = (a: unknown, b: unknown) => canonical(a) === canonical(b);
+/** The same arms as the designer draws them: v1 arms and the designer's v2 of them are the same (`sameDesign`). */
+const sameArms = (a: House['arms'], b: House['arms']) => sameDesign(a, b);
 
 function needs(who: Who, action: Action) {
   needsMember(who);

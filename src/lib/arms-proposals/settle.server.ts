@@ -19,7 +19,7 @@
 //   (`not_chosen`) any whose arms equal the house's. The start is guarded, so two runs start one; a start that failed is
 //   made by the next run. A chained start sends no push (the feed shows it).
 // - It never throws: a failure is logged without names (the error's message only) and the next run tries again.
-import { canonical, db, guard, houseWritePlan, NOT_A_RECORD, once, q, type Query } from '../db.server';
+import { canonical, db, guard, houseWritePlan, NOT_A_RECORD, once, q, sameDesign, type Query } from '../db.server';
 import { FAMILY_VOTE } from '../history.server';
 import { readOnly } from '../read-only';
 import type { House } from '../types';
@@ -42,6 +42,7 @@ const failed = (what: string) => (e: unknown) => {
   // The error only: no family, house, proposal or proposer.
   console.error(`[arms] could not ${what}`, e instanceof Error ? e.message : e);
 };
+/** The house's arms as stored, compared with Keep's snapshot of them: exactly (a save during the vote writes them back as they were). */
 const sameArms = (a: unknown, b: unknown) => canonical(a) === canonical(b);
 
 /**
@@ -160,7 +161,7 @@ function startNext(tree: string, house: string, now: Date): Promise<boolean> {
     const waiting = await d.all<WaitingRow>(
       "SELECT id, account, author_name, author_person, arms FROM arms_proposal WHERE house = ? AND status = 'waiting' AND reason IS NOT 'vote_removed' ORDER BY created_at, id", house);
     const current = JSON.parse(h.arms);
-    const same = waiting.filter((p) => sameArms(JSON.parse(p.arms), current));
+    const same = waiting.filter((p) => sameDesign(JSON.parse(p.arms), current));
     const next = waiting.filter((p) => !same.includes(p)).slice(0, MAX_PROPOSALS_PER_VOTE);
     const at = now.toISOString();
     const declines = same.flatMap((p) => [

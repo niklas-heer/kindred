@@ -1,7 +1,7 @@
 // Between v1 and v2. A v1 coat of arms opens in the editor as its v2 equivalent; a v2 design is stored with
 // a v1 summary beside it, so older readers (and the minimap's house colours) keep working.
 import type { ArmsV2, ChargeLayer, FieldDivision, OrdinaryLayer, SeedHouse, Tincture } from '~/lib/seed-format';
-import { nearestV1 } from './tinctures';
+import { nearestV1 } from './tinctures.ts';
 
 type ArmsV1 = Omit<SeedHouse['arms'], 'v2'>;
 type V1Division = ArmsV1['division'];

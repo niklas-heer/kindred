@@ -20,6 +20,7 @@ const { actingAs, FAMILY_VOTE } = await import('../history.server.ts');
 const { VOTE_AUTHOR } = await import('../history.ts');
 const { authorName } = await import('../history-text.ts');
 const { translate } = await import('../i18n/dictionary.ts');
+const { asV2, storeV2 } = await import('../heraldry/convert.ts');
 
 const TREE = 'housewrite';
 const ARMS: House['arms'] = { field: 'azure', division: 'plain', charge: 'lion', chargeTincture: 'or' };
@@ -58,6 +59,44 @@ test('a steward cannot change the arms while an arms vote for the house runs; a 
   } finally {
     await removeVotes();
   }
+});
+
+test('the designer\'s save of v1 arms (their design, as v2) with a new motto goes through a vote, and leaves the stored arms as they were', async () => {
+  await startVote('v-design');
+  try {
+    const before = await opened();
+    const stored = await db(TREE).get<{ arms: string }>("SELECT arms FROM house WHERE id = 'h1'");
+    // The designer always sends the design it shows: the v1 arms read as v2, with their v1 summary beside it.
+    const h = await updateHouse(TREE, 'h1', { name: before.name, motto: 'Bend, then grow', arms: storeV2(asV2(before.arms)) }, before);
+    assert.equal(h.motto, 'Bend, then grow');
+    // The arms are written back exactly as stored: the vote's Keep snapshot still matches them.
+    assert.equal((await db(TREE).get<{ arms: string }>("SELECT arms FROM house WHERE id = 'h1'"))!.arms, stored!.arms);
+    await assert.rejects(updateHouse(TREE, 'h1', { ...before, motto: 'Bend, then grow', arms: storeV2({ ...asV2(before.arms), field: { ...asV2(before.arms).field, tinctures: ['vert'] } }) }, { ...before, motto: 'Bend, then grow' }),
+      (e: Error) => e.message === 'arms.err.frozen');
+  } finally {
+    await removeVotes();
+    const now = await opened();
+    await updateHouse(TREE, 'h1', { ...now, motto: 'Bend, not break' }, now);
+  }
+});
+
+test('without a vote the same design is stored as sent; a vote starting after the plan read the house stops that batch', async () => {
+  const d = db(TREE);
+  const before = await opened();
+  const v2 = storeV2(asV2(before.arms));
+  const plan = await houseWritePlan(d, 'h1', { ...before, arms: v2 }, before);
+  await startVote('v-upgrade');
+  try {
+    // Storing the v2 design now would make the arms differ from the new vote's Keep snapshot.
+    await assert.rejects(d.batch(plan.writes));
+    assert.equal((await opened()).arms.v2, undefined);
+  } finally {
+    await removeVotes();
+  }
+  await updateHouse(TREE, 'h1', { ...before, arms: v2 }, before);
+  assert.deepEqual((await opened()).arms.v2, v2.v2, 'the design is stored when no vote holds the arms');
+  // Back to the v1 arms the other tests start from.
+  await d.run("UPDATE house SET arms = ? WHERE id = 'h1'", JSON.stringify(before.arms));
 });
 
 test('a settled arms vote, or a vote about something else, freezes nothing', async () => {

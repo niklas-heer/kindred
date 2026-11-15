@@ -11,6 +11,7 @@ import { translate } from './i18n/dictionary.ts';
 import { LIVING_IDS, protectDetail, protectGraph } from './protect-living.ts';
 import { refuseReadOnly } from './read-only.ts';
 import { countedMedia } from './operator/storage.server.ts';
+import { asV2 } from './heraldry/convert.ts';
 import { added, change, checkHistory, currentActor, historyWrites, NOT_A_RECORD, type Actor, type HistoryEntry } from './history.server.ts';
 
 export { guard, q, store, type Db, type Query } from './store/index.ts';
@@ -566,6 +567,12 @@ export const canonical = (v: unknown): string =>
     : v && typeof v === 'object' ? `{${Object.keys(v).filter((k) => (v as Record<string, unknown>)[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${canonical((v as Record<string, unknown>)[k])}`).join(',')}}`
     : JSON.stringify(v ?? null);
 
+/**
+ * Whether two arms are the same design: compared as the designer draws them (v1 arms read as v2), so the v1 arms a house
+ * stores and the designer's v2 of them are the same arms, however their keys were sent.
+ */
+export const sameDesign = (a: House['arms'], b: House['arms']): boolean => canonical(asV2(a)) === canonical(asV2(b));
+
 /** Arms as a house stores them, whoever sends them (a steward's save, a proposal): only the fields the arms use. */
 export function normalArms(given: House['arms']): House['arms'] {
   // A plain field keeps no second tincture.
@@ -593,21 +600,28 @@ const ARMS_VOTE_RUNNING = "EXISTS (SELECT 1 FROM vote WHERE subject_kind = 'hous
  *
  * The arms are frozen while an arms vote for the house is unsettled: a save that changes them is refused (`ARMS_FROZEN`),
  * and its batch restates that no such vote exists, so a vote started meanwhile stops it too. `settlingVote` is the vote
- * whose settlement this is, the one vote that may change them. A save that leaves the arms as they are is never frozen.
+ * whose settlement this is, the one vote that may change them. A save that leaves the design as it is (`sameDesign`) is
+ * never frozen: it stores the arms as sent (a v1 house gains its v2 design), except while an arms vote runs, when the
+ * stored arms are written back as they are, so the vote's Keep snapshot still matches them.
  */
 export async function houseWritePlan(d: Db, id: string, patch: { name: string; motto: string | null; arms: House['arms'] }, before: HouseSeen, opts: { settlingVote?: string } = {}): Promise<{ writes: Query[]; history: HistoryEntry[]; result: House }> {
   const r = await d.get<{ name: string; motto: string | null; arms: string; founder: string | null }>('SELECT name, motto, arms, founder FROM house WHERE id = ?', id);
   if (!r) throw new Error('That house is not in this family.');
   if (r.name !== before.name || (r.motto ?? null) !== (before.motto ?? null) || canonical(JSON.parse(r.arms)) !== canonical(before.arms)) throw new Error(HOUSE_CHANGED);
-  const arms = normalArms(patch.arms);
-  const armsChange = canonical(JSON.parse(r.arms)) !== canonical(arms);
+  const stored = JSON.parse(r.arms) as House['arms'];
+  const given = normalArms(patch.arms);
   const settling = opts.settlingVote ?? null;
-  if (armsChange && (await d.get(`SELECT 1 AS x WHERE ${ARMS_VOTE_RUNNING}`, id, settling))) throw new Error(ARMS_FROZEN);
+  const running = !!(await d.get(`SELECT 1 AS x WHERE ${ARMS_VOTE_RUNNING}`, id, settling));
+  if (running && !sameDesign(stored, given)) throw new Error(ARMS_FROZEN);
+  // The same design while a vote runs: the stored arms as they are, never their v2 upgrade.
+  const arms = running ? stored : given;
+  const rewritten = canonical(stored) !== canonical(arms);
   return {
     writes: [
       // The row exactly as read, so a save landing in between makes this plan decide again (and then refuse).
       guard('EXISTS (SELECT 1 FROM house WHERE id = ? AND name = ? AND motto IS ? AND arms = ?)', id, r.name, r.motto, r.arms),
-      ...(armsChange ? [guard(`NOT ${ARMS_VOTE_RUNNING}`, id, settling)] : []),
+      // Arms written differently from how they are stored: only while no arms vote holds them (one started meanwhile too).
+      ...(rewritten ? [guard(`NOT ${ARMS_VOTE_RUNNING}`, id, settling)] : []),
       q('UPDATE house SET name = ?, motto = ?, arms = ? WHERE id = ?', patch.name, patch.motto, JSON.stringify(arms), id),
     ],
     history: change('house', id, { name: r.name, motto: r.motto, arms: canonical(JSON.parse(r.arms)) }, { name: patch.name, motto: patch.motto, arms: canonical(arms) }, { label: patch.name, opaque: ['arms'] }),
