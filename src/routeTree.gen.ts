@@ -79,6 +79,7 @@ import { Route as ApiRecipeTreeKeyRouteImport } from './routes/api/recipe.$tree.
 import { Route as ApiResearchTreeKeyRouteImport } from './routes/api/research.$tree.$key'
 import { Route as ApiSourceFileTreeKeyRouteImport } from './routes/api/source-file.$tree.$key'
 import { Route as ApiSuggestionFileTreeIdRouteImport } from './routes/api/suggestion-file.$tree.$id'
+import { Route as ApiSuggestionUploadTreeIdRouteImport } from './routes/api/suggestion-upload.$tree.$id'
 import { Route as ApiAuthOidcProviderCallbackRouteImport } from './routes/api/auth/oidc.$provider.callback'
 
 const IndexRoute = IndexRouteImport.update({
@@ -431,6 +432,12 @@ const ApiSuggestionFileTreeIdRoute = ApiSuggestionFileTreeIdRouteImport.update({
   path: '/api/suggestion-file/$tree/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSuggestionUploadTreeIdRoute =
+  ApiSuggestionUploadTreeIdRouteImport.update({
+    id: '/api/suggestion-upload/$tree/$id',
+    path: '/api/suggestion-upload/$tree/$id',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAuthOidcProviderCallbackRoute =
   ApiAuthOidcProviderCallbackRouteImport.update({
     id: '/api/auth/oidc/$provider/callback',
@@ -509,6 +516,7 @@ export interface FileRoutesByFullPath {
   '/api/research/$tree/$key': typeof ApiResearchTreeKeyRoute
   '/api/source-file/$tree/$key': typeof ApiSourceFileTreeKeyRoute
   '/api/suggestion-file/$tree/$id': typeof ApiSuggestionFileTreeIdRoute
+  '/api/suggestion-upload/$tree/$id': typeof ApiSuggestionUploadTreeIdRoute
   '/api/auth/oidc/$provider/callback': typeof ApiAuthOidcProviderCallbackRoute
 }
 export interface FileRoutesByTo {
@@ -581,6 +589,7 @@ export interface FileRoutesByTo {
   '/api/research/$tree/$key': typeof ApiResearchTreeKeyRoute
   '/api/source-file/$tree/$key': typeof ApiSourceFileTreeKeyRoute
   '/api/suggestion-file/$tree/$id': typeof ApiSuggestionFileTreeIdRoute
+  '/api/suggestion-upload/$tree/$id': typeof ApiSuggestionUploadTreeIdRoute
   '/api/auth/oidc/$provider/callback': typeof ApiAuthOidcProviderCallbackRoute
 }
 export interface FileRoutesById {
@@ -655,6 +664,7 @@ export interface FileRoutesById {
   '/api/research/$tree/$key': typeof ApiResearchTreeKeyRoute
   '/api/source-file/$tree/$key': typeof ApiSourceFileTreeKeyRoute
   '/api/suggestion-file/$tree/$id': typeof ApiSuggestionFileTreeIdRoute
+  '/api/suggestion-upload/$tree/$id': typeof ApiSuggestionUploadTreeIdRoute
   '/api/auth/oidc/$provider/callback': typeof ApiAuthOidcProviderCallbackRoute
 }
 export interface FileRouteTypes {
@@ -730,6 +740,7 @@ export interface FileRouteTypes {
     | '/api/research/$tree/$key'
     | '/api/source-file/$tree/$key'
     | '/api/suggestion-file/$tree/$id'
+    | '/api/suggestion-upload/$tree/$id'
     | '/api/auth/oidc/$provider/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -802,6 +813,7 @@ export interface FileRouteTypes {
     | '/api/research/$tree/$key'
     | '/api/source-file/$tree/$key'
     | '/api/suggestion-file/$tree/$id'
+    | '/api/suggestion-upload/$tree/$id'
     | '/api/auth/oidc/$provider/callback'
   id:
     | '__root__'
@@ -875,6 +887,7 @@ export interface FileRouteTypes {
     | '/api/research/$tree/$key'
     | '/api/source-file/$tree/$key'
     | '/api/suggestion-file/$tree/$id'
+    | '/api/suggestion-upload/$tree/$id'
     | '/api/auth/oidc/$provider/callback'
   fileRoutesById: FileRoutesById
 }
@@ -919,6 +932,7 @@ export interface RootRouteChildren {
   ApiResearchTreeKeyRoute: typeof ApiResearchTreeKeyRoute
   ApiSourceFileTreeKeyRoute: typeof ApiSourceFileTreeKeyRoute
   ApiSuggestionFileTreeIdRoute: typeof ApiSuggestionFileTreeIdRoute
+  ApiSuggestionUploadTreeIdRoute: typeof ApiSuggestionUploadTreeIdRoute
   ApiAuthOidcProviderCallbackRoute: typeof ApiAuthOidcProviderCallbackRoute
 }
 
@@ -1414,6 +1428,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSuggestionFileTreeIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/suggestion-upload/$tree/$id': {
+      id: '/api/suggestion-upload/$tree/$id'
+      path: '/api/suggestion-upload/$tree/$id'
+      fullPath: '/api/suggestion-upload/$tree/$id'
+      preLoaderRoute: typeof ApiSuggestionUploadTreeIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/oidc/$provider/callback': {
       id: '/api/auth/oidc/$provider/callback'
       path: '/api/auth/oidc/$provider/callback'
@@ -1533,6 +1554,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiResearchTreeKeyRoute: ApiResearchTreeKeyRoute,
   ApiSourceFileTreeKeyRoute: ApiSourceFileTreeKeyRoute,
   ApiSuggestionFileTreeIdRoute: ApiSuggestionFileTreeIdRoute,
+  ApiSuggestionUploadTreeIdRoute: ApiSuggestionUploadTreeIdRoute,
   ApiAuthOidcProviderCallbackRoute: ApiAuthOidcProviderCallbackRoute,
 }
 export const routeTree = rootRouteImport

@@ -24,7 +24,7 @@ import { DOCUMENT_EXT, documentFileName, isPdf, type DocumentMime } from '../res
 import { can, needs as lowestRole } from '../roles.ts';
 import { SOURCE_FILES } from '../sources.server.ts';
 import { detailsOf, PERSON_COLUMNS, type PersonRow } from './suggest.server.ts';
-import { EXPIRY_DAYS, SOURCE_FILE_KEY, type EventPayload, type SuggestionKind, type SuggestionPayload, type SuggestionStatus, type SuggestionView } from './types.ts';
+import { EXPIRY_DAYS, SOURCE_FILE_KEY, type EventPayload, type FactValue, type SuggestionKind, type SuggestionPayload, type SuggestionStatus, type SuggestionView } from './types.ts';
 
 /** Whose own suggestions: a member's (by account), or a guest's (by their cookie's key; '' when they have none). */
 export type SuggestionOwner = { kind: 'member'; who: Who } | { kind: 'guest'; key: string; protectLiving: boolean };
@@ -59,7 +59,7 @@ const COLUMNS = `s.id, s.kind, s.person, s.payload, s.basis, s.note, s.status, s
   s.author_person, s.created_at, s.decided_at, s.applied, EXISTS (SELECT 1 FROM history h WHERE h.suggestion = s.id) AS begun`;
 
 /** The record's values now for each correction among the suggestions `where` selects, by suggestion id: "current → suggested". */
-async function currentValues(tree: string, where: string, params: (string | number)[]): Promise<Map<string, Record<string, unknown>>> {
+async function currentValues(tree: string, where: string, params: (string | number)[]): Promise<Map<string, Record<string, FactValue>>> {
   // Each read selects through the suggestions themselves, so no list of ids is bound (D1 takes at most 100 parameters).
   const [people, events, couples, rows] = (await db(tree).readBatch([
     q(`SELECT ${PERSON_COLUMNS} FROM person WHERE id IN (SELECT s.person FROM suggestion s WHERE ${where} AND s.kind = 'details')`, ...params),
@@ -70,10 +70,10 @@ async function currentValues(tree: string, where: string, params: (string | numb
     PersonRow[], { id: string; date: string | null; place: string | null; note: string }[], { id: string; kind: string; start: string | null; place: string | null }[],
     { id: string; kind: SuggestionKind; person: string | null; payload: string }[],
   ];
-  const person = new Map(people.map((p) => [p.id, detailsOf(p) as Record<string, unknown>]));
-  const event = new Map(events.map((e) => [e.id, { date: e.date || null, place: e.place || null, note: e.note } as Record<string, unknown>]));
-  const couple = new Map(couples.map((u) => [u.id, { partnershipKind: u.kind, start: u.start || null, startPlace: u.place || null } as Record<string, unknown>]));
-  const out = new Map<string, Record<string, unknown>>();
+  const person = new Map(people.map((p) => [p.id, detailsOf(p) as Record<string, FactValue>]));
+  const event = new Map(events.map((e) => [e.id, { date: e.date || null, place: e.place || null, note: e.note } as Record<string, FactValue>]));
+  const couple = new Map(couples.map((u) => [u.id, { partnershipKind: u.kind, start: u.start || null, startPlace: u.place || null } as Record<string, FactValue>]));
+  const out = new Map<string, Record<string, FactValue>>();
   for (const r of rows) {
     const payload = JSON.parse(r.payload) as Record<string, unknown>;
     const p = payload as EventPayload;
@@ -91,7 +91,7 @@ async function views(tree: string, where: string, params: (string | number)[], r
     q(`SELECT ${COLUMNS} FROM suggestion s WHERE ${where} ORDER BY s.created_at DESC, s.rowid DESC LIMIT ${LIST_MAX}`, ...params),
     q(`SELECT f.id, f.suggestion, f.name, f.mime, f.size FROM suggestion_file f JOIN suggestion s ON s.id = f.suggestion WHERE ${where} ORDER BY f.created_at, f.rowid`, ...params),
   ])) as unknown as [Row[], FileRow[]];
-  const current = reader.reviewer ? await currentValues(tree, where, params) : new Map<string, Record<string, unknown>>();
+  const current = reader.reviewer ? await currentValues(tree, where, params) : new Map<string, Record<string, FactValue>>();
   const filesOf = new Map<string, SuggestionView['files']>();
   for (const f of files) {
     let list = filesOf.get(f.suggestion);
@@ -105,7 +105,7 @@ async function views(tree: string, where: string, params: (string | number)[], r
     const mine = reader.own(r);
     return {
       id: r.id, kind: r.kind, person: r.person, payload: JSON.parse(r.payload) as SuggestionPayload,
-      basis: reader.reviewer && r.basis ? (JSON.parse(r.basis) as Record<string, unknown>) : null,
+      basis: reader.reviewer && r.basis ? (JSON.parse(r.basis) as Record<string, FactValue>) : null,
       current: (reader.reviewer && current.get(r.id)) || null,
       note: r.note, status: r.status,
       adjusted: r.status !== 'approved' ? false : applied.adjustedUnknown ? null : r.adjusted === 1,

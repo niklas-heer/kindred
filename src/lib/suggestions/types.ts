@@ -86,6 +86,9 @@ export interface SourcePayload {
 
 export type SuggestionPayload = DetailsPayload | RelativePayload | EventPayload | SourcePayload;
 
+/** A value of a record's field, as a correction keeps it (`basis`) and a reviewer is shown it (`current`). */
+export type FactValue = string | number | boolean | null;
+
 /**
  * One suggestion as a reader sees it: a reviewer (any waiting one), or its suggester (their own). Nobody else reads one
  * (reads.server.ts).
@@ -96,9 +99,9 @@ export interface SuggestionView {
   person: string | null;
   payload: SuggestionPayload;
   /** For a reviewer: the values on record a correction was made against (`basis`), else null. */
-  basis: Record<string, unknown> | null;
+  basis: Record<string, FactValue> | null;
   /** For a reviewer: the record's values now of the fields a correction changes, for "current → suggested", else null. */
-  current: Record<string, unknown> | null;
+  current: Record<string, FactValue> | null;
   note: string;
   status: SuggestionStatus;
   /** Approved with changes; null when that is not known (closed as partly applied, with no decision to tell). */

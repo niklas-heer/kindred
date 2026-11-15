@@ -315,6 +315,9 @@ const GUEST_READS = new Set([
   'getPersonEvents', 'getEventPlaces', // life events: of the dead, and of the living unless the link protects them
   'getVotes', 'getVote', // family votes: a guest reads the votes that allow guests
   'getCookbook', 'getRecipe', // recipes are stories: read as the Chronicle is, and none of a living person when the link protects them
+  // Suggestions (src/lib/suggestions/): whether guests may suggest and attach files, and a guest's own suggestions by their
+  // voter cookie (none without one, none about the living when the link protects them; suggestions/functions.test.ts).
+  'getSuggestSettings', 'getMySuggestions',
 ]);
 /** Open to anyone: they check who is asking themselves, or hold nothing of a family's. */
 const OPEN = new Set([
@@ -352,6 +355,9 @@ const OPEN = new Set([
   'fetchPublicHosting', 'signupWaitlist',
   // A guest casts a ballot where a vote allows guests: it checks who is asking itself, and a guest's name, key and limits (votes/functions.test.ts).
   'castVote',
+  // A guest suggests and withdraws their own suggestion while the family lets guests suggest: each checks who is asking itself,
+  // and a guest's name, cookie, limits and the living (suggestions/functions.test.ts, suggest.test.ts).
+  'createSuggestionFn', 'withdrawSuggestionFn',
 ]);
 /** Everything a handler might read before its guard, so a failure can only be the guard's. */
 const DATA = { tree: TREE, id: 'ada', person: 'ada', personId: 'ada', key: 'k', house: 'h', mediaKey: 'gallery/x.jpg', locale: 'en', format: 'gedcom', name: 'x', text: 'x', user: STEWARD, role: 'viewer', confirm: true, token: 'x', endpoint: 'https://x/y', opKey: 'abcdefgh', people: [], links: [], places: [], items: [], photos: [], title: 'x', body: 'x', project: 'p1' };
@@ -388,6 +394,8 @@ test('a guest is refused on every server function that is not one of the allowed
   for (const feed of ['getFeed', 'getPersonPosts', 'createPost', 'editPost', 'removePost', 'discardPostPictures']) assert.ok(refused.includes(feed), `${feed} was refused`);
   // Arms proposals (src/lib/arms-proposals/) are the members': a proposer's name and note never reach a guest, who sees an arms vote only through getVote.
   for (const arms of ['getHouseProposals', 'getProposalCounts', 'getArmsSettings', 'setArmsSettings', 'proposeArmsFn', 'withdrawProposalFn', 'acceptProposalFn', 'declineProposalFn', 'putToVoteFn']) assert.ok(refused.includes(arms), `${arms} was refused`);
+  // Reviewing suggestions and the steward's switches are members': a guest never sees another's suggestion or who suggested it.
+  for (const s of ['getWaitingSuggestions', 'getSuggestionCounts', 'getMatchCandidates', 'approveSuggestionFn', 'declineSuggestionFn', 'closePartlyAppliedFn', 'setSuggestSettings']) assert.ok(refused.includes(s), `${s} was refused`);
 });
 
 test('the allowed reads work for a guest of this family and nobody else', async () => {
@@ -517,6 +525,35 @@ test('a suggestion’s pending file goes to its own guest and to reviewers; a so
   assert.equal((await fetch('source-file.$tree.$key', { tree: TREE, key: 'sg1.png' })).status, 404, 'a malformed key is no file');
 });
 
+test('the upload route takes a file from a guest of this family for their own suggestion, and from nobody else', async () => {
+  const voter = await load<typeof import('../votes/guest-voter.server.ts')>('/src/lib/votes/guest-voter.server.ts');
+  const COOKIE = `kindred_voter=${'u'.repeat(43)}`;
+  const key = (await voter.guestVoterKey(new Request('http://localhost/', { headers: { cookie: COOKIE } }), TREE))!;
+  const ID = '00000000-0000-4000-8000-0000000005a1';
+  await dbs.db(TREE).run("INSERT INTO suggestion (id, kind, person, payload, status, guest_key, author_name, created_at) VALUES (?, 'source', NULL, '{\"title\":\"Letters\"}', 'waiting', ?, 'Hal Hazel', '2026-11-15')", ID, key);
+  const { Route } = await load<{ Route: { options: unknown } }>('/src/routes/api/suggestion-upload.$tree.$id.ts');
+  const { POST } = (Route.options as { server: { handlers: { POST: (c: { params: Record<string, string>; request: Request }) => Promise<Response> } } }).server.handlers;
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+  const send = (cookie?: string) => {
+    const request = new Request(`http://localhost/api/suggestion-upload/${TREE}/${ID}`, { method: 'POST', body: PNG, headers: { 'content-type': 'image/png', 'x-file-name': 'page.png', ...(cookie ? { cookie } : {}) } });
+    g.__request = request;
+    return POST({ params: { tree: TREE, id: ID }, request });
+  };
+  try {
+    asNobody();
+    assert.equal((await send(COOKIE)).status, 401, 'nothing without a visit');
+    asGuest({ ...guestOfTree, tree: OTHER });
+    assert.equal((await send(COOKIE)).status, 401, 'not another family’s guest');
+    asGuest(guestOfTree);
+    assert.equal((await send()).status, 404, 'a guest without the cookie owns no suggestion');
+    assert.equal((await send(`kindred_voter=${'w'.repeat(43)}`)).status, 404, 'nor another guest');
+    assert.equal((await send(COOKIE)).status, 200, 'the guest who suggested it');
+    assert.equal((await dbs.db(TREE).get<{ n: number }>('SELECT count(*) AS n FROM suggestion_file WHERE suggestion = ?', ID))!.n, 1);
+  } finally {
+    g.__request = undefined;
+  }
+});
+
 test('guests do not appear as members and are no accounts', async () => {
   const made = await makeLink();
   const usersBefore = await store.userCount();
@@ -556,7 +593,7 @@ test('the session payload a guest gets is a viewer of one family, with no accoun
 // ---------- the guest host, for sites behind Cloudflare Access ----------
 
 test('the guest host answers only what a guest needs', () => {
-  for (const ok of ['/', '/share/abc', '/_serverFn/xyz', '/assets/app.js', '/api/health', '/api/photo/fam/p1', '/api/portrait/fam/p1', '/api/media/fam/a.jpg', '/api/research/fam/a.pdf', '/api/suggestion-file/fam/x', '/fam', '/fam/atlas', '/fam/chronicle', '/fam/house/h1', '/fam/person/p1', '/fam/PERSON/p1', '/fam/votes', '/fam/votes/00000000-0000-4000-8000-000000000001', '/favicon.svg']) {
+  for (const ok of ['/', '/share/abc', '/_serverFn/xyz', '/assets/app.js', '/api/health', '/api/photo/fam/p1', '/api/portrait/fam/p1', '/api/media/fam/a.jpg', '/api/research/fam/a.pdf', '/api/suggestion-file/fam/x', '/api/suggestion-upload/fam/x', '/fam', '/fam/atlas', '/fam/chronicle', '/fam/house/h1', '/fam/person/p1', '/fam/PERSON/p1', '/fam/votes', '/fam/votes/00000000-0000-4000-8000-000000000001', '/favicon.svg']) {
     assert.equal(guestHost.guestHostAllows(ok), true, ok);
   }
   for (const no of ['/signin', '/setup', '/invite/abc', '/ui', '/api/auth/signout', '/api/export/fam', '/api/backup/fam', '/api/move/fam', '/api/paint/fam/a.png', '/api/source-file/fam/a.png', '/fam/access', '/fam/new-section', '/fam/new-section/x', '/fam/persons/p1', '/fam/settings/ai', '/fam/settings/import', '/_not', '/api/other', '/Invite/abc', '/API/auth/signout', '/API/export/fam', '/fam/ACCESS', '/MODERN/Settings/Feedback', '/%69nvite/abc', '/fam/%41ccess', '/%E0%A4%A']) {

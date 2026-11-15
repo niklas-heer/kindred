@@ -83,9 +83,14 @@ const WITHHELD = [
   '1985-02-02', 'Marrowfield', WEDDING, 'Weddingham', 'Isolde-Bio', 'KID-EVENT-SCHOOL', 'Schoolbury',
   // A picture the child is in, tagged or only suggested: its caption, date and place.
   'KID-CAPTION-TEXT', '2016-07-07', 'Picnicford', 'SUGGESTED-CAPTION-TEXT', '2017-08-08', 'Suggestedholm',
+  // The guest's own suggestion about the child, made before she was marked living.
+  'KID-SUGGESTION-NOTE',
 ];
 /** What the same guest still gets: the dead as they were, and the names of the living. */
-const KEPT = ['ARMS-PROPOSAL-LABEL', 'GRAN-RECIPE-TITLE', 'GRAN-RECIPE-ITEM', 'GRAN-RECIPE-TITLE-SOURCE', '1920-05-05', 'Oldhaven', 'GRAN-STORY-TEXT', 'GRAN-PROJECT-TITLE', 'Wren', 'Fernsby', 'GRAN-CAPTION-TEXT', '1950-06-06', 'Gransby', 'GRAN-EVENT-CHAPEL', 'Graveston'];
+const KEPT = ['GRAN-SUGGESTION-NOTE', 'ARMS-PROPOSAL-LABEL', 'GRAN-RECIPE-TITLE', 'GRAN-RECIPE-ITEM', 'GRAN-RECIPE-TITLE-SOURCE', '1920-05-05', 'Oldhaven', 'GRAN-STORY-TEXT', 'GRAN-PROJECT-TITLE', 'Wren', 'Fernsby', 'GRAN-CAPTION-TEXT', '1950-06-06', 'Gransby', 'GRAN-EVENT-CHAPEL', 'Graveston'];
+
+/** The guest's `kindred_voter` cookie: it finds their own suggestions. */
+const VOTER_COOKIE = `kindred_voter=${'v'.repeat(43)}`;
 
 const KID_DOC = '00000000-0000-4000-8000-00000000d0c1.pdf';
 const GRAN_DOC = '00000000-0000-4000-8000-00000000d0c2.pdf';
@@ -190,6 +195,12 @@ before(async () => {
     { name: 'ARMS-PROPOSAL-LABEL', note: 'ARMS-PROPOSAL-NOTE', arms: { field: 'gules', division: 'plain', charge: 'stag', chargeTincture: 'or' } });
   assert.ok(started.started && started.vote, 'the arms vote is running');
   armsVote = started.vote;
+  // Two suggestions of the guest's own (by their voter cookie, which askEverything sends): about the grandmother, and about the child.
+  const voter = await load<typeof import('../votes/guest-voter.server.ts')>('/src/lib/votes/guest-voter.server.ts');
+  const key = (await voter.guestVoterKey(new Request('http://localhost/', { headers: { cookie: VOTER_COOKIE } }), TREE))!;
+  for (const [id, who, note] of [['00000000-0000-4000-8000-0000000005b1', 'gran', 'GRAN-SUGGESTION-NOTE'], ['00000000-0000-4000-8000-0000000005b2', 'kid', 'KID-SUGGESTION-NOTE']]) {
+    await d.run("INSERT INTO suggestion (id, kind, person, payload, note, status, guest_key, author_name, created_at) VALUES (?, 'details', ?, '{\"nickname\":\"Nan\"}', ?, 'waiting', ?, 'Hal Hazel', ?)", id, who, note, key, new Date().toISOString());
+  }
   await store.accounts().run('INSERT INTO user (id, name, handle, created) VALUES (?, ?, ?, ?)', STEWARD, 'steward', 'handle-steward-living', Date.now());
   await store.accounts().run("INSERT INTO membership (user, tree, role, created) VALUES (?, ?, 'steward', ?)", STEWARD, TREE, Date.now());
 });
@@ -263,6 +274,9 @@ const ANSWERS_A_GUEST = new Set([
   'fetchFamilyLifecycle',
   'fetchPublicHosting',
   'castVote', // a guest's ballot (votes/functions.test.ts)
+  // Suggestions: the family's two switches, and a guest's own suggestions by their voter cookie, none about someone living when
+  // the link protects them; suggesting and withdrawing answer only `{ id }` or nothing (suggestions/functions.test.ts).
+  'getSuggestSettings', 'getMySuggestions', 'createSuggestionFn', 'withdrawSuggestionFn',
 ]);
 
 /** Asks every server function as a guest, once about the child and once about her research, and returns what answered. */
@@ -272,10 +286,12 @@ async function askEverything(protectLiving: boolean): Promise<Map<string, string
   for (const { name, call } of await everyServerFn()) {
     for (const data of [{ ...base, id: 'kid', person: 'kid', personId: 'kid' }, { ...base, id: 'pkid', person: 'kid', project: 'pkid' }, { ...base, id: armsVote }]) {
       asGuest(protectLiving);
+      g.__request = new Request('http://localhost/', { headers: { cookie: VOTER_COOKIE } });
       try {
         const out = await call({ data });
         answered.set(name, (answered.get(name) ?? '') + JSON.stringify(out ?? null));
       } catch {}
+      g.__request = undefined;
     }
   }
   return answered;
@@ -299,7 +315,7 @@ test('no server function gives a protected guest anything the protection withhol
 test('the control: with the setting off, the same guest gets what it got before', async () => {
   const answered = await askEverything(false);
   const all = [...answered.values()].join('');
-  for (const shown of ['KID-RECIPE-TITLE', 'KID-RECIPE-ITEM', 'KID-RECIPE-TITLE-STEP', 'KID-RECIPE-TITLE-NOTES', KID_BORN, 'Quillbridge', 'KID-STORY-TEXT', 'KID-STORY-DE', 'KID-PROJECT-TITLE', 'KID-RESEARCH-NOTE', WEDDING, 'Weddingham', 'KID-CAPTION-TEXT', 'Picnicford', 'KID-EVENT-SCHOOL', 'Schoolbury']) {
+  for (const shown of ['KID-SUGGESTION-NOTE', 'KID-RECIPE-TITLE', 'KID-RECIPE-ITEM', 'KID-RECIPE-TITLE-STEP', 'KID-RECIPE-TITLE-NOTES', KID_BORN, 'Quillbridge', 'KID-STORY-TEXT', 'KID-STORY-DE', 'KID-PROJECT-TITLE', 'KID-RESEARCH-NOTE', WEDDING, 'Weddingham', 'KID-CAPTION-TEXT', 'Picnicford', 'KID-EVENT-SCHOOL', 'Schoolbury']) {
     assert.ok(all.includes(shown), `an unprotected guest still gets "${shown}"`);
   }
   assert.ok(!all.includes('KID-PHONE-0000'), 'and still no fields at all');

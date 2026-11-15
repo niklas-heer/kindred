@@ -410,6 +410,16 @@ export async function createSuggestion(
   });
 }
 
+/**
+ * The name a guest gave with their latest suggestion in this family (by their cookie's key), or null: a guest gives it with
+ * their first suggestion, and it stands for the next ones.
+ */
+export async function guestName(tree: string, key: string): Promise<string | null> {
+  if (!key.startsWith('g:')) return null;
+  const r = await db(tree).get<{ author_name: string }>('SELECT author_name FROM suggestion WHERE guest_key = ? ORDER BY created_at DESC LIMIT 1', key);
+  return r?.author_name ?? null;
+}
+
 // ---------- your own suggestion ----------
 
 interface OwnRow { id: string; person: string | null; status: string }
