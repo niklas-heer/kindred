@@ -104,7 +104,7 @@ that is not counted.
 - the messages of the family's feed, and their comments;
 - the family's votes and their results;
 - contact details and other person fields, private or not;
-- houses and their arms;
+- houses and their arms, and coat-of-arms proposals ([arms-proposals.md](arms-proposals.md));
 - place coordinates (place names are kept);
 - epithets;
 - the pictures themselves (portraits are referenced by key only);

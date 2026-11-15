@@ -47,6 +47,7 @@ const NAME_OF: Record<string, string[]> = {
   added_by_account: ['added_by_name'],
   created_by: ['created_by_name'],
   updated_by: ['updated_by_name'],
+  decided_by: ['decided_by_name'],
 };
 /** Columns older features fill with a display name instead of an account id. */
 const NAME_ONLY = new Set(['uploaded_by', 'tagged_by', 'named_by', 'updated_by', 'saved_by', 'checked_by', 'decided_by', 'author', 'created_by_name', 'updated_by_name', 'author_name', 'name']);
@@ -142,14 +143,15 @@ export function familyDeletion(tables: Table[], user: { id: string; name: string
       if (c.name === 'owner') continue;
       // The account's own state (a reaction, a quiz answer, a push setting): the row is keyed by the account, so it goes.
       if (c.key) { out.push(q(`DELETE FROM ${ident(t.name)} WHERE ${ident(c.name)} = ?`, user.id)); continue; }
-      const names = (NAME_OF[c.name] ?? []).filter((n) => cols.has(n));
+      // A table with `author_name` shows the writer there; its own `name` is something else (a proposal's design name).
+      const names = (NAME_OF[c.name] ?? []).filter((n) => cols.has(n) && !(n === 'name' && cols.has('author_name')));
       const sets = [`${ident(c.name)} = ?`, ...names.map((n) => `${ident(n)} = ?`)];
       out.push(q(`UPDATE ${ident(t.name)} SET ${sets.join(', ')} WHERE ${ident(c.name)} = ?`, pseudonym, ...names.map(() => former), user.id));
     }
     // Only in tables that record who wrote or did something: an album or a house that happens to share the name is left alone.
     const authored = t.columns.some((c) => OWNER.has(c.name) || isBy(c.name));
     if (!sameName && authored && user.name.trim()) {
-      for (const c of t.columns.filter((x) => NAME_ONLY.has(x.name) && isText(x) && !x.key)) {
+      for (const c of t.columns.filter((x) => NAME_ONLY.has(x.name) && isText(x) && !x.key && !(x.name === 'name' && cols.has('author_name')))) {
         out.push(q(`UPDATE ${ident(t.name)} SET ${ident(c.name)} = ? WHERE ${ident(c.name)} = ?`, former, user.name));
       }
     }

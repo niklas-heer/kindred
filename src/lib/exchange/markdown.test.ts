@@ -52,6 +52,14 @@ test('a marriage is an event on the lower-id partner’s note, a partnership a p
   assert.equal(note('jonas').partners, undefined, 'the partnership is declared once');
 });
 
+test('coat-of-arms proposals are listed as not in the archive', () => {
+  const t = fixtureTree();
+  t.extras.proposals = 1;
+  assert.ok(markdownArchive(t).losses.includes('1 coat-of-arms proposal is not in the archive'));
+  t.extras.proposals = 0;
+  assert.ok(!markdownArchive(t).losses.some((l) => /coat-of-arms/.test(l)));
+});
+
 test('parents carry relation, kind, role and status, and step-parent links are left out and reported', () => {
   const { files, losses } = markdownArchive(fixtureTree());
   const hanna = frontMatter(files.find((f) => f.path === 'people/hanna.md')!.data as string);

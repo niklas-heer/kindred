@@ -188,6 +188,9 @@ test('what the format cannot carry is listed for the report', () => {
   assert.match(all, /2 contact details and other fields are not exported/);
   assert.match(all, /1 house and its arms are not exported/);
   assert.match(all, /1 portrait is referenced by its media key only/);
+  const withProposals = fixtureTree();
+  withProposals.extras.proposals = 2;
+  assert.match(writeGedcom(withProposals).losses.join('\n'), /2 coat-of-arms proposals are not exported/);
 });
 
 test('an empty family writes a valid file and reads back with nothing', () => {

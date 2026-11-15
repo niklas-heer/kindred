@@ -65,6 +65,7 @@ const dbs = await load<typeof import('../db.server.ts')>('/src/lib/db.server.ts'
 const acc = await load<typeof import('../auth/store.server.ts')>('/src/lib/auth/store.server.ts');
 const tokens = await load<typeof import('../auth/tokens.server.ts')>('/src/lib/auth/tokens.server.ts');
 const votes = await load<typeof import('../votes/votes.server.ts')>('/src/lib/votes/votes.server.ts');
+const arms = await load<typeof import('../arms-proposals/proposals.server.ts')>('/src/lib/arms-proposals/proposals.server.ts');
 const { closeDatabases } = await load<typeof import('../store/node.ts')>('/src/lib/store/node.ts');
 
 after(async () => {
@@ -289,6 +290,45 @@ test('deleting an account: its votes, options and ballots keep counting under th
   assert.match(vote!.account, /^former-/);
   assert.equal(vote!.author_name, 'A former member');
   assert.ok(await d.get('SELECT 1 FROM vote_voter WHERE account = ?', finn.id), 'the others are untouched');
+});
+
+test('coat-of-arms proposals: deleting an account leaves no id or name of it, and a data request lists its own', async () => {
+  const tree = 'dunmore';
+  await dbs.provisionFamily(tree, 'The Dunmores');
+  const dee = user(51, 'Dee Dunmore');
+  const eve = user(52, 'Eve Elmwood');
+  for (const u of [dee, eve]) await addUser(u);
+  await member(dee, tree, 'contributor');
+  await member(eve, tree, 'steward');
+  const d = dbs.db(tree);
+  await d.run("INSERT INTO house (id, name, arms) VALUES ('h1', 'Birch', ?)", JSON.stringify({ field: 'azure', division: 'plain', charge: 'lion', chargeTincture: 'or' }));
+  const as = (u: U, role: 'contributor' | 'steward') => ({ id: u.id, name: u.name, role, person: null, personConfirmed: false });
+  const design = (charge: string) => ({ field: 'gules', division: 'plain', charge, chargeTincture: 'or' }) as never;
+  const mine = await arms.proposeArms(tree, as(dee, 'contributor'), 'h1', { name: 'Red stag', note: 'For the old house', arms: design('stag') });
+  const declined = await arms.proposeArms(tree, as(dee, 'contributor'), 'h1', { name: 'Red rose', arms: design('rose') });
+  const other = await arms.proposeArms(tree, as(eve, 'steward'), 'h1', { name: 'Red star', arms: design('star') });
+  await arms.declineProposal(tree, as(eve, 'steward'), declined.id, 'Too busy');
+  await arms.declineProposal(tree, as(dee, 'steward'), other.id, 'Not for me');
+
+  const x = await account.exportAccount(dee.id);
+  const rows = x.families[tree]!.tables.arms_proposal!;
+  assert.deepEqual(rows.map((r) => r.name).sort(), ['Red rose', 'Red stag']);
+  assert.ok(rows.every((r) => r.note !== undefined && r.status && r.created_at && r.arms), 'house, design, note, state, reason, dates and the arms');
+  assert.ok(!JSON.stringify(x).includes('Red star'), 'nobody else\'s proposal');
+
+  await account.deleteAccount(dee, dee.name);
+  assert.deepEqual(await containing(d, dee.id), [], 'no id of hers remains');
+  assert.deepEqual(await containing(d, dee.name), [], 'nor her name, as author or decider');
+  const after = await d.get<{ account: string; author_name: string; name: string; note: string }>('SELECT account, author_name, name, note FROM arms_proposal WHERE id = ?', mine.id);
+  assert.match(after!.account, /^former-/);
+  assert.equal(after!.author_name, 'A former member');
+  assert.equal(after!.name, 'Red stag', 'the design keeps its name');
+  assert.equal(after!.note, 'For the old house');
+  const decided = await d.get<{ decided_by: string; decided_by_name: string }>('SELECT decided_by, decided_by_name FROM arms_proposal WHERE id = ?', other.id);
+  assert.match(decided!.decided_by, /^former-/);
+  assert.equal(decided!.decided_by_name, 'A former member');
+  const stew = await d.get<{ decided_by: string; decided_by_name: string }>('SELECT decided_by, decided_by_name FROM arms_proposal WHERE id = ?', declined.id);
+  assert.equal(stew!.decided_by, eve.id, 'a steward\'s decision on it is not hers');
 });
 
 test('downloading an account: its own rows, no secrets, nothing of anyone else', async () => {

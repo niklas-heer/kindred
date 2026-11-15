@@ -75,6 +75,8 @@ export function markdownArchive(tree: ExTree, portraits: Set<string> = new Set()
   const photoComments = tree.extras.photoComments ?? 0;
   if (photoComments) losses.push(`${photoComments} ${photoComments === 1 ? 'comment on a gallery photo is' : 'comments on gallery photos are'} not in the archive (the gallery is not either)`);
   if (tree.extras.fields) losses.push(`${tree.extras.fields} ${tree.extras.fields === 1 ? 'contact detail or other field is' : 'contact details and other fields are'} not in the archive`);
+  const proposals = tree.extras.proposals ?? 0;
+  if (proposals) losses.push(`${proposals} ${proposals === 1 ? 'coat-of-arms proposal is' : 'coat-of-arms proposals are'} not in the archive`);
   if (tree.extras.houses) losses.push(`${tree.extras.houses} ${tree.extras.houses === 1 ? 'house and its arms are' : 'houses and their arms are'} not in the archive`);
   const byId = new Map(tree.people.map((p) => [p.id, p]));
   const link = (id: string) => `[[people/${names.get(id)}]]`;

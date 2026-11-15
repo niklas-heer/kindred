@@ -42,6 +42,7 @@ both what the browser shows and what the server allows.
 | Start a vote and change your own (after its first ballot only its closing time), and add an option where the vote allows it (`start-vote`); close or remove your own, whatever your role now | Contributor |
 | Close anyone's vote early, or remove it (`remove-vote`) | Editor |
 | Strike or restore a guest's ballot while the vote is open (`strike-voter`) | Steward |
+| Accept, decline or put a proposal to a vote; change how proposals are settled; close early, reschedule or remove a house's arms vote (`edit-house`) | Steward |
 | Propose arms for a house; withdraw your own (`propose-arms`) | Contributor |
 | Remove your own comment | Any member |
 | Remove anyone's comment (`remove-comment`) | Editor |
@@ -219,7 +220,8 @@ is a different guest in each family, and it lasts 90 days or until the link ends
 limits on guest voters count 18 bits of a keyed hash (with the server's secret) of the network and the vote, which stands for
 thousands of addresses, differs from one vote to the next, and cannot be tested against addresses from a copy of the database. The browser also remembers the name the guest gave, so the next vote needs no typing: it is kept in the
 browser's local storage under `kindred:vote-guest-name:<family>` and goes nowhere else until the guest votes. How votes work is in
-[votes.md](votes.md).
+[votes.md](votes.md). A guest never sees a coat-of-arms proposal, its proposer or its note; in an arms vote that allows guests
+they see only each option's shield and the design's name ([arms-proposals.md](arms-proposals.md)).
 
 Before you share a link, decide what it should show: anyone who has the link and the password can read the names, the dates
 of the dead (and of the living, if the link does not protect them), biographies and stories, for as long as the link works,

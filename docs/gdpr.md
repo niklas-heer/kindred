@@ -30,7 +30,7 @@ responsible depends on who runs the server.
 | Right | For a member (has an account) | For someone in a tree who is not a member |
 | --- | --- | --- |
 | **Information** (Art. 13, 14) | The operator's privacy policy and terms on `/legal`, with the subprocessors this server uses, generated from its configuration. | The family tells its relatives; Kindred keeps no contact details for notices (Art. 14 notices are a later round). |
-| **Access** (Art. 15) | Account menu → *Your data* → *Download (JSON)*: their account, sign-ins (without secrets), memberships, settings, their messages to the assistant, and what they wrote or did in each family, including their own ballots in votes (a secret vote's too: the server finds it through the key only it can compute). Nothing about other people beyond what they wrote themselves. | `/privacy-request` reaches the operator, who forwards it to the stewards. Access → *A request about someone*: find the person, see where they appear, *Download a copy for them* (their record, the rows that point at them, the names of the people their links point to; no member's personal notes). |
+| **Access** (Art. 15) | Account menu → *Your data* → *Download (JSON)*: their account, sign-ins (without secrets), memberships, settings, their messages to the assistant, and what they wrote or did in each family, including their own coat-of-arms proposals and their own ballots in votes (a secret vote's too: the server finds it through the key only it can compute). Nothing about other people beyond what they wrote themselves. | `/privacy-request` reaches the operator, who forwards it to the stewards. Access → *A request about someone*: find the person, see where they appear, *Download a copy for them* (their record, the rows that point at them, the names of the people their links point to; no member's personal notes). |
 | **Rectification** (Art. 16) | They change their own name; the family corrects its records. | The stewards correct the record. While a correction is checked, *Restrict* holds it. |
 | **Erasure** (Art. 17) | *Delete my account* (see below). | *Erase…* (see below). |
 | **Restriction** (Art. 18) | – | *Restrict*: the person is kept, and changes to them are refused until a steward lifts it. Recorded with the request. |
@@ -53,7 +53,7 @@ by later features are covered without a list:
 - **Goes**: the account, its passkeys, passwords and second factors, every session (so every device is signed out), memberships,
   push devices, presence, visits, view-as previews, join requests, feedback it sent, its conversations with the assistant, and in
   each family its reactions, quiz answers, game state, push opt-ins, its personal notes and their history, and its retry keys.
-- **Stays, without the account**: stories, posts, comments, pictures, votes, options it added to a vote, its ballots (which keep
+- **Stays, without the account**: stories, posts, comments, pictures, votes, coat-of-arms proposals ([arms-proposals.md](arms-proposals.md)), options it added to a vote, its ballots (which keep
   counting) and changes it made in a family stay with the family, shown as by **"A former member"**. The account id in them is replaced by a random pseudonym, one per deletion. The family keeps its
   records (it is their controller, or within the household exemption); a member who wants their writing gone deletes it before
   deleting the account, or asks the stewards. Names that older features copied as plain text (who uploaded a picture) are replaced

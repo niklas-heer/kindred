@@ -187,7 +187,7 @@ export interface ExTree {
    * What the tree holds beyond this model, counted for the loss report. `photoComments` (migration 0027) are the comments
    * on gallery photos, which no export carries, as the photos themselves are not in one.
    */
-  extras: { stories: number; fields: number; houses: number; places: number; photoComments?: number };
+  extras: { stories: number; fields: number; houses: number; places: number; photoComments?: number; proposals?: number };
 }
 
 /** A translation key for something a reader is told about in the import preview (`exchange.issue.*`). */
@@ -312,6 +312,7 @@ export async function readTree(d: Db, opts: ReadOptions = {}): Promise<ExTree> {
       houses: await count('SELECT count(*) AS n FROM house'),
       places: await count('SELECT count(*) AS n FROM place'),
       photoComments: await count("SELECT count(*) AS n FROM comment WHERE target_kind = 'media'"),
+      proposals: await count('SELECT count(*) AS n FROM arms_proposal'),
     },
   };
 }

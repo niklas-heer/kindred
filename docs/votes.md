@@ -90,6 +90,13 @@ question, and in the weekly push.
 Pushes name the question, never a ballot or the tally of a secret vote. Who has voted is read from the list of voters, never
 from a ballot. A demo and a steward's *View as* send nothing.
 
+## Arms votes
+
+When the family settles a coat-of-arms proposal by vote, the vote is an ordinary vote with fixed rules (ranked, secret,
+7 days, the proposals as shields beside "Keep our current arms"). It differs from the votes above: only a **steward**
+closes it early, changes its closing time or removes it, whoever started it; **nobody adds options**; and its question
+is shown translated for each reader. It is settled automatically when it closes. See [arms-proposals.md](arms-proposals.md).
+
 ## Exports and data requests
 
 - The **Markdown archive** has `votes/<year>.md` ([exchange.md](exchange.md)): each vote with its question, options and,
