@@ -16,19 +16,22 @@ export type SuggestionKind = (typeof SUGGESTION_KINDS)[number];
 export const SUGGESTION_STATUSES = ['waiting', 'approved', 'declined', 'expired', 'withdrawn'] as const;
 export type SuggestionStatus = (typeof SUGGESTION_STATUSES)[number];
 
-/** The facts of a person a suggestion may change. */
+/**
+ * The facts of a person a suggestion may change, each to a value or to none (null). `surname` is the surname they go by now
+ * (`current_surname`, else `surname`), `birthName` their surname at birth (`surname`).
+ */
 export type DetailsPayload = Partial<{
   given: string;
-  surname: string;
-  birthName: string;
-  nickname: string;
-  title: string;
-  sex: string;
+  surname: string | null;
+  birthName: string | null;
+  nickname: string | null;
+  title: string | null;
+  sex: 'm' | 'f' | 'x' | null;
   living: boolean;
-  born: string;
-  bornPlace: string;
-  died: string;
-  diedPlace: string;
+  born: string | null;
+  bornPlace: string | null;
+  died: string | null;
+  diedPlace: string | null;
 }>;
 
 /** A person to add, as the add-relative form writes one (the shape `addRelative` in src/lib/api.ts validates). */
@@ -48,17 +51,20 @@ export interface RelativePayload {
   link: { kind: 'parent' | 'child' | 'partner' | 'sibling'; parentKind?: string; partnerKind?: string };
 }
 
-/** A life event to add, or (with `event`, the event's id) to correct; `partnership` and the `start` fields suggest a union. */
+/**
+ * A life event to add, or (with `event`, the event's id) to correct its date, place or note; or (with `partnership`, its id)
+ * a correction of a partnership's kind, start and place. A correction may set a value to none (null).
+ */
 export interface EventPayload {
   event?: string;
   kind?: string;
-  date?: string;
-  place?: string;
+  date?: string | null;
+  place?: string | null;
   note?: string;
   partnership?: string;
   partnershipKind?: string;
-  start?: string;
-  startPlace?: string;
+  start?: string | null;
+  startPlace?: string | null;
 }
 
 /** A source to add, and optionally the fact it backs. */
