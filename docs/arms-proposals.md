@@ -9,8 +9,8 @@ Proposals are for a house's **arms** only, never its name or motto.
 A **contributor** (and above) opens the designer on a house in *propose mode*: the same designer, with the house's name
 and motto hidden, and the button **Propose these arms**. A proposal needs a **name** for the design (1 to 60 characters,
 for example "The linden and the stag") and may have a **note** (up to 500 characters). The name is what the family sees in a
-vote, so it must differ, in any case, from the name of every other open proposal for the house. Arms equal to the house's
-current arms are refused.
+vote, so it must differ, in any case, from the name of every other open proposal for the house and from the vote's
+**Keep our current arms** in every language. Arms equal to the house's current arms are refused.
 
 A member has at most **3 open proposals per house** (waiting, or in a vote). Withdrawing or a decision frees a place. A
 member may **withdraw** their own proposal while it waits, or while it is in a vote that has no ballot yet; this needs only
@@ -88,7 +88,7 @@ shields with the design's name, their own ballot, how many voted and the result,
 | What | Limit |
 | --- | --- |
 | Open proposals per member and house | 3 |
-| Design name | 1 to 60 characters, unique among the house's open proposals (any case) |
+| Design name | 1 to 60 characters, unique among the house's open proposals and unlike Keep (any case) |
 | Note | 500 characters |
 | Decline reason | 300 characters |
 | Proposals in one arms vote | 19 (and Keep) |

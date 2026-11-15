@@ -142,6 +142,15 @@ test('a proposal equal to the current arms, or named like another open one, is r
   await propose(t, bo, 'The stag');
 });
 
+test('a proposal named like the vote’s Keep option, in any language and any case, is refused', async () => {
+  const t = await family('choose');
+  // English, German and Japanese Keep labels: the vote would show two options that read alike.
+  for (const name of ['Keep our current arms', ' KEEP OUR CURRENT ARMS ', 'unser jetziges wappen behalten', '今の紋章のままにします']) {
+    await assert.rejects(propose(t, ada, name), /arms\.err\.name_taken/, name);
+  }
+  await propose(t, ada, 'Keep the stag');
+});
+
 test('a member has at most three open proposals per house; a withdrawn one frees a place', async () => {
   const t = await family('choose');
   const ids = [];

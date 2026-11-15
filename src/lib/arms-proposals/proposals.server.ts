@@ -22,7 +22,7 @@
 //     gone        the house or the proposal is not there      same       the design equals the house's current arms
 //     name        the design's name is empty or too long      note       the note is too long
 //     reason      the decline's reason is too long            settings   the setting is not one of the modes
-//     name_taken  another open proposal has the name          too_many   the member has three open for the house
+//     name_taken  another open proposal or Keep has the name  too_many   the member has three open for the house
 //     not_yours   only its proposer withdraws a proposal      state      the proposal is not waiting (or no longer open)
 //     mode        the family's setting does not offer that    vote_busy  the house's arms vote takes no more proposals
 //     locked      its vote has a ballot or has closed         frozen     (the house-write plan) a vote holds the arms
@@ -30,6 +30,7 @@ import { fail } from '../auth/guard.server';
 import { forbidden } from '../auth/errors';
 import { canonical, change, db, guard, houseWritePlan, normalArms, NOT_A_RECORD, once, q, type Db, type HouseSeen, type OpKey, type Query } from '../db.server';
 import { authorOf, needsMember, standingFor, type Who } from '../feed/posts.server';
+import { namesInEveryLanguage } from '../i18n/dictionary';
 import { cleanComment } from '../responses';
 import { can, needs as lowestRole, type Action } from '../roles';
 import type { House } from '../types';
@@ -199,9 +200,13 @@ async function toVote(d: Db, house: string, h: HouseRow, proposal: string, start
 
 // ---------- changes ----------
 
+/** The Keep option's label in every language: a design named like it would read as Keep in someone's vote. */
+const KEEP_NAMES = namesInEveryLanguage('arms.vote.keep');
+
 function nameOf(text: string): string {
   const name = oneLine(text);
   if (!name || name.length > MAX_PROPOSAL_NAME) throw new Error('arms.err.name');
+  if (KEEP_NAMES.some((keep) => sameName(keep, name))) throw new Error('arms.err.name_taken');
   return name;
 }
 function textOf(text: string | undefined, max: number, code: string): string {
