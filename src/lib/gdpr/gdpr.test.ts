@@ -66,6 +66,8 @@ const acc = await load<typeof import('../auth/store.server.ts')>('/src/lib/auth/
 const tokens = await load<typeof import('../auth/tokens.server.ts')>('/src/lib/auth/tokens.server.ts');
 const votes = await load<typeof import('../votes/votes.server.ts')>('/src/lib/votes/votes.server.ts');
 const arms = await load<typeof import('../arms-proposals/proposals.server.ts')>('/src/lib/arms-proposals/proposals.server.ts');
+const posts = await load<typeof import('../feed/posts.server.ts')>('/src/lib/feed/posts.server.ts');
+const feed = await load<typeof import('../feed/feed.server.ts')>('/src/lib/feed/feed.server.ts');
 const { closeDatabases } = await load<typeof import('../store/node.ts')>('/src/lib/store/node.ts');
 
 after(async () => {
@@ -354,6 +356,44 @@ test('coat-of-arms proposals: a deleted proposer\'s person in the tree goes too,
   const shown = read.proposals.find((p) => p.id === proposal.id)!;
   assert.equal(shown.author!.person, null, 'no face beside it');
   assert.equal(shown.author!.name, 'A former member');
+});
+
+test('a deleted member\'s person in the tree goes from their posts, votes and voter rows, so no read shows their face', async () => {
+  const tree = 'hollin';
+  await dbs.provisionFamily(tree, 'The Hollins');
+  const ada = user(55, 'Ada Hollin');
+  const bo = user(56, 'Bo Hollin');
+  for (const u of [ada, bo]) await addUser(u);
+  const d = dbs.db(tree);
+  await d.run("INSERT INTO person (id, given, surname, living) VALUES ('ada_pppppp', 'Ada', 'Hollin', 1)");
+  await member(ada, tree, 'contributor', 'ada_pppppp');
+  await a().run('UPDATE membership SET person_confirmed = 1 WHERE user = ? AND tree = ?', ada.id, tree);
+  await member(bo, tree, 'steward');
+  const asAda = { id: ada.id, name: ada.name, role: 'contributor' as const, person: 'ada_pppppp', personConfirmed: true };
+  const asBo = { id: bo.id, name: bo.name, role: 'steward' as const, person: null, personConfirmed: false };
+  const now = new Date();
+  const closesAt = new Date(now.getTime() + 7 * DAY).toISOString();
+  const post = await posts.createPost(tree, asAda, { body: 'Hello from Ada' });
+  const hers = await votes.createVote(tree, asAda, { question: 'Which song?', kind: 'single', secret: false, addOptions: false, guests: false, closesAt, options: ['Waltz', 'Polka'] });
+  const his = await votes.createVote(tree, asBo, { question: 'Where to meet?', kind: 'single', secret: false, addOptions: false, guests: false, closesAt, options: ['Beach', 'Lake'] });
+  const option = async (id: string, label: string) => (await d.get<{ id: string }>('SELECT id FROM vote_option WHERE vote = ? AND label = ?', id, label))!.id;
+  await votes.castBallot(tree, { kind: 'member', who: asAda }, his.id, [await option(his.id, 'Lake')]);
+  await votes.castBallot(tree, { kind: 'member', who: asBo }, his.id, [await option(his.id, 'Beach')]);
+  const skip = new Set(['person', 'history']);
+  assert.deepEqual((await containing(d, 'ada_pppppp', skip)).sort(), ['post.author_person', 'vote.author_person', 'vote_voter.person'], 'her face, while she is a member');
+
+  await account.deleteAccount(ada, ada.name);
+  assert.deepEqual(await containing(d, 'ada_pppppp', skip), [], 'no row carries her person');
+  const shownPost = await posts.postView(tree, asBo, post.id);
+  assert.deepEqual(shownPost!.author, { name: 'A former member', person: null }, 'the post has no face of hers');
+  const reader = { user: { id: bo.id, name: bo.name } as never, role: 'steward' as const, person: null, personConfirmed: false, guest: false, protectLiving: false };
+  const ownVote = await votes.voteView(tree, reader, hers.id, undefined, now);
+  assert.equal(ownVote!.author.person, null, 'nor the vote she started');
+  const theirs = await votes.voteView(tree, reader, his.id, undefined, now);
+  assert.ok(theirs!.voters!.length === 2 && theirs!.ballots!.length === 2, 'her ballot still counts');
+  assert.ok(theirs!.voters!.every((x) => x.person === null), 'no voter has her face');
+  assert.ok(theirs!.ballots!.every((x) => x.person === null), 'nor any ballot');
+  assert.ok(!JSON.stringify(await feed.feedPage(tree, asBo, null, undefined, now)).includes('ada_pppppp'), 'nor the feed');
 });
 
 test('downloading an account: its own rows, no secrets, nothing of anyone else', async () => {

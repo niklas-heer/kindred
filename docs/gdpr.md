@@ -54,7 +54,8 @@ by later features are covered without a list:
   push devices, presence, visits, view-as previews, join requests, feedback it sent, its conversations with the assistant, and in
   each family its reactions, quiz answers, game state, push opt-ins, its personal notes and their history, and its retry keys.
 - **Stays, without the account**: stories, posts, comments, pictures, votes, coat-of-arms proposals ([arms-proposals.md](arms-proposals.md)), options it added to a vote, its ballots (which keep
-  counting) and changes it made in a family stay with the family, shown as by **"A former member"**. The account id in them is replaced by a random pseudonym, one per deletion. The family keeps its
+  counting) and changes it made in a family stay with the family, shown as by **"A former member"**. The account id in them is replaced by a random pseudonym, one per deletion, and the person
+  the account stood for in the tree is cleared from them (a post's, a vote's, a voter's and a proposal's author), so no face of theirs is shown beside them. The family keeps its
   records (it is their controller, or within the household exemption); a member who wants their writing gone deletes it before
   deleting the account, or asks the stewards. Names that older features copied as plain text (who uploaded a picture) are replaced
   where no other member of that family has the same name.

@@ -13,6 +13,9 @@ Changes on `main` since 2.6.0. They are not in a release yet.
 - **Family votes** ([docs/votes.md](docs/votes.md)): a member asks the family a question with single or ranked choice, open or secret, with guests taking part where a vote allows them. Votes appear in the feed and as opt-in pushes (a new vote, and one reminder before it closes). Tree migration 0037, accounts migration 0060 and a new daily job, `votes`, which sends the reminders. The Markdown archive has `votes/<year>.md` with each vote's comments, and a member's data download lists their own ballots. Close the votes before moving a family to another server: a vote still open there can count some people twice ([docs/votes.md](docs/votes.md#moving-to-another-server)).
 - **Coat-of-arms proposals and arms votes** ([docs/arms-proposals.md](docs/arms-proposals.md)): a contributor proposes arms for a house, and a steward chooses whether proposals are accepted by a steward, settled by a family vote, or either each time. Tree migration 0038.
 
+### Fixed
+- Deleting an account now clears the person the member stood for in the tree from their posts (as from their votes and coat-of-arms proposals), so their face is no longer shown beside what they wrote as "A former member" ([docs/gdpr.md](docs/gdpr.md)).
+
 ## [2.6.0] - 2026-11-14
 
 Simpler sign-in: a sign-in code by email, and a guided setup for Google and personal Microsoft accounts. Accounts migrations

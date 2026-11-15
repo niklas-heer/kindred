@@ -109,8 +109,8 @@ is shown translated for each reader. It is settled automatically when it closes.
   key only it can compute.
 - A member who leaves keeps their ballots: they still count, under the name they had, as comments do.
 - A member who **deletes their account** ([gdpr.md](gdpr.md)) keeps their votes, the options they added and their ballots, which
-  still count, all shown as by "A former member" under the deletion's pseudonym; nothing in the votes keeps their account id
-  or name.
+  still count, all shown as by "A former member" under the deletion's pseudonym; nothing in the votes keeps their account id,
+  their name or the person they stood for in the tree, so no face of theirs is shown beside a vote, a voter or a ballot.
 
 ## Moving to another server
 

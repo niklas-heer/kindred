@@ -12,8 +12,9 @@
 // - In each family the account belongs to (or left traces in), rows only that account could read, or that are only its own
 //   state (its reactions, its quiz answers, its personal notes and their history, its retry keys), are deleted. What it wrote
 //   for the family stays with the family, under a pseudonym: stories, posts, comments, pictures, changes in the history keep
-//   their content, and the name shown becomes "A former member". The family is the controller of its records (or within the
-//   household exemption), and a story about a grandmother does not vanish because its writer left. Names an older feature
+//   their content, the name shown becomes "A former member", and the person the writer stood for in the tree (the face beside
+//   it) is cleared. The family is the controller of its records (or within the household exemption), and a story about a
+//   grandmother does not vanish because its writer left. Names an older feature
 //   copied as plain text (who uploaded a picture, who last changed a field) are replaced where the family has no other member
 //   of that name; otherwise they cannot be told apart and stay. The account id becomes `former-<random>`, one per deletion, so
 //   rows stay distinct and nothing links them to the account again.
@@ -49,8 +50,16 @@ const NAME_OF: Record<string, string[]> = {
   updated_by: ['updated_by_name'],
   decided_by: ['decided_by_name'],
 };
-/** Columns emptied with a table's `account` when it is pseudonymised: who the writer was in the tree (a proposal's face). */
-const CLEARED_WITH_ACCOUNT: Record<string, string[]> = { arms_proposal: ['author_person'] };
+/**
+ * Columns emptied with a table's `account` when it is pseudonymised: who the writer or voter was in the tree, the face the
+ * reads fall back to once the account has no membership (a post's, a vote's, a voter's, a proposal's).
+ */
+const CLEARED_WITH_ACCOUNT: Record<string, string[]> = {
+  arms_proposal: ['author_person'],
+  post: ['author_person'],
+  vote: ['author_person'],
+  vote_voter: ['person'],
+};
 /** Columns older features fill with a display name instead of an account id. */
 const NAME_ONLY = new Set(['uploaded_by', 'tagged_by', 'named_by', 'updated_by', 'saved_by', 'checked_by', 'decided_by', 'author', 'created_by_name', 'updated_by_name', 'author_name', 'name']);
 
