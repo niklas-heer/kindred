@@ -28,7 +28,7 @@ import { feedQuery } from '~/lib/feed/feed.functions';
 import type { ContactKind, FeedItem, UpdatePerson, UpdateValue } from '~/lib/feed/types';
 import { isContactType, type FieldType } from '~/lib/fields/model';
 import { displayName, type Family } from '~/lib/graph';
-import { fieldName, valueText } from '~/lib/history-text';
+import { authorName, fieldName, valueText } from '~/lib/history-text';
 import { datePrecision, formatDate, listText, richText, useT, type Key, type Translator } from '~/lib/i18n';
 import { mediaUrl } from '~/lib/photos/types';
 import { useCan, useMember, useSession } from '~/lib/session';
@@ -218,7 +218,7 @@ function Entry({ item, f, tree, now, tr, defer }: { item: FeedItem; f: Family; t
             <Quiet icon={<UserPlus size={16} />} after={<Responses tree={tree} kind="event" target={item.target} compact />}>
               <span>
                 {item.by
-                  ? rest > 0 ? richText(t, 'feed.line.added', { author: <b>{item.by}</b>, names }, { count: rest }) : richText(t, 'feed.line.added_one', { author: <b>{item.by}</b>, names })
+                  ? rest > 0 ? richText(t, 'feed.line.added', { author: <b>{authorName(t, item.by)}</b>, names }, { count: rest }) : richText(t, 'feed.line.added_one', { author: <b>{authorName(t, item.by)}</b>, names })
                   : rest > 0 ? richText(t, 'feed.line.joined', { names }, { count: rest }) : richText(t, 'feed.line.joined_one', { names })}
               </span>
               <When at={item.at} now={now} t={t} />
@@ -352,7 +352,8 @@ function UpdateWhat({ p, tree }: { p: UpdatePerson; tree: string }) {
  */
 function UpdatesEntry({ item, f, tree, now }: { item: Extract<FeedItem, { type: 'updates' }>; f: Family; tree: string; now?: number }) {
   const t = useT();
-  const author = <b>{item.by || t('feed.someone')}</b>;
+  // The history's name for whoever made the change: the family's vote is named in words, never as stored.
+  const author = <b>{item.by ? authorName(t, item.by) : t('feed.someone')}</b>;
   const people = item.people.filter((p) => p.id !== null && f.byId.has(p.id));
   const nobody = item.people.find((p) => p.id === null);
   const link = (id: string) => <Link to="/$tree/person/$id" params={{ tree, id }}>{displayName(f.byId.get(id)!, f)}</Link>;
