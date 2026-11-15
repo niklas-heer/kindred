@@ -23,6 +23,7 @@ const S = await load<typeof import('./suggest.server.ts')>('/src/lib/suggestions
 const R = await load<typeof import('./review.server.ts')>('/src/lib/suggestions/review.server.ts');
 const X = await load<typeof import('./expiry.server.ts')>('/src/lib/suggestions/expiry.server.ts');
 const { suggestionsJob } = await load<typeof import('../jobs/suggestions.ts')>('/src/lib/jobs/suggestions.ts');
+const { outcomeKey } = await load<typeof import('../history.ts')>('/src/lib/history.ts');
 const { EXPIRY_DAYS } = await load<typeof import('./types.ts')>('/src/lib/suggestions/types.ts');
 
 test.after(async () => {
@@ -92,30 +93,56 @@ test('the daily job expires and sweeps without push keys, and one family’s tro
   const b = await family();
   const old = await waiting(b, EXPIRY_DAYS + 2);
   const lines: string[] = [];
-  const env = (name: string) => (name.startsWith('KINDRED_VAPID') ? undefined : undefined);
-  await suggestionsJob.run({ trees: ['no-such-family', a, b], now: NOW, env, log: (m) => lines.push(m) });
+  await suggestionsJob.run({ trees: ['no-such-family', a, b], now: NOW, env: () => undefined, log: (m) => lines.push(m) });
   assert.equal((await row(b, old))!.status, 'expired');
   assert.match(lines.join('\n'), /expired 1 suggestions/);
 });
 
-test('objects no row names are swept from suggest/ and source/; named and young ones stay', async () => {
+test('objects no row names are swept from suggest/ and source/ once 30 days old; named, younger and unrecorded ones stay', async () => {
   const t = await family();
   const kept = await waiting(t, 1);
   const named = (await stored(t, 'suggest/'))[0]!;
   await db.db(t).run("INSERT INTO source (id, title, created_at, updated_at) VALUES ('s1', 'A letter', ?, ?)", NOW.toISOString(), NOW.toISOString());
   await db.db(t).run("INSERT INTO source_file (source, media_key, mime, name, ord, added_at) VALUES ('s1', 'source/11111111-1111-1111-1111-111111111111.png', 'image/png', 'a', 0, ?)", NOW.toISOString());
-  await db.media.put(t, 'source/11111111-1111-1111-1111-111111111111.png', PNG(), 'image/png');
-  await db.media.put(t, 'source/22222222-2222-2222-2222-222222222222.png', PNG(), 'image/png');
-  await db.media.put(t, 'suggest/33333333-3333-3333-3333-333333333333.png', PNG(), 'image/png');
-  await db.media.put(t, 'photo/44444444-4444-4444-4444-444444444444.jpg', PNG(), 'image/jpeg');
-  const real = new Date();
-  assert.equal(await X.sweepOrphanFiles(t, real), 0, 'objects stored just now may still be getting their row');
-  assert.equal(await X.sweepOrphanFiles(t, new Date(real.getTime() + 2 * 3_600_000)), 2);
-  assert.deepEqual(await stored(t, 'source/'), ['source/11111111-1111-1111-1111-111111111111.png']);
-  assert.deepEqual(await stored(t, 'suggest/'), [named]);
-  assert.deepEqual(await stored(t, 'photo/'), ['photo/44444444-4444-4444-4444-444444444444.jpg'], 'other prefixes are not this sweep’s');
-  assert.deepEqual(await usage(t, 'source/'), ['source/11111111-1111-1111-1111-111111111111.png']);
+  const keys = {
+    namedSource: 'source/11111111-1111-1111-1111-111111111111.png',
+    young: 'source/22222222-2222-2222-2222-222222222222.png',
+    twoDays: 'suggest/55555555-5555-5555-5555-555555555555.png',
+    old: 'suggest/33333333-3333-3333-3333-333333333333.png',
+    oldSource: 'source/66666666-6666-6666-6666-666666666666.png',
+    unrecorded: 'suggest/77777777-7777-7777-7777-777777777777.png',
+    other: 'photo/44444444-4444-4444-4444-444444444444.jpg',
+  };
+  for (const [name, key] of Object.entries(keys)) await db.media.put(t, key, PNG(), name === 'other' ? 'image/jpeg' : 'image/png');
+  const setAge = (key: string, days: number) => db.store.accounts().run('UPDATE media_usage SET at = ? WHERE tree = ? AND key = ?', NOW.getTime() - days * DAY, t, key);
+  await setAge(keys.namedSource, 40);
+  await setAge(keys.twoDays, 2);
+  await setAge(keys.old, 31);
+  await setAge(keys.oldSource, 31);
+  await setAge(keys.other, 40);
+  await db.store.accounts().run('DELETE FROM media_usage WHERE tree = ? AND key = ?', t, keys.unrecorded);
+  await db.store.accounts().run('UPDATE media_usage SET at = ? WHERE tree = ? AND key = ?', NOW.getTime(), t, keys.young);
+
+  assert.equal(await X.sweepOrphanFiles(t, NOW), 2);
+  assert.deepEqual(await stored(t, 'source/'), [keys.namedSource, keys.young].sort());
+  assert.deepEqual(await stored(t, 'suggest/'), [named, keys.twoDays, keys.unrecorded].sort(), 'a 2-day-old stray and one with no usage time stay');
+  assert.deepEqual(await stored(t, 'photo/'), [keys.other], 'other prefixes are not this sweep’s');
+  assert.equal((await usage(t, 'suggest/3')).length, 0, 'the 31-day-old one left the usage count too');
   assert.equal((await row(t, kept))!.status, 'waiting');
+});
+
+test('a failing expiry is logged by family and does not skip the sweep or the next family', async () => {
+  const a = await family();
+  const b = await family();
+  const lines: string[] = [];
+  await waiting(a, EXPIRY_DAYS + 3);
+  await db.media.put(a, 'suggest/88888888-8888-8888-8888-888888888888.png', PNG(), 'image/png');
+  await db.store.accounts().run('UPDATE media_usage SET at = ? WHERE tree = ? AND key LIKE ?', NOW.getTime() - 40 * DAY, a, 'suggest/8%');
+  await db.db(a).run('DROP TABLE history'); // makes the expiry read fail for this family alone
+  await suggestionsJob.run({ trees: [a, b], now: NOW, env: () => undefined, log: (m) => lines.push(m) });
+  assert.match(lines.join('\n'), new RegExp(`family ${a}: `));
+  assert.match(lines.join('\n'), /family errors 1/);
+  assert.equal((await stored(a, 'suggest/8')).length, 0, 'the sweep still ran');
 });
 
 test('a suggester sees the outcomes of their own suggestions since their last visit, never anyone else’s', async () => {
@@ -147,4 +174,17 @@ test('a suggester sees the outcomes of their own suggestions since their last vi
   assert.equal((await H.whatsNew(db.db(t), audience, NOW.getTime() + 10_000)).outcomes.length, 0, 'only since the last visit');
   assert.equal((await H.whatsNew(db.db(t), { account: 'acc-gus', role: 'contributor', guest: false }, NOW.getTime() - 1000)).outcomes.length, 1, 'each sees their own');
   assert.equal((await H.newsCount(db.db(t), audience, NOW.getTime() - 1000)), 4, 'the three outcomes, and the change the approval made');
+});
+
+test('an outcome’s sentence says approved, with changes, in part, declined or expired; an approval whose decision is not known is plain', async () => {
+  assert.equal(outcomeKey({ status: 'approved', adjusted: false, partial: false }), 'history.outcome.approved');
+  assert.equal(outcomeKey({ status: 'approved', adjusted: true, partial: false }), 'history.outcome.approved_changes');
+  assert.equal(outcomeKey({ status: 'approved', adjusted: true, partial: true }), 'history.outcome.approved_part');
+  assert.equal(outcomeKey({ status: 'declined', adjusted: null, partial: false }), 'history.outcome.declined');
+  assert.equal(outcomeKey({ status: 'expired', adjusted: null, partial: false }), 'history.outcome.expired');
+  const t = await family();
+  const { id } = await S.createSuggestion(t, member(eli), { kind: 'details', person: 'bo', payload: { born: '1919' } as never }, NOW);
+  await db.db(t).run("UPDATE suggestion SET status = 'approved', decided_by = 'acc-fay', decided_at = ?, applied = ? WHERE id = ?", new Date(NOW.getTime() + 1000).toISOString(), JSON.stringify({ partial: true, adjustedUnknown: true }), id);
+  const [o] = (await H.whatsNew(db.db(t), { account: eli.id, role: 'contributor', guest: false }, NOW.getTime() - 1000)).outcomes;
+  assert.deepEqual([o!.partial, o!.adjusted], [true, null], 'closed as partly applied, with no decision to tell whether it was adjusted');
 });

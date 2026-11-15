@@ -79,12 +79,12 @@ export const saveReminders = createServerFn({ method: 'POST' })
       const [{ requireMember }, r, { translate }, { parseChoices }, { AuthError }] = await Promise.all([
         member(), remind(), import('./i18n/dictionary.ts'), import('./reminders.ts'), import('./auth/errors.ts'),
       ]);
-      const { user, role } = await requireMember(data.tree);
+      const { user } = await requireMember(data.tree);
       if (!r.vapidFrom(r.envSetting)) throw new AuthError('invalid', translate('en', 'reminders.err.unavailable'));
       const choices = parseChoices(data.offsets, data.kinds);
       if (!choices) throw new AuthError('invalid', translate('en', 'reminders.chooseSomething'));
       await r.checkSubscription(data.subscription);
-      await r.saveRegistration({ user: user.id, tree: data.tree, subscription: data.subscription, choices, locale: data.locale, weekly: data.weekly === true, posts: data.posts === true, votes: data.votes === true, suggestions: data.suggestions === true && (await import('./roles.ts')).can(role, 'review-suggestions') });
+      await r.saveRegistration({ user: user.id, tree: data.tree, subscription: data.subscription, choices, locale: data.locale, weekly: data.weekly === true, posts: data.posts === true, votes: data.votes === true, suggestions: data.suggestions === true });
     } catch (e) {
       throw await refuse(e);
     }

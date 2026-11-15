@@ -113,7 +113,7 @@ export interface Registration {
   posts?: boolean;
   /** Also a new vote (at most one push in a few hours) and a reminder before a vote closes. Off unless asked for. */
   votes?: boolean;
-  /** Also that suggestions wait for review (at most one push in a few hours). Kept only for a role that may review them. Off unless asked for. */
+  /** Also that suggestions wait for review (at most one push in a few hours). Stored only for a role that may review them. Off unless asked for. */
   suggestions?: boolean;
 }
 
@@ -126,6 +126,8 @@ export async function saveRegistration({ user, tree, subscription, choices, loca
   if (!(await (await import('./operator/policy.server.ts')).familyAllows(tree, 'feature.push'))) throw (await import('./operator/policy.server.ts')).policyOff();
   const { endpoint, keys } = subscription;
   const a = accounts();
+  // Only a role that may review suggestions can ask to hear that they wait.
+  const reviewer = can((await membership(user, tree))?.role, 'review-suggestions');
   await commit(async () => {
     const other = await a.get<{ n: number }>('SELECT count(*) AS n FROM push_subscription WHERE endpoint = ? AND user <> ?', endpoint, user);
     if (other?.n) throw new AuthError('invalid', translate('en', 'reminders.err.otherUser'));
@@ -143,7 +145,7 @@ export async function saveRegistration({ user, tree, subscription, choices, loca
            ON CONFLICT (tree, endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth,
              offsets = excluded.offsets, kinds = excluded.kinds, locale = excluded.locale, last_seen = excluded.last_seen, weekly = excluded.weekly,
              posts = excluded.posts, votes = excluded.votes, suggestions = excluded.suggestions`,
-          crypto.randomUUID(), user, tree, endpoint, keys.p256dh, keys.auth, JSON.stringify(choices.offsets), JSON.stringify(choices.kinds), locale, stamp, stamp, weekly ? 1 : 0, posts ? 1 : 0, votes ? 1 : 0, suggestions ? 1 : 0,
+          crypto.randomUUID(), user, tree, endpoint, keys.p256dh, keys.auth, JSON.stringify(choices.offsets), JSON.stringify(choices.kinds), locale, stamp, stamp, weekly ? 1 : 0, posts ? 1 : 0, votes ? 1 : 0, suggestions && reviewer ? 1 : 0,
         ),
       ],
       result: undefined,

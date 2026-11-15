@@ -429,14 +429,16 @@ const driver: Driver = {
       await bucket().delete(`${tree}/${key}`);
     },
     // R2 lists at most 1000 keys at a time, with each object's size, and deletes as many in one call.
-    async list(tree) {
+    async list(tree, prefixes) {
       if (!TREE_ID.test(tree) || NOT_TREES.has(tree)) throw new Error(`bad tree id ${tree}`);
       const found: { key: string; size: number }[] = [];
-      for (let cursor: string | undefined, more = true; more; ) {
-        const page = await bucket().list({ prefix: `${tree}/`, cursor, limit: 1000 });
-        for (const o of page.objects) found.push({ key: o.key.slice(tree.length + 1), size: o.size });
-        more = page.truncated;
-        cursor = page.truncated ? page.cursor : undefined;
+      for (const prefix of prefixes ?? ['']) {
+        for (let cursor: string | undefined, more = true; more; ) {
+          const page = await bucket().list({ prefix: `${tree}/${prefix}`, cursor, limit: 1000 });
+          for (const o of page.objects) found.push({ key: o.key.slice(tree.length + 1), size: o.size });
+          more = page.truncated;
+          cursor = page.truncated ? page.cursor : undefined;
+        }
       }
       return found;
     },

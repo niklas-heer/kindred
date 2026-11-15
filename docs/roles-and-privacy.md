@@ -318,7 +318,7 @@ A value that was cut short cannot be put back. Removing a person is unchanged; t
 when "What's new" or the History page last showed them the news (`family_visit`). A visit ends after two hours away. "What's
 new" lists what others changed since the news was last shown to them, and stays the same throughout a visit; the first time,
 it covers the last two weeks, and it never reaches back more than 90 days. It includes new comments and reactions on what
-they wrote, once the family has those. The rows go when the member leaves the family or the account is deleted.
+they wrote, once the family has those, and what became of their own suggestions (approved, approved with changes, declined with the reason, or expired; never who decided). The rows go when the member leaves the family or the account is deleted.
 
 **This week in the family.** A member who has reminders on can also turn on a weekly push. The daily job sends it at most
 once in seven days, only when the week brought something that member may see and did not do themselves, in the device's

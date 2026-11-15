@@ -69,7 +69,7 @@ export function countedMedia(raw: MediaStore): MediaStore {
       await raw.deleteTree(tree);
       await accounts().run('DELETE FROM media_usage WHERE tree = ?', tree);
     },
-    list: (tree) => raw.list(tree),
+    list: (tree, prefixes) => raw.list(tree, prefixes),
   };
 }
 

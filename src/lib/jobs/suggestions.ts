@@ -9,13 +9,19 @@ export const suggestionsJob: DailyJob = {
   async run(ctx) {
     const { expireSuggestions, sweepOrphanFiles } = await import('../suggestions/expiry.server.ts');
     let expired = 0, swept = 0, errors = 0;
-    for (const tree of ctx.trees) {
+    // Separate tries: a failing expiry does not skip the sweep, nor one family the next.
+    const attempt = async (tree: string, work: () => Promise<number>) => {
       try {
-        expired += await expireSuggestions(tree, ctx.now);
-        swept += await sweepOrphanFiles(tree, ctx.now);
-      } catch {
+        return await work();
+      } catch (e) {
         errors += 1;
+        ctx.log(`family ${tree}: ${e instanceof Error ? e.message : 'failed'}`);
+        return 0;
       }
+    };
+    for (const tree of ctx.trees) {
+      expired += await attempt(tree, () => expireSuggestions(tree, ctx.now));
+      swept += await attempt(tree, () => sweepOrphanFiles(tree, ctx.now));
     }
     ctx.log(`expired ${expired} suggestions and swept ${swept} stray files, family errors ${errors}`);
   },

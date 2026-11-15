@@ -96,7 +96,7 @@ export interface MediaStore {
   /** Deletes every file of a family (deleting the family, src/lib/families.server.ts). */
   deleteTree(tree: string): Promise<void>;
   /** Every file stored under a family, with its size: what its storage holds, whether a record names it or not. */
-  list(tree: string): Promise<{ key: string; size: number }[]>;
+  list(tree: string, prefixes?: readonly string[]): Promise<{ key: string; size: number }[]>;
 }
 
 /**

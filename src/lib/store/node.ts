@@ -202,16 +202,18 @@ const media: MediaStore = {
     if (!TREE_ID.test(tree) || NOT_TREES.has(tree)) throw new Error(`bad tree id ${tree}`);
     rmSync(join(dataDir(), 'media', tree), { recursive: true, force: true });
   },
-  async list(tree) {
+  async list(tree, prefixes) {
     if (!TREE_ID.test(tree) || NOT_TREES.has(tree)) throw new Error(`bad tree id ${tree}`);
     const root = join(dataDir(), 'media', tree);
     if (!existsSync(root)) return [];
-    return (readdirSync(root, { recursive: true, withFileTypes: true }) as Dirent[])
+    // A prefix is a folder (`suggest/`): only those are read.
+    const folders = prefixes ? prefixes.map((p) => join(root, p)).filter((f) => f.startsWith(root) && existsSync(f)) : [root];
+    return folders.flatMap((folder) => (readdirSync(folder, { recursive: true, withFileTypes: true }) as Dirent[])
       .filter((e) => e.isFile())
       .map((e) => {
         const file = join(e.parentPath, e.name);
         return { key: relative(root, file).split(sep).join('/'), size: statSync(file).size };
-      });
+      }));
   },
 };
 

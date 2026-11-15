@@ -136,10 +136,10 @@ test('a demo and a steward’s preview send no push about suggestions', async ()
   assert.equal(await Push.notifySuggestion(tree, { vapid, fetchImpl, now: NOW }), 1, 'the control: outside both it is sent');
 });
 
-test('the switch is the device’s, saved with its other choices, and off until asked for', async () => {
+test('the switch is the device’s, saved with its other choices, off until asked for, and not stored for a role that may not review', async () => {
   const reminders = await load<typeof import('../reminders.server.ts')>('/src/lib/reminders.server.ts');
   const { parseChoices } = await load<typeof import('../reminders.ts')>('/src/lib/reminders.ts');
-  const { tree, bo } = await family();
+  const { tree, bo, dee } = await family();
   const endpoint = `https://web.push.apple.com/${tree}/bo-switch`;
   const registration = { user: bo.id, tree, subscription: { endpoint, keys: { p256dh: 'p', auth: 'a' } }, choices: parseChoices([0], ['birthday'])!, locale: 'en' as const };
   const on = async () => (await reminders.subscriptionOf(bo.id, tree, endpoint))?.suggestions;
@@ -149,4 +149,8 @@ test('the switch is the device’s, saved with its other choices, and off until 
   assert.equal(await on(), 1);
   await reminders.saveRegistration({ ...registration, suggestions: false });
   assert.equal(await on(), 0);
+  // A viewer may not review, so asking is not stored.
+  const viewer = { ...registration, user: dee.id, subscription: { endpoint: `${endpoint}-viewer`, keys: { p256dh: 'p', auth: 'a' } }, suggestions: true };
+  await reminders.saveRegistration(viewer);
+  assert.equal((await reminders.subscriptionOf(dee.id, tree, viewer.subscription.endpoint))?.suggestions, 0);
 });
