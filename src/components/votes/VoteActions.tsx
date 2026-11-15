@@ -8,6 +8,7 @@ import { CalendarClock, Lock, Plus, Trash2 } from 'lucide-react';
 import { useId, useState } from 'react';
 import { ConfirmDialog } from '~/components/ui';
 import { opKeys } from '~/lib/api';
+import { armsKeys } from '~/lib/arms-proposals/proposals.functions';
 import { errorText } from '~/lib/errortext';
 import { useT } from '~/lib/i18n';
 import { MAX_CLOSE_DAYS, MAX_OPTION, MIN_CLOSE_MS, type VoteView } from '~/lib/votes/types';
@@ -42,7 +43,11 @@ export function VoteActions({ tree, view, onRemoved }: { tree: string; view: Vot
   });
   const close = useMutation({
     mutationFn: () => endVote({ data: { tree, id: view.id, opKey: keys.for('close', view.id) } }),
-    onSuccess: async () => { setAsking(null); await refresh(); },
+    onSuccess: async () => {
+      setAsking(null);
+      // Closing a house's arms vote settles it: the house may bear new arms, and its proposals move on.
+      await Promise.all(view.options.some((o) => o.arms) ? armsKeys(tree).map((queryKey) => qc.invalidateQueries({ queryKey })) : [refresh()]);
+    },
   });
   const remove = useMutation({
     mutationFn: () => deleteVote({ data: { tree, id: view.id, opKey: keys.for('remove', view.id) } }),
@@ -50,6 +55,8 @@ export function VoteActions({ tree, view, onRemoved }: { tree: string; view: Vot
       setAsking(null);
       qc.removeQueries({ queryKey: ['votes', tree, view.id] });
       await qc.invalidateQueries({ queryKey: ['votes', tree], exact: true });
+      // A house's arms vote that goes sends its proposals back to wait.
+      if (view.options.some((o) => o.arms)) void qc.invalidateQueries({ queryKey: ['arms-proposals', tree] });
       onRemoved();
     },
   });

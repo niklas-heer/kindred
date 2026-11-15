@@ -57,14 +57,16 @@ function Root() {
 }
 
 function Shell({ children }: { children: ReactNode }) {
-  const {locale, offered, localeAccount, demo} = Route.useRouteContext();
+  const {locale, offered, localeAccount, demo, queryClient} = Route.useRouteContext();
+  // The server writes an arms vote's question and "keep" option in the reader's language: read the votes and the feed again.
+  const relabel = () => { void queryClient.invalidateQueries({ queryKey: ['votes'] }); void queryClient.invalidateQueries({ queryKey: ['feed'] }); };
   return (
     <html lang={locale} data-theme="codex" data-demo={demo ? '' : undefined} suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
       <body>
-        <I18nProvider initialLocale={locale ?? 'en'} offered={offered} account={localeAccount} saveRemote={localeAccount ? (next) => setMyLocale({ data: { locale: next } }) : undefined}>{demo && <DemoBanner />}<div id="app">{children}</div><ProofHost /></I18nProvider>
+        <I18nProvider initialLocale={locale ?? 'en'} offered={offered} account={localeAccount} saveRemote={localeAccount ? (next) => setMyLocale({ data: { locale: next } }) : undefined} onChanged={relabel}>{demo && <DemoBanner />}<div id="app">{children}</div><ProofHost /></I18nProvider>
         <Scripts />
       </body>
     </html>

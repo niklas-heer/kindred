@@ -1,12 +1,19 @@
 // The arms designer: a big live shield and its blazon on the left; on the right the layers (field, division,
 // ordinaries, charges, achievement) and a picker for the chosen one, plus presets and canting suggestions.
 // Loaded on demand by ArmsEditor, so the house page does not carry it.
+//
+// A steward seals the arms (with the house's name and motto). In propose mode (`propose`, Contributor and up) the same
+// designer proposes them instead: no name, motto or AI tools, a name and a note for the design, and "Propose these arms"
+// (src/lib/arms-proposals/, docs/arms-proposals.md).
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowDown, ArrowUp, Crown, Dices, Info, Layers, Plus, Redo2, RotateCcw, Search, Shield, Sparkles, Trash2, Undo2, Wand2,
 } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { graphQuery, opKeys, updateHouse } from '~/lib/api';
+import { armsKeys, proposeArmsFn } from '~/lib/arms-proposals/proposals.functions';
+import { MAX_PROPOSAL_NAME, MAX_PROPOSAL_NOTE } from '~/lib/arms-proposals/types';
+import { errorText } from '~/lib/errortext';
 import { aiArmsRevisions } from '~/lib/ai/arms.functions';
 import { checkArmsFit } from '~/lib/ai/arms-fit.functions';
 import { toAiLocale, type ArmsRevision } from '~/lib/ai/types';
@@ -14,7 +21,7 @@ import { myFamiliesQuery } from '~/lib/auth/functions';
 import { armsReviewsQuery, houseMeaningsQuery, houseTranslationsQuery, settleArmsReview } from '~/lib/house-meaning.functions';
 import { translateReview } from '~/lib/house-translation';
 import { chosenMeanings, surnameOf, type ArmsReview } from '~/lib/house-meaning';
-import { translateMessage, useT, type Key, type Translator } from '~/lib/i18n';
+import { useT, type Key, type Translator } from '~/lib/i18n';
 import type {
   Achievement, ArmsLayer, ArmsV2, ChargeArrangement, ChargeLayer, FieldDivision, HelmRank, OrdinaryKind, OrdinaryLayer,
   PartitionLine, ShieldShape, TinctureV2,
@@ -83,14 +90,26 @@ function useHistory(initial: Draft) {
 /** The tab a designer opens on: the design itself, or the suggestions ("Suggest arms from the name"). */
 export type DesignerTab = 'design' | 'presets' | 'name';
 
-export default function Designer({ open, onClose, house, tree, initialTab = 'design', revise }: {
+/** What proposing answered: the proposal, and the house's arms vote it started or joined (null while it waits). */
+export interface Proposed { id: string; vote: string | null; started: boolean }
+
+export default function Designer({ open, onClose, house, tree, initialTab = 'design', revise, propose = false, onProposed }: {
   open: boolean; onClose: () => void; house: House; tree: string; initialTab?: DesignerTab;
   /** The check the steward asked suggestions from: the name tab asks for them once, when the designer opens with it. */
   revise?: ArmsReview;
+  /** Propose the arms instead of sealing them. */
+  propose?: boolean;
+  onProposed?: (r: Proposed) => void;
 }) {
   const qc = useQueryClient();
   const tr = useT();
-  const allowed = useCan('edit-house');
+  const canEditHouse = useCan('edit-house');
+  const allowed = useCan(propose ? 'propose-arms' : 'edit-house');
+  // A steward's tools: the AI's research and suggestions, and the check after sealing. A proposal has none of them.
+  const steward = !propose && canEditHouse;
+  // A proposal's own name and note (the house's name and motto stay as they are).
+  const [design, setDesign] = useState('');
+  const [note, setNote] = useState('');
   const country = (house as House & { country?: string }).country;
   const saved = useMemo(() => draftOf(house), [house]);
   const h = useHistory(saved);
@@ -111,14 +130,17 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
     setTab(initialTab);
     setFull(!!d.arms.achievement);
     save.reset();
+    proposal.reset();
+    setDesign('');
+    setNote('');
     void ensureLibrary().catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // What the name means, as saved. The suggestions from the check draw on it; sealing checks the arms against it again.
-  const meaningsQ = useQuery({ ...houseMeaningsQuery(tree), enabled: allowed });
+  const meaningsQ = useQuery({ ...houseMeaningsQuery(tree), enabled: steward });
   const researched = meaningsQ.data?.[house.id];
-  const translations = useQuery({ ...houseTranslationsQuery(tree, tr.locale), enabled: allowed }).data;
+  const translations = useQuery({ ...houseTranslationsQuery(tree, tr.locale), enabled: steward }).data;
   const [checkKeys] = useState(() => opKeys());
   const [revisions, setRevisions] = useState<ArmsRevision[] | null>(null);
   const asked = useRef<ArmsReview | null>(null);
@@ -143,11 +165,11 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
     setRevisions(null);
   }, [open]);
   useEffect(() => {
-    if (!open || !revise || !researched || asked.current === revise) return;
+    if (!open || !steward || !revise || !researched || asked.current === revise) return;
     asked.current = revise;
     revise$.mutate(revise);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, revise, researched]);
+  }, [open, steward, revise, researched]);
 
   const save = useMutation({
     mutationFn: (d: Draft) =>
@@ -173,8 +195,28 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
     },
   });
 
-  const dirty = key(draft) !== key(saved);
+  const [proposeKeys] = useState(() => opKeys());
+  const proposal = useMutation({
+    mutationFn: (d: Draft) => {
+      const data = { tree, house: house.id, name: design.trim(), note: note.trim() || undefined, arms: storeV2(d.arms) };
+      return proposeArmsFn({ data: { ...data, opKey: proposeKeys.for('propose', data) } });
+    },
+    onSuccess: async (r) => {
+      proposeKeys.clear();
+      await Promise.all(armsKeys(tree).map((queryKey) => qc.invalidateQueries({ queryKey })));
+      play('seal');
+      toast({ title: tr('arms.propose.done'), body: design.trim(), icon: 'crown' });
+      onProposed?.(r);
+      onClose();
+    },
+  });
+  const busy = save.isPending || proposal.isPending;
+  const failed = propose ? proposal : save;
+
+  const armsChanged = JSON.stringify(draft.arms) !== JSON.stringify(saved.arms);
+  const dirty = key(draft) !== key(saved) || (propose && (design.trim() !== '' || note.trim() !== ''));
   const nameOk = draft.name.trim().length > 0;
+  const designOk = design.trim().length > 0 && design.trim().length <= MAX_PROPOSAL_NAME;
   const setArms = (next: ArmsV2, k?: string) => h.set({ ...draft, arms: next }, k);
   const clashes = tinctureClashesV2(a, tr);
   useLibraryMeta();
@@ -182,6 +224,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
   const achievementText = blazonAchievement(a.achievement, tr.locale);
   // "What it means" is open on a wide screen and folded on a phone, where the pickers have no hover.
   const wide = useWide();
+  const ids = useId();
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (!(e.metaKey || e.ctrlKey) || (e.target as HTMLElement).closest('input, textarea')) return;
@@ -194,13 +237,13 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
   return (
     <Dialog
       open={open}
-      onClose={() => { if (!save.isPending) onClose(); }}
-      title={tr('heraldry.dialog_title')}
-      description={<>{tr('heraldry.dialog_desc_pre')} <b>{saved.name}</b>{tr('heraldry.dialog_desc_post')}</>}
+      onClose={() => { if (!busy) onClose(); }}
+      title={propose ? tr('arms.propose.title') : tr('heraldry.dialog_title')}
+      description={propose ? tr('arms.propose.desc', { house: saved.name }) : <>{tr('heraldry.dialog_desc_pre')} <b>{saved.name}</b>{tr('heraldry.dialog_desc_post')}</>}
       variant="event"
       width={1180}
       dirty={dirty}
-      dismissible={!save.isPending}
+      dismissible={!busy}
       initialFocus=".ae-layers [aria-current='true']"
       className="ae-dialog"
       bodyClassName="ae-body"
@@ -221,16 +264,24 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
               <RotateCcw size={16} aria-hidden /> <span className="ae-tool-label">{tr('heraldry.reset')}</span>
             </button>
           </div>
-          {save.isError && (
+          {failed.isError && (
             <p className="ae-error" role="alert">
-              {save.error instanceof Error && save.error.message ? translateMessage(save.error.message, tr.locale) : tr('heraldry.save_failed')} {tr('heraldry.save_failed_hint')}
+              {failed.error instanceof Error && failed.error.message ? errorText(failed.error, tr.locale) : tr('heraldry.save_failed')}
+              {/* While a vote holds the arms, trying again does not help. */}
+              {failed.error?.message !== 'arms.err.frozen' && <> {tr('heraldry.save_failed_hint')}</>}
             </p>
           )}
           <div className="ae-actions">
-            <button type="button" className="btn" onClick={onClose} disabled={save.isPending}>{tr('heraldry.cancel')}</button>
-            <button type="button" className="btn primary" onClick={() => save.mutate(draft)} disabled={!dirty || !nameOk || save.isPending}>
-              {save.isPending ? tr('heraldry.sealing') : tr('heraldry.seal')}
-            </button>
+            <button type="button" className="btn" onClick={onClose} disabled={busy}>{tr('heraldry.cancel')}</button>
+            {propose ? (
+              <button type="button" className="btn primary" onClick={() => proposal.mutate(draft)} disabled={!armsChanged || !designOk || busy}>
+                {proposal.isPending ? tr('arms.propose.sending') : tr('arms.propose.submit')}
+              </button>
+            ) : (
+              <button type="button" className="btn primary" onClick={() => save.mutate(draft)} disabled={!dirty || !nameOk || busy}>
+                {save.isPending ? tr('heraldry.sealing') : tr('heraldry.seal')}
+              </button>
+            )}
           </div>
         </div>
       }
@@ -271,6 +322,20 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
               </div>
             )}
           </div>
+          {propose ? (
+            <div className="ae-texts">
+              <label className="field">
+                <span>{tr('arms.propose.name')}</span>
+                <input className="input" value={design} maxLength={MAX_PROPOSAL_NAME} required aria-describedby={`${ids}-design`} onChange={(e) => setDesign(e.target.value)} />
+                <small className="subtle" id={`${ids}-design`}>{tr('arms.propose.name_hint')}</small>
+              </label>
+              <label className="field">
+                <span>{tr('arms.propose.note')}</span>
+                <textarea className="input" rows={3} value={note} maxLength={MAX_PROPOSAL_NOTE} placeholder={tr('arms.propose.note_placeholder')} onChange={(e) => setNote(e.target.value)} />
+              </label>
+              {!armsChanged && <p className="subtle ae-lead">{tr('arms.propose.unchanged')}</p>}
+            </div>
+          ) : (
           <div className="ae-texts">
             <label className="field">
               <span>{tr('heraldry.house_name')}</span>
@@ -281,6 +346,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
               <input className="input" value={draft.motto} maxLength={160} placeholder={tr('heraldry.motto_placeholder')} onChange={(e) => h.set({ ...draft, motto: e.target.value }, 'motto')} />
             </label>
           </div>
+          )}
         </div>
         </div>
 
@@ -312,7 +378,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
               </div>
             </TabPanel>
             <TabPanel value="name">
-              {revise && (
+              {steward && revise && (
                 <ArmsRevisions
                   feedback={translateReview({ reason: revise.reason, advice: revise.advice }, translations?.reviews[house.id])}
                   busy={revise$.isPending}
@@ -322,7 +388,7 @@ export default function Designer({ open, onClose, house, tree, initialTab = 'des
                   onPick={(arms) => { fromSuggestion.current = true; setArms(arms); setSel(arms.layers.length ? arms.layers.length - 1 : 'field'); setTab('design'); }}
                 />
               )}
-              <Suggestions tree={tree} house={house.id} initial={surnameOf(saved.name)} country={country} allowed={allowed} onPick={(arms) => { fromSuggestion.current = true; setArms(arms); setSel(arms.layers.length ? arms.layers.length - 1 : 'field'); setTab('design'); play('tick'); }} />
+              <Suggestions tree={tree} house={house.id} initial={surnameOf(saved.name)} country={country} allowed={steward} onPick={(arms) => { fromSuggestion.current = true; setArms(arms); setSel(arms.layers.length ? arms.layers.length - 1 : 'field'); setTab('design'); play('tick'); }} />
             </TabPanel>
           </Tabs>
         </div>

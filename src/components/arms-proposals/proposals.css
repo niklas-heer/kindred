@@ -1,0 +1,49 @@
+/* Arms proposals (src/components/arms-proposals/): a house's proposed arms on its page, and the family's setting on the
+   Houses page. Tokens only, so the three themes dress it. */
+
+.ap-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.ap-card { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px 18px; align-items: start; }
+.ap-shields { display: flex; align-items: flex-end; gap: 10px; }
+.ap-now { display: grid; justify-items: center; gap: 2px; font-family: var(--font-ui); font-size: var(--fs-1); color: var(--muted); }
+.ap-main { display: grid; gap: 8px; min-width: 0; }
+.ap-name { margin: 0; font-family: var(--font-title); font-size: var(--fs-5); font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+[data-theme='codex'] .ap-name { color: var(--accent); }
+.ap-meta { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-family: var(--font-ui); font-size: var(--fs-2); }
+.ap-state[data-state='accepted'] { color: var(--accent); }
+.ap-by { display: inline-flex; align-items: center; gap: 6px; }
+.ap-initial {
+  width: 24px; height: 24px; display: inline-grid; place-items: center; border-radius: 999px; background: var(--panel-2);
+  font-family: var(--font-ui); font-size: var(--fs-1); font-weight: 600; color: var(--text);
+}
+.ap-note { margin: 0; max-width: 68ch; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-4); line-height: var(--lh-body); }
+.ap-reason { margin: 0; font-family: var(--font-ui); font-size: var(--fs-3); font-style: italic; overflow-wrap: anywhere; }
+.ap-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ap-error { margin: 0; font-family: var(--font-ui); font-size: var(--fs-3); color: var(--danger, var(--text)); }
+.ap-label { font-family: var(--font-ui); font-size: var(--fs-3); font-weight: 600; color: var(--text); }
+.ap-hint { margin: 0; font-family: var(--font-ui); font-size: var(--fs-2); line-height: var(--lh-ui); }
+.ap-notice { margin: 0 0 12px; padding: 8px 12px; border-radius: var(--radius); background: var(--panel-2); font-family: var(--font-ui); font-size: var(--fs-3); }
+.ap-decline { display: grid; gap: 6px; }
+
+/* The family's setting: a choice per row, each with its one-line meaning. */
+.ap-settings-card { display: grid; gap: 14px; }
+.ap-modes { margin: 0; padding: 0; border: 0; display: grid; gap: 8px; min-width: 0; }
+.ap-modes legend { padding: 0; margin-bottom: 6px; }
+.ap-mode {
+  display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--panel-2); cursor: pointer; font-family: var(--font-ui); font-size: var(--fs-3); line-height: var(--lh-ui);
+}
+.ap-mode[data-chosen] { border-color: var(--accent); }
+.ap-mode:focus-within:has(input:focus-visible) { box-shadow: var(--focus-ring); }
+.ap-mode input { flex: none; width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--accent); }
+.ap-mode span { display: grid; gap: 2px; min-width: 0; }
+.ap-mode small { font-size: var(--fs-2); }
+.ap-guests { display: grid; gap: 4px; }
+.ap-saved { font-family: var(--font-ui); font-size: var(--fs-3); color: var(--accent); }
+.ap-saved:empty { display: none; }
+
+/* On the roll of houses: how many proposals wait for a steward. */
+.ap-waiting { justify-self: start; margin-top: 4px; }
+
+@media (max-width: 520px) {
+  .ap-card { grid-template-columns: minmax(0, 1fr); }
+}

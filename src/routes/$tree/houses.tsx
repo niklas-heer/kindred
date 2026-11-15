@@ -1,15 +1,18 @@
 // The roll of houses: every house of the family as a card with its arms and country, motto, size, founder,
-// the head today, years and a sparkline of members per generation. Each card opens the house's page.
+// the head today, years and a sparkline of members per generation. Each card opens the house's page. A steward also sees
+// how many arms proposals wait in each house, and sets how the family settles them (src/components/arms-proposals/).
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Plus, Shield, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { ArmsSettings } from '~/components/arms-proposals/ArmsSettings';
 import { Arms } from '~/components/Heraldry';
 import { ReviewBadgeChip, useStewardBadges } from '~/components/HouseMeaning';
 import { HouseCreateDialog, SurnameHousesDialog } from '~/components/HouseCreate';
 import { EmptyState, ErrorState, PageHeader, Select } from '~/components/ui';
 import { useFamily, useMeChosen, useTreeId } from '~/lib/family';
 import { useCan } from '~/lib/session';
+import { proposalCountsQuery } from '~/lib/arms-proposals/proposals.functions';
 import { meaningLine, type ReviewBadge, type SavedMeaning } from '~/lib/house-meaning';
 import { houseTranslationsQuery } from '~/lib/house-meaning.functions';
 import { translateSaved } from '~/lib/house-translation';
@@ -66,6 +69,7 @@ function HousesPage() {
   const myHouse = me ? f.byId.get(me)?.house : undefined;
   // Making houses is for stewards. "From surnames" needs someone without a house to gather.
   const canEdit = useCan('edit-house');
+  const waiting = useQuery({ ...proposalCountsQuery(tree), enabled: canEdit }).data;
   const unhoused = f.graph.people.filter((p) => !p.house).length;
   const [creating, setCreating] = useState(false);
   const [surnaming, setSurnaming] = useState(false);
@@ -150,12 +154,14 @@ function HousesPage() {
                     head={succ.head?.id}
                     meaning={steward.meanings?.[s.house.id]}
                     badge={sameForAll ? undefined : steward.badges[s.house.id]}
+                    waiting={waiting?.[s.house.id]}
                   />
                 </li>
               );
             })}
           </ul>
         )}
+        {canEdit && <ArmsSettings tree={tree} />}
       </div>
       {canEdit && creating && <HouseCreateDialog open onClose={() => setCreating(false)} tree={tree} />}
       {canEdit && surnaming && <SurnameHousesDialog open onClose={() => setSurnaming(false)} tree={tree} />}
@@ -163,8 +169,10 @@ function HousesPage() {
   );
 }
 
-function HouseCard({ s, tree, mine, country, head, meaning, badge }: {
+function HouseCard({ s, tree, mine, country, head, meaning, badge, waiting }: {
   s: HouseStats; tree: string; mine: boolean; country: string | null; head?: string; meaning?: SavedMeaning; badge?: ReviewBadge;
+  /** Arms proposals waiting for a steward. */
+  waiting?: number;
 }) {
   const t = useT();
   const f = useFamily();
@@ -184,6 +192,7 @@ function HouseCard({ s, tree, mine, country, head, meaning, badge }: {
         {line && <p className="hs-meaning" title={line}>{line}</p>}
         {mine && <span className="hs-chip" style={{ justifySelf: 'start', marginTop: 4 }}>{t('houses.yourHouse')}</span>}
         {badge && <span className="hs-badge"><ReviewBadgeChip badge={badge} /></span>}
+        {!!waiting && <span className="hs-chip ap-waiting">{t('arms.waiting_count', { count: waiting })}</span>}
         <dl className="hs-facts">
           <dt>{t('houses.membersHeading')}</dt>
           <dd className="hs-num">

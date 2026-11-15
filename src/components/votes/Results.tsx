@@ -1,11 +1,12 @@
 // A vote's result (docs/votes.md), as the server let this reader see it: a bar per option for a single-choice vote, and
 // for a ranked one each round of the count, with the options that dropped out and the ballots that had no choice left.
 // Before there is a result to show, it says why: a secret vote shows nothing until it closes, an open one once the reader
-// has voted.
+// has voted. A house's arms vote shows each option's shield beside its name.
 //
 //   <Results view={vote} />
 import { Trophy } from 'lucide-react';
-import { useId } from 'react';
+import { useId, type ReactNode } from 'react';
+import { Arms } from '~/components/Heraldry';
 import { listText, useT } from '~/lib/i18n';
 import type { VoteResult, VoteView } from '~/lib/votes/types';
 
@@ -13,7 +14,12 @@ export function Results({ view }: { view: VoteView }) {
   const t = useT();
   const id = useId();
   const { result } = view;
-  const labelOf = (option: string) => view.options.find((o) => o.id === option)?.label ?? '';
+  const labelOf = (option: string) => {
+    const o = view.options.find((x) => x.id === option);
+    if (!o) return '';
+    return o.arms ? <><span className="vt-arms" aria-hidden><Arms arms={o.arms} size={24} /></span>{o.label}</> : o.label;
+  };
+  const textOf = (option: string) => view.options.find((o) => o.id === option)?.label ?? '';
   return (
     <section className="ui-card vt-results" aria-labelledby={`${id}-h`}>
       <h2 className="vt-h" id={`${id}-h`}>{t('votes.results')}</h2>
@@ -21,11 +27,11 @@ export function Results({ view }: { view: VoteView }) {
         <p className="vt-note">{view.secret ? t('votes.results_later') : t('votes.results_after_voting')}</p>
       ) : (
         <>
-          {view.closed && <Outcome winners={result.winners.map(labelOf)} />}
+          {view.closed && <Outcome winners={result.winners.map(textOf)} />}
           {result.kind === 'single' ? (
             <Bars tallies={result.tallies} order={view.options.map((o) => o.id)} total={result.ballots} winners={view.closed ? result.winners : []} labelOf={labelOf} />
           ) : (
-            <Rounds result={result} order={view.options.map((o) => o.id)} closed={view.closed} labelOf={labelOf} />
+            <Rounds result={result} order={view.options.map((o) => o.id)} closed={view.closed} labelOf={labelOf} textOf={textOf} />
           )}
           <p className="vt-note subtle">{t('votes.counted', { count: result.ballots })}</p>
         </>
@@ -45,7 +51,7 @@ export function Outcome({ winners }: { winners: string[] }) {
   );
 }
 
-function Bars({ tallies, order, total, winners, labelOf }: { tallies: Record<string, number>; order: string[]; total: number; winners: string[]; labelOf: (id: string) => string }) {
+function Bars({ tallies, order, total, winners, labelOf }: { tallies: Record<string, number>; order: string[]; total: number; winners: string[]; labelOf: (id: string) => ReactNode }) {
   const t = useT();
   const shown = order.filter((id) => id in tallies);
   return (
@@ -65,7 +71,9 @@ function Bars({ tallies, order, total, winners, labelOf }: { tallies: Record<str
   );
 }
 
-function Rounds({ result, order, closed, labelOf }: { result: Extract<VoteResult, { kind: 'ranked' }>; order: string[]; closed: boolean; labelOf: (id: string) => string }) {
+function Rounds({ result, order, closed, labelOf, textOf }: {
+  result: Extract<VoteResult, { kind: 'ranked' }>; order: string[]; closed: boolean; labelOf: (id: string) => ReactNode; textOf: (id: string) => string;
+}) {
   const t = useT();
   return (
     <ol className="vt-rounds">
@@ -76,7 +84,7 @@ function Rounds({ result, order, closed, labelOf }: { result: Extract<VoteResult
           <li key={i}>
             <h3 className="vt-round-h">{t('votes.round', { n: i + 1 })}</h3>
             <Bars tallies={round.tallies} order={order} total={inPlay} winners={closed && last ? result.winners : []} labelOf={labelOf} />
-            {round.out.length > 0 && <p className="vt-note">{t('votes.round_out', { options: listText(round.out.map(labelOf), t.locale) })}</p>}
+            {round.out.length > 0 && <p className="vt-note">{t('votes.round_out', { options: listText(round.out.map(textOf), t.locale) })}</p>}
             {round.exhausted > 0 && <p className="vt-note subtle">{t('votes.exhausted', { count: round.exhausted })}</p>}
           </li>
         );

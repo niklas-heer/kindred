@@ -54,6 +54,9 @@
 }
 .vt-rank-n::before { content: attr(data-n); }
 .vt-rank[aria-pressed='true'] .vt-rank-n { border-style: solid; border-color: transparent; background: var(--accent); color: var(--accent-text); }
+/* A house's arms vote: each option's shield beside its name, in the ballot and in the result's bars. */
+.vt-arms { flex: none; display: inline-flex; line-height: 0; }
+.vt-bar-label .vt-arms { margin-right: 6px; vertical-align: middle; }
 .vt-saved { font-family: var(--font-ui); font-size: var(--fs-3); color: var(--accent); }
 .vt-saved:empty { display: none; }
 .vt-guest-name { display: grid; gap: 4px; }

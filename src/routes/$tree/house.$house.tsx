@@ -1,11 +1,13 @@
 // One house: its arms and country, motto, founder, seats and size; who heads it and who comes next; the
 // heads through history; a way into its dynasty tree; its notable and all its members; and the stories
-// the family has written about them. Stewards set the succession and country, and redesign the arms.
+// the family has written about them. Stewards set the succession and country, and redesign the arms. Contributors and up
+// propose arms, and members see the proposals (src/components/arms-proposals/).
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { ChevronLeft, ListOrdered, Lock, Network, PenLine, ScrollText, Search, Sparkles, UserPlus } from 'lucide-react';
+import { ChevronLeft, Lightbulb, ListOrdered, Lock, Network, PenLine, ScrollText, Search, Sparkles, UserPlus } from 'lucide-react';
 import { useId, useMemo, useState, type CSSProperties } from 'react';
 import { ArmsEditor } from '~/components/ArmsEditor';
+import { HouseProposals } from '~/components/arms-proposals/HouseProposals';
 import { GameIcon } from '~/components/GameIcon';
 import { Arms, TINCTURE_HEX } from '~/components/Heraldry';
 import { asV2 } from '~/lib/heraldry/convert';
@@ -29,7 +31,7 @@ import {
 } from '~/lib/houses';
 import { compareText, dateText, kinshipLabel, locales, richText, translate, useT, type Key, type Locale } from '~/lib/i18n';
 import { occupationText } from '~/lib/occupations';
-import { useCan } from '~/lib/session';
+import { useCan, useMember } from '~/lib/session';
 import { toast } from '~/lib/toast';
 import { treeTitle } from '~/lib/title';
 import { errorText } from '~/lib/errortext';
@@ -70,6 +72,12 @@ function HousePage() {
   const f = useFamily();
   const house = f.house.get(id);
   const canEdit = useCan('edit-house');
+  const canPropose = useCan('propose-arms');
+  const member = !!useMember(tree);
+  // The designer proposes (Contributor and up) instead of sealing; reset when it closes, so a steward's tools open it to seal.
+  const [proposing, setProposing] = useState(false);
+  // The arms vote a proposal just went into, for the link above the proposals.
+  const [inVote, setInVote] = useState<string | null>(null);
   const settingsQ = useHouseSettings(tree);
   const [armsOpen, setArmsOpen] = useState(false);
   // Which tab the arms designer opens on: its own design, or the suggestions from the name.
@@ -186,7 +194,12 @@ function HousePage() {
                   </button>
                 </>
               ) : (
-                <p className="hp-hint subtle"><Lock size={14} aria-hidden /> {t('houses.onlySteward')}</p>
+                !canPropose && <p className="hp-hint subtle"><Lock size={14} aria-hidden /> {t('houses.onlySteward')}</p>
+              )}
+              {canPropose && (
+                <button type="button" className="btn" onClick={() => { setProposing(true); setArmsTab('design'); setArmsOpen(true); }} aria-haspopup="dialog">
+                  <Lightbulb size={16} /> {t('arms.propose')}
+                </button>
               )}
             </div>
           </div>
@@ -197,6 +210,7 @@ function HousePage() {
         {canEdit && savedMeaning && (aiOn || review) && (
           <ArmsReviewCard tree={tree} house={house} review={review} aiOn={aiOn} onDesigner={(tab, revise) => { setArmsTab(tab); setArmsRevise(revise); setArmsOpen(true); }} />
         )}
+        {member && <HouseProposals tree={tree} house={house} steward={canEdit} notice={inVote} onNotice={setInVote} />}
 
         <section className="hp-section hp-succession" aria-labelledby="hp-succession">
           <h2 className="rule" id="hp-succession">{t('houses.succession')}</h2>
@@ -235,9 +249,12 @@ function HousePage() {
       {canEdit && membersOpen && (
         <HouseMembersDialog open house={house} tree={tree} members={s.members} onClose={() => setMembersOpen(false)} />
       )}
-      {canEdit && armsOpen && (
+      {(proposing ? canPropose : canEdit) && armsOpen && (
         // The designer reads the house's country (for its flag and its name suggestions) from the house object.
-        <ArmsEditor open onClose={() => { setArmsOpen(false); setArmsRevise(undefined); }} house={{ ...house, country: country ?? undefined } as House} tree={tree} initialTab={armsTab} revise={armsRevise} />
+        <ArmsEditor
+          open onClose={() => { setArmsOpen(false); setArmsRevise(undefined); setProposing(false); }} house={{ ...house, country: country ?? undefined } as House} tree={tree}
+          initialTab={armsTab} revise={proposing ? undefined : armsRevise} propose={proposing} onProposed={(r) => setInVote(r.vote)}
+        />
       )}
     </div>
   );

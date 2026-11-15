@@ -28,12 +28,15 @@ export function I18nProvider({
   offered = [initialLocale],
   account,
   saveRemote,
+  onChanged,
   children,
 }: {
   initialLocale: Locale;
   offered?: readonly Locale[];
   account?: string;
   saveRemote?: (locale: Locale) => Promise<unknown>;
+  /** After the reader picked a language and the server knows it: for what the server writes in the reader's language. */
+  onChanged?: (locale: Locale) => void;
   children: ReactNode;
 }) {
   const [locale, update] = useState(initialLocale);
@@ -113,7 +116,9 @@ export function I18nProvider({
             () => {
               persist(next);
               update(next);
-              saveRemote?.(next).catch((error) => console.warn("[i18n] The language did not save to the account", error));
+              void (saveRemote?.(next) ?? Promise.resolve())
+                .catch((error) => console.warn("[i18n] The language did not save to the account", error))
+                .then(() => onChanged?.(next));
             },
             (error: unknown) => console.warn(`[i18n] The ${next} words did not load`, error),
           );
