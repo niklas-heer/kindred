@@ -61,6 +61,7 @@ import tour from "./tour.ts";
 import tree from "./tree.ts";
 import update from "./update.ts";
 import viewas from "./viewas.ts";
+import votes from "./votes.ts";
 import whois from "./whois.ts";
 
 export default {
@@ -126,5 +127,6 @@ export default {
   ...tree,
   ...update,
   ...viewas,
+  ...votes,
   ...whois,
 };
