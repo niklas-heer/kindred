@@ -156,7 +156,7 @@ function startNext(tree: string, house: string, now: Date): Promise<boolean> {
     const nothing = { writes: [], history: NOT_A_RECORD, result: false };
     const mode = await d.get<{ value: string }>("SELECT value FROM meta WHERE key = 'arms_mode'");
     if (mode?.value !== 'vote' || (await d.get(`SELECT 1 AS x FROM vote WHERE ${UNSETTLED}`, house))) return nothing;
-    const h = await d.get<{ arms: string }>('SELECT arms FROM house WHERE id = ?', house);
+    const h = await d.get<{ name: string; arms: string }>('SELECT name, arms FROM house WHERE id = ?', house);
     if (!h) return nothing;
     const waiting = await d.all<WaitingRow>(
       "SELECT id, account, author_name, author_person, arms FROM arms_proposal WHERE house = ? AND status = 'waiting' AND reason IS NOT 'vote_removed' ORDER BY created_at, id", house);
@@ -169,7 +169,7 @@ function startNext(tree: string, house: string, now: Date): Promise<boolean> {
       q("UPDATE arms_proposal SET status = 'declined', reason = 'not_chosen', decided_by = NULL, decided_by_name = NULL, decided_at = ? WHERE id = ?", at, p.id),
     ]);
     const oldest = next[0];
-    const start = oldest ? await startArmsVotePlan(d, house, next.map((p) => p.id), { id: oldest.account, name: oldest.author_name, person: oldest.author_person }, now) : null;
+    const start = oldest ? await startArmsVotePlan(d, house, next.map((p) => p.id), { id: oldest.account, name: oldest.author_name, person: oldest.author_person }, now, h) : null;
     if (!start && !declines.length) return nothing;
     return {
       writes: [

@@ -278,6 +278,29 @@ test('a proposal whose arms the house now bears cannot be put to a vote or accep
   await assert.rejects(P.acceptProposal(t, eve, id, await seen(t)), /arms\.err\.same/);
 });
 
+test('a save landing after Put to a vote checked the arms is not snapshotted as Keep: the plan decides again and refuses', async () => {
+  const t = await family('choose');
+  const { id } = await propose(t, ada, 'The stag');
+  // The house's arms change to the proposal's just after Put to a vote read them for its "same arms" check.
+  const d = db.db(t);
+  const get = d.get;
+  d.get = (async (sql: string, ...params: unknown[]) => {
+    const read = await get.call(d, sql, ...(params as never[]));
+    if (/^SELECT name, arms FROM house WHERE id = \?/.test(sql)) {
+      d.get = get;
+      await d.run("UPDATE house SET arms = ? WHERE id = 'h1'", JSON.stringify(arms('stag')));
+    }
+    return read;
+  }) as typeof d.get;
+  try {
+    await assert.rejects(P.putToVote(t, eve, id, undefined, NOW), /arms\.err\.same/);
+  } finally {
+    d.get = get;
+  }
+  assert.deepEqual(await armsVotes(t), [], 'no vote whose Keep is the proposal itself');
+  assert.equal((await row(t, id))!.status, 'waiting');
+});
+
 // ---------- accepting ----------
 
 test('a steward accepts a proposal in steward or choose mode: the house takes its arms, the history names the house only', async () => {

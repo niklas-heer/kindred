@@ -111,7 +111,8 @@ async function proposalOf(d: Db, id: string): Promise<ProposalRow> {
   if (!row) throw new Error('arms.err.gone');
   return row;
 }
-interface HouseRow { name: string; arms: string }
+/** A house as a plan read it: its name, and its arms exactly as stored. */
+export interface HouseRow { name: string; arms: string }
 async function houseOf(d: Db, id: string): Promise<HouseRow> {
   const row = await d.get<HouseRow>('SELECT name, arms FROM house WHERE id = ?', id);
   if (!row) throw new Error('arms.err.gone');
@@ -149,12 +150,14 @@ const joinWrites = (vote: string, house: string, proposal: string, at: string): 
  * The writes that start a house's arms vote with these waiting proposals (oldest first, at most nineteen): ranked, secret,
  * guests per the family's setting, closing in seven days, its question and "keep" label in English, and the "keep" option
  * with a snapshot of the house's arms. Guarded: no other unsettled arms vote for the house, the arms as read, and each
- * proposal still waiting and in no other vote. The caller checks that no proposal equals the current arms.
+ * proposal still waiting and in no other vote. The caller checks that no proposal equals the current arms, on the house as
+ * it read it (`seen`): the snapshot and the guard are then of those arms, so a save landing after the check is never
+ * snapshotted as Keep (the batch is refused and the plan decides again).
  * The one way an arms vote starts: Put to a vote, vote mode's proposing, and settlement's next vote.
  */
-export async function startArmsVotePlan(d: Db, house: string, proposalIds: readonly string[], starter: Starter, now: Date): Promise<{ writes: Query[]; vote: string; started: true }> {
+export async function startArmsVotePlan(d: Db, house: string, proposalIds: readonly string[], starter: Starter, now: Date, seen: HouseRow): Promise<{ writes: Query[]; vote: string; started: true }> {
   if (!proposalIds.length || proposalIds.length > MAX_PROPOSALS_PER_VOTE) throw new Error('arms.err.vote_busy');
-  const h = await houseOf(d, house);
+  const h = seen;
   const { guests } = await settingsIn(d);
   const vote = crypto.randomUUID();
   const at = now.toISOString();
@@ -182,7 +185,7 @@ export async function startArmsVotePlan(d: Db, house: string, proposalIds: reado
  */
 async function toVote(d: Db, house: string, h: HouseRow, proposal: string, starter: Starter, now: Date): Promise<{ writes: Query[]; vote: string; started: boolean } | null> {
   const v = await d.get<ArmsVoteRow>(`SELECT ${ARMS_VOTE_COLUMNS} FROM vote v WHERE v.subject_kind = 'house' AND v.subject = ? AND v.settled_at IS NULL`, house);
-  if (!v) return startArmsVotePlan(d, house, [proposal], starter, now);
+  if (!v) return startArmsVotePlan(d, house, [proposal], starter, now, h);
   const at = now.toISOString();
   if (!isOpen(v, at) || v.ballots || v.proposals >= MAX_PROPOSALS_PER_VOTE) return null;
   return {
