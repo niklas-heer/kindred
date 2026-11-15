@@ -24,6 +24,7 @@ export default {
   "history.group.research": "調査",
   "history.group.family": "家族",
   "history.kindred": "Kindred",
+  "history.vote": "家族の投票",
   "history.you": "あなた",
   "history.empty": "まだ何も変わっていません。",
   "history.empty_filtered": "この条件に合う変更はありません。",

@@ -24,6 +24,7 @@ export default {
   "history.group.research": "研究",
   "history.group.family": "家族",
   "history.kindred": "Kindred",
+  "history.vote": "家人投票",
   "history.you": "你",
   "history.empty": "还没有任何变化。",
   "history.empty_filtered": "没有符合这些筛选条件的修改。",

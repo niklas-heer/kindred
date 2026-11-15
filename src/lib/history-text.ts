@@ -2,12 +2,12 @@
 // reader reads it. Shared by the pages and the weekly push, so both say the same. No React here.
 import type { Key } from './i18n/dictionary.ts';
 import type { Vars } from './i18n/types.ts';
-import type { HistoryAction, HistoryKind, HistoryValue } from './history.ts';
+import { VOTE_AUTHOR, type HistoryAction, type HistoryKind, type HistoryValue } from './history.ts';
 
 type T = (key: Key, vars?: Vars) => string;
 
-/** The author as a sentence names them: Kindred itself when no account made the change. */
-export const authorName = (t: T, author: string) => author || t('history.kindred');
+/** The author as a sentence names them: Kindred itself when no account made the change, and the family's vote when it did. */
+export const authorName = (t: T, author: string) => (author === VOTE_AUTHOR ? t('history.vote') : author || t('history.kindred'));
 
 /** "{author} added {count} photos", as one sentence in the reader's language. */
 export const lineText = (t: T, line: { author: string; kind: HistoryKind; action: HistoryAction; count: number }) =>

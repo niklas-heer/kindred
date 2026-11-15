@@ -22,7 +22,7 @@ import { can } from './roles.ts';
 import { guard, q, type Db, type Query } from './store/index.ts';
 import type { Audience, Visibility } from './visibility.ts';
 import {
-  HISTORY_FILTERS, isRestorable, type HistoryAction, type HistoryFieldChange, type HistoryFilter, type HistoryItem, type HistoryKind,
+  HISTORY_FILTERS, isRestorable, VOTE_AUTHOR, type HistoryAction, type HistoryFieldChange, type HistoryFilter, type HistoryItem, type HistoryKind,
   type HistoryPage, type HistoryValue, type WhatsNew, type WhatsNewGroup, type WhatsNewLine, type WhatsNewPosts, type WhatsNewReply,
 } from './history.ts';
 
@@ -148,6 +148,8 @@ export function mergeDiffs(first: Diff, next: Diff): Diff | null {
 /** Who makes a change: an account and the name it shows, or Kindred itself (account null) for a daily job or a script. */
 export interface Actor { account: string | null; name: string }
 export const KINDRED: Actor = { account: null, name: '' };
+/** Kindred acting for the family's vote, as a vote's settlement does (`once`'s `actor`). */
+export const FAMILY_VOTE: Actor = { account: null, name: VOTE_AUTHOR };
 
 let actorSource: ((tree: string) => Actor | undefined) | undefined;
 let fixedActor: Actor | undefined;

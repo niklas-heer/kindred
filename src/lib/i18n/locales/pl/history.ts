@@ -24,6 +24,7 @@ export default {
   "history.group.research": "Badania",
   "history.group.family": "Rodzina",
   "history.kindred": "Kindred",
+  "history.vote": "Głosowanie rodziny",
   "history.you": "Ty",
   "history.empty": "Nic jeszcze się nie zmieniło.",
   "history.empty_filtered": "Żadne zmiany nie pasują do tych filtrów.",

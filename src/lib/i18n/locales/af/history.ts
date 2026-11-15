@@ -24,6 +24,7 @@ export default {
   "history.group.research": "Navorsing",
   "history.group.family": "Die familie",
   "history.kindred": "Kindred",
+  "history.vote": "Die familie se stemming",
   "history.you": "Jy",
   "history.empty": "Niks het nog verander nie.",
   "history.empty_filtered": "Geen veranderinge pas by hierdie filters nie.",

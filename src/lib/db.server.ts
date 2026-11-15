@@ -11,7 +11,7 @@ import { translate } from './i18n/dictionary.ts';
 import { LIVING_IDS, protectDetail, protectGraph } from './protect-living.ts';
 import { refuseReadOnly } from './read-only.ts';
 import { countedMedia } from './operator/storage.server.ts';
-import { added, change, checkHistory, currentActor, historyWrites, NOT_A_RECORD, type HistoryEntry } from './history.server.ts';
+import { added, change, checkHistory, currentActor, historyWrites, NOT_A_RECORD, type Actor, type HistoryEntry } from './history.server.ts';
 
 export { guard, q, store, type Db, type Query } from './store/index.ts';
 export { added, change, NOT_A_RECORD, removed, type HistoryEntry, type HistoryOf } from './history.server.ts';
@@ -78,6 +78,15 @@ type OpRow = { fn: string; result: string; user: string | null; fingerprint: str
 const refusedByDatabase = (e: unknown) =>
   isGuardError(e) || (e instanceof Error && /constraint failed/i.test(`${e.message} ${String((e as { cause?: unknown }).cause ?? '')}`));
 
+/** How `once` runs a change, beyond its plan. */
+export interface OnceOptions {
+  /**
+   * Who the history credits instead of the requester (`currentActor`): Kindred acting for the family, as a vote's settlement
+   * does (`FAMILY_VOTE`), whoever's request happened to run it.
+   */
+  actor?: Actor;
+}
+
 /**
  * Runs a change. With an `opKey`, its result is stored in the `op` table in the same batch as the
  * writes, and the same key arriving again (a retry after a lost response) gets the stored result back
@@ -85,7 +94,7 @@ const refusedByDatabase = (e: unknown) =>
  * batch commits; the other fails as a whole and replays the winner's result. Only the same person
  * resending the same change gets a replay; a key used for anything else is refused.
  */
-export async function once<T>(tree: string, op: OpKey | undefined, fn: string, work: (d: Db) => Promise<Plan<T>> | Plan<T>): Promise<T> {
+export async function once<T>(tree: string, op: OpKey | undefined, fn: string, work: (d: Db) => Promise<Plan<T>> | Plan<T>, opts: OnceOptions = {}): Promise<T> {
   // A demo or a steward's preview refuses before the plan runs (src/lib/read-only.ts), so nothing a plan does first (an upload,
   // an AI call) happens either. The store refuses the batch as well (src/lib/store/index.ts); this is the early, kind answer.
   refuseReadOnly();
@@ -107,7 +116,7 @@ export async function once<T>(tree: string, op: OpKey | undefined, fn: string, w
     try {
       checkHistory(fn, plan.writes, plan.history);
       const changes = plan.writes.some((w) => !isGuard(w));
-      logged = changes && plan.history !== NOT_A_RECORD ? await historyWrites(d, fn, currentActor(tree), plan.history) : [];
+      logged = changes && plan.history !== NOT_A_RECORD ? await historyWrites(d, fn, opts.actor ?? currentActor(tree), plan.history) : [];
     } catch (e) {
       await plan.abandon?.();
       throw e;
@@ -560,31 +569,49 @@ const canonical = (v: unknown): string =>
 /** A house's name, motto and arms as the designer showed them when it opened. */
 export interface HouseSeen { name: string; motto: string | null; arms: unknown }
 
+/** The refusal when a house's arms would change while a vote about them runs: the vote's settlement decides them. A code. */
+export const ARMS_FROZEN = 'arms.err.frozen';
+
+/** A house's unsettled arms vote, other than the one settling it: while there is one, the arms stand still. */
+const ARMS_VOTE_RUNNING = "EXISTS (SELECT 1 FROM vote WHERE subject_kind = 'house' AND subject = ? AND settled_at IS NULL AND id IS NOT ?)";
+
 /**
- * Renames a house and changes its motto and arms. Returns the house as the graph shows it. Houses have no revision, so
- * `before` (the name, motto and arms the designer was opened with) stands in for one: if any of them is no longer what
- * is stored, someone else saved the house meanwhile and this save is refused rather than replacing their change.
+ * The plan that renames a house and changes its motto and arms: the only writer of a house's arms, so a steward's save and
+ * a vote's settlement can each put it in their own batch. Houses have no revision, so `before` (the name, motto and arms
+ * the designer was opened with) stands in for one: if any of them is no longer what is stored, someone else saved the
+ * house meanwhile and this save is refused rather than replacing their change.
+ *
+ * The arms are frozen while an arms vote for the house is unsettled: a save that changes them is refused (`ARMS_FROZEN`),
+ * and its batch restates that no such vote exists, so a vote started meanwhile stops it too. `settlingVote` is the vote
+ * whose settlement this is, the one vote that may change them. A save that leaves the arms as they are is never frozen.
  */
+export async function houseWritePlan(d: Db, id: string, patch: { name: string; motto: string | null; arms: House['arms'] }, before: HouseSeen, opts: { settlingVote?: string } = {}): Promise<{ writes: Query[]; history: HistoryEntry[]; result: House }> {
+  const r = await d.get<{ name: string; motto: string | null; arms: string; founder: string | null }>('SELECT name, motto, arms, founder FROM house WHERE id = ?', id);
+  if (!r) throw new Error('That house is not in this family.');
+  if (r.name !== before.name || (r.motto ?? null) !== (before.motto ?? null) || canonical(JSON.parse(r.arms)) !== canonical(before.arms)) throw new Error(HOUSE_CHANGED);
+  // Store only the fields the arms use: a plain field keeps no second tincture.
+  const arms: House['arms'] = { field: patch.arms.field, division: patch.arms.division, charge: patch.arms.charge, chargeTincture: patch.arms.chargeTincture };
+  if (patch.arms.field2 && patch.arms.division !== 'plain') arms.field2 = patch.arms.field2;
+  // The v2 design, when there is one; the v1 fields above stay as its nearest summary for older readers.
+  if (patch.arms.v2) arms.v2 = patch.arms.v2;
+  const armsChange = canonical(JSON.parse(r.arms)) !== canonical(arms);
+  const settling = opts.settlingVote ?? null;
+  if (armsChange && (await d.get(`SELECT 1 AS x WHERE ${ARMS_VOTE_RUNNING}`, id, settling))) throw new Error(ARMS_FROZEN);
+  return {
+    writes: [
+      // The row exactly as read, so a save landing in between makes this plan decide again (and then refuse).
+      guard('EXISTS (SELECT 1 FROM house WHERE id = ? AND name = ? AND motto IS ? AND arms = ?)', id, r.name, r.motto, r.arms),
+      ...(armsChange ? [guard(`NOT ${ARMS_VOTE_RUNNING}`, id, settling)] : []),
+      q('UPDATE house SET name = ?, motto = ?, arms = ? WHERE id = ?', patch.name, patch.motto, JSON.stringify(arms), id),
+    ],
+    history: change('house', id, { name: r.name, motto: r.motto, arms: canonical(JSON.parse(r.arms)) }, { name: patch.name, motto: patch.motto, arms: canonical(arms) }, { label: patch.name, opaque: ['arms'] }),
+    result: { id, name: patch.name, motto: patch.motto ?? undefined, arms, founder: opt(r.founder) },
+  };
+}
+
+/** Renames a house and changes its motto and arms (`houseWritePlan`). Returns the house as the graph shows it. */
 export function updateHouse(tree: string, id: string, patch: { name: string; motto: string | null; arms: House['arms'] }, before: HouseSeen, op?: OpKey): Promise<House> {
-  return once(tree, op, 'updateHouse', async (d) => {
-    const r = await d.get<{ name: string; motto: string | null; arms: string; founder: string | null }>('SELECT name, motto, arms, founder FROM house WHERE id = ?', id);
-    if (!r) throw new Error('That house is not in this family.');
-    if (r.name !== before.name || (r.motto ?? null) !== (before.motto ?? null) || canonical(JSON.parse(r.arms)) !== canonical(before.arms)) throw new Error(HOUSE_CHANGED);
-    // Store only the fields the arms use: a plain field keeps no second tincture.
-    const arms: House['arms'] = { field: patch.arms.field, division: patch.arms.division, charge: patch.arms.charge, chargeTincture: patch.arms.chargeTincture };
-    if (patch.arms.field2 && patch.arms.division !== 'plain') arms.field2 = patch.arms.field2;
-    // The v2 design, when there is one; the v1 fields above stay as its nearest summary for older readers.
-    if (patch.arms.v2) arms.v2 = patch.arms.v2;
-    return {
-      writes: [
-        // The row exactly as read, so a save landing in between makes this plan decide again (and then refuse).
-        guard('EXISTS (SELECT 1 FROM house WHERE id = ? AND name = ? AND motto IS ? AND arms = ?)', id, r.name, r.motto, r.arms),
-        q('UPDATE house SET name = ?, motto = ?, arms = ? WHERE id = ?', patch.name, patch.motto, JSON.stringify(arms), id),
-      ],
-      history: change('house', id, { name: r.name, motto: r.motto, arms: canonical(JSON.parse(r.arms)) }, { name: patch.name, motto: patch.motto, arms: canonical(arms) }, { label: patch.name, opaque: ['arms'] }),
-      result: { id, name: patch.name, motto: patch.motto ?? undefined, arms, founder: opt(r.founder) },
-    };
-  });
+  return once(tree, op, 'updateHouse', (d) => houseWritePlan(d, id, patch, before));
 }
 
 // ---------- media ----------

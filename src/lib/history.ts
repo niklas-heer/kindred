@@ -8,6 +8,13 @@ export type HistoryKind = (typeof HISTORY_KINDS)[number];
 export const HISTORY_ACTIONS = ['added', 'changed', 'removed'] as const;
 export type HistoryAction = (typeof HISTORY_ACTIONS)[number];
 
+/**
+ * The name a change made by the family's vote is stored under (Kindred itself, account NULL), shown in the reader's language
+ * (`authorName`). It starts with a control character, which no member's name holds (`cleanName` removes them), so no member
+ * can pass for the vote.
+ */
+export const VOTE_AUTHOR = '\u0001vote';
+
 /** The History page's kind filter: groups of kinds a reader thinks of as one. */
 export const HISTORY_FILTERS = {
   people: ['person', 'field', 'link', 'partnership', 'portrait'],

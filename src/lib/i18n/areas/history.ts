@@ -22,6 +22,7 @@ export const en = {
   "history.group.research": "Research",
   "history.group.family": "The family",
   "history.kindred": "Kindred",
+  "history.vote": "The family’s vote",
   "history.you": "You",
   "history.empty": "Nothing has changed yet.",
   "history.empty_filtered": "No changes match these filters.",

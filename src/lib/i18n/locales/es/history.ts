@@ -24,6 +24,7 @@ export default {
   "history.group.research": "Investigación",
   "history.group.family": "La familia",
   "history.kindred": "Kindred",
+  "history.vote": "La votación de la familia",
   "history.you": "Tú",
   "history.empty": "Todavía no ha cambiado nada.",
   "history.empty_filtered": "Ningún cambio coincide con estos filtros.",
