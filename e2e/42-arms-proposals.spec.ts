@@ -136,6 +136,8 @@ test('arms proposals: a contributor proposes, the family votes, the steward acce
   await settled(page);
   const voteUrl = new URL(page.url()).pathname;
   await expect(page.getByRole('heading', { level: 1, name: /^Which arms should House .*Starling bear\?$/ })).toBeVisible();
+  // What the vote decides is said on its page.
+  await expect(page.getByText("The chosen design becomes the house's arms when the vote closes; a tie or no votes keeps the current arms.")).toBeVisible();
   const ballot = page.getByRole('group', { name: 'Tap the options in the order you prefer them' });
   await expect(ballot.locator('.vt-arms')).toHaveCount(2);
   const stars = ballot.getByRole('button', { name: 'The stars of Starling', exact: true });

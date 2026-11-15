@@ -5,6 +5,7 @@ import type { en } from "../../areas/arms-proposals.ts";
 export default {
   "arms.vote.question": "{house}家应使用哪一枚纹章？",
   "arms.vote.keep": "保留现在的纹章",
+  "arms.vote.outcome": "投票结束时，选中的设计会成为支系的纹章；如果平票或无人投票，则保留现在的纹章。",
 
   "arms.propose": "提出纹章建议",
   "arms.propose.title": "提出纹章建议",

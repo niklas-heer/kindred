@@ -5,6 +5,7 @@ import type { en } from "../../areas/arms-proposals.ts";
 export default {
   "arms.vote.question": "Quelles armoiries la maison {house} doit-elle porter ?",
   "arms.vote.keep": "Garder nos armoiries actuelles",
+  "arms.vote.outcome": "Le dessin choisi devient les armoiries de la maison à la clôture du vote ; une égalité ou l’absence de votes garde les armoiries actuelles.",
 
   "arms.propose": "Proposer des armoiries",
   "arms.propose.title": "Proposer des armoiries",

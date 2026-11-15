@@ -5,6 +5,7 @@
 export const en = {
   "arms.vote.question": "Which arms should House {house} bear?",
   "arms.vote.keep": "Keep our current arms",
+  "arms.vote.outcome": "The chosen design becomes the house's arms when the vote closes; a tie or no votes keeps the current arms.",
 
   "arms.propose": "Propose arms",
   "arms.propose.title": "Propose arms",

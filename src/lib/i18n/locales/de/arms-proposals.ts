@@ -5,6 +5,7 @@ import type { en } from "../../areas/arms-proposals.ts";
 export default {
   "arms.vote.question": "Welches Wappen soll das Haus {house} führen?",
   "arms.vote.keep": "Unser jetziges Wappen behalten",
+  "arms.vote.outcome": "Der gewählte Entwurf wird zum Wappen des Hauses, wenn die Abstimmung endet; bei Gleichstand oder ohne Stimmen bleibt das jetzige Wappen.",
 
   "arms.propose": "Wappen vorschlagen",
   "arms.propose.title": "Wappen vorschlagen",

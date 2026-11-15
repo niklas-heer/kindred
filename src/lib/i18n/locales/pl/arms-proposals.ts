@@ -5,6 +5,7 @@ import type { en } from "../../areas/arms-proposals.ts";
 export default {
   "arms.vote.question": "Jaki herb ma nosić ród {house}?",
   "arms.vote.keep": "Zachowajmy obecny herb",
+  "arms.vote.outcome": "Wybrany projekt zostanie herbem rodu, gdy głosowanie się zakończy; remis lub brak głosów zachowuje obecny herb.",
 
   "arms.propose": "Zaproponuj herb",
   "arms.propose.title": "Zaproponuj herb",

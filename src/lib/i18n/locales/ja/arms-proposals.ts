@@ -5,6 +5,7 @@ import type { en } from "../../areas/arms-proposals.ts";
 export default {
   "arms.vote.question": "{house}家はどの紋章を掲げますか？",
   "arms.vote.keep": "今の紋章のままにします",
+  "arms.vote.outcome": "投票が締め切られると、選ばれたデザインが家系の紋章になります。同数や投票なしの場合は、今の紋章のままです。",
 
   "arms.propose": "紋章を提案",
   "arms.propose.title": "紋章を提案",

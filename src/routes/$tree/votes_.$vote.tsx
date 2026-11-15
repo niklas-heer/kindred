@@ -4,7 +4,7 @@
 // them, as the server answers, and a guest gets no reactions or comments.
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { ArrowLeft, ListOrdered, Lock, Users, Vote } from 'lucide-react';
+import { ArrowLeft, ListOrdered, Lock, Shield, Users, Vote } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useSettledRefresh } from '~/components/arms-proposals/settled';
 import { Responses } from '~/components/responses/Responses';
@@ -64,6 +64,8 @@ function VoteBody({ tree, view }: { tree: string; view: VoteView }) {
         </p>
         {view.description && <p className="vt-description">{view.description}</p>}
         {view.secret && <p className="vt-secret"><Lock size={14} aria-hidden /> {t('votes.secret_meaning')}</p>}
+        {/* A house's arms vote (its options are shields): what its outcome does to the house. */}
+        {view.options.some((o) => o.arms) && <p className="vt-secret"><Shield size={14} aria-hidden /> {t('arms.vote.outcome')}</p>}
         {!view.closed ? (
           <Ballot key={view.id} tree={tree} view={view} />
         ) : view.mine ? (

@@ -5,6 +5,7 @@ import type { en } from "../../areas/arms-proposals.ts";
 export default {
   "arms.vote.question": "Quale stemma deve portare la casata {house}?",
   "arms.vote.keep": "Mantenere il nostro stemma attuale",
+  "arms.vote.outcome": "Il disegno scelto diventa lo stemma della casata quando la votazione si chiude; un pareggio o nessun voto mantiene lo stemma attuale.",
 
   "arms.propose": "Proponi uno stemma",
   "arms.propose.title": "Proponi uno stemma",

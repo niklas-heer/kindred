@@ -5,6 +5,7 @@ import type { en } from "../../areas/arms-proposals.ts";
 export default {
   "arms.vote.question": "Welk wapen moet het Huis {house} voeren?",
   "arms.vote.keep": "Ons huidige wapen houden",
+  "arms.vote.outcome": "Het gekozen ontwerp wordt het wapen van het huis wanneer de stemming sluit; bij een gelijke stand of zonder stemmen blijft het huidige wapen.",
 
   "arms.propose": "Wapen voorstellen",
   "arms.propose.title": "Een wapen voorstellen",

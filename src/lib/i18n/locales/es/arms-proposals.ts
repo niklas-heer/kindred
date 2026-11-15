@@ -5,6 +5,7 @@ import type { en } from "../../areas/arms-proposals.ts";
 export default {
   "arms.vote.question": "¿Qué escudo de armas debe llevar la casa {house}?",
   "arms.vote.keep": "Mantener nuestro escudo actual",
+  "arms.vote.outcome": "El diseño elegido pasa a ser el escudo de la casa cuando se cierra la votación; un empate o ningún voto mantiene el escudo actual.",
 
   "arms.propose": "Proponer un escudo",
   "arms.propose.title": "Proponer un escudo",
