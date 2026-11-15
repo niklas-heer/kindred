@@ -70,7 +70,8 @@ export async function changeCommitted(tree: string): Promise<void> {
 }
 
 const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
-const fingerprintOf = async (fn: string, payload: unknown) =>
+/** What a retry key is bound to: the change's name and everything sent with it, hashed. */
+export const fingerprintOf = async (fn: string, payload: unknown) =>
   hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(fn + JSON.stringify(payload ?? null, (_k, v) => (typeof File !== 'undefined' && v instanceof File ? { name: v.name, size: v.size, type: v.type } : v)))));
 
 type OpRow = { fn: string; result: string; user: string | null; fingerprint: string | null };
@@ -166,10 +167,10 @@ export async function once<T>(tree: string, op: OpKey | undefined, fn: string, w
     const now = Date.now();
     if (op && now - lastPrune > 3_600_000) {
       lastPrune = now;
-      // An approval's steps (`sugg-<id>-…`, suggestions/review.server.ts) are kept while their suggestion waits: a suggestion
-      // waits up to 90 days, and a retry of one approved half-way must find the steps it already wrote.
-      await d.run(`DELETE FROM op WHERE at < ? AND NOT (key LIKE 'sugg-%'
-        AND EXISTS (SELECT 1 FROM suggestion s WHERE s.status = 'waiting' AND op.key LIKE 'sugg-' || s.id || '-%'))`,
+      // An approval's steps (`sugg:<id>:…`, owned by `suggestion:<id>`, suggestions/review.server.ts) are kept while their
+      // suggestion waits: a suggestion waits up to 90 days, and a retry of one approved half-way must find the steps it wrote.
+      await d.run(`DELETE FROM op WHERE at < ? AND NOT (key LIKE 'sugg:%'
+        AND EXISTS (SELECT 1 FROM suggestion s WHERE s.status = 'waiting' AND op.key LIKE 'sugg:' || s.id || ':%' AND op.user = 'suggestion:' || s.id))`,
       new Date(now - OP_KEEP_DAYS * 86_400_000).toISOString()).catch(() => {});
     }
     await plan.after?.(writes);

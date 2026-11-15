@@ -10,12 +10,16 @@
 //   through `saveEvent`, a couple through the partnership details plan, a source through `saveSource` and `saveCitation`.
 //   Every history row it writes names the suggestion (`once`'s `suggestion`), and each of those writes is made only while
 //   the suggestion is still waiting.
-// - It runs as steps, each with its own retry key `sugg-<id>-<n>` (the same for every reviewer), so an approval that failed
+// - It runs as steps, each with its own retry key `sugg:<id>:<n>` (the same for every reviewer; owned by `suggestion:<id>`,
+//   and with a colon no request's own retry key may have, so nobody can plant one), so an approval that failed
 //   half-way and is approved again replays the steps that were written instead of writing them twice; the last step moves
 //   the files and marks the suggestion approved (`status`, `adjusted`, `decided_*`, `applied`), guarded on it still waiting.
 //   What is approved (the values, adjusted or not, the person already in the tree, the files' source title) is kept first as
-//   a decision (`sugg-<id>-d<k>`, writing nothing else). Until a step is written a new approval may decide again; once one
-//   is, the approval finishes as it began, whatever values a retry sends. Its steps' keys are kept while it waits (`once`).
+//   a decision (`sugg:<id>:d<k>`, writing nothing else). Until a step is written a new approval may decide again; once one
+//   is, the approval finishes with the decision its steps are bound to, whatever values a retry sends (two reviewers racing
+//   cannot mix two decisions). Its steps' keys are kept while it waits (`once`).
+// - An approval begun whose later step can no longer be written (the fact it cites deleted, the person restricted) is closed
+//   as partly applied by a reviewer (`closePartlyApplied`): marked approved with what was written, its files deleted.
 // - An approval that changed records is finished only by approving again: it cannot be declined or withdrawn (`partial`).
 //   One whose steps' keys are lost while its changes are in the history is refused (`stuck`) rather than written twice.
 // - A correction (a person's facts, an event, a couple) rests on the values it was made against (`basis`), or on those the
@@ -32,9 +36,10 @@
 //     event     the event or couple it corrects is not this person's       reason  the decline reason is too long
 //     files     a file was attached while it was being approved: approve it again
 //     partial   an approval of it has begun: approve it again to finish     stuck  an approval begun but its steps are lost
+//     not_partial  closing as partly applied a suggestion no approval has changed records for: decline or approve it
 import { forbidden, AuthError } from '../auth/errors.ts';
 import { fail } from '../auth/guard.server.ts';
-import { db, media, NOT_A_RECORD, once, q, guard, change, type Db, type OnceOptions, type OpKey } from '../db.server.ts';
+import { db, fingerprintOf, media, NOT_A_RECORD, once, q, guard, change, type Db, type OnceOptions, type OpKey } from '../db.server.ts';
 import { saveEvent, type LifeReader } from '../events.server.ts';
 import type { EventType, Fact } from '../events.ts';
 import { needsMember, type Who } from '../feed/posts.server.ts';
@@ -99,6 +104,8 @@ export interface Applied {
   citations?: string[];
   /** The files' storage keys, as the source lists them. */
   files?: string[];
+  /** Closed as partly applied (`closePartlyApplied`): only what is named here was written. */
+  partial?: true;
 }
 
 export interface ApproveOptions {
@@ -116,7 +123,7 @@ export interface ApproveOptions {
   now?: Date;
 }
 
-/** What an approval decided, kept before its first step (`sugg-<id>-d<k>`): a retry finishes with it. */
+/** What an approval decided, kept before its first step (`sugg:<id>:d<k>`): a retry finishes with it. */
 interface Decision { payload: SuggestionPayload; adjusted: boolean; existing: string | null; title: string }
 
 /** The fixed step numbers of an approval, so a retry finds each step's key whatever else changed. */
@@ -291,15 +298,30 @@ async function approvedPayload(d: Db, who: Who, row: SuggestionRow, adjusted: Su
 }
 
 /** Every step's key of an approval: one of them written means it has begun. */
-const stepKeys = (id: string) => Array.from({ length: STEP.last }, (_, i) => `sugg-${id}-${i + 1}`);
+const stepKeys = (id: string) => Array.from({ length: STEP.last }, (_, i) => `sugg:${id}:${i + 1}`);
 /** The keys' owner: the suggestion, not a reviewer, so any reviewer finishes an approval another began. */
 const keyUser = (id: string) => `suggestion:${id}`;
+const DECIDE = 'decideSuggestion';
 
-/** The latest decision kept for an approval, and its number. */
-async function lastDecision(d: Db, id: string): Promise<{ k: number; decision: Decision } | undefined> {
-  const rows = await d.all<{ key: string; result: string }>('SELECT key, result FROM op WHERE key LIKE ?', `sugg-${id}-d%`);
-  const latest = rows.map((r) => ({ k: Number(r.key.slice(`sugg-${id}-d`.length)), decision: JSON.parse(r.result) as Decision })).sort((a, b) => b.k - a.k)[0];
-  return latest && Number.isInteger(latest.k) ? latest : undefined;
+/** The decisions kept for an approval, by number. */
+async function decisions(d: Db, id: string): Promise<{ k: number; decision: Decision }[]> {
+  const rows = await d.all<{ key: string; result: string }>('SELECT key, result FROM op WHERE key LIKE ? AND user = ? AND fn = ?', `sugg:${id}:d%`, keyUser(id), DECIDE);
+  return rows.map((r) => ({ k: Number(r.key.slice(`sugg:${id}:d`.length)), decision: JSON.parse(r.result) as Decision }))
+    .filter((x) => Number.isInteger(x.k) && x.k > 0).sort((a, b) => b.k - a.k);
+}
+
+/**
+ * The decision an approval's written steps are bound to (each step's key is bound to `{ decision: k }`), or null when no
+ * step is written yet; `stuck` when steps are written but match no kept decision.
+ */
+async function boundDecision(d: Db, id: string, kept: { k: number; decision: Decision }[]): Promise<{ k: number; decision: Decision } | null> {
+  const keys = stepKeys(id);
+  const steps = await d.all<{ fn: string; fingerprint: string | null }>(
+    `SELECT fn, fingerprint FROM op WHERE key IN (${keys.map(() => '?').join(', ')}) AND user = ?`, ...keys, keyUser(id));
+  if (!steps.length) return null;
+  const step = steps[0]!;
+  for (const x of kept) if ((await fingerprintOf(step.fn, { decision: x.k })) === step.fingerprint) return x;
+  throw err('stuck');
 }
 
 /**
@@ -315,14 +337,15 @@ export async function approveSuggestion(
   // Only a source may be about no one, and then it backs nothing.
   const person = row.person ?? '';
   if (row.person) await notRestricted(tree, row.person);
-  const latest = await lastDecision(d, id);
-  const begun = !!(await d.get(`SELECT 1 AS x FROM op WHERE key IN (${stepKeys(id).map(() => '?').join(', ')})`, ...stepKeys(id)));
+  const kept = await decisions(d, id);
+  const latest = kept[0];
+  const bound = await boundDecision(d, id, kept);
   let decision: Decision;
   let k: number;
-  if (begun) {
-    // Begun: it finishes as it began. Values sent now are not used; checking them against records it already changed would refuse them.
-    if (!latest) throw err('stuck');
-    ({ decision, k } = latest);
+  if (bound) {
+    // Begun: it finishes with the decision its steps are bound to. Values sent now are not used; checking them against
+    // records it already changed would refuse them.
+    ({ decision, k } = bound);
   } else {
     // Its changes are in the history but none of its steps is: finishing it could write them twice.
     if (await partlyApproved(d, id)) throw err('stuck');
@@ -336,14 +359,14 @@ export async function approveSuggestion(
     decision = { payload: approved.payload, adjusted: approved.adjusted, existing: options.existing ?? null, title };
     k = latest && same(latest.decision, decision) ? latest.k : (latest?.k ?? 0) + 1;
     if (k !== latest?.k) {
-      const kept = decision;
-      await once(tree, { key: `sugg-${id}-d${k}`, user: keyUser(id), payload: kept }, 'decideSuggestion',
-        () => ({ writes: [], history: NOT_A_RECORD, result: kept }), { suggestion: id });
+      const made = decision;
+      await once(tree, { key: `sugg:${id}:d${k}`, user: keyUser(id), payload: made }, DECIDE,
+        () => ({ writes: [], history: NOT_A_RECORD, result: made }), { suggestion: id });
     }
   }
   if (decision.existing) await notRestricted(tree, decision.existing);
   const files = (await d.get<{ n: number }>('SELECT count(*) AS n FROM suggestion_file WHERE suggestion = ?', id))?.n ?? 0;
-  const opOf = (n: number): OpKey => ({ key: `sugg-${id}-${n}`, user: keyUser(id), payload: { decision: k } });
+  const opOf = (n: number): OpKey => ({ key: `sugg:${id}:${n}`, user: keyUser(id), payload: { decision: k } });
   const c: Ctx = {
     tree, d, row, person, payload: decision.payload, existing: decision.existing ?? undefined,
     seen: options.seen ?? (row.basis ? (JSON.parse(row.basis) as Record<string, unknown>) : {}),
@@ -351,7 +374,9 @@ export async function approveSuggestion(
     opts: { suggestion: id },
     step: async <T>(n: number, run: (op: OpKey) => Promise<T>) => {
       const op = opOf(n);
-      const done = await d.get<{ result: string }>('SELECT result FROM op WHERE key = ?', op.key);
+      const done = await d.get<{ result: string; user: string | null }>('SELECT result, user FROM op WHERE key = ?', op.key);
+      // A key of this approval's that someone else wrote (no request's key can look like one, but a steward's import key could).
+      if (done && done.user !== op.user) throw err('stuck');
       return done ? (JSON.parse(done.result) as T) : run(op);
     },
   };
@@ -431,6 +456,48 @@ function finish(c: Ctx, out: Applied, source: string | undefined, adjusted: bool
       abandon,
     };
   }, c.opts);
+}
+
+// ---------- closing an approval that cannot finish ----------
+
+/**
+ * Closes a waiting suggestion whose approval changed records but cannot finish (a later step keeps being refused: the fact it
+ * cites or the person it names was deleted, or the person was restricted). It is marked approved, `applied` naming what the
+ * history says was written, with `partial`; its pending files are deleted from storage, as a declined suggestion's are. The
+ * records written stay; an editor changes them as any other. A suggestion with nothing written is approved or declined instead.
+ */
+export async function closePartlyApplied(tree: string, who: Who, id: string, now: Date = new Date()): Promise<{ applied: Applied }> {
+  needsReviewer(who);
+  return once(tree, undefined, 'closePartlyApplied', async (d) => {
+    await waiting(d, id);
+    const rows = await d.all<{ kind: string; record: string; action: string }>('SELECT kind, record, action FROM history WHERE suggestion = ? ORDER BY id', id);
+    if (!rows.length) throw err('not_partial');
+    const applied: Applied = { partial: true };
+    for (const r of rows) {
+      if (r.kind === 'person') applied.person ??= r.record;
+      else if (r.kind === 'partnership') applied.partnership ??= r.record;
+      else if (r.kind === 'event') applied.event ??= r.record;
+      else if (r.kind === 'source' && r.action === 'added') applied.source ??= r.record;
+      else if (r.kind === 'citation' && r.action === 'added') (applied.citations ??= []).push(r.record);
+    }
+    const bound = await boundDecision(d, id, await decisions(d, id)).catch(() => null);
+    const keys = (await d.all<{ key: string }>('SELECT key FROM suggestion_file WHERE suggestion = ?', id)).map((r) => r.key);
+    return {
+      writes: [
+        guard("EXISTS (SELECT 1 FROM suggestion WHERE id = ? AND status = 'waiting')", id),
+        guard('(SELECT count(*) FROM history WHERE suggestion = ?) = ?', id, rows.length),
+        guard('(SELECT count(*) FROM suggestion_file WHERE suggestion = ?) = ?', id, keys.length),
+        q('DELETE FROM suggestion_file WHERE suggestion = ?', id),
+        q("UPDATE suggestion SET status = 'approved', adjusted = ?, decided_by = ?, decided_by_name = ?, decided_at = ?, applied = ? WHERE id = ?",
+          bound?.decision.adjusted ? 1 : 0, who.id, who.name, now.toISOString(), JSON.stringify(applied), id),
+      ],
+      history: NOT_A_RECORD,
+      result: { applied },
+      after: async () => {
+        for (const key of keys) await media.delete(tree, key).catch((e) => console.error('suggest.err.delete_failed', key, e));
+      },
+    };
+  });
 }
 
 // ---------- declining ----------

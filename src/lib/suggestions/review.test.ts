@@ -109,12 +109,27 @@ test('old retry keys are pruned, but not the steps of an approval whose suggesti
   const decided = await suggest(t, member(ada), 'details', 'cara', { born: '1923' });
   await db.db(t).run("UPDATE suggestion SET status = 'declined' WHERE id = ?", decided.id);
   const old = new Date(NOW.getTime() - 60 * 86_400_000).toISOString();
-  for (const key of [`sugg-${waits.id}-1`, `sugg-${waits.id}-d1`, `sugg-${decided.id}-1`, 'some-old-key'])
-    await db.db(t).run("INSERT INTO op (key, fn, result, at, user, fingerprint) VALUES (?, 'x', 'null', ?, 'u', 'f')", key, old);
+  const keys: [string, string][] = [
+    [`sugg:${waits.id}:1`, `suggestion:${waits.id}`], [`sugg:${waits.id}:d1`, `suggestion:${waits.id}`],
+    [`sugg:${waits.id}:2`, 'acc-eli'], [`sugg:${decided.id}:1`, `suggestion:${decided.id}`], ['some-old-key', 'acc-eli'],
+  ];
+  for (const [key, user] of keys) await db.db(t).run("INSERT INTO op (key, fn, result, at, user, fingerprint) VALUES (?, 'x', 'null', ?, ?, 'f')", key, old, user);
   const other = await suggest(t, member(ada), 'details', 'dag', { nickname: 'Dee' });
   await R.approveSuggestion(t, fay, other.id);
   const left = (await db.db(t).all<{ key: string }>('SELECT key FROM op WHERE at = ? ORDER BY key', old)).map((r) => r.key);
-  assert.deepEqual(left, [`sugg-${waits.id}-1`, `sugg-${waits.id}-d1`].sort());
+  assert.deepEqual(left, [`sugg:${waits.id}:1`, `sugg:${waits.id}:d1`].sort(), 'only a waiting approval’s own keys stay');
+});
+
+test('a member’s own write with a key like an approval’s step changes nothing of the approval', async () => {
+  const t = await family();
+  asReviewer(fay);
+  const { id } = await suggest(t, member(ada), 'details', 'bo', { born: '1919' });
+  // The closest a request's key may come: no colon is allowed in one.
+  await P.fillGaps(t, 'cara', { occupation: 'Weaver' }, undefined, { key: `sugg-${id}-1`, user: 'acc-eli', payload: {} });
+  await R.approveSuggestion(t, fay, id);
+  assert.equal((await personRow(t, 'bo'))!.born, '1919');
+  assert.equal((await row(t, id))!.status, 'approved');
+  assert.equal(await count(t, 'history', `suggestion = '${id}'`), 1);
 });
 
 // ---------- who ----------
@@ -484,6 +499,49 @@ test('an adjusted correction that fails at a later step finishes on retry with t
   assert.equal(await count(t, 'source_file'), 2);
 });
 
+test('two reviewers deciding at once: a retry finishes with the decision the written steps are bound to', async () => {
+  const t = await family();
+  asReviewer(fay);
+  const { id } = await suggest(t, member(ada), 'details', 'bo', { born: '1919' });
+  await S.addSuggestionFile(t, member(ada), id, file('image/png', PNG()), NOW);
+  await db.db(t).run("CREATE TRIGGER no_sources BEFORE INSERT ON source BEGIN SELECT RAISE(ABORT, 'test: no sources'); END");
+  // Fay decides (d1) and writes the first step; meanwhile Gus decided otherwise (d2) and wrote nothing.
+  await refusal(R.approveSuggestion(t, fay, id, { born: '1918' }, { sourceTitle: 'Fay’s files' }));
+  const gus2 = { payload: { born: '1917' }, adjusted: true, existing: null, title: 'Gus’s files' };
+  await db.once(t, { key: `sugg:${id}:d2`, user: `suggestion:${id}`, payload: gus2 }, 'decideSuggestion', () => ({ writes: [], history: 'not-a-record' as const, result: gus2 }));
+  await db.db(t).run('DROP TRIGGER no_sources');
+  const r = await R.approveSuggestion(t, gus, id);
+  assert.equal((await personRow(t, 'bo'))!.born, '1918');
+  assert.equal((await db.db(t).get<{ title: string }>('SELECT title FROM source WHERE id = ?', r.applied.source!))?.title, 'Fay’s files');
+});
+
+test('an approval that cannot finish is closed as partly applied: what was written stays, the files go', async () => {
+  const t = await family();
+  asReviewer(fay);
+  const { id } = await suggest(t, member(ada), 'relative', 'bo', { person: { given: 'Eve', born: '1952', living: false }, link: { kind: 'child' } });
+  await S.addSuggestionFile(t, member(ada), id, file('image/png', PNG()), NOW);
+  const other = await suggest(t, member(ada), 'details', 'bo', { born: '1919' });
+  assert.equal(await refusal(R.closePartlyApplied(t, fay, other.id)), 'suggest.err.not_partial', 'nothing written: approve or decline it');
+  // The files' source can never be written here (say, the reviewer's own step keeps failing).
+  await db.db(t).run("CREATE TRIGGER no_sources BEFORE INSERT ON source BEGIN SELECT RAISE(ABORT, 'test: no sources'); END");
+  await refusal(R.approveSuggestion(t, fay, id));
+  await refusal(R.approveSuggestion(t, fay, id));
+  assert.equal(await refusal(R.declineSuggestion(t, fay, id)), 'suggest.err.partial');
+  for (const w of [ada, eli]) assert.ok((await refusal(R.closePartlyApplied(t, w, id))).length);
+  const people = await count(t, 'person');
+  const { applied } = await R.closePartlyApplied(t, fay, id, LATER);
+  assert.equal(applied.partial, true);
+  assert.equal((await personRow(t, applied.person!))!.given, 'Eve');
+  const s = (await row(t, id))!;
+  assert.deepEqual([s.status, s.decided_by, s.decided_at], ['approved', 'acc-fay', LATER.toISOString()]);
+  assert.deepEqual(JSON.parse(s.applied as string), applied);
+  assert.equal(await count(t, 'person'), people, 'what was written stays');
+  assert.equal(await count(t, 'suggestion_file'), 0);
+  assert.deepEqual(await stored(t, 'suggest/'), [], 'its files are deleted from storage');
+  assert.equal(await refusal(R.approveSuggestion(t, fay, id)), 'suggest.err.state');
+  assert.equal(await refusal(R.closePartlyApplied(t, fay, id)), 'suggest.err.state');
+});
+
 test('an approval begun whose steps are lost is refused rather than written twice', async () => {
   const t = await family();
   asReviewer(fay);
@@ -492,7 +550,7 @@ test('an approval begun whose steps are lost is refused rather than written twic
   await db.db(t).run("CREATE TRIGGER no_sources BEFORE INSERT ON source BEGIN SELECT RAISE(ABORT, 'test: no sources'); END");
   await refusal(R.approveSuggestion(t, fay, id));
   await db.db(t).run('DROP TRIGGER no_sources');
-  await db.db(t).run("DELETE FROM op WHERE key LIKE 'sugg-%'");
+  await db.db(t).run("DELETE FROM op WHERE key LIKE 'sugg:%'");
   const before = await records(t);
   assert.equal(await refusal(R.approveSuggestion(t, fay, id)), 'suggest.err.stuck');
   assert.deepEqual(await records(t), before);

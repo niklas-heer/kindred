@@ -645,13 +645,14 @@ These rules keep the data consistent without interactive transactions, which D1 
   (`FAMILY_VOTE`): Kindred itself, under a name the history shows as the family's vote, whoever's request ran it. A change
   that applies an approved suggestion passes `once` its `suggestion`: its history rows carry the id in `history.suggestion`
   (and fold only into rows of the same suggestion), and its batch first guards that the suggestion is still waiting.
-  An approval runs as steps (`src/lib/suggestions/review.server.ts`), each with the retry key `sugg-<id>-<n>`, so approving
+  An approval runs as steps (`src/lib/suggestions/review.server.ts`), each with the retry key `sugg:<id>:<n>` (owned by `suggestion:<id>`), so approving
   again after a failed step replays what was written; the last step moves the files and marks the suggestion approved.
-  What it approves is kept first under `sugg-<id>-d<k>`, so a retry finishes with the values it began with, and a suggestion
-  whose approval changed records can then only be approved again, not declined or withdrawn.
+  What it approves is kept first under `sugg:<id>:d<k>`, so a retry finishes with the values its steps are bound to, and a
+  suggestion whose approval changed records can then only be approved again, not declined or withdrawn, or closed as partly
+  applied by a reviewer when a later step can no longer be written.
 - **Retry keys make a resend safe.** A change sent with an `opKey` stores its result in `op` in the same batch. The same
   key sent again, by the same person with the same change, returns the stored result instead of writing twice. A key
-  reused for something else is refused. Rows older than 30 days are pruned, except an approval's (`sugg-…`) while its
+  reused for something else is refused. Rows older than 30 days are pruned, except an approval's (`sugg:…`) while its
   suggestion still waits.
 - **Constraints back the same rules.** Primary keys, foreign keys and `CHECK`s hold in the database itself, so a bug in
   the application cannot store, for example, a parent link to a person who does not exist.
