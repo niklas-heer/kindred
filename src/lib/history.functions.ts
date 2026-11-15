@@ -54,7 +54,9 @@ export const getWhatsNew = createServerFn({ method: 'GET' })
     await h.noteVisit(r.user.id, data.tree, now).catch(() => {});
     const visit = await h.visitOf(r.user.id, data.tree);
     // A first visit says so throughout, also after the news was shown once (a reload, the History page).
-    const news = await h.whatsNew(db(data.tree), audienceOf(r), h.newsSince(visit, now), !visit || visit.visits === 1);
+    // An arms vote that is news is named by its question in the reader's language.
+    const { locale } = await (await import('./i18n/request.server')).localeOfRequest();
+    const news = await h.whatsNew(db(data.tree), audienceOf(r), h.newsSince(visit, now), !visit || visit.visits === 1, locale);
     await h.markShown(r.user.id, data.tree, now).catch(() => {});
     return news;
   });

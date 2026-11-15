@@ -16,7 +16,9 @@
 // editors and stewards, `personal` for its owner alone. A Personal field's row is personal and never carries its content.
 // Private research is `editors`. A value only editors may read inside a family row (a source's link to a private document)
 // is held back from everyone else. A share-link guest reads no history at all.
+import { HOUSE_NAME_OF, questionIn } from './arms-proposals/vote-text.ts';
 import { accounts } from './auth/store.server.ts';
+import type { Locale } from './i18n/dictionary.ts';
 import { readOnly } from './read-only.ts';
 import { can } from './roles.ts';
 import { guard, q, type Db, type Query } from './store/index.ts';
@@ -380,8 +382,9 @@ const NEWS_ROWS = 1000;
  * What changed since `since` that this reader may see, made by someone else, grouped by the person it is about (the family
  * as a whole last), each group's lines one per author, kind and action. Plus who wrote to the family (posts are not in the
  * history, and are news all the same), and comments and reactions on what the reader wrote, when the family has them.
+ * `locale` is the reader's language, for an arms vote's question.
  */
-export async function whatsNew(d: Db, a: Audience, since: number, first = false): Promise<WhatsNew> {
+export async function whatsNew(d: Db, a: Audience, since: number, first = false, locale: Locale = 'en'): Promise<WhatsNew> {
   const vis = historyVisibleTo(a);
   const empty: WhatsNew = { since: iso(since), first, groups: [], replies: [], posts: [], total: 0 };
   if (vis.sql === '0') return empty;
@@ -412,7 +415,7 @@ export async function whatsNew(d: Db, a: Audience, since: number, first = false)
   return {
     ...empty,
     groups: ordered.map(({ person, name, lines }) => ({ person, name, lines })),
-    replies: a.account ? await repliesTo(d, a.account, since) : [],
+    replies: a.account ? await repliesTo(d, a.account, since, locale) : [],
     posts,
     total: rows.length + posts.reduce((n, p) => n + p.count, 0),
   };
@@ -421,9 +424,10 @@ export async function whatsNew(d: Db, a: Audience, since: number, first = false)
 /**
  * Comments and reactions since `since` on what this account wrote: the stories it added (by its history rows, or by its
  * name for stories older than history), the photos it uploaded, its posts in the feed and the votes it started. A reader's own comments and
- * reactions are not news to them. `created_at` is ISO text in both tables (tree migration 0027).
+ * reactions are not news to them. `created_at` is ISO text in both tables (tree migration 0027). A vote is named by its
+ * question, an arms vote's in the reader's language (`locale`).
  */
-export async function repliesTo(d: Db, account: string, since: number): Promise<WhatsNewReply[]> {
+export async function repliesTo(d: Db, account: string, since: number, locale: Locale = 'en'): Promise<WhatsNewReply[]> {
   const mine = `((x.target_kind = 'media' AND x.target IN (SELECT key FROM media WHERE uploaded_by = ?))
     OR (x.target_kind = 'post' AND x.target IN (SELECT id FROM post WHERE account = ?))
     OR (x.target_kind = 'vote' AND x.target IN (SELECT id FROM vote WHERE account = ?))
@@ -456,12 +460,13 @@ export async function repliesTo(d: Db, account: string, since: number): Promise<
     q(`SELECT key AS id, coalesce(caption, '') AS label FROM media WHERE key IN (${marks(photos) || "''"})`, ...photos),
     // A post has no title: its first words say which one it is.
     q(`SELECT id, CASE WHEN length(body) > 60 THEN substr(body, 1, 60) || '…' ELSE body END AS label FROM post WHERE id IN (${marks(posts) || "''"})`, ...posts),
-    q(`SELECT id, question AS label FROM vote WHERE id IN (${marks(votes) || "''"})`, ...votes),
+    q(`SELECT v.id AS id, v.question AS question, v.subject_kind AS subject_kind, ${HOUSE_NAME_OF('v')} AS house_name FROM vote v WHERE v.id IN (${marks(votes) || "''"})`, ...votes),
   ]);
   const byStory = new Map((storyRows as { id: string; person: string; label: string }[]).map((r) => [r.id, r]));
   const byPhoto = new Map((photoRows as { id: string; label: string }[]).map((r) => [r.id, r]));
   const byPost = new Map((postRows as { id: string; label: string }[]).map((r) => [r.id, r]));
-  const byVote = new Map((voteRows as { id: string; label: string }[]).map((r) => [r.id, r]));
+  type VoteLabelRow = { id: string; question: string; subject_kind: string | null; house_name: string | null };
+  const byVote = new Map((voteRows as VoteLabelRow[]).map((r) => [r.id, { id: r.id, label: questionIn(locale, r) }]));
   const found = (r: WhatsNewReply) => (r.target === 'story' ? byStory.get(r.id) : r.target === 'media' ? byPhoto.get(r.id) : r.target === 'vote' ? byVote.get(r.id) : byPost.get(r.id));
   for (const r of out) {
     r.label = found(r)?.label.replace(/\s+/g, ' ').trim() || null;

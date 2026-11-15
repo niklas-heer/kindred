@@ -2,7 +2,7 @@
 // proposals read (and their read settles nothing), and in an arms vote only each option's id, label and shield; a member
 // reads the open proposals with their shield, name, note, proposer and date, and their own in any state; a steward also
 // what they may do and how many wait for each house. An arms vote's question and "keep" option are in the reader's language
-// (the votes reads and the feed) and in each device's (the pushes). Invented people only.
+// (the votes reads, the feed and "What's new") and in each device's (the pushes). Invented people only.
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -25,6 +25,8 @@ const V = await load<typeof import('../votes/votes.server.ts')>('/src/lib/votes/
 const P = await load<typeof import('./proposals.server.ts')>('/src/lib/arms-proposals/proposals.server.ts');
 const S = await load<typeof import('./settle.server.ts')>('/src/lib/arms-proposals/settle.server.ts');
 const F = await load<typeof import('../feed/feed.server.ts')>('/src/lib/feed/feed.server.ts');
+const H = await load<typeof import('../history.server.ts')>('/src/lib/history.server.ts');
+const R = await load<typeof import('../responses.server.ts')>('/src/lib/responses.server.ts');
 const Push = await load<typeof import('../votes/vote-push.server.ts')>('/src/lib/votes/vote-push.server.ts');
 const store = await load<typeof import('../auth/store.server.ts')>('/src/lib/auth/store.server.ts');
 const { b64url, fromB64url } = await load<typeof import('../webpush.ts')>('/src/lib/webpush.ts');
@@ -249,6 +251,15 @@ test('an arms vote\'s question and Keep are in the reader\'s language, with the 
   ]);
   const result = entries.find((i) => i.type === 'vote_result');
   assert.deepEqual(result && 'winners' in result ? result.winners : null, ['Unser jetziges Wappen behalten']);
+});
+
+test('a reply on an arms vote is news to its starter under the question in their language', async () => {
+  const { t, vote } = await stagAndEagle();
+  const since = Date.now() - 60_000;
+  await R.addComment(t, bo, 'vote', vote, 'The stag, surely!');
+  const news = await H.whatsNew(db.db(t), { account: ada.id, role: 'contributor', guest: false }, since, false, 'de');
+  assert.deepEqual(news.replies.map((r) => [r.kind, r.target, r.label]), [['comment', 'vote', 'Welches Wappen soll das Haus Birch führen?']]);
+  assert.deepEqual((await H.repliesTo(db.db(t), ada.id, since)).map((r) => r.label), ['Which arms should House Birch bear?'], 'English by default');
 });
 
 // ---------- pushes ----------
