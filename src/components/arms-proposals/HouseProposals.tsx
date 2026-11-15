@@ -86,12 +86,13 @@ function Card({ tree, house, steward, p, onNotice }: { tree: string; house: Hous
 
   const withdraw = useMutation({
     mutationFn: () => withdrawProposalFn({ data: { tree, id: p.id, opKey: keys.for('withdraw', p.id) } }),
-    onSuccess: async () => { setAsking(null); await refresh(); },
+    onSuccess: async () => { keys.clear('withdraw'); setAsking(null); await refresh(); },
   });
   const accept = useMutation({
     // The house as this page shows it: an Accept over someone else's newer change is refused.
     mutationFn: () => acceptProposalFn({ data: { tree, id: p.id, opKey: keys.for('accept', p.id), before: { name: house.name, motto: house.motto ?? null, arms: house.arms } } }),
     onSuccess: async () => {
+      keys.clear('accept');
       setAsking(null);
       await Promise.all([refresh(), qc.invalidateQueries({ queryKey: myFamiliesQuery.queryKey })]);
       toast({ title: t('arms.state.accepted'), body: t('arms.accepted', { house: house.name }), icon: 'crown' });
@@ -102,11 +103,13 @@ function Card({ tree, house, steward, p, onNotice }: { tree: string; house: Hous
       const data = { tree, id: p.id, reason: reason.trim() || undefined };
       return declineProposalFn({ data: { ...data, opKey: keys.for('decline', data) } });
     },
-    onSuccess: async () => { setAsking(null); await refresh(); },
+    onSuccess: async () => { keys.clear('decline'); setAsking(null); await refresh(); },
   });
   const vote = useMutation({
     mutationFn: () => putToVoteFn({ data: { tree, id: p.id, opKey: keys.for('vote', p.id) } }),
-    onSuccess: async (r) => { onNotice(r.vote); await refresh(); },
+    // A retry key is for one attempt: once it went through, the same proposal put to a vote again (back from a removed
+    // vote) is a new change, not a replay of this one.
+    onSuccess: async (r) => { keys.clear('vote'); onNotice(r.vote); await refresh(); },
   });
   const busy = withdraw.isPending || accept.isPending || decline.isPending || vote.isPending;
   const failed = vote.isError ? vote.error : null;
