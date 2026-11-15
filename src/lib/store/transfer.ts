@@ -60,6 +60,12 @@ export const COPIED_TABLES: readonly string[] = [
   // Arms proposals (migration 0038): a member's proposal for a house's arms, with the name it was written under; the account id
   // is copied but names nobody on the target. The proposals' links from vote_option travel with that table's new columns.
   'arms_proposal',
+  // Suggestions from the family (migration 0039): what members and guests suggested, with the name it was written under;
+  // the account ids are copied but name nobody on the target. Their files are keys in media storage (suggestion/), copied
+  // as the pictures are. `source_file` lists a source's files, after source.
+  'suggestion',
+  'suggestion_file',
+  'source_file',
 ];
 
 /**

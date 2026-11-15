@@ -1,0 +1,84 @@
+// What a suggestion is, as the browser and the server both read it. Browser-safe: type-only imports, no Node or Worker APIs.
+export const SUGGESTION_KINDS = ['details', 'relative', 'event', 'source'] as const;
+export type SuggestionKind = (typeof SUGGESTION_KINDS)[number];
+
+export const SUGGESTION_STATUSES = ['waiting', 'approved', 'declined', 'expired', 'withdrawn'] as const;
+export type SuggestionStatus = (typeof SUGGESTION_STATUSES)[number];
+
+/** The facts of a person a suggestion may change. */
+export type DetailsPayload = Partial<{
+  given: string;
+  surname: string;
+  birthName: string;
+  nickname: string;
+  title: string;
+  sex: string;
+  living: boolean;
+  born: string;
+  bornPlace: string;
+  died: string;
+  diedPlace: string;
+}>;
+
+/** A person to add, as the add-relative form writes one (the shape `addRelative` in src/lib/api.ts validates). */
+export interface NewPerson {
+  given: string;
+  furtherGiven?: string[];
+  surname?: string;
+  sex?: 'm' | 'f' | 'x';
+  born?: string;
+  died?: string;
+  living: boolean;
+}
+
+/** A relative the tree misses, and how they are linked to the person the suggestion is about. */
+export interface RelativePayload {
+  person: NewPerson;
+  link: { kind: 'parent' | 'child' | 'partner' | 'sibling'; parentKind?: string; partnerKind?: string };
+}
+
+/** A life event to add, or (with `event`, the event's id) to correct; `partnership` and the `start` fields suggest a union. */
+export interface EventPayload {
+  event?: string;
+  kind?: string;
+  date?: string;
+  place?: string;
+  note?: string;
+  partnership?: string;
+  partnershipKind?: string;
+  start?: string;
+  startPlace?: string;
+}
+
+/** A source to add, and optionally the fact it backs. */
+export interface SourcePayload {
+  title: string;
+  author?: string;
+  publication?: string;
+  reference?: string;
+  date?: string;
+  note?: string;
+  transcription?: string;
+  backs?: { fact: string; event?: string };
+}
+
+export type SuggestionPayload = DetailsPayload | RelativePayload | EventPayload | SourcePayload;
+
+/** One suggestion as a reader sees it. */
+export interface SuggestionView {
+  id: string;
+  kind: SuggestionKind;
+  person: string | null;
+  payload: SuggestionPayload;
+  basis: string | null;
+  note: string;
+  status: SuggestionStatus;
+  adjusted: boolean;
+  reason: string | null;
+  author: { name: string; person: string | null; guest: boolean };
+  createdAt: string;
+  decidedAt: string | null;
+  files: { id: string; name: string; mime: string; size: number }[];
+  mine: boolean;
+  may: { withdraw: boolean; approve: boolean; decline: boolean };
+}

@@ -9,9 +9,9 @@ Each person has one role in each family they belong to. Roles are cumulative: ea
 
 | Role | Can do |
 | --- | --- |
-| **Viewer** | Browse the tree, the Atlas, the Almanac, the Chronicle, the gallery, the houses and the research, read the family's feed and everyone's public details, react to messages, memories, photos and the events of the feed, and vote. |
+| **Viewer** | Browse the tree, the Atlas, the Almanac, the Chronicle, the gallery, the houses and the research, read the family's feed and everyone's public details, react to messages, memories, photos and the events of the feed, vote, and suggest a change to a person's facts, a missing relative, a life event or a source. |
 | **Contributor** | Viewer, plus write messages to the family, start votes, propose arms for a house, add memories, sayings, recipes and photos, comment on messages, memories and photos, and add research projects, documents, notes and links, and change their own. |
-| **Editor** | Contributor, plus add and edit people, parent and partner links, places and contacts, and remove people. Editors can also export the family, change or remove anyone's research, mark research private, remove anyone's comment, and close or remove anyone's vote. |
+| **Editor** | Contributor, plus add and edit people, parent and partner links, places and contacts, and remove people. Editors can also export the family, change or remove anyone's research, mark research private, remove anyone's comment, close or remove anyone's vote, and approve or decline suggestions. |
 | **Steward** | Editor, plus edit houses and their arms, delete albums, manage AI settings and who has access (invite, change roles, remove), import a GEDCOM file, and strike a guest's ballot from a vote. |
 
 The source of truth is `src/lib/roles.ts`. Each action has the lowest role that may do it, and the same table decides
@@ -44,6 +44,8 @@ both what the browser shows and what the server allows.
 | Strike or restore a guest's ballot while the vote is open (`strike-voter`) | Steward |
 | Accept, decline or put a proposal to a vote; change how proposals are settled; close early, reschedule or remove a house's arms vote (`edit-house`) | Steward |
 | Propose arms for a house; withdraw your own (`propose-arms`) | Contributor |
+| Suggest a change to a person's facts, a missing relative, a life event or a source (`suggest`) | Viewer |
+| Approve or decline suggestions (`review-suggestions`) | Editor |
 | Remove your own comment | Any member |
 | Remove anyone's comment (`remove-comment`) | Editor |
 | Turn the Campaign on or off | Steward |

@@ -124,6 +124,9 @@ to Lindby', '${now}', NULL);
     INSERT INTO ballot (vote, voter, choices) VALUES ('vt1', 'vv1', '["vo1"]');
     INSERT INTO vote_reminded (vote, account) VALUES ('vt1', 'u1');
     INSERT INTO arms_proposal (id, house, account, author_name, name, note, arms, status, created_at) VALUES ('ap1', 'h1', 'u1', 'Ben', 'Silver tower', 'A tower', '{"field":"azure"}', 'waiting', '${now}');
+    INSERT INTO suggestion (id, kind, person, payload, basis, note, status, account, author_name, created_at) VALUES ('sg1', 'details', 'ada', '{"born":"1850"}', 'the family bible', 'It''s in the bible', 'waiting', 'u1', 'Ben', '${now}');
+    INSERT INTO suggestion_file (id, suggestion, key, mime, size, name, created_at) VALUES ('sf1', 'sg1', 'suggestion/sf1.jpg', 'image/jpeg', 1200, 'bible.jpg', '${now}');
+    INSERT INTO source_file (source, media_key, mime, name, ord, added_at) VALUES ('so1', 'source/so1-1.jpg', 'image/jpeg', 'page.jpg', 0, '${now}');
   `);
   return d;
 }
