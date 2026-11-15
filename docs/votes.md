@@ -30,8 +30,8 @@ Chosen when the vote is started, and it cannot be changed after the first ballot
 mean Kindred's server cannot: the server stores the ballots in order to count them. A ballot is stored under a key made
 from the vote, the voter and a secret that is held by the server and kept out of the family's database. So the database and
 a steward's backup list *who* voted and *what was chosen*, but never which is whose. The operator, who has both the
-database and the server's secret, could still link them. After a move to a server with another secret, the ballots of a
-secret vote still count, but their voters can no longer change them.
+database and the server's secret, could still link them. A move to another server changes more than that; see
+[Moving to another server](#moving-to-another-server).
 
 ## Adding options
 
@@ -100,6 +100,23 @@ from a ballot. A demo and a steward's *View as* send nothing.
 - A member who **deletes their account** ([gdpr.md](gdpr.md)) keeps their votes, the options they added and their ballots, which
   still count, all shown as by "A former member" under the deletion's pseudonym; nothing in the votes keeps their account id
   or name.
+
+## Moving to another server
+
+A family's votes travel with its database (the D1 transfer, a backup restored elsewhere), but two things they rely on stay
+with the old server: its secret (`KINDRED_SECRET`) and its accounts. On the new server:
+
+- **A secret vote's ballots still count, but their voters can no longer change them**: each is stored under a key made with
+  the old secret, so the new server cannot find a voter's own ballot.
+- **A struck guest counts again in a closed secret vote**: the count leaves a struck ballot out by recomputing its key, which
+  needs the old secret. The result of such a vote can change after the move. An open vote's struck guests stay out, since
+  their ballots are stored under the guest key itself.
+- **Members can vote again in a vote that is still open**: the voter list names the old server's account ids, and members
+  have new ones on the new server, so each counts as someone who has not voted, and a second ballot is added beside the
+  first. A guest who opens the family at a new address has no voter cookie there, and counts as a new guest too.
+
+So close the votes before moving a family, or accept that the ones still open may count some people twice. Nothing of this
+is detected or repaired by the move.
 
 The tables are in [data-model.md](data-model.md) (migration `tree/0037_votes.sql`; `accounts/0060_vote_push.sql` adds the
 push switch), who may do what in [roles-and-privacy.md](roles-and-privacy.md).
