@@ -55,7 +55,7 @@ import { countVote } from './count';
 import { voterKey } from './voter-key.server';
 import {
   GUEST_VOTERS_PER_LINK, GUEST_VOTERS_PER_NETWORK, MAX_CLOSE_DAYS, MAX_DESCRIPTION, MAX_GUEST_NAME, MAX_OPTION, MAX_OPTIONS,
-  MAX_QUESTION, MAX_VOTES_AN_HOUR, MIN_CLOSE_MS, MIN_OPTIONS, type VoteKind, type VoteResult, type VoteSummary, type VoteView,
+  MAX_QUESTION, MAX_VOTES_AN_HOUR, MIN_CLOSE_MS, MIN_OPTIONS, type VoteKind, type VoteResult, type VotesPage, type VoteSummary, type VoteView,
 } from './types';
 
 /** What a vote is started with, or changed to. `closesAt` is an ISO time. */
@@ -511,8 +511,9 @@ async function closeOnRead(tree: string, r: Reading, ids: readonly string[], at:
  * Settles the family's closed arms votes and starts the next ones for this reader's read (arms-proposals/settle.server.ts,
  * loaded when needed: it imports this module): a guest's settles nothing. It skips a demo and a preview itself, and never throws.
  */
-const settle = async (tree: string, reader: { guest?: boolean }, now: Date) => {
-  await (await import('../arms-proposals/settle.server')).settleForReader(tree, reader, now);
+const settle = async (tree: string, reader: { guest?: boolean }, now: Date): Promise<boolean> => {
+  const done = await (await import('../arms-proposals/settle.server')).settleForReader(tree, reader, now);
+  return done.settled + done.started > 0;
 };
 
 /**
@@ -521,6 +522,14 @@ const settle = async (tree: string, reader: { guest?: boolean }, now: Date) => {
  * reader's language, for an arms vote's question and Keep.
  */
 export async function listVotes(tree: string, reader: Reader, guestKey?: string, now: Date = new Date(), locale: Locale = 'en'): Promise<VoteSummary[]> {
+  return (await votesPage(tree, reader, guestKey, now, locale)).votes;
+}
+
+/**
+ * The votes list as its page reads it (`listVotes`), and whether this read settled an arms vote or started one
+ * (`settled`): the page then reads the house's arms, the votes and the proposals again.
+ */
+export async function votesPage(tree: string, reader: Reader, guestKey?: string, now: Date = new Date(), locale: Locale = 'en'): Promise<VotesPage> {
   const r = readingOf(reader, guestKey);
   const at = now.toISOString();
   const only = r.guest ? ' AND v.guests = 1' : '';
@@ -536,11 +545,11 @@ export async function listVotes(tree: string, reader: Reader, guestKey?: string,
   ])) as unknown as [ReadRow[], ReadRow[], WinnerOptionRow[], BallotRow[], VoterRow[]];
   await closeOnRead(tree, r, closed.filter((v) => !v.closed_at).map((v) => v.id), at);
   // A member's read also settles the arms votes that closed (a guest's never): the house takes the arms a vote chose.
-  await settle(tree, r, now);
+  const settled = await settle(tree, r, now);
   const authors = r.guest ? new Map<string, { person: string | null }>() : await standingFor(tree, [...open, ...closed].map((v) => v.account));
   const [options, ballots, struck] = [groupBy(optionRows), groupBy(ballotRows), groupBy(struckRows)];
   const winners = await Promise.all(closed.map((v) => winnerLabels(v, labelled(locale, v, options.get(v.id) ?? []), ballots.get(v.id) ?? [], struck.get(v.id) ?? [])));
-  return [...open.map((v) => summaryOf(v, r, authors, at, null, locale)), ...closed.map((v, i) => summaryOf(v, r, authors, at, winners[i], locale))];
+  return { votes: [...open.map((v) => summaryOf(v, r, authors, at, null, locale)), ...closed.map((v, i) => summaryOf(v, r, authors, at, winners[i], locale))], settled };
 }
 
 /**
@@ -562,7 +571,7 @@ export async function voteView(tree: string, reader: Reader, id: string, guestKe
   const options = labelled(locale, v, read);
   const open = isOpen(v, at);
   if (!open && !v.closed_at) await closeOnRead(tree, r, [id], at);
-  if (!open && isArmsVote(v)) await settle(tree, r, now);
+  const settled = !open && isArmsVote(v) ? await settle(tree, r, now) : false;
   const secret = !!v.secret;
   // The reader's own ballot, by the key it is stored under.
   const ownKey = r.voterId ? await voterKey(id, secret, r.voterId) : null;
@@ -611,5 +620,6 @@ export async function voteView(tree: string, reader: Reader, id: string, guestKe
     ballots: ballotList,
     result,
     may,
+    settled,
   };
 }

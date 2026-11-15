@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Plus, Vote } from 'lucide-react';
 import { useState } from 'react';
+import { useSettledRefresh } from '~/components/arms-proposals/settled';
 import { VoteComposer } from '~/components/votes/VoteComposer';
 import { VoteList } from '~/components/votes/VoteList';
 import '~/components/votes/votes.css';
@@ -29,7 +30,9 @@ function VotesPage() {
   const canStart = useCan('start-vote') && member;
   const q = useQuery(votesQuery(tree));
   const [starting, setStarting] = useState(false);
-  const votes = q.data ?? [];
+  const votes = q.data?.votes ?? [];
+  // The read settled an arms vote: the house it chose for, and its proposals, are read again.
+  useSettledRefresh(tree, q.data?.settled, q.dataUpdatedAt);
 
   const startButton = canStart ? (
     <button type="button" className="btn primary" onClick={() => setStarting(true)}><Plus size={16} aria-hidden /> {t('votes.new')}</button>

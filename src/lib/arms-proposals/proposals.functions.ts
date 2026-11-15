@@ -51,7 +51,7 @@ async function announce(t: string, me: Awaited<ReturnType<typeof who>>, result: 
 
 export const getHouseProposals = createServerFn({ method: 'GET' })
   .validator(z.object({ tree, house }))
-  .handler(async ({ data }): Promise<{ proposals: ProposalView[]; mode: ArmsMode }> => {
+  .handler(async ({ data }): Promise<{ proposals: ProposalView[]; mode: ArmsMode; settled: boolean }> => {
     const me = await who(data.tree);
     return (await proposals()).houseProposals(data.tree, me, data.house);
   });

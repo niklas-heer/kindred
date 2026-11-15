@@ -93,7 +93,7 @@ test('a signed-out request is refused on every read and write', async () => {
 
 test('a guest may read but not start, change, close, remove, add an option or strike', async () => {
   asGuest();
-  assert.equal((await fns.getVotes({ data: { tree: TREE } })).length, 1);
+  assert.equal((await fns.getVotes({ data: { tree: TREE } })).votes.length, 1);
   for (const call of [fns.startVote, fns.changeVote, fns.endVote, fns.deleteVote, fns.addVoteOption, fns.strikeVoter]) {
     await assert.rejects((call as (o: { data: never }) => Promise<unknown>)({ data: { tree: TREE, id: open.id, vote: {}, label: 'x', voter: 'x', struck: true } as never }), status(401));
   }
@@ -122,7 +122,7 @@ test('a guest of a suspended family reads, but a ballot is refused, writes nothi
   await run("UPDATE family_admin SET status = 'suspended' WHERE tree = ?", TREE);
   try {
     asGuest();
-    assert.equal((await fns.getVotes({ data: { tree: TREE } })).length, 1, 'reads still work');
+    assert.equal((await fns.getVotes({ data: { tree: TREE } })).votes.length, 1, 'reads still work');
     await assert.rejects(fns.castVote({ data: { tree: TREE, id: open.id, choices: [open.options[0]], name: 'Dee' } }), (e: Error & { status?: number }) => e.status === 403 && /suspended/.test(e.message));
     assert.deepEqual(g.__setCookies, []);
     assert.equal((await fns.getVote({ data: { tree: TREE, id: open.id } }))!.voterCount, 1, 'no ballot was written');

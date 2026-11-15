@@ -4,7 +4,10 @@
 // designer cannot change the arms. Both members rank the shields; a guest of a share link sees the shields and their
 // names, never who proposed them, and no proposals on the house's page. The steward closes the vote, and the house bears
 // the new arms. In steward mode, set on the Houses page, the Houses page counts the waiting proposal and the steward
-// accepts it directly, after confirming it.
+// accepts it directly, after confirming it. Back in choose mode, a vote nobody closes ends by itself (its time passes), and
+// the next read settles it: the votes and the house's page show the chosen arms without a reload.
+import { DatabaseSync } from 'node:sqlite';
+import { join } from 'node:path';
 import { addPasskeyDevice, checkAxe, expect, openFamily, settled, test, type Issues } from './fixtures.ts';
 import type { Browser, Page } from '@playwright/test';
 
@@ -213,4 +216,41 @@ test('arms proposals: a contributor proposes, the family votes, the steward acce
   await expect(accepting).toBeHidden();
   await expect(list.getByText('Accepted')).toBeVisible();
   expect(await armsNow(page, house)).toBe(lone);
+
+  // ---------- a vote that closes by itself: the pages show its outcome without a reload ----------
+  await page.goto(`/${tree}/houses`);
+  await settled(page);
+  await setting.getByRole('radio', { name: 'A steward chooses each time' }).check();
+  await expect(setting.getByRole('status')).toHaveText('Saved');
+  const twin = await propose(page, house, 'The twin stars', 'Two stars, two branches.');
+  await list.getByRole('button', { name: 'Put to a vote' }).click();
+  await expect(list.getByText('In the vote')).toBeVisible();
+  await list.getByRole('link', { name: 'Open the vote' }).first().click();
+  await page.waitForURL(new RegExp(`/${tree}/votes/[0-9a-f-]{36}$`));
+  await settled(page);
+  const expiring = new URL(page.url()).pathname.split('/').pop()!;
+  await page.getByRole('group', { name: 'Tap the options in the order you prefer them' }).getByRole('button', { name: 'The twin stars', exact: true }).click();
+  await page.getByRole('button', { name: 'Vote', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Your vote is in.' })).toBeVisible();
+  // Its seven days pass: nobody closes it, and the next read settles it.
+  const d = new DatabaseSync(join(process.env.KINDRED_E2E_DATA!, `${tree}.db`));
+  d.exec('PRAGMA busy_timeout = 5000');
+  d.prepare('UPDATE vote SET closes_at = ? WHERE id = ?').run(new Date(Date.now() - 60_000).toISOString(), expiring);
+  d.close();
+  await page.getByRole('link', { name: 'All votes' }).click();
+  await expect(page.getByText('Chosen: The twin stars')).toBeVisible();
+  // Back on the house's page, still without a reload: it bears the chosen arms, and the proposal is accepted.
+  const sections = page.getByRole('navigation', { name: 'Sections' }).first();
+  await sections.getByRole('button', { name: /^More/ }).click();
+  await sections.getByRole('list', { name: 'More sections' }).getByRole('link', { name: /^Houses/ }).click();
+  await page.waitForURL(new RegExp(`/${tree}/houses$`));
+  await page.getByRole('link', { name: /Starling/ }).first().click();
+  await page.waitForURL((u) => u.pathname === house);
+  await settled(page);
+  await page.getByRole('button', { name: 'Edit arms' }).click();
+  const sealing = page.getByRole('dialog', { name: 'Coat of arms' });
+  await expect(sealing.getByRole('region', { name: 'Preview' }).getByRole('img').first()).toHaveAttribute('aria-label', twin);
+  await sealing.getByRole('button', { name: 'Cancel' }).click();
+  await expect(sealing).toBeHidden();
+  await expect(list.locator('li', { hasText: 'The twin stars' }).getByText('Accepted')).toBeVisible();
 });

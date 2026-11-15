@@ -417,6 +417,45 @@ test('a member opening a closed arms vote settles it', async () => {
   assert.deepEqual(await houseArms(t), arms('stag'));
 });
 
+test('a read that settled an arms vote says so (the page then reads the house again); the next read, or a guest\'s, does not', async () => {
+  // A house's proposals.
+  {
+    const { t, vote, stag, o } = await stagAndEagle();
+    await V.castBallot(t, member(carl), vote, [o[stag]!], later(2 * HOUR));
+    const read = await P.houseProposals(t, bo, 'h1', AFTER);
+    assert.equal(read.settled, true);
+    assert.deepEqual(await houseArms(t), arms('stag'));
+    assert.equal((await P.houseProposals(t, bo, 'h1', AFTER)).settled, false);
+  }
+  // One vote's page.
+  {
+    const { t, vote, stag, o } = await stagAndEagle();
+    await V.castBallot(t, member(carl), vote, [o[stag]!], later(2 * HOUR));
+    assert.equal((await V.voteView(t, guestReader, vote, undefined, AFTER))!.settled, false);
+    assert.equal((await V.voteView(t, reader(bo), vote, undefined, AFTER))!.settled, true);
+    assert.equal((await V.voteView(t, reader(bo), vote, undefined, AFTER))!.settled, false);
+  }
+  // The votes list.
+  {
+    const { t, vote, stag, o } = await stagAndEagle();
+    await V.castBallot(t, member(carl), vote, [o[stag]!], later(2 * HOUR));
+    assert.equal((await V.votesPage(t, guestReader, undefined, AFTER)).settled, false, 'a guest settles nothing');
+    const page = await V.votesPage(t, reader(carl), undefined, AFTER);
+    assert.equal(page.settled, true);
+    assert.equal(page.votes.length, 1);
+    assert.deepEqual(await houseArms(t), arms('stag'));
+    assert.equal((await V.votesPage(t, reader(carl), undefined, AFTER)).settled, false);
+  }
+  // In vote mode, a read that starts the house's next vote says so too: its proposals are in a vote now.
+  {
+    const t = await family('choose');
+    await propose(t, bo, 'The eagle', arms('eagle'));
+    await P.saveArmsSettings(t, eve, { mode: 'vote', guests: true });
+    assert.equal((await P.houseProposals(t, bo, 'h1', later(HOUR))).settled, true);
+    assert.equal((await unsettled(t)).length, 1);
+  }
+});
+
 test('a steward closing an arms vote early settles it at once', async () => {
   const { t, vote, stag, o } = await stagAndEagle();
   await V.castBallot(t, member(carl), vote, [o[stag]!], later(2 * HOUR));

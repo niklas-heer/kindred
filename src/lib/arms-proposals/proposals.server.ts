@@ -372,11 +372,12 @@ interface ReadRow {
 /**
  * A house's proposals as this member may read them, oldest first: the open ones (waiting, or in a vote) with shield, name,
  * note, proposer and date, and the member's own in any state, with the reason a steward gave. `may` is what the server would
- * let them do now. A guest is refused. The read first settles the family's closed arms votes (never a guest's).
+ * let them do now. A guest is refused. The read first settles the family's closed arms votes (never a guest's); `settled`
+ * says that it settled or started one, so the page reads the house's arms and the votes again.
  */
-export async function houseProposals(tree: string, who: Who, house: string, now: Date = new Date()): Promise<{ proposals: ProposalView[]; mode: ArmsMode }> {
+export async function houseProposals(tree: string, who: Who, house: string, now: Date = new Date()): Promise<{ proposals: ProposalView[]; mode: ArmsMode; settled: boolean }> {
   needsMember(who);
-  await (await import('./settle.server')).settleForReader(tree, who, now);
+  const done = await (await import('./settle.server')).settleForReader(tree, who, now);
   const d = db(tree);
   const [houses, rows, votes] = (await d.readBatch([
     q('SELECT name, arms FROM house WHERE id = ?', house),
@@ -399,6 +400,8 @@ export async function houseProposals(tree: string, who: Who, house: string, now:
   const current = JSON.parse(h.arms);
   return {
     mode,
+    // The read settled an arms vote or started one: the house's arms, the votes and other houses' proposals may have moved.
+    settled: done.settled + done.started > 0,
     proposals: rows.map((r): ProposalView => {
       const mine = r.account === who.id;
       const waiting = r.status === 'waiting';

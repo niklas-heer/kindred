@@ -107,7 +107,7 @@ test('a guest is refused on every read and write, whatever the family allows gue
 
 test('any member reads, a viewer included; the query helpers key the cache by family and house', async () => {
   bo();
-  assert.deepEqual(await fns.getHouseProposals({ data: { tree: TREE, house: 'h1' } }), { proposals: [], mode: 'choose' });
+  assert.deepEqual(await fns.getHouseProposals({ data: { tree: TREE, house: 'h1' } }), { proposals: [], mode: 'choose', settled: false });
   assert.deepEqual(await fns.getProposalCounts({ data: { tree: TREE } }), {});
   assert.deepEqual(await fns.getArmsSettings({ data: { tree: TREE } }), { mode: 'choose', guests: true });
   assert.deepEqual(fns.houseProposalsQuery('t', 'h').queryKey, ['arms-proposals', 't', 'h']);
@@ -182,7 +182,7 @@ test('a proposal in vote mode returns the vote it started, and the next one join
 
 test('Put to a vote starts a vote for a waiting proposal in choose mode, and is a steward\'s', async () => {
   eve();
-  const open = (await votes.getVotes({ data: { tree: TREE } })).filter((v) => !v.closed);
+  const open = (await votes.getVotes({ data: { tree: TREE } })).votes.filter((v) => !v.closed);
   for (const v of open) await votes.deleteVote({ data: { tree: TREE, id: v.id } });
   await fns.setArmsSettings({ data: { tree: TREE, mode: 'choose', guests: true } });
   ada();

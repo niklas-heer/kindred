@@ -149,7 +149,7 @@ function TreeLayout() {
   // The Campaign has its section only while a steward has it switched on. Members only: a guest is never asked.
   const campaign = !!useQuery({ ...campaignStatusQuery(tree), enabled: !guest }).data?.enabled;
   // Votes are every member's; a guest has them only while a vote lets guests in (the server lists only those to a guest).
-  const guestVotes = useQuery({ ...votesQuery(tree), enabled: guest }).data?.length ?? 0;
+  const guestVotes = useQuery({ ...votesQuery(tree), enabled: guest }).data?.votes.length ?? 0;
   const votes = !guest || guestVotes > 0;
 
   // A reader who chose Today as the opening page (src/lib/today/opening.ts) and arrives at the family's own address

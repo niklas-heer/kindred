@@ -9,7 +9,7 @@ import { queryOptions } from '@tanstack/react-query';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import type { Action } from '../roles';
-import { MAX_DESCRIPTION, MAX_GUEST_NAME, MAX_OPTION, MAX_OPTIONS, MAX_QUESTION, type VoteSummary, type VoteView } from './types';
+import { MAX_DESCRIPTION, MAX_GUEST_NAME, MAX_OPTION, MAX_OPTIONS, MAX_QUESTION, type VotesPage, type VoteView } from './types';
 
 const tree = z.string().regex(/^[a-z0-9-]+$/).max(64);
 const opKey = z.string().regex(/^[A-Za-z0-9_-]{8,80}$/).optional();
@@ -61,9 +61,9 @@ const readerLocale = async () => (await (await import('../i18n/request.server'))
 
 export const getVotes = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
-  .handler(async ({ data }): Promise<VoteSummary[]> => {
+  .handler(async ({ data }): Promise<VotesPage> => {
     const reader = await (await guard()).requireReader(data.tree);
-    return (await votes()).listVotes(data.tree, reader, await guestKeyOf(data.tree, reader), undefined, await readerLocale());
+    return (await votes()).votesPage(data.tree, reader, await guestKeyOf(data.tree, reader), undefined, await readerLocale());
   });
 
 export const votesQuery = (t: string) => queryOptions({ queryKey: ['votes', t], queryFn: () => getVotes({ data: { tree: t } }), staleTime: 30_000 });

@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { ArrowLeft, ListOrdered, Lock, Users, Vote } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useSettledRefresh } from '~/components/arms-proposals/settled';
 import { Responses } from '~/components/responses/Responses';
 import { Ballot } from '~/components/votes/Ballot';
 import { Results } from '~/components/votes/Results';
@@ -31,6 +32,8 @@ function VotePage() {
   const { vote } = Route.useParams();
   const t = useT();
   const q = useQuery(voteQuery(tree, vote));
+  // The read settled this arms vote: the house it chose for, and its proposals, are read again.
+  useSettledRefresh(tree, q.data?.settled, q.dataUpdatedAt);
   const back = <Link className="btn ghost vt-back" to="/$tree/votes" params={{ tree }}><ArrowLeft size={15} aria-hidden /> {t('votes.back')}</Link>;
   const frame = (children: ReactNode) => <div className="page"><div className="page-inner vt-page">{children}</div></div>;
 

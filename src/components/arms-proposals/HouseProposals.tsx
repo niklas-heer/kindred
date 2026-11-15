@@ -27,6 +27,7 @@ import { asV2 } from '~/lib/heraldry/convert';
 import { useT, type Key } from '~/lib/i18n';
 import { toast } from '~/lib/toast';
 import type { House } from '~/lib/types';
+import { useSettledRefresh } from './settled';
 import './proposals.css';
 
 const STATE: Record<ProposalStatus, Key> = {
@@ -46,6 +47,8 @@ export function HouseProposals({ tree, house, steward, notice, onNotice }: {
   const t = useT();
   const id = useId();
   const q = useQuery(houseProposalsQuery(tree, house.id));
+  // The read settled an arms vote (or started the next): the house's arms on this page, and the votes, are read again.
+  useSettledRefresh(tree, q.data?.settled, q.dataUpdatedAt);
   const list = q.data?.proposals ?? [];
   // A read that failed says so, with a retry, rather than looking like a house with no proposals.
   if (q.isError && !q.data) {

@@ -70,4 +70,12 @@ export interface VoteView extends VoteSummary {
   ballots: { name: string; person: string | null; guest: boolean; choices: string[] }[] | null;
   result: VoteResult | null;
   may: { edit: boolean; close: boolean; remove: boolean; addOption: boolean; strike: boolean };
+  /** This read settled an arms vote or started one: the page reads the house's arms and the proposals again. */
+  settled: boolean;
+}
+
+/** The votes list as its page reads it; `settled` as in `VoteView`. */
+export interface VotesPage {
+  votes: VoteSummary[];
+  settled: boolean;
 }

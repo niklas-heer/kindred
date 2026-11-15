@@ -71,6 +71,9 @@ house page or the daily job runs:
   chosen"). Their proposers may propose again.
 - The change in the house's history is credited to **"the family's vote"**, never to whoever opened the page, and its label
   carries only the house's name, never a proposer's.
+- The read that settled it (or started a house's next vote) says so, and the page that made it reads the house's arms, the
+  votes and the proposals again: the outcome shows at once, without a reload, and a later Accept is not refused over arms
+  the page no longer shows.
 
 ### What differs from an ordinary vote
 
