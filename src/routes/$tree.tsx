@@ -1,7 +1,7 @@
 import { useT } from '~/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, notFound, Outlet, redirect, useLocation, useNavigate } from '@tanstack/react-router';
-import { ArrowLeftRight, BarChart3, BookOpen, CalendarHeart, ChevronDown, CircleHelp, Compass, Contact, Flame, LayoutGrid, FolderSearch, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, SlidersHorizontal, Sparkles, Swords, Users, Inbox, MessageSquarePlus, Gamepad2, Vote } from 'lucide-react';
+import { ArrowLeftRight, BarChart3, BookOpen, CalendarHeart, ChevronDown, CircleHelp, Compass, Contact, Flame, LayoutGrid, FolderSearch, Images, Landmark, Map as MapIcon, MoreHorizontal, Network, ScrollText, Search, SlidersHorizontal, Sparkles, Swords, Users, Inbox, MessageSquarePlus, Gamepad2, Vote, MessagesSquare } from 'lucide-react';
 import { AccountMenu } from '~/components/AccountMenu';
 import { AssistantButton, AssistantHost } from '~/components/assistant/Launcher';
 import { useAiSetupNeeded } from '~/components/assistant/AiSetup';
@@ -43,6 +43,7 @@ import { setPref, THEMES, usePref } from '~/lib/prefs';
 import { treeTitle } from '~/lib/title';
 import { arrivedIn, leftFamily, opensOnToday } from '~/lib/today/opening';
 import { votesQuery } from '~/lib/votes/votes.functions';
+import { suggestionCountsQuery } from '~/lib/suggestions/suggestions.functions';
 
 export const Route = createFileRoute('/$tree')({
   // Signed out: to /signin and back. Not a member: "You don't have access" (whether or not the family exists).
@@ -305,7 +306,8 @@ function NavMore({ tree, guest, campaign, votes }: { tree: string; guest: boolea
   const wrap = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const path = useLocation({ select: (l) => l.pathname });
-  type Section = { seg: string; to: '/$tree/almanac' | '/$tree/atlas' | '/$tree/people' | '/$tree/houses' | '/$tree/needed' | '/$tree/research' | '/$tree/votes' | '/$tree/campaign'; icon: (size: number) => ReactNode; label: string; hint: string; also?: string };
+  type Section = { seg: string; to: '/$tree/almanac' | '/$tree/atlas' | '/$tree/people' | '/$tree/houses' | '/$tree/needed' | '/$tree/research' | '/$tree/votes' | '/$tree/suggestions' | '/$tree/campaign'; icon: (size: number) => ReactNode; label: string; hint: string; also?: string; count?: number };
+  const suggestions = useSuggestionsSection(tree, guest);
   const groups: { name: string; sections: Section[] }[] = [
     { name: t('shell.group.explore'), sections: [
       // A guest has the Almanac in the bar.
@@ -318,6 +320,7 @@ function NavMore({ tree, guest, campaign, votes }: { tree: string; guest: boolea
       { seg: 'needed', to: '/$tree/needed', icon: (n) => <CircleHelp size={n} />, label: t('shell.needed'), hint: t('shell.information_needed') },
       { seg: 'research', to: '/$tree/research', icon: (n) => <FolderSearch size={n} />, label: t('research.title'), hint: t('research.nav_hint') },
       ...(votes ? [{ seg: 'votes', to: '/$tree/votes' as const, icon: (n: number) => <Vote size={n} />, label: t('votes.title'), hint: t('votes.nav_hint') }] : []),
+      ...(suggestions ? [{ seg: 'suggestions', to: '/$tree/suggestions' as const, icon: (n: number) => <MessagesSquare size={n} />, label: t('suggest.nav'), hint: suggestions.hint, count: suggestions.count }] : []),
     ] },
     // The Campaign is in the bar while it is on. While it is off it is listed here for members, so it can be found.
     ...(guest || campaign ? [] : [{ name: t('shell.group.play'), sections: [
@@ -367,7 +370,7 @@ function NavMore({ tree, guest, campaign, votes }: { tree: string; guest: boolea
               {g.sections.map((s) => (
                 <li key={s.seg}>
                   <Link to={s.to} params={{ tree }} activeOptions={{ exact: false }} onClick={() => setOpen(false)}>
-                    {s.icon(18)} <span>{s.label}</span> <small>{s.hint}</small>
+                    {s.icon(18)} <span>{s.label}{s.count ? <> <span className="aitasks-count">{s.count}</span></> : null}</span> <small>{s.hint}</small>
                   </Link>
                 </li>
               ))}
@@ -396,6 +399,7 @@ function MoreSheet({ open, onClose, tree, multiple, campaign, votes }: { open: b
   const [sound, toggleSound] = useSound();
   // What waits for a steward on the Access page: requests to join and "this is me" links (the account menu shows the same).
   const waiting = useQuery({ ...aiAttentionQuery(tree), enabled: steward }).data?.access ?? 0;
+  const suggestions = useSuggestionsSection(tree, guest);
   const group = (name: string) => <li className="more-group"><span>{name}</span></li>;
   return (
     <Dialog open={open} onClose={onClose} title={t("shell.more")} placement="sheet" width={560}>
@@ -411,6 +415,7 @@ function MoreSheet({ open, onClose, tree, multiple, campaign, votes }: { open: b
         <li><Link to="/$tree/needed" params={{ tree }}><CircleHelp size={19} /> {t("shell.needed")} <small>{t("shell.information_needed")}</small></Link></li>
         <li><Link to="/$tree/research" params={{ tree }}><FolderSearch size={19} /> {t("research.title")} <small>{t("research.nav_hint")}</small></Link></li>
         {votes && <li><Link to="/$tree/votes" params={{ tree }}><Vote size={19} /> {t("votes.title")} <small>{t("votes.nav_hint")}</small></Link></li>}
+        {suggestions && <li><Link to="/$tree/suggestions" params={{ tree }}><MessagesSquare size={19} /> {t("suggest.nav")} {suggestions.count ? <span className="aitasks-count">{suggestions.count}</span> : null} <small>{suggestions.hint}</small></Link></li>}
         {assistant && <li><button type="button" onClick={() => { onClose(); openAssistant(); }}><Sparkles size={19} /> {t("ai.askCommand")}</button></li>}
         {/* Always there for a member, so the game can be found: "resting" while a steward has not turned it on. */}
         {!guest && group(t("shell.group.play"))}
@@ -446,4 +451,16 @@ function MoreSheet({ open, onClose, tree, multiple, campaign, votes }: { open: b
       </div>
     </Dialog>
   );
+}
+
+/**
+ * The Suggestions section (docs/suggestions.md), for members: editors and stewards review what waits there, with its count;
+ * everyone else finds their own suggestions. A guest reaches theirs from a person's page, so their bar asks nothing.
+ */
+function useSuggestionsSection(tree: string, guest: boolean): { hint: string; count: number } | null {
+  const t = useT();
+  const reviews = useCan('review-suggestions') && !guest;
+  const count = useQuery({ ...suggestionCountsQuery(tree), enabled: reviews }).data?.total ?? 0;
+  if (guest) return null;
+  return { hint: t(reviews ? 'suggest.nav_hint_review' : 'suggest.nav_hint_mine'), count };
 }

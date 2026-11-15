@@ -81,6 +81,7 @@ Stamboom (the phone tab says „Boom“).
 | `history` | The change history: the History page, a person's history, "What's new" and the weekly push (`history.*`) |
 | `feed` | The family's feed on Today: messages, the composer, the stream's lines, the strip of cards on a phone, the push about a new message (`feed.*`) |
 | `arms-proposals` | Arms proposals: a house's arms vote's question and "keep" option, translated on the server for each reader and device (`arms.*`) |
+| `suggestions` | Suggestions from the family: "Suggest a change" and its dialog, a suggester's list, the Suggestions page, a source's files, the switches for guests and the server's refusals (`suggest.*`; the reviewers' push is in `reminders`) |
 | `recipes` | Recipes: the Cookbook, a recipe's page, cooking mode and the recipe form (`recipes.*`) |
 | `faiths`, `favourites`, `occupations` | The vocabularies: faiths (`faith.tradition.*`, `faith.name.*`), colours and favourite words (`colour.*`, `favourite.*`), occupations (`occupation.*`) |
 | `atlas`, `almanac`, `chronicle`, `contacts`, `needed` | Empty until the translation sweep moves those pages' text here |

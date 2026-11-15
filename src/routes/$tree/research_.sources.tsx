@@ -3,7 +3,7 @@
 // guest gets no sources at all, so the page tells them so instead of asking the server.
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { ArrowLeft, BookMarked, ExternalLink, FileText, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, BookMarked, ExternalLink, FileText, Paperclip, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { eventTitle } from '~/components/life/records';
 import { SourceDialog, useSourcesRefresh } from '~/components/life/SourceDialog';
@@ -111,6 +111,16 @@ function SourceCard({ tree, s, canEdit, onEdit }: { tree: string; s: Source; can
         </p>
       )}
       {s.note && <p className="source-card-meta">{s.note}</p>}
+      {s.files.length > 0 && (
+        // Files an approved suggestion brought (docs/suggestions.md), served to members alone.
+        <ul className="source-card-files" aria-label={t('suggest.source_files')}>
+          {s.files.map((file) => (
+            <li key={file.key} className="source-card-meta">
+              <Paperclip size={13} aria-hidden /> <a href={`/api/source-file/${tree}/${file.key}`} target="_blank" rel="noopener noreferrer">{file.name}</a>
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="source-card-actions">
         <button type="button" className="btn ghost" aria-expanded={open} disabled={!s.citations} onClick={() => setOpen(!open)}>
           {s.citations ? t('sources.cited_by', { count: s.citations }) : t('sources.not_cited')}

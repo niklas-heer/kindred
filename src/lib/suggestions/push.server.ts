@@ -39,7 +39,7 @@ export async function notifySuggestion(tree: string, options: PushOptions & { by
       const vars = { count: waiting };
       const message = {
         title: translate(device.locale, 'suggest.push.title', vars), body: translate(device.locale, 'suggest.push.body', vars),
-        tag: `kindred-suggestions-${tree}`, url: `/${tree}/today`,
+        tag: `kindred-suggestions-${tree}`, url: `/${tree}/suggestions`,
       };
       if (!fitsPush(message)) continue;
       const claim = await accounts().run(

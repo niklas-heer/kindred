@@ -56,6 +56,7 @@ import shell from "./shell.ts";
 import signup from "./signup.ts";
 import sources from "./sources.ts";
 import statistics from "./statistics.ts";
+import suggestions from "./suggestions.ts";
 import today from "./today.ts";
 import todayQuestions from "./today-questions.ts";
 import tour from "./tour.ts";
@@ -123,6 +124,7 @@ export default {
   ...signup,
   ...sources,
   ...statistics,
+  ...suggestions,
   ...today,
   ...todayQuestions,
   ...tour,

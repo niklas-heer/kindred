@@ -39,6 +39,7 @@ import { Route as TreePeopleRouteImport } from './routes/$tree/people'
 import { Route as TreePrintRouteImport } from './routes/$tree/print'
 import { Route as TreeResearchRouteImport } from './routes/$tree/research'
 import { Route as TreeStatisticsRouteImport } from './routes/$tree/statistics'
+import { Route as TreeSuggestionsRouteImport } from './routes/$tree/suggestions'
 import { Route as TreeTodayRouteImport } from './routes/$tree/today'
 import { Route as TreeVotesRouteImport } from './routes/$tree/votes'
 import { Route as TreeWhoIsThisRouteImport } from './routes/$tree/who-is-this'
@@ -230,6 +231,11 @@ const TreeResearchRoute = TreeResearchRouteImport.update({
 const TreeStatisticsRoute = TreeStatisticsRouteImport.update({
   id: '/statistics',
   path: '/statistics',
+  getParentRoute: () => TreeRoute,
+} as any)
+const TreeSuggestionsRoute = TreeSuggestionsRouteImport.update({
+  id: '/suggestions',
+  path: '/suggestions',
   getParentRoute: () => TreeRoute,
 } as any)
 const TreeTodayRoute = TreeTodayRouteImport.update({
@@ -475,6 +481,7 @@ export interface FileRoutesByFullPath {
   '/$tree/print': typeof TreePrintRoute
   '/$tree/research': typeof TreeResearchRoute
   '/$tree/statistics': typeof TreeStatisticsRoute
+  '/$tree/suggestions': typeof TreeSuggestionsRoute
   '/$tree/today': typeof TreeTodayRoute
   '/$tree/votes': typeof TreeVotesRoute
   '/$tree/who-is-this': typeof TreeWhoIsThisRoute
@@ -548,6 +555,7 @@ export interface FileRoutesByTo {
   '/$tree/print': typeof TreePrintRoute
   '/$tree/research': typeof TreeResearchRoute
   '/$tree/statistics': typeof TreeStatisticsRoute
+  '/$tree/suggestions': typeof TreeSuggestionsRoute
   '/$tree/today': typeof TreeTodayRoute
   '/$tree/votes': typeof TreeVotesRoute
   '/$tree/who-is-this': typeof TreeWhoIsThisRoute
@@ -623,6 +631,7 @@ export interface FileRoutesById {
   '/$tree/print': typeof TreePrintRoute
   '/$tree/research': typeof TreeResearchRoute
   '/$tree/statistics': typeof TreeStatisticsRoute
+  '/$tree/suggestions': typeof TreeSuggestionsRoute
   '/$tree/today': typeof TreeTodayRoute
   '/$tree/votes': typeof TreeVotesRoute
   '/$tree/who-is-this': typeof TreeWhoIsThisRoute
@@ -699,6 +708,7 @@ export interface FileRouteTypes {
     | '/$tree/print'
     | '/$tree/research'
     | '/$tree/statistics'
+    | '/$tree/suggestions'
     | '/$tree/today'
     | '/$tree/votes'
     | '/$tree/who-is-this'
@@ -772,6 +782,7 @@ export interface FileRouteTypes {
     | '/$tree/print'
     | '/$tree/research'
     | '/$tree/statistics'
+    | '/$tree/suggestions'
     | '/$tree/today'
     | '/$tree/votes'
     | '/$tree/who-is-this'
@@ -846,6 +857,7 @@ export interface FileRouteTypes {
     | '/$tree/print'
     | '/$tree/research'
     | '/$tree/statistics'
+    | '/$tree/suggestions'
     | '/$tree/today'
     | '/$tree/votes'
     | '/$tree/who-is-this'
@@ -1146,6 +1158,13 @@ declare module '@tanstack/react-router' {
       path: '/statistics'
       fullPath: '/$tree/statistics'
       preLoaderRoute: typeof TreeStatisticsRouteImport
+      parentRoute: typeof TreeRoute
+    }
+    '/$tree/suggestions': {
+      id: '/$tree/suggestions'
+      path: '/suggestions'
+      fullPath: '/$tree/suggestions'
+      preLoaderRoute: typeof TreeSuggestionsRouteImport
       parentRoute: typeof TreeRoute
     }
     '/$tree/today': {
@@ -1461,6 +1480,7 @@ interface TreeRouteChildren {
   TreePrintRoute: typeof TreePrintRoute
   TreeResearchRoute: typeof TreeResearchRoute
   TreeStatisticsRoute: typeof TreeStatisticsRoute
+  TreeSuggestionsRoute: typeof TreeSuggestionsRoute
   TreeTodayRoute: typeof TreeTodayRoute
   TreeVotesRoute: typeof TreeVotesRoute
   TreeWhoIsThisRoute: typeof TreeWhoIsThisRoute
@@ -1494,6 +1514,7 @@ const TreeRouteChildren: TreeRouteChildren = {
   TreePrintRoute: TreePrintRoute,
   TreeResearchRoute: TreeResearchRoute,
   TreeStatisticsRoute: TreeStatisticsRoute,
+  TreeSuggestionsRoute: TreeSuggestionsRoute,
   TreeTodayRoute: TreeTodayRoute,
   TreeVotesRoute: TreeVotesRoute,
   TreeWhoIsThisRoute: TreeWhoIsThisRoute,

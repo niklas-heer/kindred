@@ -1,0 +1,86 @@
+/* Suggestions from the family (src/components/suggestions/): the dialog that makes one, a reviewer's card, a suggester's
+   list, the section on a person's page and the steward's switches. Tokens only, so the three themes dress it. */
+
+.sg-label { font-family: var(--font-ui); font-size: var(--fs-3); font-weight: 600; color: var(--text); }
+.sg-hint { margin: 0; font-family: var(--font-ui); font-size: var(--fs-2); line-height: var(--lh-ui); }
+
+/* The dialog. */
+.sg-form { display: grid; gap: 14px; }
+.sg-fields { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: 16px; }
+.sg-kinds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.sg-kinds > .sg-label { grid-column: 1 / -1; }
+.sg-kind {
+  display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--panel-2); cursor: pointer; font-family: var(--font-ui); font-size: var(--fs-3); line-height: var(--lh-ui);
+}
+.sg-kind[data-chosen] { border-color: var(--accent); }
+.sg-kind:focus-within:has(input:focus-visible) { box-shadow: var(--focus-ring); }
+.sg-kind input { flex: none; width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--accent); }
+.sg-kind span { display: grid; gap: 2px; min-width: 0; }
+.sg-kind small { font-size: var(--fs-2); }
+.sg-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; align-items: start; }
+.sg-grid > p { margin: 0; }
+.sg-wide { grid-column: 1 / -1; }
+.sg-files { display: grid; gap: 6px; justify-items: start; }
+.sg-pick { cursor: pointer; }
+.sg-pick:focus-within { box-shadow: var(--focus-ring); }
+.sg-file-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; width: 100%; font-family: var(--font-ui); font-size: var(--fs-3); }
+.sg-file-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.sg-file-name { overflow-wrap: anywhere; }
+.sg-file-list progress { width: 120px; accent-color: var(--accent); }
+
+/* A suggestion: the reviewer's card and the suggester's. */
+.sg-page { display: grid; gap: 16px; }
+.sg-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.sg-list, .sg-mine { display: grid; gap: 12px; }
+.sg-mine { list-style: none; margin: 0; padding: 0; }
+.sg-card { display: grid; gap: 12px; min-width: 0; }
+.sg-card-head { display: grid; gap: 4px; }
+.sg-card-title { margin: 0; font-family: var(--font-title); font-size: var(--fs-5); font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.sg-card-mine .sg-card-title { font-size: var(--fs-4); }
+[data-theme='codex'] .sg-card-title { color: var(--accent); }
+.sg-card-title a { color: inherit; }
+.sg-meta { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-family: var(--font-ui); font-size: var(--fs-2); }
+.sg-by { display: inline-flex; align-items: center; gap: 6px; }
+.sg-initial {
+  width: 24px; height: 24px; display: inline-grid; place-items: center; border-radius: 999px; background: var(--panel-2);
+  font-family: var(--font-ui); font-size: var(--fs-1); font-weight: 600; color: var(--text);
+}
+.sg-state[data-state='approved'] { color: var(--accent); }
+.sg-note {
+  margin: 0; padding: 2px 0 2px 12px; border-left: 3px solid var(--border); max-width: 68ch; white-space: pre-wrap; overflow-wrap: anywhere;
+  font-size: var(--fs-4); line-height: var(--lh-body); font-style: italic;
+}
+.sg-reason { margin: 0; font-family: var(--font-ui); font-size: var(--fs-3); font-style: italic; overflow-wrap: anywhere; }
+.sg-change { width: 100%; border-collapse: collapse; font-family: var(--font-ui); font-size: var(--fs-3); }
+.sg-change th, .sg-change td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.sg-change thead th { font-size: var(--fs-1); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.sg-change tbody th { font-weight: 600; width: 28%; }
+.sg-next { font-weight: 600; }
+.sg-next .input, .sg-next textarea { width: 100%; font-weight: 400; }
+.sg-was { display: block; color: var(--muted); font-size: var(--fs-2); }
+.sg-files-shown ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; font-family: var(--font-ui); font-size: var(--fs-3); }
+.sg-matches { display: grid; gap: 6px; }
+.sg-match { display: flex; align-items: center; gap: 8px; font-family: var(--font-ui); font-size: var(--fs-3); cursor: pointer; }
+.sg-match input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.sg-source-title { max-width: 520px; }
+.sg-begun { margin: 0; padding: 8px 12px; border-radius: var(--radius); background: var(--panel-2); font-family: var(--font-ui); font-size: var(--fs-3); }
+.sg-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sg-decline { display: grid; gap: 6px; }
+
+/* On a person's page and in the panel. */
+.sg-person { display: grid; gap: 8px; margin: 8px 0; }
+.sg-waiting { justify-self: start; display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-ui); font-size: var(--fs-3); }
+.sg-all { justify-self: start; font-family: var(--font-ui); font-size: var(--fs-3); }
+.sg-open-hint { display: block; margin-top: 4px; font-family: var(--font-ui); font-size: var(--fs-2); line-height: var(--lh-ui); }
+
+/* The steward's switches, on the Access page. */
+.sg-settings { display: grid; gap: 12px; }
+.sg-switch { display: grid; gap: 4px; }
+.sg-saved { font-family: var(--font-ui); font-size: var(--fs-3); color: var(--accent); }
+.sg-saved:empty { display: none; }
+
+@media (max-width: 560px) {
+  .sg-kinds, .sg-grid { grid-template-columns: minmax(0, 1fr); }
+  .sg-change tbody th { width: auto; }
+}

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { ago, Initials } from '~/components/AccountMenu';
 import { Portrait } from '~/components/Portrait';
 import { ShareLinkCard } from '~/components/ShareLinkCard';
+import { SuggestSettings } from '~/components/suggestions/SuggestSettings';
 import { openViewAs, startPreview } from '~/components/viewas/ViewAs';
 import { JoinRequests } from '~/components/join/JoinRequests';
 import { FamilyDataRequests } from '~/components/operator/FamilyDataRequests';
@@ -252,6 +253,8 @@ function AccessPage() {
 
         {/* People first: who is here and who is invited. What is changed once, or rarely, comes after. */}
         <ShareLinkCard tree={tree} familyName={f.graph.tree.name} />
+        {/* What guests of the link may suggest (docs/suggestions.md). */}
+        <SuggestSettings tree={tree} />
 
         {signInMethod && (
           <>

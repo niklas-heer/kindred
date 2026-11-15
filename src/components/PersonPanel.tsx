@@ -59,6 +59,7 @@ import { PersonPosts } from './feed/PersonPosts';
 import { PortraitZoom } from './photos/PortraitZoom';
 import { mediaUrl } from '~/lib/photos/types';
 import { PersonResearch } from './research/PersonResearch';
+import { PersonSuggestions, SuggestButton, useMaySuggest } from './suggestions/PersonSuggestions';
 import { SourcedMark, useCitationCounts, useRecordedLife } from './life/records';
 import { AddEventButton, LifeEditor } from './life/LifeEditor';
 import { ContactRow, FieldGroups, contactHref, contactsOf } from './fields/FieldsView';
@@ -165,6 +166,8 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
   const canWriteStory = can(role, 'add-story');
   const canPhoto = can(role, 'upload-photo');
   const [required] = useRequired(tree);
+  // A viewer, a contributor or a share-link guest suggests a change instead (docs/suggestions.md).
+  const maySuggest = useMaySuggest(tree, p);
   const detailQ = useQuery(personDetailQuery(tree, id));
   const details: DetailState = { detail: detailQ.data, failed: detailQ.isError && !detailQ.data, retry: () => void detailQ.refetch() };
   const detail = detailQ.data;
@@ -295,6 +298,7 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
         <button className="btn" onClick={onDynasty}><Crown size={14} /> {t('panel.dynasty')}</button>
         <PrintLink tree={tree} person={id} name={displayName(p, f)} />
       </div>
+      <PersonSuggestions tree={tree} p={p} />
     </>, <>
       <Tabs value={tab} onChange={(v) => leave(() => setTab(v as Tab))} label={t('panel.tabsLabel')}>
       <TabList className="pp-tabs">
@@ -343,6 +347,8 @@ export function PersonPanel({ family: f, tree, id, me, onSelect, onCenter, onPat
     </>, <>
       {canAdd ? (
         <div className="pp-add-relative"><Select aria-label={t('panel.addRelative')} placeholder={t('panel.addRelative')} value="" onChange={(v) => { if (v) leave(() => setAdd(v as AddRelation)); }} options={(['parent', 'partner', 'child', 'sibling'] as const).map((v) => ({ value: v, label: t(`card.add${v[0].toUpperCase()}${v.slice(1)}` as Key) }))} /></div>
+      ) : maySuggest ? (
+        <div className="pp-add-relative pp-suggest"><SuggestButton tree={tree} p={p} /></div>
       ) : (
         <p className="pp-add-relative pp-ask subtle">{c(canWriteStory ? 'ask.editor.contributor' : 'ask.editor')}</p>
       )}
