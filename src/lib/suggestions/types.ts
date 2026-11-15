@@ -1,4 +1,15 @@
 // What a suggestion is, as the browser and the server both read it. Browser-safe: type-only imports, no Node or Worker APIs.
+export const MAX_FILES = 5;
+export const MAX_FILE_BYTES = 10 * 1024 * 1024;
+export const FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf'] as const;
+export const MAX_NOTE = 1000;
+export const MAX_REASON = 300;
+export const GUEST_WAITING_PER_NETWORK = 20;
+export const GUEST_WAITING_PER_LINK = 100;
+export const MEMBER_WAITING = 50;
+export const PENDING_BYTES = 200 * 1024 * 1024;
+export const EXPIRY_DAYS = 90;
+
 export const SUGGESTION_KINDS = ['details', 'relative', 'event', 'source'] as const;
 export type SuggestionKind = (typeof SUGGESTION_KINDS)[number];
 
