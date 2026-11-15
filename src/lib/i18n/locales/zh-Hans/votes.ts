@@ -59,6 +59,7 @@ export default {
   "votes.ballot.yours": "你投给了{options}。",
   "votes.guest_name": "你的名字",
   "votes.guest_name_hint": "你的名字会和你的投票一起显示给家族成员。",
+  "votes.guest_name_hint_secret": "你的名字会作为已投票的人显示给家族成员；你的选择仍然保密。",
   "votes.results": "结果",
   "votes.results_later": "投票结束后显示结果",
   "votes.results_after_voting": "投票后可查看结果",

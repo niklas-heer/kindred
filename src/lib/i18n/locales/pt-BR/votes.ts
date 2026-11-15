@@ -59,6 +59,7 @@ export default {
   "votes.ballot.yours": "Você votou em {options}.",
   "votes.guest_name": "Seu nome",
   "votes.guest_name_hint": "Seu nome aparece para os membros da família junto com o seu voto.",
+  "votes.guest_name_hint_secret": "Seu nome aparece para os membros da família como alguém que votou; sua escolha continua secreta.",
   "votes.results": "Resultados",
   "votes.results_later": "Resultados quando a votação encerrar",
   "votes.results_after_voting": "Vote para ver os resultados",

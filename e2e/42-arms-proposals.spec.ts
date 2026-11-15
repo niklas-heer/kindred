@@ -180,6 +180,8 @@ test('arms proposals: a contributor proposes, the family votes, the steward acce
   const theirBallot = guest.getByRole('group', { name: 'Tap the options in the order you prefer them' });
   await expect(theirBallot.getByRole('button', { name: 'The stars of Starling', exact: true })).toBeVisible();
   await expect(theirBallot.locator('.vt-arms')).toHaveCount(2);
+  // An arms vote is secret: the guest is told members see only that they voted.
+  await expect(guest.getByText("Your name is shown to the family's members as someone who voted; your choice stays secret.")).toBeVisible();
   await expect(guest.getByText('Bo Starling')).toHaveCount(0);
   await expect(guest.getByText('Three stars for three sisters.')).toHaveCount(0);
   await checkAxe(guest, 'an arms vote as guest');

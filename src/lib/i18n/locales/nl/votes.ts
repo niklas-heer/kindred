@@ -59,6 +59,7 @@ export default {
   "votes.ballot.yours": "Je hebt gestemd op {options}.",
   "votes.guest_name": "Je naam",
   "votes.guest_name_hint": "Je naam wordt samen met je stem aan de leden van de familie getoond.",
+  "votes.guest_name_hint_secret": "Je naam wordt aan de leden van de familie getoond als iemand die heeft gestemd; je keuze blijft geheim.",
   "votes.results": "Uitslag",
   "votes.results_later": "Uitslag zodra de stemming sluit",
   "votes.results_after_voting": "Stem om de uitslag te zien",

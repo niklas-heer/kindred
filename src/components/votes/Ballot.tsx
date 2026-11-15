@@ -93,7 +93,7 @@ export function Ballot({ tree, view }: { tree: string; view: VoteView }) {
           })}
         </div>
       )}
-      {guest && !(remembered && view.mine) && <GuestName value={name} onChange={(v) => { setName(v); setSaved(false); }} />}
+      {guest && !(remembered && view.mine) && <GuestName value={name} onChange={(v) => { setName(v); setSaved(false); }} secret={view.secret} />}
       {cast.isError && <p role="alert" className="vt-note vt-error">{errorText(cast.error, t.locale)}</p>}
       <div className="vt-actions">
         <button type="submit" className="btn primary" disabled={!ready}>

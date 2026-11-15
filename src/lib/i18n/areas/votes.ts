@@ -59,6 +59,7 @@ export const en = {
   "votes.ballot.yours": "You voted for {options}.",
   "votes.guest_name": "Your name",
   "votes.guest_name_hint": "Your name is shown to the family's members with your vote.",
+  "votes.guest_name_hint_secret": "Your name is shown to the family's members as someone who voted; your choice stays secret.",
   "votes.results": "Results",
   "votes.results_later": "Results when the vote closes",
   "votes.results_after_voting": "Vote to see the results",
