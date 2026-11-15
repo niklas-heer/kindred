@@ -47,11 +47,11 @@ function opOf<D extends { opKey?: string }>(user: string, data: D) {
   return { key, user, payload };
 }
 
-/** A guest reader's key (the cookie they were given when they first voted), or undefined for a member or a new guest. */
-async function guestKeyOf(reader: { guest: boolean }): Promise<string | undefined> {
+/** A guest reader's key in this family (from the cookie they were given when they first voted), or undefined for a member or a new guest. */
+async function guestKeyOf(t: string, reader: { guest: boolean }): Promise<string | undefined> {
   if (!reader.guest) return undefined;
   const [{ getRequest }, { guestVoterKey }] = await Promise.all([import('@tanstack/react-start/server'), import('./guest-voter.server')]);
-  return guestVoterKey(getRequest());
+  return guestVoterKey(getRequest(), t);
 }
 
 // ---------- reads ----------
@@ -60,7 +60,7 @@ export const getVotes = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }): Promise<VoteSummary[]> => {
     const reader = await (await guard()).requireReader(data.tree);
-    return (await votes()).listVotes(data.tree, reader, await guestKeyOf(reader));
+    return (await votes()).listVotes(data.tree, reader, await guestKeyOf(data.tree, reader));
   });
 
 export const votesQuery = (t: string) => queryOptions({ queryKey: ['votes', t], queryFn: () => getVotes({ data: { tree: t } }), staleTime: 30_000 });
@@ -69,7 +69,7 @@ export const getVote = createServerFn({ method: 'GET' })
   .validator(z.object({ tree, id: voteId }))
   .handler(async ({ data }): Promise<VoteView | null> => {
     const reader = await (await guard()).requireReader(data.tree);
-    return (await votes()).voteView(data.tree, reader, data.id, await guestKeyOf(reader));
+    return (await votes()).voteView(data.tree, reader, data.id, await guestKeyOf(data.tree, reader));
   });
 
 export const voteQuery = (t: string, id: string) =>
@@ -144,10 +144,10 @@ export const castVote = createServerFn({ method: 'POST' })
     const guest = session.guest;
     if (!guest) throw g.fail((await import('../auth/errors')).signedOut());
     const request = getRequest();
-    let key = await voter.guestVoterKey(request);
+    let key = await voter.guestVoterKey(request, data.tree);
     let setCookie: string | undefined;
-    if (!key) ({ key, setCookie } = await voter.voterCookie(request, guest.expires));
-    await (await votes()).castBallot(data.tree, { kind: 'guest', key, name, link: guest.link, net: await voter.netOf(request) }, data.id, data.choices);
+    if (!key) ({ key, setCookie } = await voter.voterCookie(request, data.tree, guest.expires));
+    await (await votes()).castBallot(data.tree, { kind: 'guest', key, name, link: guest.link, net: await voter.netOf(request, data.id) }, data.id, data.choices);
     // Only a ballot that was taken sets the cookie, so a refused one leaves the browser as it was.
     if (setCookie) appendResponseHeader('Set-Cookie', setCookie);
   });

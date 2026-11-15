@@ -59,12 +59,13 @@ another guest's name. Comments and reactions stay for members.
 
 - To vote, a guest gives a **name** (1 to 60 characters) and is told it is shown to the family's members, beside their ballot
   in an open vote or in the list of who has voted in a secret one. Other guests never see it.
-- The server sets a `kindred_voter` cookie when the guest votes. Only its hash is stored, and it lasts 90 days or until the
+- The server sets a `kindred_voter` cookie when the guest votes. Only a hash of it and the family is stored, so the same
+  browser is a different guest in each family and two families' data cannot be joined on it. It lasts 90 days or until the
   link ends. It is set only because the guest asked to vote, so it needs no consent banner.
 - The browser remembers the name the guest gave in its local storage, under `kindred:vote-guest-name:<family>`, so the next
   vote is one tap. It stays in that browser and is sent only when the guest votes.
-- No address is kept. To limit abuse the server counts guest voters per vote by an 18-bit hash of the network: at most
-  **12 per network** and **40 per link**, per vote.
+- No address is kept. To limit abuse the server counts guest voters per vote by an 18-bit hash of the network and the vote
+  (so one network is a different number in each vote): at most **12 per network** and **40 per link**, per vote.
 - Members see guests marked as guests. A **steward** may *strike* a guest's vote while the vote is open (a duplicate, say):
   it stops counting and shows as struck to stewards, and can be restored. In a secret vote the steward strikes from the list
   of who has voted and never sees the choice. A closed vote's result does not change. Replacing or turning off the link
