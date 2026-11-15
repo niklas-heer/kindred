@@ -34,6 +34,8 @@ export function ArmsSettings({ tree }: { tree: string }) {
     onSuccess: async (_, s) => {
       keys.clear();
       qc.setQueryData(armsSettingsQuery(tree).queryKey, s);
+      // The server's answer shows from here on, so a later read (another steward's change) is not hidden behind it.
+      setChosen(null);
       // What a steward may do with a waiting proposal follows the mode.
       await qc.invalidateQueries({ queryKey: ['arms-proposals', tree] });
     },
