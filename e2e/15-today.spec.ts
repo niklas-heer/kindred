@@ -1,6 +1,7 @@
 // Journey 15: Today. The page is first in the navigation; the steward answers the question of the week (the answer is
 // a memory in the Chronicle, and an entry of the family's feed on Today), asks a question of their own and takes the
-// curated one back; the quiz has nothing to ask in a family of one, then asks once relatives are there, takes one answer
+// curated one back; the quiz has nothing to ask in a family of one, then asks once relatives are there (in birth order,
+// then with choices: the journey writes the day's question, since the draw changes with the day), takes one answer
 // and keeps it; a steward can switch it off. The sections keep readable names at tablet width, and the phone's tab bar
 // starts with Today. Journey 20 covers the feed itself.
 import { DatabaseSync } from 'node:sqlite';
@@ -37,6 +38,19 @@ function addRelatives(tree: string) {
     parent.run(child!, a!);
     parent.run(child!, b!);
   }
+  d.close();
+}
+
+/**
+ * Writes today's quiz question (the UTC day, as the server counts it) over whatever the day drew, as the server keeps a
+ * drawn one: `question` is what a reader is shown, `answer` the right choice.
+ */
+function setTodaysQuestion(tree: string, about: string, answer: string, question: { kind: string; subject?: string; options: object[] }) {
+  const d = new DatabaseSync(join(process.env.KINDRED_E2E_DATA!, `${tree}.db`));
+  d.exec('PRAGMA busy_timeout = 5000');
+  const day = new Date().toISOString().slice(0, 10);
+  d.prepare('DELETE FROM quiz_day WHERE day = ?').run(day);
+  d.prepare('INSERT INTO quiz_day (day, kind, about, question, answer) VALUES (?, ?, ?, ?, ?)').run(day, question.kind, about, JSON.stringify(question), answer);
   d.close();
 }
 
@@ -116,32 +130,36 @@ test('today: the question of the week, the daily quiz, and sections that keep th
   if (!(await page.locator('.td-quiz-form').count())) {
     // A family of one has nothing to ask about yet, and the card says so instead of failing.
     await expect(quiz.getByText(/needs a little more to go on/)).toBeVisible();
-    addRelatives(tree);
-    await page.reload();
-    await settled(page);
   }
+  // The day's draw depends on the date and the family's id, so the journey writes today's question itself: first one
+  // in birth order, then one with choices, so that both pickers are walked every day.
+  addRelatives(tree);
+  setTodaysQuestion(tree, 'e2e-gran', '1,2,0', { kind: 'order', options: [{ people: ['e2e-bo'] }, { people: ['e2e-gran'] }, { people: ['e2e-mum'] }] });
+  await page.reload();
+  await settled(page);
   const form = page.locator('.td-quiz-form');
   await expect(form).toBeVisible();
+  await checkAxe(page, 'today, the quiz in birth order');
+  // Birth order: a row moves with its button. A row's text starts with its place, which stays where it is, so the
+  // names are what move.
+  const names = form.locator('.td-quiz-order li .td-quiz-option-text');
+  await expect(names).toHaveText(['Bo Birchall', 'Greta Ashdown', 'Marta Birchall']);
+  await form.getByRole('button', { name: 'Move Bo Birchall down' }).click();
+  await expect(names).toHaveText(['Greta Ashdown', 'Bo Birchall', 'Marta Birchall']);
+
+  setTodaysQuestion(tree, 'e2e-mum', '0', { kind: 'birthplace', subject: 'e2e-mum', options: [{ place: 'Northwick' }, { place: 'Southmere' }, { place: 'Highmoor' }] });
+  await page.reload();
+  await settled(page);
+  await expect(form.getByRole('radio')).toHaveCount(3);
   await checkAxe(page, 'today, the quiz');
   const submit = quiz.getByRole('button', { name: 'That is my answer' });
-  if (await form.getByRole('radio').count()) {
-    // Nothing is sent until a choice is made; the keyboard makes it.
-    await expect(submit).toBeDisabled();
-    await form.getByRole('radio').first().focus();
-    await page.keyboard.press('Space');
-    await expect(form.getByRole('radio').first()).toBeChecked();
-  } else {
-    // Birth order: a row moves with its button. A row's text starts with its place, which stays where it is, so the
-    // name is what moves.
-    const names = form.locator('.td-quiz-order li .td-quiz-option-text');
-    const first = (await names.first().textContent())!;
-    await form.getByRole('button', { name: /^Move .+ down$/ }).first().click();
-    await expect(names.nth(1)).toHaveText(first);
-  }
+  // Nothing is sent until a choice is made; the keyboard makes it.
+  await expect(submit).toBeDisabled();
+  await form.getByRole('radio').first().focus();
+  await page.keyboard.press('Space');
+  await expect(form.getByRole('radio').first()).toBeChecked();
   await submit.click();
-  const verdict = quiz.getByRole('status');
-  await expect(verdict).toHaveText(/Yes, that’s right!|Not quite\. Now you know\./);
-  const said = (await verdict.textContent())!;
+  await expect(quiz.getByRole('status')).toHaveText('Yes, that’s right!');
   await expect(quiz.getByText('You are the first to answer today.')).toBeVisible();
   await expect(quiz.getByText('1 day in a row')).toBeVisible();
   await expect(submit).toHaveCount(0);
@@ -150,7 +168,7 @@ test('today: the question of the week, the daily quiz, and sections that keep th
   // The answer stands: after a reload it is the same, and there is nothing to send again.
   await page.reload();
   await settled(page);
-  await expect(quiz.getByRole('status')).toHaveText(said);
+  await expect(quiz.getByRole('status')).toHaveText('Yes, that’s right!');
   await expect(quiz.getByRole('button', { name: 'That is my answer' })).toHaveCount(0);
 
   // ---------- the steward's switch ----------
