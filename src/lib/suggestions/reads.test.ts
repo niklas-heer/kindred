@@ -202,6 +202,24 @@ test('a guest of a protecting link no longer sees their suggestion about someone
   assert.equal((await V.mySuggestions(t, guest(1, false))).length, 1, 'a link that shows the living shows it');
 });
 
+test('nor their correction of a couple whose partner is since marked living, as suggesting it would be refused', async () => {
+  const t = await family();
+  const s = await S.createSuggestion(t, guest(1), { kind: 'event', person: 'bo', payload: { partnership: 'u1', start: '1947' } }, NOW);
+  await S.addSuggestionFile(t, guest(1), s.id, file('wedding.png'), NOW);
+  const id = await fileId(t, s.id);
+  assert.equal((await V.mySuggestions(t, guest(1))).length, 1, 'both partners dead: theirs to see');
+  await db.db(t).run("UPDATE person SET living = 1 WHERE id = 'cara'");
+  assert.deepEqual(await V.mySuggestions(t, guest(1)), []);
+  assert.equal(await V.pendingFile(t, guest(1), id), null);
+  assert.equal((await V.mySuggestions(t, guest(1, false))).length, 1);
+});
+
+test('a source’s file is found by its storage key through an index', async () => {
+  const t = await family();
+  const plan = await db.db(t).all<{ detail: string }>("EXPLAIN QUERY PLAN SELECT 1 FROM source_file WHERE media_key = 'source/x.png'");
+  assert.ok(plan.some((r) => /USING (COVERING )?INDEX source_file_key/.test(r.detail)), JSON.stringify(plan));
+});
+
 test('an approval closed in part says so, and whether it was adjusted is unknown when nothing tells', async () => {
   const t = await family();
   const s = await suggest(t, member(ada), 'details', 'bo', { born: '1919' });

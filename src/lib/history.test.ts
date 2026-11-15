@@ -377,6 +377,23 @@ test('the weekly push says what the week brought, and nothing when it brought no
   assert.equal(m.url, `/${TREE}/history`);
 });
 
+test('a line from an approved suggestion says who suggested it, in the page and in the weekly push', async () => {
+  const { lineText } = await load<typeof import('./history-text.ts')>('/src/lib/history-text.ts');
+  const { translate } = await load<typeof import('./i18n/dictionary.ts')>('/src/lib/i18n/dictionary.ts');
+  const en = (key: Parameters<typeof translate>[1], vars?: Parameters<typeof translate>[2]) => translate('en', key, vars);
+  const line = { author: 'Fay Fir', kind: 'person' as const, action: 'changed' as const, count: 1 };
+  assert.equal(lineText(en, { ...line, suggestedBy: 'Ada Alder' }), `${lineText(en, line)} (suggested by Ada Alder)`);
+  assert.equal(lineText(en, { ...line, suggestedBy: null }), lineText(en, line), 'an own change names nobody else');
+  const m = push.weeklyMessage(TREE, 'The Quills', 'de', {
+    since: '', first: false, total: 2, replies: [], posts: [],
+    groups: [{ person: 'ada', name: 'Ada Quill', lines: [
+      { author: 'Mara Quill', kind: 'photo', action: 'added', count: 1, label: null, suggestedBy: 'Hal Hazel' },
+      { author: 'Mara Quill', kind: 'photo', action: 'added', count: 2, label: null, suggestedBy: null },
+    ] }],
+  })!;
+  assert.equal(m.body, 'Ada Quill: Mara Quill hat ein Foto hinzugefügt (vorgeschlagen von Hal Hazel)\nAda Quill: Mara Quill hat 2 Fotos hinzugefügt');
+});
+
 test('pruning keeps the last three years by default', async () => {
   await d().run("INSERT INTO history (at, kind, record, action, fn) VALUES ('2019-01-01T00:00:00.000Z', 'place', 'Old', 'added', 'test')");
   assert.equal(h.keepYears(() => undefined), 3);

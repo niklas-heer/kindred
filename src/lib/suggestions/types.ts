@@ -10,6 +10,8 @@ export const GUEST_WAITING_PER_LINK = 100;
 export const MEMBER_WAITING = 50;
 export const PENDING_BYTES = 200 * 1024 * 1024;
 export const EXPIRY_DAYS = 90;
+/** A source file's key as /api/source-file/<tree>/<key> takes it: its storage key (`source/<uuid>.<ext>`) without `source/`. */
+export const SOURCE_FILE_KEY = /^[0-9a-f-]{36}\.(?:pdf|jpg|png|webp)$/;
 
 export const SUGGESTION_KINDS = ['details', 'relative', 'event', 'source'] as const;
 export type SuggestionKind = (typeof SUGGESTION_KINDS)[number];

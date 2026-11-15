@@ -82,7 +82,7 @@ export function WhatsNew({ tree, className = '' }: { tree: string; className?: s
                   </h3>
                   <ul>
                     {g.lines.map((l) => (
-                      <li key={`${l.author}-${l.kind}-${l.action}`}>
+                      <li key={`${l.author}-${l.kind}-${l.action}-${l.suggestedBy ?? ''}`}>
                         {lineText(t, l)}
                         {l.label && l.kind !== 'person' && <span className="hist-label"> · {l.label}</span>}
                       </li>

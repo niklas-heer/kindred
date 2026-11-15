@@ -25,6 +25,7 @@ export default {
   "history.group.family": "家族",
   "history.kindred": "Kindred",
   "history.vote": "家族の投票",
+  "history.suggested_by": "{line}（{name} の提案）",
   "history.you": "あなた",
   "history.empty": "まだ何も変わっていません。",
   "history.empty_filtered": "この条件に合う変更はありません。",

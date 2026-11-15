@@ -24,7 +24,7 @@ import { DOCUMENT_EXT, documentFileName, isPdf, type DocumentMime } from '../res
 import { can, needs as lowestRole } from '../roles.ts';
 import { SOURCE_FILES } from '../sources.server.ts';
 import { detailsOf, PERSON_COLUMNS, type PersonRow } from './suggest.server.ts';
-import { EXPIRY_DAYS, type EventPayload, type SuggestionKind, type SuggestionPayload, type SuggestionStatus, type SuggestionView } from './types.ts';
+import { EXPIRY_DAYS, SOURCE_FILE_KEY, type EventPayload, type SuggestionKind, type SuggestionPayload, type SuggestionStatus, type SuggestionView } from './types.ts';
 
 /** Whose own suggestions: a member's (by account), or a guest's (by their cookie's key; '' when they have none). */
 export type SuggestionOwner = { kind: 'member'; who: Who } | { kind: 'guest'; key: string; protectLiving: boolean };
@@ -41,8 +41,12 @@ function needsReviewer(who: Who) {
 
 /** A guest's key as the votes cookie makes it (`g:` and a hash); anything else names no guest. */
 const guestKey = (key: string) => key.startsWith('g:');
-/** A condition on `s` for a protecting link's guest: the suggestion is about no one living. */
-const NOT_LIVING = `(s.person IS NULL OR s.person NOT IN (${LIVING_IDS}))`;
+/**
+ * A condition on `s` for a protecting link's guest: the suggestion is about no one living, as suggest.server.ts requires when
+ * it is made: not its person, nor either partner of a couple it corrects.
+ */
+const NOT_LIVING = `(s.person IS NULL OR s.person NOT IN (${LIVING_IDS}))
+  AND NOT EXISTS (SELECT 1 FROM partnership u WHERE u.id = json_extract(s.payload, '$.partnership') AND (u.a IN (${LIVING_IDS}) OR u.b IN (${LIVING_IDS})))`;
 
 interface Row {
   id: string; kind: SuggestionKind; person: string | null; payload: string; basis: string | null; note: string; status: SuggestionStatus;
@@ -190,12 +194,9 @@ export async function pendingFile(tree: string, reader: SuggestionOwner, id: str
   return f ?? null;
 }
 
-/** A source file's key as the route takes it: the storage key without `source/`. */
-const SOURCE_KEY = /^[0-9a-f-]{36}\.(?:pdf|jpg|png|webp)$/;
-
 /** The source's file `key` (without `source/`) if this reader may fetch it: a member, as sources are members'. Never a guest's. */
 export async function sourceFile(tree: string, who: Who, key: string): Promise<ServedFile | null> {
-  if (who.guest || !who.id || !SOURCE_KEY.test(key)) return null;
+  if (who.guest || !who.id || !SOURCE_FILE_KEY.test(key)) return null;
   const f = await db(tree).get<ServedFile>('SELECT media_key AS key, mime, name FROM source_file WHERE media_key = ? LIMIT 1', `${SOURCE_FILES}${key}`);
   return f ?? null;
 }

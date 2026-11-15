@@ -25,6 +25,7 @@ export default {
   "history.group.family": "Die Familie",
   "history.kindred": "Kindred",
   "history.vote": "Die Abstimmung der Familie",
+  "history.suggested_by": "{line} (vorgeschlagen von {name})",
   "history.you": "Du",
   "history.empty": "Noch hat sich nichts geändert.",
   "history.empty_filtered": "Zu diesen Filtern passt keine Änderung.",

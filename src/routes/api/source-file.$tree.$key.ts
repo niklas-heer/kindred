@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { SOURCE_FILE_KEY } from '~/lib/suggestions/types';
 
 // A source's file: /api/source-file/<tree>/<uuid>.<ext> is source/<uuid>.<ext> in the family's media, as `source_file` lists it
 // (an approved suggestion's file). Sources are for members: a share-link guest gets none (docs/roles-and-privacy.md), so to
@@ -9,7 +10,7 @@ export const Route = createFileRoute('/api/source-file/$tree/$key')({
     handlers: {
       GET: async ({ params, request }) => {
         const text = (body: string, status: number) => new Response(body, { status, headers: { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' } });
-        if (!/^[a-z0-9-]{1,64}$/.test(params.tree) || !/^[0-9a-f-]{36}\.(?:pdf|jpg|png|webp)$/.test(params.key)) return text('not found', 404);
+        if (!/^[a-z0-9-]{1,64}$/.test(params.tree) || !SOURCE_FILE_KEY.test(params.key)) return text('not found', 404);
         const [{ requireReader }, { AuthError }] = await Promise.all([import('~/lib/auth/guard.server'), import('~/lib/auth/errors')]);
         let reader;
         try {

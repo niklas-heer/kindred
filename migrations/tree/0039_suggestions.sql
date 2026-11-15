@@ -13,7 +13,8 @@
 -- `suggestion_file` is a picture or a document attached to a suggestion; the file is in media storage under `key`.
 --
 -- `source_file` lists the files of a source in their order (`ord`), so a source may hold more than the one `document` or
--- `media` it has had since migration 0024; the file is in media storage under `media_key`.
+-- `media` it has had since migration 0024; the file is in media storage under `media_key`, which `source_file_key` finds
+-- it by when it is served.
 --
 -- `history.suggestion` is the id of the suggestion an approved change came from, so the history can say "suggested by";
 -- `history_suggestion` finds an approval's rows by it (whether one has begun, closing one as partly applied).
@@ -62,6 +63,7 @@ CREATE TABLE source_file (
   added_at TEXT NOT NULL,
   PRIMARY KEY (source, media_key)
 );
+CREATE INDEX source_file_key ON source_file (media_key);
 
 ALTER TABLE history ADD COLUMN suggestion TEXT;
 CREATE INDEX history_suggestion ON history (suggestion);

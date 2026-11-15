@@ -9,9 +9,14 @@ type T = (key: Key, vars?: Vars) => string;
 /** The author as a sentence names them: Kindred itself when no account made the change, and the family's vote when it did. */
 export const authorName = (t: T, author: string) => (author === VOTE_AUTHOR ? t('history.vote') : author || t('history.kindred'));
 
-/** "{author} added {count} photos", as one sentence in the reader's language. */
-export const lineText = (t: T, line: { author: string; kind: HistoryKind; action: HistoryAction; count: number }) =>
-  t(`history.s.${line.kind}.${line.action}` as Key, { author: authorName(t, line.author), count: line.count });
+/**
+ * "{author} added {count} photos", as one sentence in the reader's language; with "(suggested by {name})" when the changes
+ * applied someone's approved suggestion (`suggestedBy`, history.server.ts).
+ */
+export function lineText(t: T, line: { author: string; kind: HistoryKind; action: HistoryAction; count: number; suggestedBy?: string | null }): string {
+  const text = t(`history.s.${line.kind}.${line.action}` as Key, { author: authorName(t, line.author), count: line.count });
+  return line.suggestedBy ? t('history.suggested_by', { line: text, name: line.suggestedBy }) : text;
+}
 
 /** The fields the history knows the name of. Any other is shown as it is stored. */
 const FIELD_NAMES = new Set([

@@ -25,6 +25,7 @@ export default {
   "history.group.family": "家族",
   "history.kindred": "Kindred",
   "history.vote": "家人投票",
+  "history.suggested_by": "{line}（由 {name} 建议）",
   "history.you": "你",
   "history.empty": "还没有任何变化。",
   "history.empty_filtered": "没有符合这些筛选条件的修改。",

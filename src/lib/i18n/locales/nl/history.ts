@@ -25,6 +25,7 @@ export default {
   "history.group.family": "De familie",
   "history.kindred": "Kindred",
   "history.vote": "De stemming van de familie",
+  "history.suggested_by": "{line} (voorgesteld door {name})",
   "history.you": "Jij",
   "history.empty": "Er is nog niets gewijzigd.",
   "history.empty_filtered": "Geen wijzigingen bij deze filters.",
