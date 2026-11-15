@@ -48,13 +48,13 @@ const refuse = (key: string) => new AuthError('invalid', key);
 const secure = (request: Request) => publicOrigin(request).protocol === 'https:';
 const JOIN_COOKIE = 'kindred_join';
 const VISITOR_COOKIE = 'kindred_visitor';
-const named = (request: Request, base: string) => (secure(request) ? `__Host-${base}` : base);
+export const named = (request: Request, base: string) => (secure(request) ? `__Host-${base}` : base);
 
-function cookie(request: Request, base: string, value: string, maxAgeSeconds: number) {
+export function cookie(request: Request, base: string, value: string, maxAgeSeconds: number) {
   return [`${named(request, base)}=${value}`, 'Path=/', `Max-Age=${maxAgeSeconds}`, 'HttpOnly', 'SameSite=Lax', ...(secure(request) ? ['Secure'] : [])].join('; ');
 }
 
-const tokenIn = (request: Request, base: string) => {
+export const tokenIn = (request: Request, base: string) => {
   const t = readCookie(request, named(request, base));
   return t && TOKEN.test(t) ? t : undefined;
 };

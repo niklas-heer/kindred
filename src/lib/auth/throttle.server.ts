@@ -32,9 +32,9 @@ export const resetThrottle = () => hits.clear();
  * on Node it is trusted only when Cloudflare Access is the sign-in method. Behind KINDRED_TRUSTED_PROXIES reverse proxies,
  * the address the outermost one saw; otherwise the socket's address.
  */
-export function clientIP(): string {
-  let request: Request | undefined;
-  try { request = getRequest(); } catch {}
+export function clientIP(given?: Request): string {
+  let request: Request | undefined = given;
+  if (!request) try { request = getRequest(); } catch {}
   let peer: string | undefined;
   try { peer = getRequestIP(); } catch {}
   // A bad value stops the Node server at start (server/node.ts); a dev server that got this far trusts nothing.
