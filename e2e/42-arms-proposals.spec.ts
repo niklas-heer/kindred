@@ -2,8 +2,9 @@
 // arms for a house in the designer's propose mode, without the house's name and motto. In choose mode, the family's
 // default, the steward sees it beside the house's arms now and puts it to a vote; while the vote runs, the steward's own
 // designer cannot change the arms. Both members rank the shields; a guest of a share link sees the shields and their
-// names, never who proposed them. The steward closes the vote, and the house bears the new arms. In steward mode, set on
-// the Houses page, the Houses page counts the waiting proposal and the steward accepts it directly, after confirming it.
+// names, never who proposed them, and no proposals on the house's page. The steward closes the vote, and the house bears
+// the new arms. In steward mode, set on the Houses page, the Houses page counts the waiting proposal and the steward
+// accepts it directly, after confirming it.
 import { addPasskeyDevice, checkAxe, expect, openFamily, settled, test, type Issues } from './fixtures.ts';
 import type { Browser, Page } from '@playwright/test';
 
@@ -171,6 +172,12 @@ test('arms proposals: a contributor proposes, the family votes, the steward acce
   await expect(guest.getByText('Bo Starling')).toHaveCount(0);
   await expect(guest.getByText('Three stars for three sisters.')).toHaveCount(0);
   await checkAxe(guest, 'an arms vote as guest');
+  // On the house's page a guest sees no proposals and cannot propose.
+  await guest.goto(house);
+  await settled(guest);
+  await expect(guest.getByRole('heading', { level: 1, name: /Starling/ })).toBeVisible();
+  await expect(guest.getByRole('region', { name: 'Proposed arms' })).toHaveCount(0);
+  await expect(guest.getByRole('button', { name: 'Propose arms' })).toHaveCount(0);
   await visit.close();
 
   // ---------- the steward closes it, and the house bears the new arms ----------
