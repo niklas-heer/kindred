@@ -131,10 +131,12 @@ test('today: the question of the week, the daily quiz, and sections that keep th
     await page.keyboard.press('Space');
     await expect(form.getByRole('radio').first()).toBeChecked();
   } else {
-    // Birth order: a row moves with its button.
-    const first = (await form.locator('.td-quiz-order li').first().textContent())!;
+    // Birth order: a row moves with its button. A row's text starts with its place, which stays where it is, so the
+    // name is what moves.
+    const names = form.locator('.td-quiz-order li .td-quiz-option-text');
+    const first = (await names.first().textContent())!;
     await form.getByRole('button', { name: /^Move .+ down$/ }).first().click();
-    await expect(form.locator('.td-quiz-order li').nth(1)).toHaveText(first);
+    await expect(names.nth(1)).toHaveText(first);
   }
   await submit.click();
   const verdict = quiz.getByRole('status');
