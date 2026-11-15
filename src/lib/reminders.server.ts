@@ -73,6 +73,10 @@ export interface PushRow {
   posts?: number;
   /** When this device was last told of a post (milliseconds): the claim that keeps it to one in a few hours. */
   posts_sent_at?: number | null;
+  /** 1 when this device wants to hear of a new vote and be reminded before one closes (accounts migration 0060, votes/vote-push.server.ts). */
+  votes?: number;
+  /** When this device was last told of a new vote (milliseconds): the claim that keeps it to one in a few hours. */
+  votes_sent_at?: number | null;
 }
 
 /** The device's row for one family, if it has one. */
@@ -103,6 +107,8 @@ export interface Registration {
   weekly?: boolean;
   /** Also a new post in the family's feed, at most one push in a few hours. Off unless asked for. */
   posts?: boolean;
+  /** Also a new vote (at most one push in a few hours) and a reminder before a vote closes. Off unless asked for. */
+  votes?: boolean;
 }
 
 /**
@@ -110,7 +116,7 @@ export interface Registration {
  * person holds at most MAX_DEVICES_PER_PERSON devices. Each rule the check relies on is restated as a guard in the batch,
  * so a racing registration cannot break it. The caller has checked the membership and the endpoint and keys.
  */
-export async function saveRegistration({ user, tree, subscription, choices, locale, weekly = false, posts = false }: Registration): Promise<void> {
+export async function saveRegistration({ user, tree, subscription, choices, locale, weekly = false, posts = false, votes = false }: Registration): Promise<void> {
   if (!(await (await import('./operator/policy.server.ts')).familyAllows(tree, 'feature.push'))) throw (await import('./operator/policy.server.ts')).policyOff();
   const { endpoint, keys } = subscription;
   const a = accounts();
@@ -126,12 +132,12 @@ export async function saveRegistration({ user, tree, subscription, choices, loca
         guard('(SELECT count(DISTINCT endpoint) FROM push_subscription WHERE user = ? AND endpoint <> ?) < ?', user, endpoint, MAX_DEVICES_PER_PERSON),
         guard('EXISTS (SELECT 1 FROM membership WHERE user = ? AND tree = ?)', user, tree),
         q(
-          `INSERT INTO push_subscription (id, user, tree, endpoint, p256dh, auth, offsets, kinds, locale, created, last_seen, weekly, posts)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO push_subscription (id, user, tree, endpoint, p256dh, auth, offsets, kinds, locale, created, last_seen, weekly, posts, votes)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (tree, endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth,
              offsets = excluded.offsets, kinds = excluded.kinds, locale = excluded.locale, last_seen = excluded.last_seen, weekly = excluded.weekly,
-             posts = excluded.posts`,
-          crypto.randomUUID(), user, tree, endpoint, keys.p256dh, keys.auth, JSON.stringify(choices.offsets), JSON.stringify(choices.kinds), locale, stamp, stamp, weekly ? 1 : 0, posts ? 1 : 0,
+             posts = excluded.posts, votes = excluded.votes`,
+          crypto.randomUUID(), user, tree, endpoint, keys.p256dh, keys.auth, JSON.stringify(choices.offsets), JSON.stringify(choices.kinds), locale, stamp, stamp, weekly ? 1 : 0, posts ? 1 : 0, votes ? 1 : 0,
         ),
       ],
       result: undefined,

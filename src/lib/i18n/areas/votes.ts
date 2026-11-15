@@ -1,5 +1,7 @@
 // Family votes (docs/votes.md): the Votes page, a vote's own page, starting a vote, the ballot, the result and what the
-// server says when it refuses one.
+// server says when it refuses one; a vote's entries in the feed (feed.*), and the pushes about votes with their switch under
+// Reminders (push.*). The push.* keys are used on the server, in the language each device registered with
+// (src/lib/votes/vote-push.server.ts).
 export const en = {
   "votes.title": "Votes",
   "votes.subtitle": "Ask the family a question and decide together.",
@@ -96,4 +98,15 @@ export const en = {
   "votes.err.name": "Give a name of up to 60 characters.",
   "votes.err.gone": "This vote is not here any more.",
   "votes.err.kind": "Choose single choice or ranked.",
+
+  "votes.feed.started": "{author} asked the family: {question}",
+  "votes.feed.result": "{question} – chosen: {winner}",
+  "votes.feed.result_tie": "{question} – a tie: {winners}",
+  "votes.feed.result_none": "{question} – nobody voted",
+  "votes.push.toggle": "A new vote, and a reminder before it closes",
+  "votes.push.toggle_hint": "The question, never how anyone voted. At most one new vote every few hours on this device, and a reminder about a day before a vote closes if you have not voted.",
+  "votes.push.title": "{name} asked the family",
+  "votes.push.body": "{question} Open {family} to vote.",
+  "votes.push.remind_title": "A vote closes soon",
+  "votes.push.remind_body": "You have not voted yet: {question}",
 };

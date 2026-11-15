@@ -10,8 +10,12 @@
 //            and contact details changed, with the new values this reader may see (below), life events, sources, a
 //            portrait, photos they were tagged in; and a GEDCOM import as one number, however many people it brought
 //   season   a season of the Campaign that ended
+//   vote     a member started a vote (votes.server.ts), at its start
+//   vote_result  a vote closed, at its closing time (`closed_at`, else `closes_at` once that has passed), with the winners'
+//            labels alone: nothing about any voter, in a secret vote or an open one. Reactions and comments on either entry
+//            are on the vote itself (target `('vote', id)`)
 //
-// Who reads what. Every member reads the same posts, memories, photos and people. Updates follow the change history's
+// Who reads what. Every member reads the same posts, memories, photos, people and votes. Updates follow the change history's
 // levels (history.server.ts): what is for editors (an address, which starts there) only an editor reads, and a Personal
 // field is in nobody's feed. A share-link guest reads no feed at all, so contact details never reach one.
 //
@@ -34,7 +38,9 @@ import { fieldText, isContactType, isSensitiveType, type FieldType } from '../fi
 import { authorKey, type Diff } from '../history.server';
 import { can } from '../roles';
 import { maySee, type Audience } from '../visibility';
-import { needsMember, postParts, postViews, standingFor, type PostRow, type Who } from './posts.server';
+import { winnerLabels } from '../votes/votes.server';
+import type { VoteKind } from '../votes/types';
+import { authorOf, needsMember, postParts, postViews, standingFor, type PostRow, type Who } from './posts.server';
 import {
   afterCursor, decodeCursor, encodeCursor, feedOrder, FEED_PAGE,
   type ContactKind, type FeedAuthor, type FeedCursor, type FeedItem, type FeedPage, type FeedPicture, type UpdatePerson, type UpdateValue,
@@ -80,11 +86,26 @@ interface UpdateRow {
   more: number; cut: string | null;
 }
 interface SeasonRow { season: number; ended: string; winner: string | null }
+/** A vote at its start; `closes_at` is when it closes, or when it closed. */
+interface VoteRow { id: string; account: string; author_name: string; author_person: string | null; question: string; created_at: string; closes_at: string }
+/** A vote that has closed, at its closing time (`ended`), with what its winners need: its options, ballots and struck voters. */
+interface VoteResultRow { id: string; question: string; kind: VoteKind; secret: number; ended: string }
+interface VoteOptionRow { vote: string; id: string; label: string }
+interface VoteBallotRow { vote: string; voter: string; choices: string }
+interface VoteStruckRow { vote: string; account: string | null; guest_key: string | null }
 
 /** What a source found: its entries, and how far down it looked when it could not look at everything (else null). */
 interface Found { items: FeedItem[]; floor: string | null }
 
 const day = (at: string) => at.slice(0, 10);
+/** Rows grouped by the vote they belong to. */
+function byVote<R extends { vote: string }>(rows: readonly R[]): Map<string, R[]> {
+  const m = new Map<string, R[]>();
+  for (const r of rows) m.set(r.vote, [...(m.get(r.vote) ?? []), r]);
+  return m;
+}
+/** When a vote closes, or closed: `closed_at` when it was closed (by hand, or marked on a read), else `closes_at`. */
+const VOTE_ENDED = 'coalesce(v.closed_at, v.closes_at)';
 /** A cursor's key that every entry's key sorts before: the page after a floor takes everything of the floor's instant. */
 const FLOOR_KEY = '~';
 /**
@@ -293,9 +314,10 @@ function updateEntries(rows: UpdateRow[], keys: Map<string, string>, reader: Aud
 
 /**
  * One page of the feed for a member, after `cursor` (a page's `next`), newest first. What a viewer may not read (private
- * research, editors' notes) is in none of its sources; an update to what only editors read is in an editor's alone.
+ * research, editors' notes) is in none of its sources; an update to what only editors read is in an editor's alone. `now`
+ * decides which votes have closed.
  */
-export async function feedPage(tree: string, who: Who, cursor?: string | null, limit: number = FEED_PAGE): Promise<FeedPage> {
+export async function feedPage(tree: string, who: Who, cursor?: string | null, limit: number = FEED_PAGE, now: Date = new Date()): Promise<FeedPage> {
   needsMember(who);
   const n = Math.min(Math.max(limit, 1), 50);
   const c = decodeCursor(cursor);
@@ -313,6 +335,9 @@ export async function feedPage(tree: string, who: Who, cursor?: string | null, l
   // Who made a row, as the entries are grouped (byDayAndAuthor): the account, or for a row of none the name it showed.
   const author = (t: string) => `${t}.account, CASE WHEN ${t}.account IS NULL THEN ${t}.name END`;
   const entry = `PARTITION BY substr(at, 1, 10), ${author('rec')}, level`;
+  // The votes that have closed by now, newest closing first: their result entries and what their winners are counted from.
+  const resultIds = `SELECT v.id FROM vote v WHERE ${VOTE_ENDED} <= ?${after(VOTE_ENDED, "('vote_result:' || v.id)")} ORDER BY ${VOTE_ENDED} DESC, v.id DESC LIMIT ?`;
+  const resultParams = [now.toISOString(), ...afterParams, n + 1];
   const reads: Query[] = [
     q(`SELECT id, account, author_name, author_person, body, created_at, edited_at FROM post WHERE id IN (${postIds}) ORDER BY created_at DESC, id DESC`, ...postParams),
     ...postParts(postIds, postParams),
@@ -338,13 +363,20 @@ export async function feedPage(tree: string, who: Who, cursor?: string | null, l
        FROM ranked WHERE n <= ? ORDER BY at DESC, record DESC`, upper, UPDATES_WINDOW - 1, upper, UPDATES_PER_ENTRY, UPDATES_PER_ENTRY),
     q(`SELECT season, ended, json_extract(result, '$.winner.name') AS winner FROM campaign_season
        WHERE ended IS NOT NULL${after('ended', "('season:' || season)")} ORDER BY ended DESC LIMIT ?`, ...afterParams, SEASONS),
+    q(`SELECT v.id, v.account, v.author_name, v.author_person, v.question, v.created_at, ${VOTE_ENDED} AS closes_at FROM vote v
+       WHERE 1 = 1${after('v.created_at', "('vote:' || v.id)")} ORDER BY v.created_at DESC, v.id DESC LIMIT ?`, ...afterParams, n + 1),
+    q(`SELECT v.id, v.question, v.kind, v.secret, ${VOTE_ENDED} AS ended FROM vote v WHERE v.id IN (${resultIds}) ORDER BY ended DESC, v.id DESC`, ...resultParams),
+    q(`SELECT vote, id, label FROM vote_option WHERE vote IN (${resultIds}) ORDER BY vote, ord`, ...resultParams),
+    q(`SELECT vote, voter, choices FROM ballot WHERE vote IN (${resultIds})`, ...resultParams),
+    q(`SELECT vote, account, guest_key FROM vote_voter WHERE struck = 1 AND vote IN (${resultIds})`, ...resultParams),
   ];
-  const [postRows, postMedia, postPeople, storyRows, mediaRows, addedRows, updateRows, seasonRows] = (await db(tree).readBatch(reads)) as unknown as [
+  const [postRows, postMedia, postPeople, storyRows, mediaRows, addedRows, updateRows, seasonRows, voteRows, resultRows, voteOptions, voteBallots, voteStruck] = (await db(tree).readBatch(reads)) as unknown as [
     PostRow[], Parameters<typeof postViews>[2], Parameters<typeof postViews>[3], StoryRow[], MediaRow[], AddedRow[], UpdateRow[], SeasonRow[],
+    VoteRow[], VoteResultRow[], VoteOptionRow[], VoteBallotRow[], VoteStruckRow[],
   ];
 
-  // The one read of the accounts database: who the writers and the uploaders are in the tree now.
-  const standing = await standingFor(tree, [...postRows.map((r) => r.account), ...mediaRows.map((r) => r.uploaded_by)]);
+  // The one read of the accounts database: who the writers, the uploaders and those who asked a vote are in the tree now.
+  const standing = await standingFor(tree, [...postRows.map((r) => r.account), ...mediaRows.map((r) => r.uploaded_by), ...voteRows.map((r) => r.account)]);
   const names = new Map<string, FeedAuthor>([...standing].map(([id, m]) => [id, { name: m.name, person: m.person }]));
 
   const photos = windowed(mediaRows, PHOTO_WINDOW, (r) => r.uploaded_at);
@@ -354,6 +386,12 @@ export async function feedPage(tree: string, who: Who, cursor?: string | null, l
   // The authors' keys for the entries' own keys: the same as the History page's, never an account id. Hashes, not reads.
   const accountIds = [...new Set([...added.rows, ...updates.rows].map((r) => r.account).filter((a): a is string => !!a))];
   const keys = new Map(await Promise.all(accountIds.map(async (a) => [a, await authorKey(tree, a)] as const)));
+  // A result's winners, counted from what was read (a struck guest's ballot left out: a hash, not a read).
+  const [options, ballots, struck] = [byVote(voteOptions), byVote(voteBallots), byVote(voteStruck)];
+  const results = await Promise.all(resultRows.map(async (v): Promise<FeedItem> => ({
+    type: 'vote_result', at: v.ended, key: `vote_result:${v.id}`, id: v.id, question: v.question,
+    winners: await winnerLabels(v, options.get(v.id) ?? [], ballots.get(v.id) ?? [], struck.get(v.id) ?? []),
+  })));
   const sources: Found[] = [
     { items: postViews(who, postRows, postMedia, postPeople, standing).map((post): FeedItem => ({ type: 'post', at: post.at, key: `post:${post.id}`, post })), floor: postRows.length > n ? postRows[n]!.created_at : null },
     {
@@ -365,6 +403,11 @@ export async function feedPage(tree: string, who: Who, cursor?: string | null, l
     // The reader as every person read knows them (visibility.ts): in a "View as" preview, the previewed role and no account of theirs.
     { items: updateEntries(updates.rows, keys, { account: who.id, role: who.role, guest: who.guest === true }), floor: updates.floor },
     { items: seasonRows.map((s): FeedItem => ({ type: 'season', at: s.ended, key: `season:${s.season}`, season: s.season, winner: s.winner })), floor: seasonRows.length >= SEASONS ? seasonRows[SEASONS - 1]!.ended : null },
+    {
+      items: voteRows.map((v): FeedItem => ({ type: 'vote', at: v.created_at, key: `vote:${v.id}`, id: v.id, question: v.question, author: authorOf(v, standing), closesAt: v.closes_at })),
+      floor: voteRows.length > n ? voteRows[n]!.created_at : null,
+    },
+    { items: results, floor: resultRows.length > n ? resultRows[n]!.ended : null },
   ];
 
   // A source that hit its limit has looked no further down than its floor (a row source's is its last row), so only what

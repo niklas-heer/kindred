@@ -77,6 +77,8 @@ export default {
   "responses.push.reaction_media": "Reakcja od {name} na udostępnione zdjęcie: {reaction}.",
   "responses.push.comment_post": "Nowy komentarz od {name} do wiadomości do rodziny.",
   "responses.push.reaction_post": "Reakcja od {name} na wiadomość do rodziny: {reaction}.",
+  "responses.push.comment_vote": "Nowy komentarz od {name} do Twojego głosowania.",
+  "responses.push.reaction_vote": "Reakcja od {name} na Twoje głosowanie: {reaction}.",
   "responses.push.legend": "Odpowiedzi",
   "responses.push.switch": "Powiadamiaj, gdy ktoś zareaguje na to, co napisano lub udostępniono, albo to skomentuje",
   "responses.push.help": "Najwyżej raz dziennie, na urządzeniach z włączonymi przypomnieniami dla tej rodziny.",

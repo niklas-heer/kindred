@@ -81,11 +81,18 @@ One stream, newest first, under the days it falls on ("Today", "Yesterday", "Ear
   people from a GEDCOM file"). Removed records are not news here; the History page has them;
 - **a season of the Campaign's old shared game ending**, with the house that won (since the Campaign became a game one
   plays alone, only the last season, closed once on the upgrade, can still appear);
+- **a vote** ([votes.md](votes.md)), twice: when it starts ("Ada asked the family: Where do we meet next summer?", with
+  when it closes) and when it has closed, at its closing time ("Where do we meet next summer? – chosen: Lake"; a tie names
+  every winner, and a vote nobody voted in says so). A vote closed by hand is closed at that moment; one whose closing time
+  passed is closed at that time, whether or not anyone has opened it since. The closing entry carries the winning options
+  alone, never a tally, a ballot or who voted, in a secret vote or an open one: those are on the vote's page, for whom
+  they are. The question leads to the vote;
 - at the very top, **whose birthday or wedding anniversary it is today**.
 
 Messages and events are in one stream, by the time they happened. Members react to and comment on an event as on a
 message ([responses.md](responses.md)): people added, a day's updates, a birthday or an anniversary today (a new year's
-is a new one).
+is a new one). A vote's reactions and comments are the vote's own: its two entries and its page show the one thread, and
+it goes when the vote is removed.
 
 Private research, editors' notes and Personal fields are in none of these. Updates come from the change history and are
 read at its levels ([roles-and-privacy.md](roles-and-privacy.md#change-history-and-whats-new)): an update to something only editors read is in an editor's feed alone,
@@ -132,7 +139,8 @@ earlier", so the end of the page stays within reach.
 
 A page is one batch of reads in the family's database (one round trip on D1): posts, stories, gallery uploads, the
 "person added" rows of the change history, the change history's other rows for updates (with each field's kind, value and level now, joined
-in the same read), and the Campaign's finished seasons, each limited, plus one read of the
+in the same read), the Campaign's finished seasons, the votes by when they started and the votes that have closed by when
+they closed (with the options, ballots and struck voters their winners are counted from), each limited, plus one read of the
 accounts database for the writers' faces. There is no read per entry. Each source hands over its newest entries after
 the page's cursor, and the page is the newest twenty of them together. The three sources that group rows by day (uploads,
 people added, updates) read a window of rows (400, 120 and 400); when the window was full, the page ends where the window did, so a later page
@@ -157,7 +165,18 @@ says who wrote, never what. A device gets at most one in six hours, however many
 the feed, in "What's new" and in the weekly push. The writer's own devices are not told, nor a device that has not been
 opened for a long time, nor anyone who is no longer a member. A demo and a preview send nothing.
 
-The existing answer push ("tell me when someone reacts to or comments on what I wrote or shared") covers messages too.
+The existing answer push ("tell me when someone reacts to or comments on what I wrote or shared") covers messages too,
+and a vote for the one who started it.
+
+A second switch is for votes: **A new vote, and a reminder before it closes**, also off until turned on. With it on, a
+device is told when someone starts a vote, at most one such push in six hours (its own claim, apart from the messages'),
+never on the creator's own devices. And about a day before an open vote closes, each member with a device that asked and
+who has not voted gets one reminder on those devices. Whether someone voted is read from the list of who took part, never
+from a ballot, so a secret vote is reminded alike. The reminders come from the daily job (`votes`): the jobs run once a
+day, so each run reminds of the open votes that close within the next 24 hours, and a vote started after a day's run that
+closes before the next one gets none. Each member is reminded once per vote (the family's `vote_reminded` row, written
+before the send); a member with no device that asked is not, so turning the switch on later still brings the reminder.
+Both pushes name the question, never a choice, a tally or who voted. A demo and a preview send nothing.
 
 ## Where it is kept
 
@@ -165,7 +184,9 @@ Three tables in the family database (migration `tree/0029_posts.sql`, see [data-
 `post_media` and `post_person`, and `media.for_post`, the mark of a picture uploaded for a message. `reaction` and `comment` take `post` as a third kind of target,
 and `event` as a fourth (migration `tree/0030`), keyed by the event's own key. Events themselves are not stored: they are
 read from the change history and the calendar each time. The device's switch is
-two columns on `push_subscription` (migration `accounts/0029_post_push.sql`).
+two columns on `push_subscription` (migration `accounts/0029_post_push.sql`); its switch for votes two more
+(`accounts/0060_vote_push.sql`). Votes are kept in their own tables (migration `tree/0037_votes.sql`), and `reaction` and
+`comment` take `vote` as a fifth kind of target.
 
 The Markdown archive carries the messages and their comments in `feed/`, one file per year
 ([exchange.md](exchange.md)); the pictures are the gallery's, which no archive holds. GEDCOM has none of it. The D1

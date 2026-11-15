@@ -200,6 +200,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
 | `0057_breach_notice_reach.sql` | `breach_mail`: one row per steward and affected family a breach's current notice is for, with when its email went out, how often it was tried and the last result, so the register shows how many it reached and the daily `breach-notices` job retries the rest. |
 | `0058_email_signin.sql` | `email_signin`: one row per "email me a sign-in code" asked in one browser (the hash of that browser's cookie value, and once a code went out the account and the hash of its code), and `signin_step.method`, so a ticket for the two-step code continues only the way in that issued it. |
 | `0059_sso_setup.sql` | The guided setup of single sign-on providers: `auth_provider.secret_expires` (the day the client secret expires, typed by the operator), `.last_success`, `.last_error` and `.last_error_at` (health), `.tested_at` (the operator's test sign-in worked with the current client ID and secret), and `oidc_flow` made again with the purpose `test`. |
+| `0060_vote_push.sql` | `push_subscription.votes` and `votes_sent_at`, for the pushes about family votes: a new vote, and the reminder before one closes ([feed.md](feed.md#being-told)). |
 
 ### Tables
 
@@ -258,6 +259,7 @@ published (listed in `family_store`, and then served), so nothing serves a famil
   the family (its `tree` column).
 - **`push_subscription.weekly`** and **`weekly_sent_day`** (0026): whether the device wants "This week in the family", and the UTC day it was last claimed for: at most one in seven days, claimed by one conditional UPDATE before the send.
 - **`push_subscription.posts`** and **`posts_sent_at`** (0029): whether the device wants to be told of a new post in the family feed (0 until its owner turns it on), and when it was last told (milliseconds): at most one push in six hours for each device, claimed by one conditional UPDATE before the send.
+- **`push_subscription.votes`** and **`votes_sent_at`** (0060): whether the device wants the pushes about family votes (0 until its owner turns it on), and when it was last told of a new vote (milliseconds): at most one in six hours for each device, claimed by one conditional UPDATE before the send, apart from `posts_sent_at`. The reminder before a vote closes is claimed in the family's database instead, by its `vote_reminded` row, one per member and vote.
 - **`ai_task_giveup`** (0012): per family, task and item, how many tries failed for a reason of the item's own; after a few, the item is no longer asked until it changes.
 - **`ai_chat_image`** (0018): a picture kept with one assistant message (`item` is the `ai_chat` row, `data` is base64). It goes with its message and its user, and is read only through the same check as the message.
 - **`ai_thread`** (0020): one row per family, reader and chat (`conv`): the `title` the reader chose, the `title_tier` that name needs (`member` or `editor`), and an optional `provider` and `model` a steward chose for this chat. Messages stay in `ai_chat`.

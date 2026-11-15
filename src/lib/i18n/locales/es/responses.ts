@@ -67,6 +67,8 @@ export default {
   "responses.push.reaction_media": "{name} reaccionó a una foto que compartiste: {reaction}.",
   "responses.push.comment_post": "{name} comentó lo que escribiste a la familia.",
   "responses.push.reaction_post": "{name} reaccionó a lo que escribiste a la familia: {reaction}.",
+  "responses.push.comment_vote": "{name} comentó la votación que empezaste.",
+  "responses.push.reaction_vote": "{name} reaccionó a la votación que empezaste: {reaction}.",
   "responses.push.legend": "Respuestas",
   "responses.push.switch": "Avísame cuando alguien reaccione o comente lo que escribí o compartí",
   "responses.push.help": "Como mucho una vez al día, en los dispositivos donde los recordatorios están activados para esta familia.",

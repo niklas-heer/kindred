@@ -67,6 +67,8 @@ export default {
   "responses.push.reaction_media": "{name}回应了你分享的一张照片：{reaction}。",
   "responses.push.comment_post": "{name}评论了你写给家人的内容。",
   "responses.push.reaction_post": "{name}回应了你写给家人的内容：{reaction}。",
+  "responses.push.comment_vote": "{name}评论了你发起的投票。",
+  "responses.push.reaction_vote": "{name}回应了你发起的投票：{reaction}。",
   "responses.push.legend": "回复",
   "responses.push.switch": "有人回应或评论我写的、分享的内容时通知我",
   "responses.push.help": "每天最多一次，发到这个家族已开启提醒的设备上。",

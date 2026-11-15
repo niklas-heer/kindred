@@ -39,6 +39,8 @@ export interface ReminderStatus {
   weekly: boolean;
   /** This device is also told of a new post in the family's feed. */
   posts: boolean;
+  /** This device is also told of a new vote, and reminded before one closes that its owner has not voted in. */
+  votes: boolean;
 }
 
 export const reminderStatus = createServerFn({ method: 'POST' })
@@ -59,12 +61,13 @@ export const reminderStatus = createServerFn({ method: 'POST' })
       kinds: choices?.kinds ?? [],
       weekly: row?.weekly === 1,
       posts: row?.posts === 1,
+      votes: row?.votes === 1,
     };
   });
 
 /** Turns reminders on for this device in this family, or saves changed choices. */
 export const saveReminders = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, subscription, offsets: z.array(z.number()).max(3), kinds: z.array(z.string()).max(3), locale: z.enum(LOCALES), weekly: z.boolean().optional(), posts: z.boolean().optional() }))
+  .validator(z.object({ tree, subscription, offsets: z.array(z.number()).max(3), kinds: z.array(z.string()).max(3), locale: z.enum(LOCALES), weekly: z.boolean().optional(), posts: z.boolean().optional(), votes: z.boolean().optional() }))
   .handler(async ({ data }) => {
     try {
       const [{ requireMember }, r, { translate }, { parseChoices }, { AuthError }] = await Promise.all([
@@ -75,7 +78,7 @@ export const saveReminders = createServerFn({ method: 'POST' })
       const choices = parseChoices(data.offsets, data.kinds);
       if (!choices) throw new AuthError('invalid', translate('en', 'reminders.chooseSomething'));
       await r.checkSubscription(data.subscription);
-      await r.saveRegistration({ user: user.id, tree: data.tree, subscription: data.subscription, choices, locale: data.locale, weekly: data.weekly === true, posts: data.posts === true });
+      await r.saveRegistration({ user: user.id, tree: data.tree, subscription: data.subscription, choices, locale: data.locale, weekly: data.weekly === true, posts: data.posts === true, votes: data.votes === true });
     } catch (e) {
       throw await refuse(e);
     }

@@ -67,6 +67,8 @@ export default {
   "responses.push.reaction_media": "{name} hat auf ein Foto reagiert, das du geteilt hast: {reaction}.",
   "responses.push.comment_post": "{name} hat kommentiert, was du der Familie geschrieben hast.",
   "responses.push.reaction_post": "{name} hat auf das reagiert, was du der Familie geschrieben hast: {reaction}.",
+  "responses.push.comment_vote": "{name} hat deine Abstimmung kommentiert.",
+  "responses.push.reaction_vote": "{name} hat auf deine Abstimmung reagiert: {reaction}.",
   "responses.push.legend": "Antworten",
   "responses.push.switch": "Sag mir Bescheid, wenn jemand auf etwas reagiert oder etwas kommentiert, das ich geschrieben oder geteilt habe",
   "responses.push.help": "Höchstens einmal am Tag, auf den Geräten, auf denen Erinnerungen für diese Familie an sind.",

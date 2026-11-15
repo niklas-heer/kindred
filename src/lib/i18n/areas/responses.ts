@@ -67,6 +67,8 @@ export const en = {
   "responses.push.reaction_media": "{name} reacted to a photo you shared: {reaction}.",
   "responses.push.comment_post": "{name} commented on what you wrote to the family.",
   "responses.push.reaction_post": "{name} reacted to what you wrote to the family: {reaction}.",
+  "responses.push.comment_vote": "{name} commented on the vote you started.",
+  "responses.push.reaction_vote": "{name} reacted to the vote you started: {reaction}.",
   "responses.push.legend": "Answers",
   "responses.push.switch": "Tell me when someone reacts to or comments on what I wrote or shared",
   "responses.push.help": "At most once a day, on the devices where reminders are on for this family.",

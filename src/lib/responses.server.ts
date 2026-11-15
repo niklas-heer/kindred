@@ -278,14 +278,14 @@ export type Response = { kind: TargetKind; target: string; by: Who } & ({ what: 
 
 const DAY_MS = 86_400_000;
 
-/** Who wrote a story or a post or shared a photo, and for a story the person it is about. */
+/** Who wrote a story or a post, shared a photo or started a vote, and for a story the person it is about. */
 interface Owner { author: string | null; person?: string; given?: string; surname?: string | null; current_given?: string | null; current_surname?: string | null }
 
 /**
- * Tells the author of a memory or the one who shared a photo that someone answered it, when they turned this on and have
- * reminders on a device for this family. At most one a day: the claim is the day in `response_push`, written before the
- * send. Never to the one who answered, and never throws: a push that fails must not fail the comment. Returns how many
- * devices got it.
+ * Tells the author of a memory or a post, the one who shared a photo or the one who started a vote that someone answered it
+ * (never what was said, and of a vote never a choice), when they turned this on and have reminders on a device for this
+ * family. At most one a day: the claim is the day in `response_push`, written before the send. Never to the one who
+ * answered, and never throws: a push that fails must not fail the comment. Returns how many devices got it.
  */
 export async function notifyAuthor(tree: string, r: Response, options: { now?: Date; vapid?: VapidConfig | null; fetchImpl?: typeof fetch } = {}): Promise<number> {
   const at = options.now ?? new Date();
@@ -295,11 +295,11 @@ export async function notifyAuthor(tree: string, r: Response, options: { now?: D
   try {
     const d = db(tree);
     // An event of the feed is the family's, not one member's: nobody is told about its answers.
-    if (r.kind === 'event' || r.kind === 'vote') return 0; // no push text for a vote's answers yet
+    if (r.kind === 'event') return 0;
     const owner = r.kind === 'story'
       ? await d.get<Owner>('SELECT s.author_account AS author, s.person, p.given, p.surname, p.current_given, p.current_surname FROM story s JOIN person p ON p.id = s.person WHERE s.id = ?', r.target)
-      : r.kind === 'post'
-        ? await d.get<Owner>('SELECT account AS author FROM post WHERE id = ?', r.target)
+      : r.kind === 'post' || r.kind === 'vote'
+        ? await d.get<Owner>(`SELECT account AS author FROM ${r.kind} WHERE id = ?`, r.target)
         : await d.get<Owner>('SELECT uploaded_by AS author FROM media WHERE key = ?', r.target);
     const author = owner?.author;
     if (!owner || !author || author === r.by.id) return 0;
@@ -316,12 +316,12 @@ export async function notifyAuthor(tree: string, r: Response, options: { now?: D
     for (const row of devices) {
       // Who answered and about whom; never the comment's words, which stay in the family's app.
       const vars = { name: r.by.name, person, reaction: r.what === 'reaction' ? r.reaction : '' };
-      const key = `responses.push.${r.what}_${r.kind as Exclude<TargetKind, 'event' | 'vote'>}` as const;
+      const key = `responses.push.${r.what}_${r.kind as Exclude<TargetKind, 'event'>}` as const;
       const message = {
         title: translate(row.locale, 'responses.push.title'),
         body: translate(row.locale, key, vars),
         tag: `kindred-responses-${tree}`,
-        url: owner.person ? `/${tree}/person/${encodeURIComponent(owner.person)}` : r.kind === 'post' ? `/${tree}/today` : `/${tree}/gallery`,
+        url: owner.person ? `/${tree}/person/${encodeURIComponent(owner.person)}` : r.kind === 'post' ? `/${tree}/today` : r.kind === 'vote' ? `/${tree}/votes/${encodeURIComponent(r.target)}` : `/${tree}/gallery`,
       };
       if (!fitsPush(message)) continue;
       try {

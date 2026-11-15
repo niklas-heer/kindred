@@ -75,11 +75,15 @@ export const voteQuery = (t: string, id: string) =>
 
 // ---------- changes ----------
 
+/** Starts a vote. The devices that asked are told afterwards (vote-push.server.ts); the page does not wait. */
 export const startVote = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, vote, opKey }))
   .handler(async ({ data }): Promise<{ id: string }> => {
     const me = await who(data.tree, 'start-vote');
-    return (await votes()).createVote(data.tree, me, data.vote, opOf(me.id, data));
+    const result = await (await votes()).createVote(data.tree, me, data.vote, opOf(me.id, data));
+    const [{ notifyVote }, { store }] = await Promise.all([import('./vote-push.server'), import('../db.server')]);
+    store.keepAlive(notifyVote(data.tree, me, result.id));
+    return result;
   });
 
 export const changeVote = createServerFn({ method: 'POST' })

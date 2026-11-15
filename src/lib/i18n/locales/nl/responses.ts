@@ -67,6 +67,8 @@ export default {
   "responses.push.reaction_media": "{name} reageerde op een foto die je deelde: {reaction}.",
   "responses.push.comment_post": "{name} heeft gereageerd op wat je de familie schreef.",
   "responses.push.reaction_post": "{name} reageerde op wat je de familie schreef: {reaction}.",
+  "responses.push.comment_vote": "{name} heeft gereageerd op de stemming die je startte.",
+  "responses.push.reaction_vote": "{name} reageerde op de stemming die je startte: {reaction}.",
   "responses.push.legend": "Reacties",
   "responses.push.switch": "Laat het me weten als iemand reageert op wat ik schreef of deelde",
   "responses.push.help": "Hooguit eens per dag, op de apparaten waar herinneringen voor deze familie aanstaan.",

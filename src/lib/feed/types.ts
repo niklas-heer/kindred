@@ -60,6 +60,16 @@ export type FeedItem = { at: string; key: string } & (
   | { type: 'updates'; by: string; people: UpdatePerson[]; count: number; imported: number; target: string; editors?: true; more?: true }
   /** A season of the Campaign ended. */
   | { type: 'season'; season: number; winner: string | null }
+  /**
+   * A member started a vote (votes/types.ts), at its start. `closesAt` is when it closes, or when it closed. Reactions and
+   * comments are on the vote itself (target `('vote', id)`), the same thread as its result's.
+   */
+  | { type: 'vote'; id: string; question: string; author: FeedAuthor; closesAt: string }
+  /**
+   * A vote closed, at its closing time (`closed_at`, else `closes_at` once it has passed). `winners` are the winning options'
+   * labels: none when nobody voted, more than one for a tie. Nothing about any voter, in a secret vote or an open one.
+   */
+  | { type: 'vote_result'; id: string; question: string; winners: string[] }
 );
 
 /** The contact fields an update names on their own ("Has a new address"): the ways to reach someone. */

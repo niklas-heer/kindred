@@ -67,6 +67,8 @@ export default {
   "responses.push.reaction_media": "{name}さんが、あなたが共有した写真に{reaction}でリアクションしました。",
   "responses.push.comment_post": "{name}さんが、あなたが家族に宛てて書いた投稿にコメントしました。",
   "responses.push.reaction_post": "{name}さんが、あなたが家族に宛てて書いた投稿に{reaction}でリアクションしました。",
+  "responses.push.comment_vote": "{name}さんが、あなたが始めた投票にコメントしました。",
+  "responses.push.reaction_vote": "{name}さんが、あなたが始めた投票に{reaction}でリアクションしました。",
   "responses.push.legend": "返事",
   "responses.push.switch": "自分が書いたり共有したりしたものにリアクションやコメントがあったら知らせる",
   "responses.push.help": "1日に多くても1回、この家族のリマインダーがオンの端末に届きます。",

@@ -66,12 +66,13 @@ The counts for a whole page come from one request that makes two reads of the fa
 
 ## Telling the author
 
-The person who wrote a memory or a message or shared a photo can be told when someone reacts to it or comments on it. It is off until
+The person who wrote a memory or a message, shared a photo or started a vote can be told when someone reacts to it or comments on it. It is off until
 they turn it on, in the Reminders dialog ("Answers"), and it arrives on the devices where reminders are on for that family.
 At most one such push a day, never for their own answer, and it says who answered and about whom, not the words. Stories
 written before this feature, by the assistant or brought in by an import have no account as their writer, so nobody is
-told about those. An event is the family's, not one member's: nobody is told about its answers. The push names the emoji
-given ("Ada reacted to a photo you shared: 🕯️").
+told about those. An event is the family's, not one member's: nobody is told about its answers. A vote's creator hears of
+answers on either of its feed entries or its page, never of a ballot. The push names the emoji given ("Ada reacted to a
+photo you shared: 🕯️").
 
 The family's "what's new" reads the `reaction` and `comment` tables for answers to what the reader wrote.
 

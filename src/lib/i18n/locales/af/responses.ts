@@ -67,6 +67,8 @@ export default {
   "responses.push.reaction_media": "{name} het gereageer op ’n foto wat jy gedeel het: {reaction}.",
   "responses.push.comment_post": "{name} het kommentaar gelewer op wat jy aan die familie geskryf het.",
   "responses.push.reaction_post": "{name} het gereageer op wat jy aan die familie geskryf het: {reaction}.",
+  "responses.push.comment_vote": "{name} het kommentaar gelewer op die stemming wat jy begin het.",
+  "responses.push.reaction_vote": "{name} het gereageer op die stemming wat jy begin het: {reaction}.",
   "responses.push.legend": "Antwoorde",
   "responses.push.switch": "Laat my weet as iemand reageer op of kommentaar lewer op iets wat ek geskryf of gedeel het",
   "responses.push.help": "Hoogstens een keer per dag, op die toestelle waar herinneringe vir hierdie familie aan is.",

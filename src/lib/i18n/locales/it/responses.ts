@@ -67,6 +67,8 @@ export default {
   "responses.push.reaction_media": "{name} ha reagito a una foto che hai condiviso: {reaction}.",
   "responses.push.comment_post": "{name} ha commentato ciò che hai scritto alla famiglia.",
   "responses.push.reaction_post": "{name} ha reagito a ciò che hai scritto alla famiglia: {reaction}.",
+  "responses.push.comment_vote": "{name} ha commentato la votazione che hai avviato.",
+  "responses.push.reaction_vote": "{name} ha reagito alla votazione che hai avviato: {reaction}.",
   "responses.push.legend": "Risposte",
   "responses.push.switch": "Avvisami quando qualcuno reagisce o commenta ciò che ho scritto o condiviso",
   "responses.push.help": "Al massimo una volta al giorno, sui dispositivi dove i promemoria sono attivi per questa famiglia.",

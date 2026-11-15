@@ -412,6 +412,17 @@ async function resultOf(v: Pick<VoteRow, 'id' | 'kind' | 'secret'>, options: rea
 }
 const labelsOf = (ids: readonly string[], options: readonly { id: string; label: string }[]) => ids.map((id) => options.find((o) => o.id === id)?.label ?? '');
 
+/**
+ * A closed vote's winners, as their labels: none when nobody voted, more than one for a tie. For the Votes list and the
+ * feed's result entries (feed.server.ts), which say nothing more of a vote's count.
+ */
+export async function winnerLabels(
+  v: Pick<VoteRow, 'id' | 'kind' | 'secret'>, options: readonly { id: string; label: string }[],
+  ballots: readonly Pick<BallotRow, 'voter' | 'choices'>[], struck: readonly Pick<VoterRow, 'account' | 'guest_key'>[],
+): Promise<string[]> {
+  return labelsOf((await resultOf(v, options, ballots, struck)).winners, options);
+}
+
 function summaryOf(v: ReadRow, r: Reading, authors: Map<string, { person: string | null }>, at: string, winners: string[] | null): VoteSummary {
   return {
     id: v.id, question: v.question, kind: v.kind, secret: !!v.secret, guests: !!v.guests,
@@ -463,10 +474,7 @@ export async function listVotes(tree: string, reader: Reader, guestKey?: string,
   await closeOnRead(tree, r, closed.filter((v) => !v.closed_at).map((v) => v.id), at);
   const authors = r.guest ? new Map<string, { person: string | null }>() : await standingFor(tree, [...open, ...closed].map((v) => v.account));
   const [options, ballots, struck] = [groupBy(optionRows), groupBy(ballotRows), groupBy(struckRows)];
-  const winners = await Promise.all(closed.map(async (v) => {
-    const opts = options.get(v.id) ?? [];
-    return labelsOf((await resultOf(v, opts, ballots.get(v.id) ?? [], struck.get(v.id) ?? [])).winners, opts);
-  }));
+  const winners = await Promise.all(closed.map((v) => winnerLabels(v, options.get(v.id) ?? [], ballots.get(v.id) ?? [], struck.get(v.id) ?? [])));
   return [...open.map((v) => summaryOf(v, r, authors, at, null)), ...closed.map((v, i) => summaryOf(v, r, authors, at, winners[i]))];
 }
 

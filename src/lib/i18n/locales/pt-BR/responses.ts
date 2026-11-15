@@ -67,6 +67,8 @@ export default {
   "responses.push.reaction_media": "{name} reagiu a uma foto que você compartilhou: {reaction}.",
   "responses.push.comment_post": "{name} comentou o que você escreveu para a família.",
   "responses.push.reaction_post": "{name} reagiu ao que você escreveu para a família: {reaction}.",
+  "responses.push.comment_vote": "{name} comentou a votação que você começou.",
+  "responses.push.reaction_vote": "{name} reagiu à votação que você começou: {reaction}.",
   "responses.push.legend": "Respostas",
   "responses.push.switch": "Avise-me quando alguém reagir ou comentar o que escrevi ou compartilhei",
   "responses.push.help": "No máximo uma vez por dia, nos aparelhos em que os lembretes estão ligados para esta família.",

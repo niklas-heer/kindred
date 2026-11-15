@@ -1,9 +1,9 @@
 // The family's feed on the Today page (docs/feed.md): a way to say something, then one stream, newest first, of what
 // people in the family did: their messages, new memories and sayings, a day's photographs, people added to the tree, a
 // day's updates to the records (details, contact details, life events, sources, a portrait), a season of the Campaign
-// ending, and at the very top whose birthday it is today. The events (people added, updates, a birthday) take reactions
-// and comments as a message does. Members only: for a share-link guest it draws nothing and asks nothing, and the server
-// refuses a guest anyway.
+// ending, a vote starting and closing, and at the very top whose birthday it is today. The events (people added, updates, a
+// birthday) and votes take reactions and comments as a message does; a vote's two entries share the vote's one thread.
+// Members only: for a share-link guest it draws nothing and asks nothing, and the server refuses a guest anyway.
 //
 //   <Feed tree={tree} />
 //
@@ -11,13 +11,14 @@
 // then at the press of a button, so the end of the page stays reachable.
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Baby, FileInput, Images, Lock, PencilLine, ScrollText, Swords, UserPlus } from 'lucide-react';
+import { Baby, FileInput, Images, Lock, PencilLine, ScrollText, Swords, UserPlus, Vote } from 'lucide-react';
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EAGER_FACES, StoryCard, type StoryTranslation } from '~/components/chronicle/StoryCard';
 import { contactHref } from '~/components/fields/FieldsView';
 import { GameIcon } from '~/components/GameIcon';
 import { Responses } from '~/components/responses/Responses';
 import { comingUp, nth } from '~/components/today/DatesCard';
+import { When as Closing } from '~/components/votes/When';
 import { EmptyState, ErrorState, Fleuron, Skeleton } from '~/components/ui';
 import { storyTranslationsQuery } from '~/lib/ai/background.functions';
 import { useToday } from '~/lib/clock';
@@ -238,7 +239,33 @@ function Entry({ item, f, tree, now, tr, defer }: { item: FeedItem; f: Family; t
           <When at={item.at} now={now} t={t} />
         </Quiet>
       );
+    case 'vote':
+    case 'vote_result':
+      return <VoteEntry item={item} tree={tree} now={now} />;
   }
+}
+
+/**
+ * A vote as a quiet line: "Ada asked the family: <question>" when it starts, with when it closes, and "<question> – chosen:
+ * Lake" when it has closed (a tie names every winner, nobody voting says so). The question leads to the vote. Both entries
+ * carry the vote's one thread of reactions and comments.
+ */
+function VoteEntry({ item, tree, now }: { item: Extract<FeedItem, { type: 'vote' | 'vote_result' }>; tree: string; now?: number }) {
+  const t = useT();
+  const question = <Link to="/$tree/votes/$vote" params={{ tree, vote: item.id }}>{item.question}</Link>;
+  let line: ReactNode;
+  if (item.type === 'vote') line = richText(t, 'votes.feed.started', { author: <b>{item.author.name || t('feed.someone')}</b>, question });
+  else if (!item.winners.length) line = richText(t, 'votes.feed.result_none', { question });
+  else if (item.winners.length === 1) line = richText(t, 'votes.feed.result', { question, winner: <b>{item.winners[0]}</b> });
+  else line = richText(t, 'votes.feed.result_tie', { question, winners: <b>{item.winners.join(', ')}</b> });
+  return (
+    <Quiet icon={<Vote size={16} />} after={<Responses tree={tree} kind="vote" target={item.id} compact />}>
+      <span>{line}</span>
+      <When at={item.at} now={now} t={t} />
+      {/* When it closes, in the reader's own time zone (the browser writes it). */}
+      {item.type === 'vote' ? <Closing at={item.closesAt} closed={now !== undefined && Date.parse(item.closesAt) <= now} /> : null}
+    </Quiet>
+  );
 }
 
 /** The new values an update shows at first; the rest open with "and 2 more". */

@@ -15,6 +15,7 @@ import { retentionJob } from './retention.ts';
 import { statsJob } from './stats.ts';
 import { storageJob } from './storage.ts';
 import { updateCheckJob } from './update-check.ts';
+import { votesJob } from './votes.ts';
 import { failureCode } from './failure.ts';
 import type { DailyJob, JobContext } from './types.ts';
 
@@ -29,6 +30,7 @@ export const DAILY_JOBS: readonly DailyJob[] = [
   joinJob,
   historyJob,
   feedJob,
+  votesJob,
   recipesJob,
   storageJob,
   instanceStatsJob,

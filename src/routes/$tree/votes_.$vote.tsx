@@ -1,10 +1,12 @@
 // One vote's page (docs/votes.md): the question, the reader's ballot while it is open, the result as far as the reader may
-// see it, who has voted, and what the reader may do to it. A share-link guest reaches it for a vote that lets guests in;
-// any other is "not here" to them, as the server answers.
+// see it, who has voted, what the reader may do to it, and for a member the reactions and comments on it (the same thread
+// as its entries in the feed). A share-link guest reaches it for a vote that lets guests in; any other is "not here" to
+// them, as the server answers, and a guest gets no reactions or comments.
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { ArrowLeft, ListOrdered, Lock, Users, Vote } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { Responses } from '~/components/responses/Responses';
 import { Ballot } from '~/components/votes/Ballot';
 import { Results } from '~/components/votes/Results';
 import { VoteActions } from '~/components/votes/VoteActions';
@@ -13,6 +15,7 @@ import { When } from '~/components/votes/When';
 import '~/components/votes/votes.css';
 import { EmptyState, ErrorState, PageHeader, Skeleton } from '~/components/ui';
 import { useTreeId } from '~/lib/family';
+import { useMember } from '~/lib/session';
 import { translate, useT, type Locale } from '~/lib/i18n';
 import { treeTitle } from '~/lib/title';
 import type { VoteView } from '~/lib/votes/types';
@@ -40,6 +43,7 @@ function VotePage() {
 function VoteBody({ tree, view }: { tree: string; view: VoteView }) {
   const t = useT();
   const navigate = useNavigate();
+  const member = !!useMember(tree);
   const labelOf = (option: string) => view.options.find((o) => o.id === option)?.label ?? '';
   return (
     <>
@@ -65,6 +69,7 @@ function VoteBody({ tree, view }: { tree: string; view: VoteView }) {
         <Results view={view} />
         <Voters tree={tree} view={view} />
         <VoteActions tree={tree} view={view} onRemoved={() => void navigate({ to: '/$tree/votes', params: { tree } })} />
+        {member && <Responses tree={tree} kind="vote" target={view.id} />}
       </div>
     </>
   );

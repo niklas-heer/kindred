@@ -67,6 +67,8 @@ export default {
   "responses.push.reaction_media": "{name} a réagi à une photo que tu as partagée : {reaction}.",
   "responses.push.comment_post": "{name} a commenté ce que tu as écrit à la famille.",
   "responses.push.reaction_post": "{name} a réagi à ce que tu as écrit à la famille : {reaction}.",
+  "responses.push.comment_vote": "{name} a commenté le vote que tu as lancé.",
+  "responses.push.reaction_vote": "{name} a réagi au vote que tu as lancé : {reaction}.",
   "responses.push.legend": "Réponses",
   "responses.push.switch": "Me prévenir quand quelqu’un réagit à ce que j’ai écrit ou partagé, ou le commente",
   "responses.push.help": "Au plus une fois par jour, sur les appareils où les rappels sont activés pour cette famille.",
