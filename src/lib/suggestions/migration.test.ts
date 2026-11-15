@@ -91,7 +91,7 @@ test('the limits are the agreed values', async () => {
     [t.MAX_FILES, t.MAX_FILE_BYTES, t.MAX_NOTE, t.MAX_REASON, t.GUEST_WAITING_PER_NETWORK, t.GUEST_WAITING_PER_LINK, t.MEMBER_WAITING, t.PENDING_BYTES, t.EXPIRY_DAYS],
     [5, 10485760, 1000, 300, 20, 100, 50, 209715200, 90],
   );
-  assert.deepEqual([...t.FILE_TYPES], ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf']);
+  assert.deepEqual([...t.FILE_TYPES], ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 });
 
 test.after(async () => { closeAccounts(); await vite.close(); });

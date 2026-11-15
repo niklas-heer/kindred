@@ -86,6 +86,11 @@ export interface OnceOptions {
    * does (`FAMILY_VOTE`), whoever's request happened to run it.
    */
   actor?: Actor;
+  /**
+   * The suggestion an approval applies (src/lib/suggestions/review.server.ts): every history row names it, and the batch is
+   * written only while that suggestion is still waiting, so one withdrawn or decided meanwhile changes nothing more.
+   */
+  suggestion?: string;
 }
 
 /**
@@ -117,14 +122,16 @@ export async function once<T>(tree: string, op: OpKey | undefined, fn: string, w
     try {
       checkHistory(fn, plan.writes, plan.history);
       const changes = plan.writes.some((w) => !isGuard(w));
-      logged = changes && plan.history !== NOT_A_RECORD ? await historyWrites(d, fn, opts.actor ?? currentActor(tree), plan.history) : [];
+      logged = changes && plan.history !== NOT_A_RECORD ? await historyWrites(d, fn, opts.actor ?? currentActor(tree), plan.history, Date.now(), opts.suggestion ?? null) : [];
     } catch (e) {
       await plan.abandon?.();
       throw e;
     }
+    // An approval's step first restates that its suggestion still waits; ahead of the plan's writes, so their results keep their places.
+    const lead = opts.suggestion ? [guard("EXISTS (SELECT 1 FROM suggestion WHERE id = ? AND status = 'waiting')", opts.suggestion)] : [];
     // The retry key's row comes straight after the plan's writes, before the history rows: a `resultSql` such as
     // last_insert_rowid() then still sees the plan's last insert, never a history row.
-    const batch = [...plan.writes];
+    const batch = [...lead, ...plan.writes];
     if (op) {
       const at = new Date().toISOString();
       batch.push(
@@ -152,7 +159,7 @@ export async function once<T>(tree: string, op: OpKey | undefined, fn: string, w
       }
       throw e;
     }
-    const writes = results.slice(0, plan.writes.length);
+    const writes = results.slice(lead.length, lead.length + plan.writes.length);
     // Not reached by a replay or a refusal, and a plan with only guards changed nothing.
     if (!plan.continues && plan.writes.some((w) => !isGuard(w))) await changeCommitted(tree);
     // Old keys are only kept long enough to cover a retry.

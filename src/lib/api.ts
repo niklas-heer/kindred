@@ -4,7 +4,7 @@ import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { armsSchema } from '~/lib/heraldry/schema';
 import { validDate } from './dates';
-import { MAX_FURTHER, MAX_FURTHER_LENGTH, storeFurther } from './further-given';
+import { MAX_FURTHER, MAX_FURTHER_LENGTH } from './further-given';
 import type { Action } from './roles';
 import { audienceOf, PLAIN_MEMBER } from './visibility';
 
@@ -100,9 +100,6 @@ const newPerson = z.object({
 
 const partnershipInput = z.object({ kind: z.enum(['marriage', 'partnership', 'other']), start: date, place: z.string().trim().max(200).optional() });
 
-/** The first year of a stored date ("~1890-05" → 1890), or NaN. */
-const yearIn = (d: string | null | undefined) => (d ? parseInt(d.replace(/^~/, ''), 10) : NaN);
-
 /** Adds a person already connected to someone: the "+" slots on the tree. Returns the new id. */
 export const addRelative = createServerFn({ method: 'POST' })
   .validator(
@@ -119,47 +116,10 @@ export const addRelative = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data }) => {
     const _m = await requireCan(data.tree, 'add-person');
-    const { once, newId, q, guard, sameParents, added } = await server();
-    return once(data.tree, opOf(_m, data), 'addRelative', async (d) => {
-      const p = data.person;
-      const id = newId(p.given);
-      const anchor = await d.get<{ house: string | null; surname: string | null; born: string | null }>('SELECT house, surname, born FROM person WHERE id = ?', data.anchor);
-      if (!anchor) throw new Error('unknown anchor');
-      const anchorParents = (await d.all<{ parent: string }>('SELECT parent FROM parent WHERE child = ?', data.anchor)).map((r) => r.parent);
-      if (data.relation === 'sibling' && !anchorParents.length) throw new Error('Record a shared parent first to add a sibling.');
-      if (data.relation === 'parent' && anchorParents.length >= 2) throw new Error('They already have two parents.');
-      if (data.relation === 'parent' && yearIn(p.born) >= yearIn(anchor.born)) throw new Error('A parent must be born before their child.');
-      if (data.relation === 'child' && yearIn(p.born) <= yearIn(anchor.born)) throw new Error('A child must be born after their parent.');
-      // Children and siblings join the anchor's house; parents and partners only if they share its surname.
-      const sameHouse = data.relation === 'child' || data.relation === 'sibling' || (p.surname && p.surname === anchor.surname);
-      const writes = [
-        // What the checks above read: the anchor as it was, and their parents.
-        guard('EXISTS (SELECT 1 FROM person WHERE id = ? AND house IS ? AND surname IS ? AND born IS ?)', data.anchor, anchor.house, anchor.surname, anchor.born),
-        sameParents(data.anchor, anchorParents),
-        q('INSERT INTO person (id, given, further_given, surname, house, sex, born, died, living) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          id, p.given, storeFurther(p.furtherGiven), p.surname ?? null, sameHouse ? anchor.house : null, p.sex ?? null, p.born ?? null, p.died ?? null, p.living ? 1 : 0),
-      ];
-      const name = [p.given, p.surname].filter(Boolean).join(' ');
-      // The new person, and on the anchor's history the link that ties them in.
-      const history = [added('person', id, { person: id, personName: name, label: name })];
-      const link = (child: string, parent: string) => {
-        history.push(added('link', `${child}>${parent}`, { person: data.anchor, label: name }));
-        return q('INSERT OR IGNORE INTO parent (child, parent) VALUES (?, ?)', child, parent);
-      };
-      if (data.relation === 'child') {
-        writes.push(link(id, data.anchor));
-        if (data.coParent && data.coParent !== data.anchor) writes.push(link(id, data.coParent));
-      } else if (data.relation === 'parent') {
-        writes.push(link(data.anchor, id));
-      } else if (data.relation === 'sibling') {
-        for (const parent of anchorParents) writes.push(link(id, parent));
-      } else {
-        writes.push(q('INSERT INTO partnership (id, a, b, kind, start, place) VALUES (?, ?, ?, ?, ?, ?)',
-          `${data.anchor}__${id}`, data.anchor, id, data.partnership?.kind ?? 'partnership', data.partnership?.start ?? null, data.partnership?.place ?? null));
-        history.push(added('partnership', `${data.anchor}__${id}`, { person: data.anchor, label: name }));
-      }
-      return { writes, history, result: id };
-    });
+    const { once } = await server();
+    // The plan lives in relations.server.ts, shared with an approved suggestion of a missing relative.
+    const { addRelativePlan } = await import('./relations.server');
+    return once(data.tree, opOf(_m, data), 'addRelative', (d) => addRelativePlan(d, data));
   });
 
 /** What a link created, so Undo removes exactly that and nothing that was there before. */

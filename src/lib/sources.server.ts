@@ -10,7 +10,7 @@
 // that number, so a citation added meanwhile makes the editor confirm again rather than vanish unseen.
 import { fail } from './auth/guard.server';
 import { notMember } from './auth/errors';
-import { added, change, db, guard, once, q, removed, type Db, type OpKey, type Query } from './db.server';
+import { added, change, db, guard, once, q, removed, type Db, type OnceOptions, type OpKey, type Query } from './db.server';
 import { needsEditor, type LifeReader } from './events.server';
 import type { Citation, CitationInput, EventType, Fact, Quality, Source, SourceInput } from './events.ts';
 import { seesPrivateResearch } from './research.ts';
@@ -126,7 +126,7 @@ async function linkGuards(d: Db, who: LifeReader, input: SourceInput): Promise<Q
 }
 
 /** Adds a source (no id) or changes one. Returns its id. */
-export function saveSource(tree: string, who: LifeReader, input: SourceInput, op: OpKey | undefined): Promise<{ id: string }> {
+export function saveSource(tree: string, who: LifeReader, input: SourceInput, op: OpKey | undefined, opts: OnceOptions = {}): Promise<{ id: string }> {
   return once(tree, op, 'saveSource', async (d) => {
     needsEditor(who);
     const title = clean(input.title);
@@ -152,7 +152,7 @@ export function saveSource(tree: string, who: LifeReader, input: SourceInput, op
       id, ...values, who.id, who.name, at, at,
     ));
     return { writes, history: [added('source', id, { label: title })], result: { id } };
-  });
+  }, opts);
 }
 
 /**
@@ -207,7 +207,7 @@ async function factPerson(d: Db, event: string | null, partnership: string | nul
 }
 
 /** Cites a source for a fact (no id), or changes a citation's source, page, quality and transcription. Returns its id. */
-export function saveCitation(tree: string, who: LifeReader, input: CitationInput, op: OpKey | undefined): Promise<{ id: string }> {
+export function saveCitation(tree: string, who: LifeReader, input: CitationInput, op: OpKey | undefined, opts: OnceOptions = {}): Promise<{ id: string }> {
   return once(tree, op, 'saveCitation', async (d) => {
     needsEditor(who);
     const source = await d.get<{ title: string }>('SELECT title FROM source WHERE id = ?', input.source);
@@ -243,7 +243,7 @@ export function saveCitation(tree: string, who: LifeReader, input: CitationInput
       history: [added('citation', id, { label: source.title, person: cols.person ?? await factPerson(d, cols.event, cols.partnership) })],
       result: { id },
     };
-  });
+  }, opts);
 }
 
 /** Removes one citation; the source stays. A citation already gone is not an error. */

@@ -175,7 +175,7 @@ export function currentActor(tree: string): Actor {
 export const RECORD_TABLES = new Set([
   'meta', 'house', 'house_succession', 'house_meaning', 'person', 'parent', 'partnership', 'story', 'place', 'photo', 'person_field',
   'album', 'media', 'media_person', 'portrait', 'life_event', 'source', 'citation', 'research_project', 'research_document',
-  'research_note', 'research_picture', 'research_person', 'research_place', 'recipe', 'recipe_image',
+  'research_note', 'research_picture', 'research_person', 'research_place', 'recipe', 'recipe_image', 'source_file',
 ]);
 
 const WRITE = /^\s*(?:INSERT(?:\s+OR\s+\w+)?\s+INTO|REPLACE\s+INTO|UPDATE(?:\s+OR\s+\w+)?|DELETE\s+FROM)\s+["`[]?(\w+)/i;
@@ -206,14 +206,17 @@ const iso = (ms: number) => new Date(ms).toISOString();
 interface StoredRow {
   id: number; at: string; account: string | null; name: string; kind: HistoryKind; record: string; person: string | null; person_name: string | null;
   label: string | null; action: HistoryAction; level: Visibility; owner: string | null; fields: string | null; count: number; fn: string;
+  suggestion: string | null;
 }
 
 /**
  * The statements that write a change's history rows, decided on reads like the change itself: the names of the people
  * it is about, and the row an earlier save of the same record by the same person may be folded into (`MERGE_MS`). A
  * folded row is guarded on what was read, so two saves racing make the plan decide again rather than lose a change.
+ * `suggestion` is the approved suggestion the change comes from (`once`'s option): its rows name it, and fold only into
+ * rows of the same suggestion, so a reviewer's own edit and what someone suggested stay apart.
  */
-export async function historyWrites(d: Db, fn: string, actor: Actor, entries: readonly HistoryEntry[], now = Date.now()): Promise<Query[]> {
+export async function historyWrites(d: Db, fn: string, actor: Actor, entries: readonly HistoryEntry[], now = Date.now(), suggestion: string | null = null): Promise<Query[]> {
   if (!entries.length) return [];
   const needNames = [...new Set(entries.filter((e) => e.person && e.personName === undefined).map((e) => e.person!))];
   const merging = actor.account ? entries.filter((e) => e.fold !== false && e.action === 'changed' && (e.diff || e.level === 'personal')).slice(0, 20) : [];
@@ -234,7 +237,7 @@ export async function historyWrites(d: Db, fn: string, actor: Actor, entries: re
     const personName = e.person ? (e.personName ?? names.get(e.person) ?? (e.kind === 'person' ? e.label : null) ?? null) : null;
     const prev = latest.get(e);
     if (prev && prev.account === actor.account && prev.action === 'changed' && prev.level === level && prev.owner === owner
-      && now - Date.parse(prev.at) < MERGE_MS && (level === 'personal' || (diff && prev.fields))) {
+      && (prev.suggestion ?? null) === suggestion && now - Date.parse(prev.at) < MERGE_MS && (level === 'personal' || (diff && prev.fields))) {
       out.push(guard('EXISTS (SELECT 1 FROM history WHERE id = ? AND fields IS ? AND id = (SELECT max(id) FROM history WHERE kind = ? AND record = ?))', prev.id, prev.fields, e.kind, e.record));
       if (level === 'personal') {
         out.push(q('UPDATE history SET at = ?, fn = ? WHERE id = ?', at, fn, prev.id));
@@ -248,9 +251,9 @@ export async function historyWrites(d: Db, fn: string, actor: Actor, entries: re
     }
     if (e.action === 'changed' && level !== 'personal' && !diff) continue;
     out.push(q(
-      'INSERT INTO history (at, account, name, kind, record, person, person_name, label, action, level, owner, fields, count, fn) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO history (at, account, name, kind, record, person, person_name, label, action, level, owner, fields, count, fn, suggestion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       at, actor.account, actor.name, e.kind, e.record, e.person ?? null, personName, e.label ?? null, e.action, level, owner,
-      diff ? JSON.stringify(diff) : null, Math.max(1, Math.round(e.count ?? 1)), fn,
+      diff ? JSON.stringify(diff) : null, Math.max(1, Math.round(e.count ?? 1)), fn, suggestion,
     ));
   }
   return out;

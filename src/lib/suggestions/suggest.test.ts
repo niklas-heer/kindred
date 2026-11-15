@@ -83,6 +83,7 @@ const enc = (s: string) => new TextEncoder().encode(s);
 /** A one-pixel PNG with nothing to strip. */
 const PNG = () => new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64'));
 const PDF = () => enc('%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n\nxref\n0 1\ntrailer\n<<>>\nstartxref\n9\n%%EOF\n');
+/** The start of a HEIC picture, which is refused: it keeps its location metadata. */
 const HEIC = () => new Uint8Array([0, 0, 0, 24, ...enc('ftypheic'), 0, 0, 0, 0, ...enc('mif1heic'), 1, 2, 3]);
 const file = (mime: string, bytes: Uint8Array, name = 'letter') => ({ name, mime, bytes });
 const stored = async (t: string) => (await db.store.media.list(t)).map((f) => f.key).filter((k) => k.startsWith('suggest/'));
@@ -185,6 +186,11 @@ test('a life event is a new one on the person, or a correction of one of theirs 
   assert.equal(await refusal(ev('bo', { partnership: 'u2', start: '1976' })), 'suggest.err.event', 'a partnership they are not in');
   assert.equal(await refusal(ev('ada', { kind: 'burial', date: '2020' })), 'suggest.err.event', 'no burial for the living');
   assert.equal(await refusal(ev('bo', { kind: 'custom', date: '1950' })), 'suggest.err.event', 'a custom event needs a label');
+  assert.equal(await refusal(ev('bo', { kind: 'custom', label: '  ', date: '1950' })), 'suggest.err.event', 'a blank label is none');
+  const custom = await ev('bo', { kind: 'custom', label: ' Lighthouse keeper ', date: '1950' });
+  assert.deepEqual(JSON.parse((await row(t, custom.id))!.payload as string), { kind: 'custom', label: 'Lighthouse keeper', date: '1950' });
+  assert.equal(await refusal(ev('bo', { kind: 'custom', label: 'x'.repeat(201) })), 'suggest.err.payload', 'a label as long as the event form takes');
+  assert.equal(await refusal(ev('bo', { event: 'e1', label: 'Renamed' })), 'suggest.err.payload', 'a correction keeps the event’s label');
   for (const bad of [{}, { kind: 'party' }, { kind: 'census', date: '1950-02-30' }, { event: 'e1', kind: 'census' }, { event: 'e1', partnership: 'u1' }, { partnership: 'u1', partnershipKind: 'fling' }, { kind: 'census', start: '1950' }]) {
     assert.equal(await refusal(ev('bo', bad)), 'suggest.err.payload', JSON.stringify(bad));
   }
@@ -323,8 +329,7 @@ test('files: images and PDFs whose bytes agree, up to the size and the count, st
   assert.equal(usage?.bytes, PNG().length, 'and counted against the family’s storage');
   const pdf = await S.addSuggestionFile(t, member(ada), id, file('application/pdf', PDF()), NOW);
   assert.match((await db.db(t).get<{ key: string }>('SELECT key FROM suggestion_file WHERE id = ?', pdf.id))!.key, /\.pdf$/);
-  const heic = await S.addSuggestionFile(t, member(ada), id, file('image/heic', HEIC()), NOW);
-  assert.match((await db.db(t).get<{ key: string }>('SELECT key FROM suggestion_file WHERE id = ?', heic.id))!.key, /\.heic$/);
+  assert.equal(await refusal(S.addSuggestionFile(t, member(ada), id, file('image/heic', HEIC()), NOW)), 'suggest.err.file_type', 'no HEIC');
 
   assert.equal(await refusal(S.addSuggestionFile(t, member(ada), id, file('image/png', PDF()), NOW)), 'suggest.err.file_type', 'bytes that disagree');
   assert.equal(await refusal(S.addSuggestionFile(t, member(ada), id, file('image/gif', enc('GIF89a....')), NOW)), 'suggest.err.file_type');
@@ -334,8 +339,7 @@ test('files: images and PDFs whose bytes agree, up to the size and the count, st
   big.set(PNG());
   assert.equal(await refusal(S.addSuggestionFile(t, member(ada), id, file('image/png', big), NOW)), 'suggest.err.file_size');
 
-  await S.addSuggestionFile(t, member(ada), id, file('image/png', PNG()), NOW);
-  await S.addSuggestionFile(t, member(ada), id, file('image/png', PNG()), NOW);
+  for (let n = 2; n < MAX_FILES; n++) await S.addSuggestionFile(t, member(ada), id, file('image/png', PNG()), NOW);
   assert.equal(await count(t, 'suggestion_file'), MAX_FILES);
   assert.equal(await refusal(S.addSuggestionFile(t, member(ada), id, file('image/png', PNG()), NOW)), 'suggest.err.files');
   assert.equal((await stored(t)).length, MAX_FILES, 'a refused file is never stored');

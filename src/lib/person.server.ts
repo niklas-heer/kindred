@@ -2,7 +2,7 @@
 // `editSnapshot` below. Every change is a plan run through `once`: it reads what it decides on, guards those facts in
 // the batch, and writes in one transaction, so a retried or racing request never writes twice or half-way (see
 // db.server.ts).
-import { added, change, db, editedPart, fieldOf, guard, newId, once, personExists, q, removed, type HistoryEntry, type OpKey, type Query } from './db.server.ts';
+import { added, change, db, editedPart, fieldOf, guard, newId, once, personExists, q, removed, type HistoryEntry, type OnceOptions, type OpKey, type Query } from './db.server.ts';
 import { CHANGED_SINCE_OPENED, fieldText, isContactType, MAX_FIELDS, storedValue, type FieldInput, type FieldType, type FieldValue, type PersonField } from './fields/model.ts';
 import { EDITED_KEYS, type GraphPatch, type Look } from './types.ts';
 import { parseFurther, storeFurther } from './further-given.ts';
@@ -411,8 +411,9 @@ export interface FilledGaps { kept: GapField[] }
  * With no `seen` at all the caller is replacing values it was shown itself, as an approved change from the assistant
  * does (and as a page loaded before this check existed does): then every value given is written.
  * Typing an occupation here also sets its vocabulary code, so the Needed page and the editor agree.
+ * `opts` is `once`'s: an approved suggestion's step passes its id.
  */
-export function fillGaps(tree: string, id: string, patch: Partial<Record<GapField, string>>, seen: Partial<Record<GapField, string | null>> | undefined, op: OpKey | undefined) {
+export function fillGaps(tree: string, id: string, patch: Partial<Record<GapField, string>>, seen: Partial<Record<GapField, string | null>> | undefined, op: OpKey | undefined, opts: OnceOptions = {}) {
   return once(tree, op, 'patchPerson', async (d) => {
     const now = await d.get<Record<string, string | null>>(`SELECT ${Object.values(GAP_COLUMNS).join(', ')} FROM person WHERE id = ?`, id);
     if (!now) throw new Error('Person not found.');
@@ -438,7 +439,56 @@ export function fillGaps(tree: string, id: string, patch: Partial<Record<GapFiel
     }
     if (assigns.length) writes.push(q(`UPDATE person SET ${assigns.join(', ')}, updated_at = ? WHERE id = ?`, ...values, nowIso(), id));
     return { writes, history: change('person', id, was, becomes, { person: id }), result: { kept } satisfies FilledGaps };
-  });
+  }, opts);
+}
+
+/** The person's own facts a correction may set: an approved suggestion's details (src/lib/suggestions/review.server.ts). */
+export const CORRECTABLE = ['given', 'surname', 'current_surname', 'nickname', 'title', 'sex', 'living', 'born', 'born_place', 'died', 'died_place'] as const;
+export type Correctable = (typeof CORRECTABLE)[number];
+
+/** A corrected value as the Edit tab would store it: text trimmed ('' is none), a given name, sex, a switch and dates as it takes them. */
+function correctedCell(column: Correctable, value: Cell | boolean): Cell {
+  if (column === 'living') {
+    if (typeof value !== 'boolean' && value !== 0 && value !== 1) throw new Error('person.err.value');
+    return value ? 1 : 0;
+  }
+  if (value !== null && typeof value !== 'string') throw new Error('person.err.value');
+  const text = empty(value);
+  const max = column === 'title' || column.endsWith('_place') ? 200 : 120;
+  if ((column === 'given' && !text) || (text && text.length > max)) throw new Error('person.err.value');
+  if (column === 'sex' && text !== null && !['m', 'f', 'x'].includes(text)) throw new Error('person.err.value');
+  if ((column === 'born' || column === 'died') && text !== null && !validDate(text)) throw new Error('person.err.value');
+  return text;
+}
+
+/**
+ * Sets some of a person's own facts (`set`, by column), while each column in `seen` still holds the value given there: one
+ * that moved refuses the whole change with CHANGED_SINCE_OPENED, and nothing is written. Values are stored as the Edit tab
+ * stores them, only those that differ, guarded on the person as read; the history row is the Edit tab's.
+ */
+export function correctPerson(
+  tree: string, id: string, set: Partial<Record<Correctable, Cell | boolean>>, seen: Partial<Record<Correctable, Cell>>, op: OpKey | undefined, opts: OnceOptions = {},
+) {
+  return once(tree, op, 'correctPerson', async (d) => {
+    const now = await d.get<EditRow & { revision: number }>(`SELECT revision, ${EDIT_COLUMNS.join(', ')} FROM person WHERE id = ?`, id);
+    if (!now) throw new Error('Person not found.');
+    for (const [c, v] of Object.entries(seen) as [Correctable, Cell][]) if (now[c] !== v) throw new Error(CHANGED_SINCE_OPENED);
+    const next: Record<EditColumn, Cell> = { ...(now as unknown as Record<EditColumn, Cell>) };
+    for (const [c, v] of Object.entries(set) as [Correctable, Cell | boolean][]) {
+      if (!(CORRECTABLE as readonly string[]).includes(c)) throw new Error('person.err.value');
+      next[c] = correctedCell(c, v);
+    }
+    const changed = CORRECTABLE.filter((c) => next[c] !== now[c]);
+    if (!changed.length) return { writes: [], history: [], result: undefined };
+    return {
+      writes: [
+        guard('EXISTS (SELECT 1 FROM person WHERE id = ? AND revision = ?)', id, now.revision),
+        q(`UPDATE person SET ${changed.map((c) => `${c} = ?`).join(', ')}, updated_at = ? WHERE id = ?`, ...changed.map((c) => next[c]), nowIso(), id),
+      ],
+      history: change('person', id, pick(now, changed), pick(next, changed), { person: id, personName: nameOf(next as never), label: nameOf(next as never) }),
+      result: undefined,
+    };
+  }, opts);
 }
 
 /** Sets only the death place, for the assistant and the quick fixes. Blank clears it. */

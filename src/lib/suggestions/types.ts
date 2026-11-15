@@ -1,7 +1,8 @@
 // What a suggestion is, as the browser and the server both read it. Browser-safe: type-only imports, no Node or Worker APIs.
 export const MAX_FILES = 5;
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
-export const FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf'] as const;
+/** Pictures and PDFs. No HEIC: it keeps its location (GPS) metadata, which nothing here can take out; a phone's picker sends JPEG. */
+export const FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as const;
 export const MAX_NOTE = 1000;
 export const MAX_REASON = 300;
 export const GUEST_WAITING_PER_NETWORK = 20;
@@ -58,6 +59,8 @@ export interface RelativePayload {
 export interface EventPayload {
   event?: string;
   kind?: string;
+  /** A new event's own name; a custom event needs one. */
+  label?: string;
   date?: string | null;
   place?: string | null;
   note?: string;

@@ -17,18 +17,9 @@ export const setPartnershipDetails = createServerFn({ method: 'POST' })
   }))
   .handler(async ({ data }) => {
     const m = await (await import('./auth/guard.server')).requireCan(data.tree, 'edit-person');
-    const { once, q, guard, change } = await import('./db.server');
+    const { once } = await import('./db.server');
+    // The plan lives in relations.server.ts, shared with an approved suggestion's correction of a couple.
+    const { partnershipDetailsPlan } = await import('./relations.server');
     const { tree, opKey: key, ...payload } = data;
-    await once(tree, { key, user: m.user.id, payload }, 'setPartnershipDetails', async (d) => {
-      const had = await d.get<{ a: string; kind: string; start: string | null; place: string | null }>('SELECT a, kind, start, place FROM partnership WHERE id = ?', data.id);
-      if (!had) throw new Error('chat.err.partnershipGone');
-      return {
-        writes: [
-          guard('EXISTS (SELECT 1 FROM partnership WHERE id = ? AND kind = ? AND start IS ? AND place IS ?)', data.id, had.kind, had.start, had.place),
-          q('UPDATE partnership SET kind = ?, start = ?, place = ? WHERE id = ?', data.kind, data.start, data.place || null, data.id),
-        ],
-        history: change('partnership', data.id, had, { kind: data.kind, start: data.start, place: data.place || null }, { person: had.a }),
-        result: undefined,
-      };
-    });
+    await once(tree, { key, user: m.user.id, payload }, 'setPartnershipDetails', (d) => partnershipDetailsPlan(d, data));
   });

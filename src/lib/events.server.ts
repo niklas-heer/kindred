@@ -6,7 +6,7 @@
 // not on the Atlas, and no place that only such an event names.
 import { fail } from './auth/guard.server';
 import { forbidden } from './auth/errors';
-import { added, change, db, guard, once, personExists, q, removed, type OpKey, type Query } from './db.server';
+import { added, change, db, guard, once, personExists, q, removed, type OnceOptions, type OpKey, type Query } from './db.server';
 import { AFTER_DEATH, byDate, MAX_EVENTS, type EventInput, type EventType, type LifeEvent } from './events.ts';
 import { LIVING_IDS } from './protect-living.ts';
 import { can, type Role } from './roles.ts';
@@ -60,7 +60,7 @@ const clean = (s: string | null | undefined) => (s && s.trim() ? s.trim() : null
  * Adds an event (no id) or changes one. An event stays with the person it was added to. A custom event needs its own label;
  * a burial or a cremation is only for someone not living. Returns the event's id.
  */
-export function saveEvent(tree: string, who: LifeReader, input: EventInput, op: OpKey | undefined): Promise<{ id: string }> {
+export function saveEvent(tree: string, who: LifeReader, input: EventInput, op: OpKey | undefined, opts: OnceOptions = {}): Promise<{ id: string }> {
   return once(tree, op, 'saveLifeEvent', async (d) => {
     needsEditor(who);
     const label = clean(input.label);
@@ -95,7 +95,7 @@ export function saveEvent(tree: string, who: LifeReader, input: EventInput, op: 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, input.person, ...values, (count?.last ?? -1) + 1, who.id, who.name, at, who.id, at),
     );
     return { writes, history: [added('event', id, { person: input.person, label: label ?? input.type })], result: { id } };
-  });
+  }, opts);
 }
 
 /** Removes an event; its citations go with it (they cite nothing any more). An event already gone is not an error. */

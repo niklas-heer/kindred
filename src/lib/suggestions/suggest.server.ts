@@ -23,7 +23,7 @@
 // - Errors are translation keys (`suggest.err.*`), translated where they are shown:
 //     payload      the suggestion is not a valid one of its kind   person     no such person (or, for such a guest, living)
 //     unchanged    it changes nothing                              living     such a guest suggested someone living
-//     event        no such event or partnership of this person, a custom event (no label), a burial of the living
+//     event        no such event or partnership of this person, a custom event without its label, a burial of the living
 //     backs        the fact a source backs is not one of its person's
 //     note         the note is too long                            name       a guest's name is empty or too long
 //     guests       guests may not suggest here                     guest_files  guests may not attach files here
@@ -170,6 +170,7 @@ const relativeShape = z.strictObject({
 const eventShape = z.strictObject({
   event: id.optional(),
   kind: z.enum(EVENT_TYPES).optional(),
+  label: z.string().trim().max(200).optional(),
   date: maybeDate.optional(),
   place: text(200).optional(),
   note: z.string().trim().max(4000).optional(),
@@ -269,7 +270,7 @@ async function checkRelative(d: Db, by: Suggester, person: string | null, raw: u
 
 const PARTNERSHIP_FIELDS = ['partnership', 'partnershipKind', 'start', 'startPlace'] as const;
 const CORRECTION_FIELDS = ['event', 'date', 'place', 'note'] as const;
-const NEW_EVENT_FIELDS = ['kind', 'date', 'place', 'note'] as const;
+const NEW_EVENT_FIELDS = ['kind', 'label', 'date', 'place', 'note'] as const;
 const only = (o: object, keys: readonly string[]) => Object.keys(o).every((k) => keys.includes(k));
 
 /** The fields of a correction that differ from the record: the payload, or `unchanged`. */
@@ -320,8 +321,8 @@ async function checkEvent(d: Db, by: Suggester, person: string | null, raw: unkn
   if (given.kind === undefined || !only(given, NEW_EVENT_FIELDS)) throw err('payload');
   const p = await personFor(d, by, person);
   const kind: EventType = given.kind;
-  // A custom event needs a label, which a suggestion has no field for; a burial or cremation is only for someone not living.
-  if (kind === 'custom' || (AFTER_DEATH.has(kind) && p.living !== 0)) throw err('event');
+  // A custom event needs its label, as the event form does; a burial or cremation is only for someone not living.
+  if ((kind === 'custom' && !given.label) || (AFTER_DEATH.has(kind) && p.living !== 0)) throw err('event');
   return { payload: compact(given, true), basis: null, guards: [personThere(by, p.id, AFTER_DEATH.has(kind))] };
 }
 
@@ -344,6 +345,15 @@ async function checkSource(d: Db, by: Suggester, person: string | null, raw: unk
 const CHECKS: Record<SuggestionKind, (d: Db, by: Suggester, person: string | null, raw: unknown) => Promise<Checked>> = {
   details: checkDetails, relative: checkRelative, event: checkEvent, source: checkSource,
 };
+
+/**
+ * A reviewer's adjusted values for a suggestion of this kind, checked as a suggestion is (review.server.ts): its stored form
+ * (a correction keeps only what differs from the record) and the record's values it differs from.
+ */
+export async function checkPayload(d: Db, who: Who, kind: SuggestionKind, person: string | null, raw: unknown): Promise<{ payload: SuggestionPayload; basis: Record<string, unknown> | null }> {
+  const { payload, basis } = await CHECKS[kind](d, { kind: 'member', who }, person, raw);
+  return { payload, basis };
+}
 
 // ---------- making one ----------
 
@@ -422,29 +432,13 @@ function ownerCheck(by: Suggester) {
 // ---------- files ----------
 
 const EXT: Record<(typeof FILE_TYPES)[number], string> = {
-  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic', 'application/pdf': 'pdf',
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf',
 };
-const HEIC_BRANDS = new Set(['heic', 'heix', 'heim', 'heis', 'hevc', 'hevx']);
-const ascii = (b: Uint8Array, from: number, to: number) => String.fromCharCode(...b.subarray(from, to));
-
-/** Whether the bytes begin as a HEIC picture: an ISO `ftyp` box naming a HEIC brand (major or compatible). */
-function isHeic(b: Uint8Array): boolean {
-  if (b.length < 16 || ascii(b, 4, 8) !== 'ftyp') return false;
-  const size = ((b[0]! << 24) | (b[1]! << 16) | (b[2]! << 8) | b[3]!) >>> 0;
-  const end = Math.min(b.length, Math.max(16, size));
-  for (let i = 8; i + 4 <= end; i += 4) if (i !== 12 && HEIC_BRANDS.has(ascii(b, i, i + 4))) return true;
-  return false;
-}
 
 /** The file's bytes to store: of a type the suggestion takes, its bytes agreeing with it, a picture without its metadata. */
 async function checkedBytes(mime: string, bytes: Uint8Array): Promise<Uint8Array> {
   if (!(FILE_TYPES as readonly string[]).includes(mime) || !bytes.length) throw err('file_type');
   if (bytes.length > MAX_FILE_BYTES) throw err('file_size');
-  // A HEIC picture is checked by its first bytes only; nothing here can take its metadata out.
-  if (mime === 'image/heic') {
-    if (!isHeic(bytes)) throw err('file_type');
-    return bytes;
-  }
   // The research documents' check: the bytes decide the type, and a PDF with active content is refused.
   if ('refused' in (await checkDocument(bytes, mime))) throw err('file_type');
   const clean = stripMetadata(bytes, mime);
