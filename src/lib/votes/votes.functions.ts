@@ -139,10 +139,9 @@ export const castVote = createServerFn({ method: 'POST' })
     if (!guest) throw g.fail((await import('../auth/errors')).signedOut());
     const request = getRequest();
     let key = await voter.guestVoterKey(request);
-    if (!key) {
-      const fresh = await voter.voterCookie(request, guest.expires);
-      key = fresh.key;
-      appendResponseHeader('Set-Cookie', fresh.setCookie);
-    }
+    let setCookie: string | undefined;
+    if (!key) ({ key, setCookie } = await voter.voterCookie(request, guest.expires));
     await (await votes()).castBallot(data.tree, { kind: 'guest', key, name, link: guest.link, net: await voter.netOf(request) }, data.id, data.choices);
+    // Only a ballot that was taken sets the cookie, so a refused one leaves the browser as it was.
+    if (setCookie) appendResponseHeader('Set-Cookie', setCookie);
   });

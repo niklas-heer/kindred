@@ -116,6 +116,22 @@ test('a guest castVote without a name fails, and with one sets the voter cookie 
   assert.deepEqual(view!.mine, [open.options[1]]);
 });
 
+test('a guest of a suspended family reads, but a ballot is refused, writes nothing and sets no cookie', async () => {
+  const run = (sql: string, ...a: (string | number)[]) => store.accounts().run(sql, ...a);
+  await run("INSERT INTO family_admin (tree, created_at) VALUES (?, ?) ON CONFLICT(tree) DO UPDATE SET status = 'suspended'", TREE, new Date().toISOString());
+  await run("UPDATE family_admin SET status = 'suspended' WHERE tree = ?", TREE);
+  try {
+    asGuest();
+    assert.equal((await fns.getVotes({ data: { tree: TREE } })).length, 1, 'reads still work');
+    await assert.rejects(fns.castVote({ data: { tree: TREE, id: open.id, choices: [open.options[0]], name: 'Dee' } }), (e: Error & { status?: number }) => e.status === 403 && /suspended/.test(e.message));
+    assert.deepEqual(g.__setCookies, []);
+    assert.equal((await fns.getVote({ data: { tree: TREE, id: open.id } }))!.voterCount, 1, 'no ballot was written');
+  } finally {
+    asNobody(); // a new request: the suspended guest's was read-only
+    await run("UPDATE family_admin SET status = 'active' WHERE tree = ?", TREE);
+  }
+});
+
 test('a member votes under their own name, and a viewer may vote but not start a vote', async () => {
   asMember(BO, 'Bo');
   await fns.castVote({ data: { tree: TREE, id: open.id, choices: [open.options[0]] } });

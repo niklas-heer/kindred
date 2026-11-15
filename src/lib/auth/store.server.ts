@@ -226,6 +226,8 @@ export interface MembershipRow {
 const MEMBERSHIP = `m.*, EXISTS (SELECT 1 FROM family_admin f WHERE f.tree = m.tree AND f.status = 'suspended') AS suspended,
   EXISTS (SELECT 1 FROM family_admin f WHERE f.tree = m.tree AND f.status = 'suspended' AND f.closed = 1) AS closed FROM membership m`;
 export const membershipsOf = (user: string) => accounts().all<MembershipRow>(`SELECT ${MEMBERSHIP} WHERE m.user = ? ORDER BY m.created`, user);
+/** Whether the operator has suspended (or closed) this family: a guest's visit is then read-only too. */
+export const familySuspended = async (tree: string) => !!(await accounts().get("SELECT 1 FROM family_admin WHERE tree = ? AND status = 'suspended'", tree));
 export const membership = (user: string, tree: string) => accounts().get<MembershipRow>(`SELECT ${MEMBERSHIP} WHERE m.user = ? AND m.tree = ?`, user, tree);
 
 const rank = (col: string) => `CASE ${col} WHEN 'viewer' THEN 0 WHEN 'contributor' THEN 1 WHEN 'editor' THEN 2 WHEN 'steward' THEN 3 END`;

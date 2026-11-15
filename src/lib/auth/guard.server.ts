@@ -21,7 +21,7 @@ import { can, needs, type Action, type Role } from '../roles';
 import { AuthError, closedFamily, forbidden, notMember, signedOut, suspended } from './errors';
 import { operatorRefusal } from './operator-rule.server';
 import { getSession, type Session } from './session.server';
-import { membershipsOf, type MembershipRow, type UserRow } from './store.server';
+import { familySuspended, membershipsOf, type MembershipRow, type UserRow } from './store.server';
 import { demoRefused, isDemo } from '../demo';
 import { onRequestReadOnly } from '../read-only';
 import { previewMemberships, resolveViewAs, viewAsRefused, viewAsToken, viewAsUser, type ViewAs } from './view-as.server';
@@ -184,7 +184,11 @@ export async function requireReader(tree: string): Promise<Reader> {
   noteSuspended(m || undefined);
   if (user && m) return { user: readerAccount(session, tree) ?? user, role: m.role, person: m.person, personConfirmed: !!m.person_confirmed, guest: false, protectLiving: false };
   // A visit that does not say is protected: only a link that has the setting off shows the living in full.
-  if (guest?.tree === tree) return { user: null, role: 'viewer', person: null, personConfirmed: false, guest: true, protectLiving: guest.protectLiving !== false };
+  if (guest?.tree === tree) {
+    // A suspended family is read-only for its guests as for its members: every write of this request is refused.
+    if (await familySuspended(tree)) suspendedRequests.add(getRequest());
+    return { user: null, role: 'viewer', person: null, personConfirmed: false, guest: true, protectLiving: guest.protectLiving !== false };
+  }
   throw fail(user ? notMember() : signedOut());
 }
 
