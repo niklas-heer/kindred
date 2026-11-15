@@ -25,8 +25,9 @@
 // which no archive holds) and its comments. The v1 tools and import-kindred.ts leave feed/ alone.
 //
 // The family's votes (migration 0037, docs/votes.md) are in votes/, one file per year of starting, oldest first: the question,
-// the options and, once it has closed, the result (each round of a ranked one). A closed open vote lists each ballot by name;
-// a secret one only its totals and who voted, so the archive never tells who chose what. A vote still open has no result.
+// the options and, once it has closed, the result (each round of a ranked one), then its comments. A closed open vote lists
+// each ballot by name; a secret one only its totals and who voted, so the archive never tells who chose what. A vote still
+// open has no result.
 import { allGiven } from '../further-given.ts';
 import type { ExCitation, ExParent, ExPerson, ExPost, ExStory, ExTree, ExUnion, ExVote } from './model.ts';
 
@@ -253,7 +254,7 @@ export function markdownArchive(tree: ExTree, portraits: Set<string> = new Set()
       'once, on the note of the partner whose id sorts first. Life events are in each person\'s events; sources are in',
       'sources/, and each person\'s citations name the source and the fact it backs. Memories, sayings and recipes are in',
       'memories/, one file per person, each with the comments the family wrote under it. What the family wrote to each',
-      'other in the feed is in feed/, one file per year, and its votes with their results are in votes/.',
+      'other in the feed is in feed/, one file per year, and its votes with their results and comments are in votes/.',
       '',
       ...(losses.length ? ['Not in this archive:', ...losses.map((l) => `- ${l}`), ''] : []),
     ].join('\n'),
@@ -293,13 +294,16 @@ export function feedNote(family: string, year: string, posts: ExPost[], personLi
       ...(x.pictures ? [`With ${x.pictures} ${x.pictures === 1 ? 'picture' : 'pictures'}, kept in the gallery.`] : []),
     ];
     if (notes.length) out.push(`*${notes.join(' ')}*`, '');
-    if (x.comments.length) {
-      out.push('### Comments', '');
-      for (const c of x.comments) out.push(`**${c.author ? plainMarkdown(c.author.replace(/\s+/g, ' ')) : 'A former member'}**, ${c.at.slice(0, 10)}${c.edited ? ' (changed)' : ''}:`, '', quoted(plainMarkdown(c.body)), '');
-    }
+    out.push(...commentsOf(x.comments));
   }
   return `${out.join('\n').trimEnd()}\n`;
 }
+
+/** A feed post's or a vote's comments, under a heading, each written as text: the reader's input, never markup. */
+const commentsOf = (comments: ExPost['comments']): string[] => (comments.length ? [
+  '### Comments', '',
+  ...comments.flatMap((c) => [`**${c.author ? plainMarkdown(c.author.replace(/\s+/g, ' ')) : 'A former member'}**, ${c.at.slice(0, 10)}${c.edited ? ' (changed)' : ''}:`, '', quoted(plainMarkdown(c.body)), '']),
+] : []);
 
 /** One line of a name or label: written as text, with white space folded. */
 const inline = (text: string) => plainMarkdown(text.replace(/\s+/g, ' ').trim());
@@ -313,7 +317,7 @@ export function votesNote(family: string, year: string, votes: ExVote[]): string
     out.push(`*${v.kind === 'ranked' ? 'Ranked choice' : 'Single choice'}, ${v.secret ? 'secret' : 'open'} vote. ${v.closed ? 'Closed' : 'Still open, closes'} ${v.closes.slice(0, 10)}.*`, '');
     out.push('Options:', ...v.options.map((o) => `- ${inline(o.label)}`), '');
     if (!v.closed) {
-      out.push(`${v.voters.length} ${v.voters.length === 1 ? 'person has' : 'people have'} voted so far. No result is written until it has closed.`, '');
+      out.push(`${v.voters.length} ${v.voters.length === 1 ? 'person has' : 'people have'} voted so far. No result is written until it has closed.`, '', ...commentsOf(v.comments));
       continue;
     }
     const voted = v.voters.map((x) => `${inline(x.name)}${x.guest || x.struck ? ` (${[x.guest ? 'guest' : '', x.struck ? 'struck' : ''].filter(Boolean).join(', ')})` : ''}`);
@@ -330,6 +334,7 @@ export function votesNote(family: string, year: string, votes: ExVote[]): string
     else out.push(`Voted: ${voted.join(', ') || 'nobody'}.`, '');
     if (v.strikesIgnored) out.push('Some guests\' ballots were struck by a steward, but this export could not tell which ballots were theirs, so the totals count them.', '');
     if (v.ballots && v.voters.some((x) => x.struck)) out.push(`Struck guests, not counted: ${v.voters.filter((x) => x.struck).map((x) => inline(x.name)).join(', ')}.`, '');
+    out.push(...commentsOf(v.comments));
   }
   return `${out.join('\n').trimEnd()}\n`;
 }

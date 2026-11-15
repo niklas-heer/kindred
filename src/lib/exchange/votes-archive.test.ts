@@ -130,3 +130,18 @@ test('without the server\'s key a struck guest of a secret vote does not make th
   assert.match(text, /Apple: 1/, 'nothing is left out that cannot be identified');
   assert.match(text, /could not tell which ballots were theirs/);
 });
+
+test('the comments on a vote are under it, open or closed, written as text', async () => {
+  const closed = await tree('archive-comments');
+  const { id } = await start(closed, 'Which cake?');
+  await db.db(closed).run("INSERT INTO comment (id, target_kind, target, account, author_name, body, created_at) VALUES ('c1', 'vote', ?, 'acc-bo', 'Bo Birch', 'Plum, *please*', '2026-03-02T09:00:00.000Z')", id);
+  await db.db(closed).run('UPDATE vote SET closed_at = closes_at');
+  assert.match((await archiveOf(closed, 'votes/2026.md'))!, /Nobody voted\.[^]*### Comments\n\n\*\*Bo Birch\*\*, 2026-03-02:\n\n> Plum, \\\*please\\\*\n$/);
+
+  const open = await tree('archive-comments-open');
+  const from = new Date();
+  const { id: still } = await start(open, 'Which song?', {}, from);
+  await db.db(open).run("INSERT INTO comment (id, target_kind, target, account, author_name, body, created_at) VALUES ('c2', 'vote', ?, 'acc-ada', 'Ada Alder', 'Any song but that one', ?)", still, from.toISOString());
+  const text = (await archiveOf(open, `votes/${from.toISOString().slice(0, 4)}.md`))!;
+  assert.match(text, /Still open[^]*### Comments\n\n\*\*Ada Alder\*\*, \d{4}-\d{2}-\d{2}:\n\n> Any song but that one\n$/);
+});

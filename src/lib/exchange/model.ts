@@ -158,6 +158,8 @@ export interface ExVote {
   ballots: { name: string; guest: boolean; choices: string[] }[] | null;
   /** A secret vote with struck guests whose ballots could not be found (no `voterKey` was given), so the totals count them. */
   strikesIgnored?: boolean;
+  /** The family's comments on it, oldest first. */
+  comments: ExComment[];
 }
 
 /** What a reader of the tree may be given: the server's `voterKey` (votes/voter-key.server.ts), only by callers that run on the server. */
@@ -326,6 +328,9 @@ async function readVotes(d: Db, read: ReadOptions): Promise<ExVote[]> {
   const options = await d.all<{ vote: string; id: string; label: string }>('SELECT vote, id, label FROM vote_option ORDER BY vote, ord');
   const voters = await d.all<{ vote: string; account: string | null; guest_key: string | null; name: string; struck: number }>('SELECT vote, account, guest_key, name, struck FROM vote_voter ORDER BY vote, name, id');
   const ballots = await d.all<{ vote: string; voter: string; choices: string }>('SELECT vote, voter, choices FROM ballot');
+  const comments = await d.all<{ target: string; author_name: string; created_at: string; edited_at: string | null; body: string }>(
+    "SELECT target, author_name, created_at, edited_at, body FROM comment WHERE target_kind = 'vote' ORDER BY created_at, id",
+  );
   const now = new Date().toISOString();
   const out: ExVote[] = [];
   for (const v of rows) {
@@ -359,6 +364,7 @@ async function readVotes(d: Db, read: ReadOptions): Promise<ExVote[]> {
       id: v.id, author: v.author_name, at: v.created_at, question: v.question, description: v.description, kind: v.kind, secret: !!v.secret,
       closes: v.closed_at ?? v.closes_at, closed, options: opts.map((o) => ({ id: o.id, label: o.label })),
       voters: mine.map((x) => ({ name: x.name, guest: !x.account, struck: !!x.struck })), result, ballots: named, ...(ignored ? { strikesIgnored: true } : {}),
+      comments: comments.filter((c) => c.target === v.id).map((c) => ({ author: c.author_name, at: c.created_at, edited: c.edited_at, body: c.body })),
     });
   }
   return out;
