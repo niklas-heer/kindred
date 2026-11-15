@@ -27,7 +27,8 @@
 // - A reader sees what "What a reader sees" allows (VoteView in types.ts): tallies in an open vote only after voting, in a
 //   secret one only after closing; who chose what only in an open vote and only to members; a guest no member's name or
 //   face and no other guest's. A vote past its closing time reads as closed, and the first member to read it marks it closed
-//   at that time (never a guest, a demo or a preview).
+//   at that time (never a guest, a demo or a preview). A member's read also settles the family's closed arms votes
+//   (arms-proposals/settle.server.ts), as does a steward's close of one.
 // - Errors are translation keys (`votes.err.*`), translated where they are shown:
 //     closed       the vote has closed           locked     it can no longer change that (a ballot exists, or no additions)
 //     options      the options are not 2 to 20 distinct labels of at most 120 characters
@@ -234,13 +235,15 @@ export async function editVote(tree: string, who: Who, id: string, input: Partia
 
 /**
  * Closes an open vote now: its creator's, whatever their role now, or anyone's for an editor; an arms vote only for a
- * steward. A closed vote stays as it is.
+ * steward, and then settles it (arms-proposals/settle.server.ts). A closed vote stays as it is.
  */
 export async function closeVote(tree: string, who: Who, id: string, op?: OpKey, now: Date = new Date()): Promise<void> {
   needsMember(who);
-  return once(tree, op, 'closeVote', async (d) => {
+  let arms = false;
+  await once(tree, op, 'closeVote', async (d) => {
     const row = await voteOf(d, id);
-    if (isArmsVote(row)) needsSteward(who);
+    arms = isArmsVote(row);
+    if (arms) needsSteward(who);
     else if (row.account !== who.id && !can(who.role, 'remove-vote')) throw fail(forbidden('remove-vote', 'editor'));
     const at = now.toISOString();
     if (!isOpen(row, at)) return { writes: [], history: NOT_A_RECORD, result: undefined };
@@ -250,6 +253,8 @@ export async function closeVote(tree: string, who: Who, id: string, op?: OpKey, 
       result: undefined,
     };
   });
+  // An arms vote is settled as soon as it is closed, in a write of its own (never fails the close).
+  if (arms) await settle(tree, now);
 }
 
 /** The writes that delete a vote with its options, voters, ballots and reminder claims; its comments and reactions go by a trigger. */
@@ -432,7 +437,7 @@ const groupBy = <T extends { vote: string }>(rows: readonly T[]) => {
  * The count of a vote's ballots, leaving out the ones a steward struck. A struck guest's ballot is found by its key: the
  * guest key itself in an open vote, its HMAC in a secret one.
  */
-async function resultOf(v: Pick<VoteRow, 'id' | 'kind' | 'secret'>, options: readonly { id: string }[], ballots: readonly Pick<BallotRow, 'voter' | 'choices'>[], struck: readonly Pick<VoterRow, 'account' | 'guest_key'>[]): Promise<VoteResult> {
+export async function resultOf(v: Pick<VoteRow, 'id' | 'kind' | 'secret'>, options: readonly { id: string }[], ballots: readonly Pick<BallotRow, 'voter' | 'choices'>[], struck: readonly Pick<VoterRow, 'account' | 'guest_key'>[]): Promise<VoteResult> {
   const out = new Set(await Promise.all(struck.map((s) => voterKey(v.id, !!v.secret, (s.account ?? s.guest_key)!))));
   const counted = ballots.filter((b) => !out.has(b.voter)).map((b) => JSON.parse(b.choices) as string[]);
   return countVote(v.kind, options.map((o) => o.id), counted);
@@ -460,14 +465,12 @@ function summaryOf(v: ReadRow, r: Reading, authors: Map<string, { person: string
 }
 
 /**
- * Marks votes past their closing time as closed at that time (not the read's), for the first member who reads them. A
- * guest's read, a demo and a preview store nothing; the vote reads as closed all the same. Writes only `closed_at`. A mark
- * that fails is logged (the error only: no family, question or reader) and the read goes on: the next
- * member's read tries again.
+ * Marks those of these votes whose closing time has passed (at `at`) as closed at that time (not the caller's), in one
+ * guarded write of `closed_at` only. Once marked, no ballot or strike lands (their guards want `closed_at` NULL), which is
+ * what lets an arms vote be settled in a second write (arms-proposals/settle.server.ts). Throws when the write fails.
  */
-async function closeOnRead(tree: string, r: Reading, ids: readonly string[], at: string): Promise<void> {
-  if (r.guest || !ids.length || readOnly()) return;
-  await once(tree, undefined, 'closeVoteOnRead', async (d) => {
+export function markClosed(tree: string, ids: readonly string[], at: string, fn = 'closeVoteOnRead'): Promise<void> {
+  return once(tree, undefined, fn, async (d) => {
     const due = (await d.all<{ id: string }>('SELECT id FROM vote WHERE id IN (SELECT value FROM json_each(?)) AND closed_at IS NULL AND closes_at <= ?', JSON.stringify(ids), at)).map((x) => x.id);
     const list = JSON.stringify(due);
     return {
@@ -479,8 +482,26 @@ async function closeOnRead(tree: string, r: Reading, ids: readonly string[], at:
       history: NOT_A_RECORD,
       result: undefined,
     };
-  }).catch((e: unknown) => console.error('[votes] could not mark votes closed on read', e instanceof Error ? e.message : e));
+  });
 }
+
+/**
+ * Marks votes past their closing time as closed at that time (not the read's), for the first member who reads them. A
+ * guest's read, a demo and a preview store nothing; the vote reads as closed all the same. A mark that fails is logged (the
+ * error only: no family, question or reader) and the read goes on: the next member's read tries again.
+ */
+async function closeOnRead(tree: string, r: Reading, ids: readonly string[], at: string): Promise<void> {
+  if (r.guest || !ids.length || readOnly()) return;
+  await markClosed(tree, ids, at).catch((e: unknown) => console.error('[votes] could not mark votes closed on read', e instanceof Error ? e.message : e));
+}
+
+/**
+ * Settles the family's closed arms votes and starts the next ones (arms-proposals/settle.server.ts, loaded when needed: it
+ * imports this module). It skips a demo and a preview itself, and never throws.
+ */
+const settle = async (tree: string, now: Date) => {
+  await (await import('../arms-proposals/settle.server')).settleArmsVotes(tree, now);
+};
 
 /**
  * The votes this reader may read: open ones first, closing soonest first, then closed ones, newest first, at most fifty. A
@@ -501,6 +522,8 @@ export async function listVotes(tree: string, reader: Reader, guestKey?: string,
     q(`SELECT vote, account, guest_key FROM vote_voter WHERE struck = 1 AND vote IN (${closedIds})`, at),
   ])) as unknown as [ReadRow[], ReadRow[], OptionRow[], BallotRow[], VoterRow[]];
   await closeOnRead(tree, r, closed.filter((v) => !v.closed_at).map((v) => v.id), at);
+  // A member's read also settles the arms votes that closed (never a guest's): the house takes the arms a vote chose.
+  if (!r.guest) await settle(tree, now);
   const authors = r.guest ? new Map<string, { person: string | null }>() : await standingFor(tree, [...open, ...closed].map((v) => v.account));
   const [options, ballots, struck] = [groupBy(optionRows), groupBy(ballotRows), groupBy(struckRows)];
   const winners = await Promise.all(closed.map((v) => winnerLabels(v, options.get(v.id) ?? [], ballots.get(v.id) ?? [], struck.get(v.id) ?? [])));
@@ -520,6 +543,7 @@ export async function voteView(tree: string, reader: Reader, id: string, guestKe
   if (!v || (r.guest && !v.guests)) return null;
   const open = isOpen(v, at);
   if (!open && !v.closed_at) await closeOnRead(tree, r, [id], at);
+  if (!open && !r.guest && isArmsVote(v)) await settle(tree, now);
   const secret = !!v.secret;
   // The reader's own ballot, by the key it is stored under.
   const ownKey = r.voterId ? await voterKey(id, secret, r.voterId) : null;

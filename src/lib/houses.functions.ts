@@ -10,8 +10,11 @@ const id = z.string().min(1).max(100);
 export const getHouseSettings = createServerFn({ method: 'GET' })
   .validator(z.object({ tree }))
   .handler(async ({ data }) => {
-    await (await import('./auth/guard.server')).requireReader(data.tree);
-    return (await import('./houses.server')).readHouseSettings(data.tree);
+    const reader = await (await import('./auth/guard.server')).requireReader(data.tree);
+    // A member's read of the houses also settles the arms votes that closed (never a guest's; a preview skips it itself).
+    const settled = reader.guest ? undefined : (await import('./arms-proposals/settle.server')).settleArmsVotes(data.tree);
+    const [settings] = await Promise.all([(await import('./houses.server')).readHouseSettings(data.tree), settled]);
+    return settings;
   });
 
 export const houseSettingsQuery = (tree: string) =>
