@@ -110,6 +110,16 @@ test('a guest gets no proposals read and no counts, and a guest\'s read never se
   assert.deepEqual(read.proposals.map((p) => [p.name, p.status]), [], 'settled first: the stag is accepted, the eagle not chosen, neither open');
 });
 
+test('a guest\'s votes reads never settle an arms vote; a member\'s do', async () => {
+  const { t, vote, stag, o } = await stagAndEagle();
+  await V.castBallot(t, member(carl), vote, [o[stag]!], later(2 * HOUR));
+  assert.equal((await V.listVotes(t, GUEST, undefined, AFTER)).length, 1);
+  assert.ok(await V.voteView(t, GUEST, vote, undefined, AFTER));
+  assert.equal(await settledAt(t, vote), null, 'a guest stores nothing');
+  await V.listVotes(t, reader(carl), undefined, AFTER);
+  assert.ok(await settledAt(t, vote), 'the control: a member\'s list settles it');
+});
+
 test('in an arms vote a guest gets each option\'s id, label and shield, and nothing of who proposed it or why', async () => {
   const { t, vote, stag, eagle, o } = await stagAndEagle();
   const v = await V.voteView(t, GUEST, vote, undefined, later(2 * HOUR));

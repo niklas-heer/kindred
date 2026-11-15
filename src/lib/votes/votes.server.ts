@@ -259,7 +259,7 @@ export async function closeVote(tree: string, who: Who, id: string, op?: OpKey, 
     };
   });
   // An arms vote is settled as soon as it is closed, in a write of its own (never fails the close).
-  if (arms) await settle(tree, now);
+  if (arms) await settle(tree, who, now);
 }
 
 /** The writes that delete a vote with its options, voters, ballots and reminder claims; its comments and reactions go by a trigger. */
@@ -506,11 +506,11 @@ async function closeOnRead(tree: string, r: Reading, ids: readonly string[], at:
 }
 
 /**
- * Settles the family's closed arms votes and starts the next ones (arms-proposals/settle.server.ts, loaded when needed: it
- * imports this module). It skips a demo and a preview itself, and never throws.
+ * Settles the family's closed arms votes and starts the next ones for this reader's read (arms-proposals/settle.server.ts,
+ * loaded when needed: it imports this module): a guest's settles nothing. It skips a demo and a preview itself, and never throws.
  */
-const settle = async (tree: string, now: Date) => {
-  await (await import('../arms-proposals/settle.server')).settleArmsVotes(tree, now);
+const settle = async (tree: string, reader: { guest?: boolean }, now: Date) => {
+  await (await import('../arms-proposals/settle.server')).settleForReader(tree, reader, now);
 };
 
 /**
@@ -533,8 +533,8 @@ export async function listVotes(tree: string, reader: Reader, guestKey?: string,
     q(`SELECT vote, account, guest_key FROM vote_voter WHERE struck = 1 AND vote IN (${closedIds})`, at),
   ])) as unknown as [ReadRow[], ReadRow[], OptionRow[], BallotRow[], VoterRow[]];
   await closeOnRead(tree, r, closed.filter((v) => !v.closed_at).map((v) => v.id), at);
-  // A member's read also settles the arms votes that closed (never a guest's): the house takes the arms a vote chose.
-  if (!r.guest) await settle(tree, now);
+  // A member's read also settles the arms votes that closed (a guest's never): the house takes the arms a vote chose.
+  await settle(tree, r, now);
   const authors = r.guest ? new Map<string, { person: string | null }>() : await standingFor(tree, [...open, ...closed].map((v) => v.account));
   const [options, ballots, struck] = [groupBy(optionRows), groupBy(ballotRows), groupBy(struckRows)];
   const winners = await Promise.all(closed.map((v) => winnerLabels(v, labelled(locale, v, options.get(v.id) ?? []), ballots.get(v.id) ?? [], struck.get(v.id) ?? [])));
@@ -560,7 +560,7 @@ export async function voteView(tree: string, reader: Reader, id: string, guestKe
   const options = labelled(locale, v, read);
   const open = isOpen(v, at);
   if (!open && !v.closed_at) await closeOnRead(tree, r, [id], at);
-  if (!open && !r.guest && isArmsVote(v)) await settle(tree, now);
+  if (!open && isArmsVote(v)) await settle(tree, r, now);
   const secret = !!v.secret;
   // The reader's own ballot, by the key it is stored under.
   const ownKey = r.voterId ? await voterKey(id, secret, r.voterId) : null;
