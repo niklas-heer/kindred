@@ -1,4 +1,5 @@
 // Shared by the browser and the server: limits and result shapes for family votes. No server imports.
+import type { FeedAuthor } from '../feed/types.ts';
 
 export const MIN_OPTIONS = 2;
 export const MAX_OPTIONS = 20;
@@ -25,3 +26,44 @@ export type VoteResult =
       winners: string[];
       ballots: number;
     };
+
+/**
+ * A vote in the list, as this reader may see it. A guest's carries no author (`name` empty, no face). `closesAt` is when it
+ * closes, or when it closed; `voterCount` counts the voters a steward has not struck; `voted` is the reader's own; `winners`
+ * are option labels, only once it has closed (empty when nobody voted, more than one for a tie).
+ */
+export interface VoteSummary {
+  id: string;
+  question: string;
+  kind: VoteKind;
+  secret: boolean;
+  guests: boolean;
+  author: FeedAuthor;
+  createdAt: string;
+  closesAt: string;
+  closed: boolean;
+  voterCount: number;
+  voted: boolean;
+  winners: string[] | null;
+}
+
+/**
+ * One vote, as this reader may see it:
+ * - `mine` is the reader's own ballot (option ids), or null before they vote.
+ * - `result` (by option id): once it has closed; while it is open, in an open vote to whoever has voted, in a secret one never.
+ * - `ballots`, who chose what: only in an open vote, only to a member, only with the result; never a struck guest's.
+ * - `voters`, who has voted, by name: members only (guests get null); `struck` only for a steward, and only a steward sees a
+ *   struck guest at all.
+ * - A guest reads no member's name or face, and no other guest's: `author` and every `addedBy` are empty for them.
+ * - `may` is what the server would let this reader do now; all false for a guest.
+ */
+export interface VoteView extends VoteSummary {
+  description: string;
+  addOptions: boolean;
+  options: { id: string; label: string; addedBy: string }[];
+  mine: string[] | null;
+  voters: { id: string; name: string; person: string | null; guest: boolean; struck?: boolean }[] | null;
+  ballots: { name: string; person: string | null; guest: boolean; choices: string[] }[] | null;
+  result: VoteResult | null;
+  may: { edit: boolean; close: boolean; remove: boolean; addOption: boolean; strike: boolean };
+}

@@ -1,5 +1,6 @@
 // Family votes on the server (tree migration 0037): starting, changing, closing and removing a vote, adding an option,
-// casting a ballot and striking a guest's. Reads and counting come later; the count itself is `countVote` (count.ts).
+// casting a ballot and striking a guest's, and reading votes as each reader may see them. The count itself is `countVote`
+// (count.ts), computed from the ballots on every read.
 //
 //   vote          viewer       vote (and a share-link guest, in a vote that allows guests)
 //   start-vote    contributor  start a vote; change or close your own; add an option where the vote allows it
@@ -19,6 +20,10 @@
 // - A ballot is never sent with a retry key: `once` would keep it in the `op` table for a month with the account and a
 //   fingerprint of the vote and the choices, which anyone with a copy of the database could match against every possible
 //   ballot, secret ones included. Casting is an upsert of the voter's one row and one ballot, so sending it twice is harmless.
+// - A reader sees what "What a reader sees" allows (VoteView in types.ts): tallies in an open vote only after voting, in a
+//   secret one only after closing; who chose what only in an open vote and only to members; a guest no member's name or
+//   face and no other guest's. A vote past its closing time reads as closed, and the first member to read it marks it closed
+//   at that time (never a guest, a demo or a preview).
 // - Errors are translation keys (`votes.err.*`), translated where they are shown:
 //     closed       the vote has closed           locked     it can no longer change that (a ballot exists, or no additions)
 //     options      the options are not 2 to 20 distinct labels of at most 120 characters
@@ -28,17 +33,20 @@
 //     closes_at    the closing time is too soon or too far      question / description  empty or too long
 //     name         a guest's name is empty or too long         gone       the vote (or the voter) is not there
 //     kind         the kind is neither `single` nor `ranked`
-import { fail } from '../auth/guard.server';
+import { fail, type Reader } from '../auth/guard.server';
 import { forbidden } from '../auth/errors';
 import { serverHmac } from '../auth/seal.server';
-import { guard, NOT_A_RECORD, once, q, type Db, type OpKey, type Query } from '../db.server';
-import { needsMember, type Who } from '../feed/posts.server';
+import { db, guard, NOT_A_RECORD, once, q, type Db, type OpKey, type Query } from '../db.server';
+import { authorOf, needsMember, standingFor, type Who } from '../feed/posts.server';
+import type { FeedAuthor } from '../feed/types';
+import { readOnly } from '../read-only';
 import { cleanComment } from '../responses';
-import { can, needs as lowestRole, type Action } from '../roles';
+import { can, needs as lowestRole, type Action, type Role } from '../roles';
 import { b64url } from '../webpush';
+import { countVote } from './count';
 import {
   GUEST_VOTERS_PER_LINK, GUEST_VOTERS_PER_NETWORK, MAX_CLOSE_DAYS, MAX_DESCRIPTION, MAX_GUEST_NAME, MAX_OPTION, MAX_OPTIONS,
-  MAX_QUESTION, MAX_VOTES_AN_HOUR, MIN_CLOSE_MS, MIN_OPTIONS, type VoteKind,
+  MAX_QUESTION, MAX_VOTES_AN_HOUR, MIN_CLOSE_MS, MIN_OPTIONS, type VoteKind, type VoteResult, type VoteSummary, type VoteView,
 } from './types';
 
 /** What a vote is started with, or changed to. `closesAt` is an ISO time. */
@@ -358,4 +366,163 @@ export async function strikeVoter(tree: string, who: Who, voteId: string, voterR
       result: undefined,
     };
   });
+}
+
+// ---------- reads ----------
+
+/** The most closed votes the list shows, newest first. */
+const CLOSED_IN_LIST = 50;
+
+/**
+ * Who is reading, for the shaping below: a member by account, or a guest by the key of their `kindred_voter` cookie (none
+ * before they first vote). A reader without an account is read as a guest, the narrowest view.
+ */
+type Reading = { guest: true; voterId: string | null; role: Role } | { guest: false; voterId: string; role: Role };
+function readingOf(reader: Reader, guestKey?: string): Reading {
+  if (reader.guest || !reader.user) return { guest: true, voterId: guestKey?.startsWith('g:') ? guestKey : null, role: 'viewer' };
+  return { guest: false, voterId: reader.user.id, role: reader.role };
+}
+
+interface ReadRow extends VoteRow { author_name: string; author_person: string | null; voter_count: number; voted: number }
+interface OptionRow { vote: string; id: string; label: string; added_by_name: string }
+interface BallotRow { vote: string; voter: string; choices: string }
+interface VoterRow { vote: string; id: string; account: string | null; guest_key: string | null; name: string; person: string | null; struck: number }
+
+/** A vote's columns for a reader, `v` being the vote: how many unstruck voters, and whether the reader (`?`) is one. */
+const readColumns = (r: Reading) => `${VOTE_COLUMNS.split(', ').map((c) => `v.${c}`).join(', ')}, v.author_name, v.author_person,
+  (SELECT count(*) FROM vote_voter vv WHERE vv.vote = v.id AND vv.struck = 0) AS voter_count,
+  EXISTS (SELECT 1 FROM vote_voter vv WHERE vv.vote = v.id AND vv.${r.guest ? 'guest_key' : 'account'} = ?) AS voted`;
+const OPEN_V = 'v.closed_at IS NULL AND v.closes_at > ?';
+const NO_AUTHOR: FeedAuthor = { name: '', person: null };
+const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
+const groupBy = <T extends { vote: string }>(rows: readonly T[]) => {
+  const m = new Map<string, T[]>();
+  for (const r of rows) m.set(r.vote, [...(m.get(r.vote) ?? []), r]);
+  return m;
+};
+
+/**
+ * The count of a vote's ballots, leaving out the ones a steward struck. A struck guest's ballot is found by its key: the
+ * guest key itself in an open vote, its HMAC in a secret one.
+ */
+async function resultOf(v: Pick<VoteRow, 'id' | 'kind' | 'secret'>, options: readonly { id: string }[], ballots: readonly Pick<BallotRow, 'voter' | 'choices'>[], struck: readonly Pick<VoterRow, 'account' | 'guest_key'>[]): Promise<VoteResult> {
+  const out = new Set(await Promise.all(struck.map((s) => voterKey(v.id, !!v.secret, (s.account ?? s.guest_key)!))));
+  const counted = ballots.filter((b) => !out.has(b.voter)).map((b) => JSON.parse(b.choices) as string[]);
+  return countVote(v.kind, options.map((o) => o.id), counted);
+}
+const labelsOf = (ids: readonly string[], options: readonly { id: string; label: string }[]) => ids.map((id) => options.find((o) => o.id === id)?.label ?? '');
+
+function summaryOf(v: ReadRow, r: Reading, authors: Map<string, { person: string | null }>, at: string, winners: string[] | null): VoteSummary {
+  return {
+    id: v.id, question: v.question, kind: v.kind, secret: !!v.secret, guests: !!v.guests,
+    author: r.guest ? NO_AUTHOR : authorOf(v, authors),
+    createdAt: v.created_at, closesAt: v.closed_at ?? v.closes_at, closed: !isOpen(v, at),
+    voterCount: v.voter_count, voted: !!v.voted, winners,
+  };
+}
+
+/**
+ * Marks votes past their closing time as closed at that time (not the read's), for the first member who reads them. A
+ * guest's read, a demo and a preview store nothing; the vote reads as closed all the same. Writes only `closed_at`.
+ */
+async function closeOnRead(tree: string, r: Reading, ids: readonly string[], at: string): Promise<void> {
+  if (r.guest || !ids.length || readOnly()) return;
+  await once(tree, undefined, 'closeVoteOnRead', async (d) => {
+    const due = (await d.all<{ id: string }>('SELECT id FROM vote WHERE id IN (SELECT value FROM json_each(?)) AND closed_at IS NULL AND closes_at <= ?', JSON.stringify(ids), at)).map((x) => x.id);
+    const list = JSON.stringify(due);
+    return {
+      writes: due.length ? [
+        // Still unmarked, as read: another reader's mark meanwhile makes the plan decide again, and find nothing to do.
+        guard('(SELECT count(*) FROM vote WHERE id IN (SELECT value FROM json_each(?)) AND closed_at IS NULL) = ?', list, due.length),
+        q('UPDATE vote SET closed_at = closes_at WHERE id IN (SELECT value FROM json_each(?)) AND closed_at IS NULL', list),
+      ] : [],
+      history: NOT_A_RECORD,
+      result: undefined,
+    };
+  });
+}
+
+/**
+ * The votes this reader may read: open ones first, closing soonest first, then closed ones, newest first, at most fifty. A
+ * guest (with the key of their voter cookie, when they have one) gets only the votes that allow guests.
+ */
+export async function listVotes(tree: string, reader: Reader, guestKey?: string, now: Date = new Date()): Promise<VoteSummary[]> {
+  const r = readingOf(reader, guestKey);
+  const at = now.toISOString();
+  const only = r.guest ? ' AND v.guests = 1' : '';
+  const columns = readColumns(r);
+  const closedIds = `SELECT v.id FROM vote v WHERE NOT (${OPEN_V})${only} ORDER BY coalesce(v.closed_at, v.closes_at) DESC, v.id DESC LIMIT ${CLOSED_IN_LIST}`;
+  const [open, closed, optionRows, ballotRows, struckRows] = (await db(tree).readBatch([
+    q(`SELECT ${columns} FROM vote v WHERE ${OPEN_V}${only} ORDER BY v.closes_at, v.id`, r.voterId, at),
+    q(`SELECT ${columns} FROM vote v WHERE v.id IN (${closedIds}) ORDER BY coalesce(v.closed_at, v.closes_at) DESC, v.id DESC`, r.voterId, at),
+    // What the closed votes' winners need: their options, ballots and struck voters.
+    q(`SELECT vote, id, label FROM vote_option WHERE vote IN (${closedIds}) ORDER BY vote, ord`, at),
+    q(`SELECT vote, voter, choices FROM ballot WHERE vote IN (${closedIds})`, at),
+    q(`SELECT vote, account, guest_key FROM vote_voter WHERE struck = 1 AND vote IN (${closedIds})`, at),
+  ])) as unknown as [ReadRow[], ReadRow[], OptionRow[], BallotRow[], VoterRow[]];
+  await closeOnRead(tree, r, closed.filter((v) => !v.closed_at).map((v) => v.id), at);
+  const authors = r.guest ? new Map<string, { person: string | null }>() : await standingFor(tree, [...open, ...closed].map((v) => v.account));
+  const [options, ballots, struck] = [groupBy(optionRows), groupBy(ballotRows), groupBy(struckRows)];
+  const winners = await Promise.all(closed.map(async (v) => {
+    const opts = options.get(v.id) ?? [];
+    return labelsOf((await resultOf(v, opts, ballots.get(v.id) ?? [], struck.get(v.id) ?? [])).winners, opts);
+  }));
+  return [...open.map((v) => summaryOf(v, r, authors, at, null)), ...closed.map((v, i) => summaryOf(v, r, authors, at, winners[i]))];
+}
+
+/** One vote as this reader may see it, or null when it is not there or (for a guest) does not allow guests. */
+export async function voteView(tree: string, reader: Reader, id: string, guestKey?: string, now: Date = new Date()): Promise<VoteView | null> {
+  const r = readingOf(reader, guestKey);
+  const at = now.toISOString();
+  const [[v], options, voters, ballots] = (await db(tree).readBatch([
+    q(`SELECT ${readColumns(r)} FROM vote v WHERE v.id = ?`, r.voterId, id),
+    q('SELECT vote, id, label, added_by_name FROM vote_option WHERE vote = ? ORDER BY ord', id),
+    q('SELECT vote, id, account, guest_key, name, person, struck FROM vote_voter WHERE vote = ?', id),
+    q('SELECT vote, voter, choices FROM ballot WHERE vote = ?', id),
+  ])) as unknown as [ReadRow[], OptionRow[], VoterRow[], BallotRow[]];
+  if (!v || (r.guest && !v.guests)) return null;
+  const open = isOpen(v, at);
+  if (!open && !v.closed_at) await closeOnRead(tree, r, [id], at);
+  const secret = !!v.secret;
+  // The reader's own ballot, by the key it is stored under.
+  const ownKey = r.voterId ? await voterKey(id, secret, r.voterId) : null;
+  const own = ownKey ? ballots.find((b) => b.voter === ownKey) : undefined;
+  const result = !open || (!secret && v.voted) ? await resultOf(v, options, ballots, voters.filter((x) => x.struck)) : null;
+
+  const steward = !r.guest && can(r.role, 'strike-voter');
+  const faces = r.guest ? new Map<string, { person: string | null }>() : await standingFor(tree, [v.account, ...voters.flatMap((x) => (x.account ? [x.account] : []))]);
+  const face = (x: VoterRow) => (x.account ? (faces.get(x.account)?.person ?? x.person) : null);
+  const voterList = r.guest ? null : voters.filter((x) => steward || !x.struck).sort(byName).map((x) => ({
+    id: x.id, name: x.name, person: face(x), guest: !x.account, ...(steward ? { struck: !!x.struck } : {}),
+  }));
+  let ballotList: VoteView['ballots'] = null;
+  if (!r.guest && !secret && result) {
+    const counted = new Map(voters.filter((x) => !x.struck).map((x) => [(x.account ?? x.guest_key)!, x]));
+    ballotList = ballots.flatMap((b) => {
+      const x = counted.get(b.voter);
+      return x ? [{ name: x.name, person: face(x), guest: !x.account, choices: JSON.parse(b.choices) as string[] }] : [];
+    }).sort(byName);
+  }
+
+  const creator = !r.guest && v.account === r.voterId;
+  const may = r.guest
+    ? { edit: false, close: false, remove: false, addOption: false, strike: false }
+    : {
+      edit: creator && open && can(r.role, 'start-vote'),
+      close: open && (creator || can(r.role, 'remove-vote')),
+      remove: creator || can(r.role, 'remove-vote'),
+      addOption: open && !!v.add_options && can(r.role, 'start-vote') && options.length < MAX_OPTIONS,
+      strike: open && steward,
+    };
+  return {
+    ...summaryOf(v, r, faces, at, result && !open ? labelsOf(result.winners, options) : null),
+    description: v.description,
+    addOptions: !!v.add_options,
+    options: options.map((o) => ({ id: o.id, label: o.label, addedBy: r.guest ? '' : o.added_by_name })),
+    mine: own ? (JSON.parse(own.choices) as string[]) : null,
+    voters: voterList,
+    ballots: ballotList,
+    result,
+    may,
+  };
 }
