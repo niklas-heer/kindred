@@ -33,8 +33,10 @@ const vote = z.object({
 const guard = () => import('../auth/guard.server');
 const votes = () => import('./votes.server');
 
-async function who(t: string, action: Action) {
-  const m = await (await guard()).requireCan(t, action);
+/** The member asking, with the role `action` needs; without one any member, and the .server function decides (a creator's own vote). */
+async function who(t: string, action?: Action) {
+  const g = await guard();
+  const m = action ? await g.requireCan(t, action) : await g.requireMember(t);
   return { id: m.user.id, name: m.user.name, role: m.role, person: m.person, personConfirmed: m.personConfirmed };
 }
 
@@ -96,14 +98,14 @@ export const changeVote = createServerFn({ method: 'POST' })
 export const endVote = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, id: voteId, opKey }))
   .handler(async ({ data }) => {
-    const me = await who(data.tree, 'start-vote');
+    const me = await who(data.tree);
     await (await votes()).closeVote(data.tree, me, data.id, opOf(me.id, data));
   });
 
 export const deleteVote = createServerFn({ method: 'POST' })
   .validator(z.object({ tree, id: voteId, opKey }))
   .handler(async ({ data }) => {
-    const me = await who(data.tree, 'remove-vote');
+    const me = await who(data.tree);
     return (await votes()).removeVote(data.tree, me, data.id, opOf(me.id, data));
   });
 

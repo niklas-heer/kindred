@@ -141,6 +141,20 @@ test('a member votes under their own name, and a viewer may vote but not start a
   await assert.rejects(fns.startVote({ data: { tree: TREE, vote: { question: 'x', kind: 'single', secret: false, addOptions: false, guests: false, closesAt: new Date(Date.now() + 86_400_000).toISOString(), options: ['a', 'b'] } } }), status(403));
 });
 
+test('a contributor closes and removes the vote they started, and a viewer who did not start it may do neither', async () => {
+  asMember(ADA, 'Ada');
+  const closesAt = new Date(Date.now() + 2 * 86_400_000).toISOString();
+  const { id } = await fns.startVote({ data: { tree: TREE, vote: { question: 'Which cake?', kind: 'single', secret: false, addOptions: false, guests: false, closesAt, options: ['Apple', 'Plum'] } } });
+  asMember(BO, 'Bo');
+  await assert.rejects(fns.endVote({ data: { tree: TREE, id } }), status(403));
+  await assert.rejects(fns.deleteVote({ data: { tree: TREE, id } }), status(403));
+  asMember(ADA, 'Ada');
+  await fns.endVote({ data: { tree: TREE, id } });
+  assert.equal((await fns.getVote({ data: { tree: TREE, id } }))!.closed, true);
+  assert.deepEqual(await fns.deleteVote({ data: { tree: TREE, id } }), { removed: true });
+  assert.equal(await fns.getVote({ data: { tree: TREE, id } }), null);
+});
+
 test('the query helpers key the cache by family and vote', () => {
   assert.deepEqual(fns.votesQuery('t').queryKey, ['votes', 't']);
   assert.deepEqual(fns.voteQuery('t', 'v').queryKey, ['votes', 't', 'v']);
