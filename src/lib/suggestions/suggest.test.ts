@@ -241,13 +241,15 @@ test('a protecting link’s guest gets the same refusal for a living person as f
     { kind: 'details', payload: { born: '1951' } },
     { kind: 'relative', payload: { person: { given: 'Jo', living: false }, link: { kind: 'child' } } },
     { kind: 'event', payload: { kind: 'census', date: '1960' } },
+    { kind: 'event', payload: { event: 'e2', date: '1969' } },
     { kind: 'source', payload: { title: 'Register' } },
+    { kind: 'source', payload: { title: 'X', backs: { fact: 'birth' } } },
   ] as const;
   for (const k of kinds) {
     const living = await refusal(S.createSuggestion(t, g, { kind: k.kind, person: 'ada', payload: k.payload as never }, NOW));
     const nobody = await refusal(S.createSuggestion(t, g, { kind: k.kind, person: 'nobody', payload: k.payload as never }, NOW));
-    assert.equal(living, 'suggest.err.person', k.kind);
-    assert.equal(living, nobody, `${k.kind}: the same refusal reveals nothing`);
+    assert.equal(living, 'suggest.err.person', `${k.kind} ${JSON.stringify(k.payload)}`);
+    assert.equal(living, nobody, `${k.kind} ${JSON.stringify(k.payload)}: the same refusal reveals nothing`);
   }
   // About the living: a partnership with a living partner, a relative or a person marked living.
   assert.equal(await refusal(S.createSuggestion(t, g, { kind: 'event', person: 'bo', payload: { partnership: 'u3', start: '1996' } as never }, NOW)), 'suggest.err.person');

@@ -467,6 +467,40 @@ test('an approval that fails at its second step is retried without duplicates, a
   assert.equal((await row(t, id))!.decided_at, LATER.toISOString());
 });
 
+test('an approval that fails at its last step (the files) is retried: nothing twice, the files moved once', async () => {
+  const t = await family();
+  asReviewer(fay);
+  const { id } = await suggest(t, member(ada), 'details', 'bo', { born: '1919' });
+  await S.addSuggestionFile(t, member(ada), id, file('image/png', PNG(), 'birth.png'), NOW);
+  const pending = await stored(t, 'suggest/');
+  const before = await records(t);
+  // Every step before it is written (the person, the files' source and its citation); the files' rows are refused.
+  await db.db(t).run("CREATE TRIGGER no_source_files BEFORE INSERT ON source_file BEGIN SELECT RAISE(ABORT, 'test: no source files'); END");
+  assert.match(await refusal(R.approveSuggestion(t, fay, id)), /no source files/);
+  assert.equal((await personRow(t, 'bo'))!.born, '1919', 'the person step was written');
+  assert.equal(await count(t, 'source'), before.source + 1);
+  assert.equal(await count(t, 'citation'), before.citation + 1);
+  const s = (await row(t, id))!;
+  assert.deepEqual([s.status, s.decided_at], ['waiting', null], 'the status flips only after the last step');
+  assert.deepEqual(await stored(t, 'suggest/'), pending, 'the file is still pending');
+  assert.deepEqual(await stored(t, 'source/'), [], 'the copy made for the refused batch is taken back');
+  assert.deepEqual(await usage(t, 'source/'), []);
+  // Half-way, it can be neither declined nor withdrawn.
+  assert.equal(await refusal(R.declineSuggestion(t, fay, id)), 'suggest.err.partial');
+  assert.equal(await refusal(S.withdrawSuggestion(t, member(ada), id)), 'suggest.err.partial');
+
+  await db.db(t).run('DROP TRIGGER no_source_files');
+  const r = await R.approveSuggestion(t, gus, id, undefined, { now: LATER });
+  assert.equal(await count(t, 'source'), before.source + 1, 'the source is not made twice');
+  assert.equal(await count(t, 'citation'), before.citation + 1, 'nor its citation');
+  assert.equal(await count(t, 'history', `suggestion = '${id}' AND kind = 'person'`), 1, 'nor the person changed twice');
+  const files = await db.db(t).all<{ media_key: string; name: string }>('SELECT media_key, name FROM source_file WHERE source = ?', r.applied.source!);
+  assert.deepEqual(files.map((f) => f.name), ['birth.png']);
+  assert.deepEqual(await stored(t, 'source/'), files.map((f) => f.media_key), 'one copy, the one its row names');
+  assert.deepEqual(await stored(t, 'suggest/'), [], 'the pending object is gone');
+  assert.deepEqual([(await row(t, id))!.status, (await row(t, id))!.decided_at], ['approved', LATER.toISOString()]);
+});
+
 test('an adjusted correction that fails at a later step finishes on retry with the values it began with', async () => {
   const t = await family();
   asReviewer(fay);

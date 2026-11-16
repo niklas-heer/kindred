@@ -1,6 +1,7 @@
 // node --test src/lib/suggestions/preview.test.ts — suggestions under a steward's "View as" preview (src/lib/auth/view-as.server.ts):
 // a preview offers "Suggest a change" as the previewed reader would see it, but making one and attaching a file are refused
-// with the preview's own sentence, before anything else is asked or stored. Real server functions and routes on scratch
+// with the preview's own sentence, before anything else is asked or stored; and a viewer's or a guest's preview reads no
+// pending file and no source file, not even the steward's own. Real server functions and routes on scratch
 // databases; only the framework around them is replaced (who is asking, and createServerFn), as in src/lib/auth/view-as.test.ts.
 // Invented people only.
 import assert from 'node:assert/strict';
@@ -141,4 +142,38 @@ test('a preview makes no suggestion and attaches no file: the preview’s senten
   assert.deepEqual({ suggestions: await count('suggestion'), files: await count('suggestion_file') }, before);
   assert.deepEqual(await stored('suggest/'), []);
   assert.equal((await S.suggestSettings(TREE)).guests, true);
+});
+
+/** GETs a file route as the steward's browser: `suggestion-file` takes a pending file's id, `source-file` a source file's key. */
+async function fetchFile(route: 'suggestion-file' | 'source-file', id: string) {
+  const path = route === 'suggestion-file' ? '/src/routes/api/suggestion-file.$tree.$id.ts' : '/src/routes/api/source-file.$tree.$key.ts';
+  const { Route } = await load<{ Route: { options: unknown } }>(path);
+  const { GET } = (Route.options as { server: { handlers: { GET: (c: { params: Record<string, string>; request: Request }) => Promise<Response> } } }).server.handlers;
+  steward();
+  const request = new Request(`http://localhost/api/${route}/${TREE}/${id}`, { headers: g.__request!.headers });
+  g.__request = request;
+  return GET({ params: route === 'suggestion-file' ? { tree: TREE, id } : { tree: TREE, key: id }, request });
+}
+
+test('a preview as a viewer or a guest gets no pending file and no source file, not even the steward’s own', async () => {
+  // Outside the preview: Stella's own waiting suggestion with a file, and a source's file.
+  steward();
+  const mine = (await fns.createSuggestionFn({ data: { tree: TREE, kind: 'details', person: 'bo', payload: { died: '1991' } } as never })) as { id: string };
+  assert.equal((await upload(mine.id)).status, 200);
+  const pending = (await dbs.db(TREE).get<{ id: string }>('SELECT id FROM suggestion_file WHERE suggestion = ?', mine.id))!.id;
+  const key = '99999999-9999-4999-8999-999999999999.png';
+  g.__request = undefined;
+  await dbs.db(TREE).run("INSERT INTO source (id, title, created_at, updated_at) VALUES ('s1', 'Parish book', '2026-11-15', '2026-11-15')");
+  await dbs.db(TREE).run("INSERT INTO source_file (source, media_key, mime, name, ord, added_at) VALUES ('s1', ?, 'image/png', 'page', 0, '2026-11-15')", `source/${key}`);
+  await dbs.media.put(TREE, `source/${key}`, PNG(), 'image/png');
+  assert.equal((await fetchFile('suggestion-file', pending)).status, 200, 'Stella herself gets her pending file');
+  assert.equal((await fetchFile('source-file', key)).status, 200, 'and the source’s file');
+
+  await start({ kind: 'role', role: 'viewer' });
+  assert.equal((await fetchFile('suggestion-file', pending)).status, 404, 'a viewer’s preview is not Stella: her pending file is not theirs');
+  await stop();
+  await start({ kind: 'guest' });
+  assert.equal((await fetchFile('suggestion-file', pending)).status, 404, 'a guest’s preview has no voter cookie of hers');
+  assert.equal((await fetchFile('source-file', key)).status, 404, 'sources are members’ alone');
+  await stop();
 });
