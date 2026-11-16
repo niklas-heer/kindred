@@ -9,9 +9,10 @@
 //   {open && <SuggestDialog tree={tree} p={person} onClose={() => setOpen(false)} />}
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Paperclip, Send, X } from 'lucide-react';
-import { useId, useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
 import { eventTitle } from '~/components/life/records';
 import { DatePicker, Dialog, Segmented, Select, Switch } from '~/components/ui';
+import { opKeys } from '~/lib/api';
 import { errorText } from '~/lib/errortext';
 import { AFTER_DEATH, EVENT_LABEL, EVENT_TYPES, type EventType } from '~/lib/events';
 import { personEventsQuery } from '~/lib/events.functions';
@@ -84,6 +85,8 @@ export function SuggestDialog({ tree, p, onClose }: { tree: string; p: GPerson; 
   const [uploads, setUploads] = useState<Upload[] | null>(null);
   const [made, setMade] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
+  // One retry key per suggestion sent: the same one sent again after a lost response is not made twice.
+  const keys = useRef(opKeys());
 
   const events = useQuery({ ...personEventsQuery(tree, p.id), enabled: kind === 'event' || kind === 'source' }).data ?? [];
   const couples = (f.unionsOf.get(p.id) ?? []).filter((u) => !protect || f.byId.get(u.a === p.id ? u.b : u.a)?.living === false);
@@ -174,9 +177,10 @@ export function SuggestDialog({ tree, p, onClose }: { tree: string; p: GPerson; 
   };
 
   const send = useMutation({
-    mutationFn: () => createSuggestionFn({
-      data: { tree, kind, person: p.id, payload: payload(), note: note.trim() || undefined, name: asksName ? guestName.trim() : undefined },
-    }),
+    mutationFn: () => {
+      const data = { tree, kind, person: p.id, payload: payload(), note: note.trim() || undefined, name: asksName ? guestName.trim() : undefined };
+      return createSuggestionFn({ data: { ...data, opKey: keys.current.for('create', data) } });
+    },
     onSuccess: async ({ id: suggestion }) => {
       setMade(suggestion);
       if (!files.length) return finished();

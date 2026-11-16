@@ -130,18 +130,20 @@ export const setSuggestSettings = createServerFn({ method: 'POST' })
 
 /**
  * Makes a suggestion. A guest gives their `name` with their first one (later ones keep it), and the response sets their
- * `kindred_voter` cookie when they have none yet, only once the suggestion was taken. The family's reviewers' devices are
- * told afterwards (push.server.ts); the page does not wait.
+ * `kindred_voter` cookie when they have none yet, only once the suggestion was taken. The retry key is bound to the member's
+ * account or the guest's cookie, so a retry after a lost response is the same suggestion. (A new guest whose first response
+ * was lost lost its cookie too: their retry is refused as sent by someone else, never a second suggestion.) The family's
+ * reviewers' devices are told afterwards (push.server.ts); the page does not wait.
  */
 export const createSuggestionFn = createServerFn({ method: 'POST' })
   .validator(z.object({
-    tree, kind: z.enum(SUGGESTION_KINDS), person: person.nullable(), payload, note, name: z.string().max(MAX_GUEST_NAME * 2).optional(),
+    tree, kind: z.enum(SUGGESTION_KINDS), person: person.nullable(), payload, note, name: z.string().max(MAX_GUEST_NAME * 2).optional(), opKey,
   }))
   .handler(async ({ data }): Promise<{ id: string }> => {
     const { by, account, setCookie } = await making(data.tree, data.name);
     const made = await (await suggest()).createSuggestion(data.tree, by, {
       kind: data.kind, person: data.person ?? null, payload: data.payload as SuggestionPayload, note: data.note,
-    });
+    }, undefined, opOf(by.kind === 'member' ? by.who.id : by.key, data));
     const [{ appendResponseHeader }, { notifySuggestion }, { store }] = await Promise.all([
       import('@tanstack/react-start/server'), import('./push.server'), import('../db.server'),
     ]);

@@ -385,10 +385,12 @@ async function withinLimits(d: Db, by: Maker): Promise<Query[]> {
 
 /**
  * Makes a suggestion about `person` (null only for a source that backs nothing), waiting for an editor or steward. The
- * payload is checked against the record as it is now and stored as checked; see the top of this file for the rules.
+ * payload is checked against the record as it is now and stored as checked; see the top of this file for the rules. With a
+ * retry key (`op`, bound to the member's account or the guest's key), the same request sent again is the same suggestion.
  */
 export async function createSuggestion(
   tree: string, by: Maker, input: { kind: SuggestionKind; person: string | null; payload: SuggestionPayload; note?: string }, now: Date = new Date(),
+  op?: OpKey,
 ): Promise<{ id: string }> {
   // A demo or a steward's preview (src/lib/read-only.ts) is told so first, not asked for a guest's name or a valid payload.
   refuseReadOnly();
@@ -396,7 +398,7 @@ export async function createSuggestion(
   if (!SUGGESTION_KINDS.includes(input.kind) || (input.note !== undefined && typeof input.note !== 'string')) throw err('payload');
   const note = cleanComment(input.note ?? '').trim();
   if (note.length > MAX_NOTE) throw err('note');
-  return once(tree, undefined, 'createSuggestion', async (d) => {
+  return once(tree, op, 'createSuggestion', async (d) => {
     if (by.kind === 'guest' && !(await settingsIn(d)).guests) throw err('guests');
     const checked = await CHECKS[input.kind](d, by, input.person, input.payload);
     const limits = await withinLimits(d, by);

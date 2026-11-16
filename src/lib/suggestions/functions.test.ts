@@ -181,6 +181,33 @@ test('a guest’s name and network are worked out only to make a suggestion, not
   assert.equal(making.by.kind === 'guest' && typeof making.by.net, 'number');
 });
 
+test('a suggestion sent again with its retry key is the same suggestion, for a member and for a guest', async () => {
+  const rows = async () => (await dbs.db(TREE).get<{ n: number }>('SELECT count(*) AS n FROM suggestion'))!.n;
+  asMember(ADA, 'Ada');
+  const before = await rows();
+  const first = (await call(fns.createSuggestionFn, { ...bornIn('1926'), opKey: 'retry-ada-0001' })) as { id: string };
+  asMember(ADA, 'Ada');
+  const again = (await call(fns.createSuggestionFn, { ...bornIn('1926'), opKey: 'retry-ada-0001' })) as { id: string };
+  assert.equal(again.id, first.id, 'a lost response retried: the same suggestion');
+  assert.equal(await rows(), before + 1, 'not a second one');
+  // Another member sending the same key is not given Ada's suggestion.
+  asMember(DEE, 'Dee');
+  await assert.rejects(call(fns.createSuggestionFn, { ...bornIn('1926'), opKey: 'retry-ada-0001' }), /already sent as something else/);
+
+  asGuest();
+  await call(fns.createSuggestionFn, { ...bornIn('1927'), name: 'Mo' });
+  const cookie = setCookies()[0]!.split(';')[0]!;
+  asGuest(cookie);
+  const guestFirst = (await call(fns.createSuggestionFn, { ...bornIn('1928'), opKey: 'retry-mo-00001' })) as { id: string };
+  asGuest(cookie);
+  const guestAgain = (await call(fns.createSuggestionFn, { ...bornIn('1928'), opKey: 'retry-mo-00001' })) as { id: string };
+  assert.equal(guestAgain.id, guestFirst.id);
+  assert.equal((await dbs.db(TREE).get<{ n: number }>("SELECT count(*) AS n FROM suggestion WHERE author_name = 'Mo'"))!.n, 2);
+  // The key is bound to the guest's cookie: another browser on the same link gets nothing of Mo's.
+  asGuest(`kindred_voter=${'v'.repeat(43)}`);
+  await assert.rejects(call(fns.createSuggestionFn, { ...bornIn('1928'), name: 'Mo', opKey: 'retry-mo-00001' }), /already sent as something else/);
+});
+
 test('a protecting link’s guest suggests nothing about the living, and sets no cookie', async () => {
   asGuest(undefined, true);
   await assert.rejects(call(fns.createSuggestionFn, { tree: TREE, kind: 'details', person: 'ada', payload: { born: '1951' }, name: 'Ivy' }), /suggest\.err\.person/);
