@@ -6,6 +6,10 @@
 //   `created_at` for a withdrawn one without it), what told the guest apart goes: the hash of their cookie (`guest_key`), the
 //   share link and the network value become NULL. The name they gave stays, as the history shows it ("suggested by"), and so
 //   does the row, a withdrawn one too (only hidden from its suggester). By then the guest no longer sees it (reads.server.ts).
+// - `clearUnapplied`: EXPIRY_DAYS after a suggestion was declined, expired or withdrawn (`decided_at`; `created_at` for a
+//   withdrawn one without it), what it said goes: its values (`payload` becomes `{}`), `note`, `basis` and decline `reason`.
+//   Its kind, person, status, dates and `author_name` stay, for the history's "suggested by" and the family's own count. An
+//   approved one keeps everything: it is a change of the records, which the history and its source point at.
 // - `sweepOrphanFiles`: deleting a person or a source deletes its rows but not the objects, so objects under `suggest/` that
 //   no `suggestion_file` row names, and under `source/` that no `source_file` row names, are deleted, but only once ORPHAN_DAYS
 //   old (by its counted row's `media_usage.at`; an object with no usage time is kept). The wait covers an upload whose row is
@@ -76,6 +80,23 @@ export async function forgetGuests(tree: string, now: Date = new Date()): Promis
     const due = (await d.get<{ n: number }>(`SELECT count(*) AS n FROM suggestion WHERE ${SETTLED_GUEST}`, cutoff))?.n ?? 0;
     return {
       writes: due ? [q(`UPDATE suggestion SET guest_key = NULL, link = NULL, net = NULL WHERE ${SETTLED_GUEST}`, cutoff)] : [],
+      history: NOT_A_RECORD,
+      result: (r) => r[0]?.changes ?? 0,
+    };
+  });
+}
+
+/** A suggestion declined, expired or withdrawn before the cutoff (the one parameter), whose words are not cleared yet. */
+const UNAPPLIED = "status IN ('declined', 'expired', 'withdrawn') AND coalesce(decided_at, created_at) < ? AND (payload <> '{}' OR note <> '' OR basis IS NOT NULL OR reason IS NOT NULL)";
+
+/** Clears what each suggestion declined, expired or withdrawn more than EXPIRY_DAYS ago said. Returns how many. */
+export async function clearUnapplied(tree: string, now: Date = new Date()): Promise<number> {
+  const cutoff = new Date(now.getTime() - EXPIRY_DAYS * DAY_MS).toISOString();
+  return once(tree, undefined, 'clearUnappliedSuggestions', async (d) => {
+    // Most days there is none: then nothing is written, and the family is not marked changed.
+    const due = (await d.get<{ n: number }>(`SELECT count(*) AS n FROM suggestion WHERE ${UNAPPLIED}`, cutoff))?.n ?? 0;
+    return {
+      writes: due ? [q(`UPDATE suggestion SET payload = '{}', note = '', basis = NULL, reason = NULL WHERE ${UNAPPLIED}`, cutoff)] : [],
       history: NOT_A_RECORD,
       result: (r) => r[0]?.changes ?? 0,
     };

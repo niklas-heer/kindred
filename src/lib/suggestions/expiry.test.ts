@@ -133,6 +133,46 @@ test('EXPIRY_DAYS after a guest’s suggestion was settled, its cookie hash, lin
   assert.match(lines.join('\n'), /forgot 1 guests/);
 });
 
+test('EXPIRY_DAYS after a suggestion was declined, expired or withdrawn, what it said goes; its state, dates and name stay', async () => {
+  const t = await family();
+  const d = db.db(t);
+  /** A suggestion by Eli with a note, a basis and a reason, then set to `status`, decided `decided` days ago (null: never). */
+  const settled = async (status: string, decided: number | null, made = (decided ?? 0) + 1) => {
+    const { id } = await S.createSuggestion(t, member(eli), { kind: 'details', person: 'fen', payload: { born: String(1800 + made) } as never, note: 'From the bible' }, NOW);
+    await d.run("UPDATE suggestion SET status = ?, reason = 'Not so', decided_at = ?, created_at = ? WHERE id = ?", status, decided === null ? null : ago(decided), ago(made), id);
+    return id;
+  };
+  const clear = {
+    declined: await settled('declined', EXPIRY_DAYS + 1),
+    expired: await settled('expired', EXPIRY_DAYS + 3),
+    withdrawn: await settled('withdrawn', EXPIRY_DAYS + 4),
+    withdrawnUndated: await settled('withdrawn', null, EXPIRY_DAYS + 5),
+  };
+  const keep = {
+    // An approved one is a change of the records: the history and the source made for it point at it.
+    approved: await settled('approved', EXPIRY_DAYS + 2),
+    recent: await settled('declined', EXPIRY_DAYS - 1),
+    waiting: await settled('waiting', null, EXPIRY_DAYS + 30),
+  };
+  type Said = { status: string; payload: string; note: string; basis: string | null; reason: string | null; author_name: string; decided_at: string | null; created_at: string };
+  const said = (id: string) => d.get<Said>('SELECT status, payload, note, basis, reason, author_name, decided_at, created_at FROM suggestion WHERE id = ?', id);
+  const before = Object.fromEntries(await Promise.all([...Object.values(clear), ...Object.values(keep)].map(async (id) => [id, { ...(await said(id))! }])));
+
+  assert.equal(await X.clearUnapplied(t, NOW), Object.keys(clear).length);
+  for (const [what, id] of Object.entries(clear)) {
+    const b = before[id]!;
+    assert.deepEqual({ ...(await said(id)) }, { ...b, payload: '{}', note: '', basis: null, reason: null }, what);
+  }
+  for (const [what, id] of Object.entries(keep)) assert.deepEqual({ ...(await said(id)) }, before[id], what);
+  assert.equal(await X.clearUnapplied(t, NOW), 0, 'again: nothing more');
+
+  // The daily job does it too, and says so.
+  await settled('declined', EXPIRY_DAYS + 1);
+  const lines: string[] = [];
+  await suggestionsJob.run({ trees: [t], now: NOW, env: () => undefined, log: (m) => lines.push(m) });
+  assert.match(lines.join('\n'), /cleared 1 not applied/);
+});
+
 test('the daily job expires and sweeps without push keys, and one family’s trouble does not stop the next', async () => {
   const a = await family();
   const b = await family();

@@ -120,10 +120,12 @@ visit no longer counts as use; its families are cleaned and then the account goe
 finished by the next day's run, with the same pseudonym. The report says how many were deleted, kept that way, or could not
 be deleted (tried again the next day; the server's log names the account and why).
 
-Suggestions ([suggestions.md](suggestions.md)) expire after 90 days waiting, and their pending files are deleted then. A decided,
-expired or withdrawn suggestion stays with the family's records until the family deletes it (a withdrawn one is only hidden
-from its suggester), and so does a guest's name with it. What told the guest apart, the hash of their cookie, the share link
-and the network value the family's limits needed, is deleted 90 days after the suggestion was decided, expired or withdrawn.
+Suggestions ([suggestions.md](suggestions.md)) expire after 90 days waiting, and their pending files are deleted then. An
+approved suggestion stays with the family's records, as the change it made does. 90 days after a suggestion was declined,
+expired or withdrawn, what it said (its values, note, the values on record it was made against and the decline reason) is
+deleted; its kind, person, state, dates and the name shown stay, so the history can still say who suggested what was approved
+and the family can count what came in. What told a guest apart, the hash of their cookie, the share link and the network value
+the family's limits needed, is deleted 90 days after the suggestion was decided, expired or withdrawn, whatever became of it.
 Stray files are swept after 30 days. The daily `suggestions` job does all of this, whether or not the retention job deletes.
 
 Kept by other jobs: the change history (3 years, `KINDRED_HISTORY_YEARS`), join requests (30 days unanswered) and guest
