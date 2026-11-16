@@ -53,7 +53,8 @@ taken out when it is attached.
 - **Approved**: the files move to `source/` and become the files of a source (the one suggested, or one made for the change,
   which cites the facts it changed). Sources and their files are for members only. A moving file is counted once against the
   family's storage cap, so a full family can still approve; a family over its cap (one lowered since) is told its storage is
-  full before the approval writes anything.
+  full before the approval writes anything. A source's files cannot yet be removed or put in another order on the source's
+  page: deleting the source deletes them (the sweep takes the stored objects).
 - **Deleted** when the suggestion is declined, expires or is withdrawn, and when an approval is closed as partly applied.
 - **Stray files**: deleting a person or a source deletes its rows but not the stored objects. The daily `suggestions` job deletes
   an object under `suggest/` or `source/` that no row names, but only once it is **30 days old**, so an upload whose row is about
@@ -80,7 +81,9 @@ record's values next to the suggested ones, "current to suggested".
   so an approval still under way is not closed under it.
 - **Two reviewers** may open the same suggestion. Their steps carry the same retry keys, so the second reviewer's approval
   replays what the first wrote instead of writing it twice. Once a step is written, the approval finishes with the decision it
-  was begun with; the other reviewer is told to reload.
+  was begun with; the other reviewer is told to reload. When both reach the last step at once, each stores its own copy of the
+  files before one of them wins; the loser's copies are taken back, but one whose removal fails (or whose server stops in
+  between) stays in storage, counted, until the daily sweep deletes it 30 days later.
 - **Decline** takes an optional reason (up to 300 characters), which the suggester sees.
 
 ## The suggester's view and outcomes
