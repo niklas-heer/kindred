@@ -18,6 +18,8 @@
 // - Limits: a member at most MEMBER_WAITING waiting; a guest network at most GUEST_WAITING_PER_NETWORK waiting per link, a
 //   link at most GUEST_WAITING_PER_LINK; up to MAX_FILES files of at most MAX_FILE_BYTES, images and PDFs whose bytes agree
 //   with their type (pictures without their metadata); the family's waiting suggestions' files at most PENDING_BYTES.
+// - A demo or a steward's preview (src/lib/read-only.ts) stores nothing: making a suggestion or attaching a file is refused
+//   first, with the preview's own sentence, before a guest's name or the payload is looked at.
 // - Files go through the counted media store under `suggest/<uuid>.<ext>`, so they count against the family's storage; a
 //   file whose row is not written is deleted again, and withdrawing deletes a suggestion's files.
 // - Errors are translation keys (`suggest.err.*`), translated where they are shown:
@@ -41,6 +43,7 @@ import { change, db, guard, media, NOT_A_RECORD, once, q, type Db, type OpKey, t
 import { AFTER_DEATH, EVENT_TYPES, type EventType } from '../events.ts';
 import { needsMember, type Who } from '../feed/posts.server.ts';
 import { MAX_FURTHER, MAX_FURTHER_LENGTH } from '../further-given.ts';
+import { refuseReadOnly } from '../read-only.ts';
 import { checkDocument } from '../research.ts';
 import { cleanComment } from '../responses.ts';
 import { can, needs as lowestRole, type Action } from '../roles.ts';
@@ -386,6 +389,8 @@ async function withinLimits(d: Db, by: Maker): Promise<Query[]> {
 export async function createSuggestion(
   tree: string, by: Maker, input: { kind: SuggestionKind; person: string | null; payload: SuggestionPayload; note?: string }, now: Date = new Date(),
 ): Promise<{ id: string }> {
+  // A demo or a steward's preview (src/lib/read-only.ts) is told so first, not asked for a guest's name or a valid payload.
+  refuseReadOnly();
   const name = authorName(by);
   if (!SUGGESTION_KINDS.includes(input.kind) || (input.note !== undefined && typeof input.note !== 'string')) throw err('payload');
   const note = cleanComment(input.note ?? '').trim();
@@ -474,6 +479,7 @@ const PENDING_SUM = "SELECT coalesce(sum(f.size), 0) FROM suggestion_file f JOIN
 export async function addSuggestionFile(
   tree: string, by: Suggester, suggestionId: string, file: { name: string; mime: string; bytes: Uint8Array }, now: Date = new Date(),
 ): Promise<{ id: string }> {
+  refuseReadOnly();
   if (by.kind === 'member') needs(by.who, 'suggest');
   else ownerCheck(by);
   const bytes = await checkedBytes(file.mime, file.bytes);
