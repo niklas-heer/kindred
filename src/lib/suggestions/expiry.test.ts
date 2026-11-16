@@ -212,7 +212,8 @@ test('objects no row names are swept from suggest/ and source/ once 30 days old;
   assert.deepEqual(await stored(t, 'source/'), [keys.namedSource, keys.young].sort());
   assert.deepEqual(await stored(t, 'suggest/'), [named, keys.twoDays, keys.unrecorded].sort(), 'a 2-day-old stray and one with no usage time stay');
   assert.deepEqual(await stored(t, 'photo/'), [keys.other], 'other prefixes are not this sweep’s');
-  assert.equal((await usage(t, 'suggest/3')).length, 0, 'the 31-day-old one left the usage count too');
+  // By its whole key: a prefix such as `suggest/3` would also match the waiting suggestion's random one, now and then.
+  assert.equal((await usage(t, keys.old)).length, 0, 'the 31-day-old one left the usage count too');
   assert.equal((await row(t, kept))!.status, 'waiting');
 });
 
