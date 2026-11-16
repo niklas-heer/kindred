@@ -140,6 +140,17 @@ test('a details suggestion that changes nothing, or is not a valid change, is re
   assert.equal(await refusal(S.createSuggestion(t, member(ada), { kind: 'gossip' as never, person: 'bo', payload: {} as never }, NOW)), 'suggest.err.payload');
 });
 
+test('someone suggested as still living has no date or place of death, as on the Edit tab', async () => {
+  const t = await family();
+  assert.equal(await refusal(details(t, member(ada), 'bo', { living: true })), 'suggest.err.living_died', 'living, with the death on record');
+  assert.equal(await refusal(details(t, member(ada), 'dag', { died: '2020' })), 'suggest.err.living_died', 'a death for someone living');
+  assert.equal(await refusal(details(t, member(ada), 'dag', { diedPlace: 'Lund' })), 'suggest.err.living_died');
+  await details(t, member(ada), 'bo', { living: true, died: null, diedPlace: null });
+  await details(t, member(ada), 'dag', { living: false, died: '2020' });
+  const living = { person: { given: 'Jo', died: '2001', living: true }, link: { kind: 'child' } };
+  assert.equal(await refusal(S.createSuggestion(t, member(ada), { kind: 'relative', person: 'bo', payload: living as never }, NOW)), 'suggest.err.living_died');
+});
+
 test('a missing relative is a new person and a link, checked like the add-relative form', async () => {
   const t = await family();
   const payload = { person: { given: 'Hugo', surname: 'Alder', sex: 'm', born: '1946', died: '2010', living: false }, link: { kind: 'sibling' } };

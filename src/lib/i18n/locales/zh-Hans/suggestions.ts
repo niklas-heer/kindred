@@ -189,6 +189,7 @@ export default {
   "suggest.err.person": "此人不在家谱里，或你不能为这个人提出修改建议。",
   "suggest.err.unchanged": "还没有任何改动：请先修改一个值。",
   "suggest.err.living": "你只能建议已经去世的人。",
+  "suggest.err.living_died": "仍在世的人没有去世日期或地点。请关闭“仍然在世”，或不填去世信息。",
   "suggest.err.event": "该事件或伴侣关系不属于此人，或不能这样提出（自定义事件需要有自己的名称）。",
   "suggest.err.backs": "来源所证明的，必须是这个人的某项信息。",
   "suggest.err.note": "备注太长了。",

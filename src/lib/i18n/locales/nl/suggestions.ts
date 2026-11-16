@@ -189,6 +189,7 @@ export default {
   "suggest.err.person": "Deze persoon staat niet in de stamboom, of je kunt er geen wijzigingen voor voorstellen.",
   "suggest.err.unchanged": "Er is nog niets gewijzigd: wijzig eerst een waarde.",
   "suggest.err.living": "Je kunt alleen mensen voorstellen die niet meer in leven zijn.",
+  "suggest.err.living_died": "Iemand die nog leeft, heeft geen overlijdensdatum of -plaats. Zet ‘Nog in leven’ uit, of laat het overlijden weg.",
   "suggest.err.event": "Die gebeurtenis of relatie hoort niet bij deze persoon, of kan zo niet worden voorgesteld (een eigen gebeurtenis heeft een eigen naam nodig).",
   "suggest.err.backs": "Wat de bron laat zien, moet een van de gegevens van deze persoon zijn.",
   "suggest.err.note": "De notitie is te lang.",

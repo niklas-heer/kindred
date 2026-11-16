@@ -12,6 +12,7 @@
 -- approval wrote (a record id), and `created_at` is when it was made.
 --
 -- `suggestion_file` is a picture or a document attached to a suggestion; the file is in media storage under `key`.
+-- `suggestion_file_suggestion` finds a suggestion's files (every approval, decline and withdrawal reads them).
 --
 -- `source_file` lists the files of a source in their order (`ord`), so a source may hold more than the one `document` or
 -- `media` it has had since migration 0024; the file is in media storage under `media_key`, which `source_file_key` finds
@@ -54,6 +55,7 @@ CREATE TABLE suggestion_file (
   name TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+CREATE INDEX suggestion_file_suggestion ON suggestion_file (suggestion);
 
 CREATE TABLE source_file (
   source TEXT NOT NULL REFERENCES source (id) ON DELETE CASCADE,

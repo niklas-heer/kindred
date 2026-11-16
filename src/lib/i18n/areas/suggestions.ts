@@ -190,6 +190,7 @@ export const en = {
   "suggest.err.person": "This person is not in the tree, or not one you can suggest changes to.",
   "suggest.err.unchanged": "Nothing is changed yet: change a value first.",
   "suggest.err.living": "You can suggest only people who are no longer living.",
+  "suggest.err.living_died": "Someone still living has no date or place of death. Turn off “Still living”, or leave the death out.",
   "suggest.err.event": "That event or partnership is not this person's, or it cannot be suggested like this (a custom event needs its own name).",
   "suggest.err.backs": "What the source shows must be one of this person's facts.",
   "suggest.err.note": "The note is too long.",

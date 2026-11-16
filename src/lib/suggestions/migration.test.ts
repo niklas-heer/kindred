@@ -35,6 +35,7 @@ test('the tables, columns and indexes exist; the migration is plain SQL', () => 
   assert.deepEqual(indexColumns(f, 'suggestion_status'), ['status', 'created_at']);
   assert.deepEqual(indexColumns(f, 'suggestion_person'), ['person', 'status']);
   assert.deepEqual(indexColumns(f, 'suggestion_guest'), ['guest_key']);
+  assert.deepEqual(indexColumns(f, 'suggestion_file_suggestion'), ['suggestion']);
   assert.throws(() => f.exec("INSERT INTO suggestion (id, kind, payload, status, author_name, created_at) VALUES ('y', 'bogus', '{}', 'waiting', 'Ada', 't')"), /CHECK constraint/i);
   assert.throws(() => f.exec("INSERT INTO suggestion (id, kind, payload, status, author_name, created_at) VALUES ('z', 'details', '{}', 'bogus', 'Ada', 't')"), /CHECK constraint/i);
   f.close();

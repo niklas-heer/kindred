@@ -27,7 +27,8 @@ most **100**.
 | **A source** | A source to add (title, author, publication, reference, and the fact it backs), with files |
 
 Every suggestion may have a **note** of up to 1000 characters. Dates, sex, names, places and event types follow the same
-rules as the edit forms, and each suggestion is checked against the record as it is when it is made.
+rules as the edit forms (someone living has no date or place of death, as on the Edit tab), and each suggestion is checked
+against the record as it is when it is made.
 
 ## Guests and living people
 

@@ -25,6 +25,7 @@
 // - Errors are translation keys (`suggest.err.*`), translated where they are shown:
 //     payload      the suggestion is not a valid one of its kind   person     no such person (or, for such a guest, living)
 //     unchanged    it changes nothing                              living     such a guest suggested someone living
+//     living_died  someone living with a date or place of death (the Edit tab hides them for the living)
 //     event        no such event or partnership of this person, a custom event without its label, a burial of the living
 //     backs        the fact a source backs is not one of its person's
 //     note         the note is too long                            name       a guest's name is empty or too long
@@ -256,6 +257,9 @@ async function checkDetails(d: Db, by: Suggester, person: string | null, raw: un
   }
   if (!Object.keys(payload).length) throw err('unchanged');
   if (protects(by) && payload.living === true) throw err('living');
+  // Someone living has no death, as on the Edit tab: a change to either leaves them living with none.
+  const after = { ...now, ...payload } as Required<DetailsPayload>;
+  if (['living', 'died', 'diedPlace'].some((k) => k in payload) && after.living && (after.died || after.diedPlace)) throw err('living_died');
   return {
     payload: payload as DetailsPayload,
     basis,
@@ -273,6 +277,7 @@ async function checkRelative(d: Db, by: Suggester, person: string | null, raw: u
   const given = parsed(relativeShape, raw);
   const p = await personFor(d, by, person);
   if (protects(by) && given.person.living) throw err('living');
+  if (given.person.living && given.person.died) throw err('living_died');
   const payload = { person: compact(given.person, true), link: compact(given.link) };
   return { payload, basis: null, guards: [personThere(by, p.id)] };
 }

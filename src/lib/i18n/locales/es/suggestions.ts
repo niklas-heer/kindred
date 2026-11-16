@@ -189,6 +189,7 @@ export default {
   "suggest.err.person": "Esta persona no está en el árbol, o no es alguien sobre quien puedas sugerir cambios.",
   "suggest.err.unchanged": "Todavía no hay ningún cambio: cambia primero un valor.",
   "suggest.err.living": "Solo puedes sugerir personas que ya no viven.",
+  "suggest.err.living_died": "Alguien que sigue con vida no tiene fecha ni lugar de defunción. Desactiva «Sigue con vida» o deja fuera la defunción.",
   "suggest.err.event": "Ese evento o esa unión no es de esta persona, o no se puede sugerir así (un evento propio necesita su propio nombre).",
   "suggest.err.backs": "Lo que muestra la fuente debe ser uno de los datos de esta persona.",
   "suggest.err.note": "La nota es demasiado larga.",

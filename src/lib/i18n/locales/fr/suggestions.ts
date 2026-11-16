@@ -189,6 +189,7 @@ export default {
   "suggest.err.person": "Cette personne n’est pas dans l’arbre, ou tu ne peux pas suggérer de modifications à son sujet.",
   "suggest.err.unchanged": "Rien n’est encore modifié : change d’abord une valeur.",
   "suggest.err.living": "Tu peux seulement suggérer des personnes qui ne sont plus en vie.",
+  "suggest.err.living_died": "Une personne encore en vie n’a ni date ni lieu de décès. Désactive « Toujours en vie » ou laisse le décès de côté.",
   "suggest.err.event": "Cet événement ou cette union n’est pas celui de cette personne, ou ne peut pas être suggéré ainsi (un événement personnalisé a besoin de son propre nom).",
   "suggest.err.backs": "Ce que montre la source doit être l’une des informations de cette personne.",
   "suggest.err.note": "La note est trop longue.",

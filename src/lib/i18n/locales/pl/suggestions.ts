@@ -189,6 +189,7 @@ export default {
   "suggest.err.person": "Tej osoby nie ma w drzewie albo nie możesz proponować zmian dotyczących jej.",
   "suggest.err.unchanged": "Nic jeszcze nie zmieniono: najpierw zmień jakąś wartość.",
   "suggest.err.living": "Możesz zaproponować tylko osoby, które już nie żyją.",
+  "suggest.err.living_died": "Osoba, która wciąż żyje, nie ma daty ani miejsca śmierci. Wyłącz „Nadal żyje” albo pomiń śmierć.",
   "suggest.err.event": "To wydarzenie lub ten związek nie należy do tej osoby albo nie można go tak zaproponować (własne wydarzenie wymaga własnej nazwy).",
   "suggest.err.backs": "To, co potwierdza źródło, musi być jedną z informacji o tej osobie.",
   "suggest.err.note": "Notatka jest za długa.",

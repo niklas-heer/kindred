@@ -189,6 +189,7 @@ export default {
   "suggest.err.person": "Diese Person ist nicht im Stammbaum, oder du kannst zu ihr keine Änderungen vorschlagen.",
   "suggest.err.unchanged": "Noch ist nichts geändert: Ändere zuerst eine Angabe.",
   "suggest.err.living": "Du kannst nur Personen vorschlagen, die nicht mehr leben.",
+  "suggest.err.living_died": "Wer noch lebt, hat kein Sterbedatum und keinen Sterbeort. Schalte „Lebt noch“ aus oder lass den Tod weg.",
   "suggest.err.event": "Dieses Ereignis oder diese Partnerschaft gehört nicht zu dieser Person, oder es lässt sich so nicht vorschlagen (ein eigenes Ereignis braucht einen Namen).",
   "suggest.err.backs": "Was die Quelle belegt, muss eine Angabe dieser Person sein.",
   "suggest.err.note": "Die Notiz ist zu lang.",
