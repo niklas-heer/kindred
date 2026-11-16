@@ -113,6 +113,7 @@ export default {
   "suggest.page.mine_empty_text": "打开某个人的页面，选择“建议修改”。",
   "suggest.page.load_failed": "无法加载建议",
   "suggest.nav": "建议",
+  "suggest.nav_waiting": "有{count}条建议在等待",
   "suggest.nav_hint_review": "家人提出的修改",
   "suggest.nav_hint_mine": "你的建议，以及回复",
 

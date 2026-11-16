@@ -113,6 +113,7 @@ export default {
   "suggest.page.mine_empty_text": "Abra a página de alguém e escolha Sugerir uma alteração.",
   "suggest.page.load_failed": "Não foi possível carregar as sugestões",
   "suggest.nav": "Sugestões",
+  "suggest.nav_waiting": { one: "{count} sugestão esperando", other: "{count} sugestões esperando" },
   "suggest.nav_hint_review": "Alterações que a família sugeriu",
   "suggest.nav_hint_mine": "As suas, e as respostas",
 

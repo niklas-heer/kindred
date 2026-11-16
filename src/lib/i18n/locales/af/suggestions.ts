@@ -113,6 +113,7 @@ export default {
   "suggest.page.mine_empty_text": "Maak iemand se bladsy oop en kies Stel ’n verandering voor.",
   "suggest.page.load_failed": "Die voorstelle kon nie gelaai word nie",
   "suggest.nav": "Voorstelle",
+  "suggest.nav_waiting": { one: "{count} voorstel wag", other: "{count} voorstelle wag" },
   "suggest.nav_hint_review": "Veranderinge wat die familie voorgestel het",
   "suggest.nav_hint_mine": "Joune, en die antwoorde daarop",
 

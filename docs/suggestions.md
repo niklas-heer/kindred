@@ -61,7 +61,7 @@ taken out when it is attached.
 
 ## Approving
 
-An editor opens **Suggestions** (the count of waiting ones is on the navigation) or a person's page. Each suggestion shows the
+An editor opens **Suggestions** under **More** (the count of waiting ones is on More itself, and on the phone's More tab) or a person's page. Each suggestion shows the
 record's values next to the suggested ones, "current to suggested".
 
 - **Adjust**: the editor may change the values before approving. The history then says it was approved with changes.

@@ -441,6 +441,13 @@ kbd {
 .nav-more-btn .nav-label { display: inline-flex; align-items: center; gap: 3px; }
 .nav-more-caret { opacity: 0.7; transition: transform var(--dur-2) var(--ease-out); }
 .nav-more-btn[aria-expanded='true'] .nav-more-caret { transform: rotate(180deg); }
+/* What waits under More (suggestions to review), counted on the button and on the phone's More tab. */
+.nav-badge {
+  display: inline-block; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
+  background: var(--accent); color: var(--page-bg, #111); font-family: var(--font-ui); font-size: 0.68rem; font-variant: normal;
+  font-weight: 600; line-height: 16px; text-align: center; letter-spacing: 0;
+}
+.tabbar button > span.tab-badge { position: absolute; top: 6px; left: calc(50% + 6px); max-width: none; overflow: visible; }
 .nav-more-pop {
   position: fixed; z-index: 30; width: 320px; max-width: calc(100vw - 16px); margin: 0; padding: 6px; list-style: none;
   display: grid; gap: 2px; background: var(--panel-solid); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow);

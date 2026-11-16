@@ -149,6 +149,8 @@ function TreeLayout() {
   const topbar = useTopbarFit();
   // The Campaign has its section only while a steward has it switched on. Members only: a guest is never asked.
   const campaign = !!useQuery({ ...campaignStatusQuery(tree), enabled: !guest }).data?.enabled;
+  // What waits for a reviewer under More is counted on the More tab too, so they are told without opening it.
+  const waitingSuggestions = useSuggestionsSection(tree, guest)?.count ?? 0;
   // Votes are every member's; a guest has them only while a vote lets guests in (the server lists only those to a guest).
   const guestVotes = useQuery({ ...votesQuery(tree), enabled: guest }).data?.votes.length ?? 0;
   const votes = !guest || guestVotes > 0;
@@ -273,7 +275,7 @@ function TreeLayout() {
             <Contact size={21} /><span>{t("shell.contacts")}</span></Link>
         )}
         <button type="button" data-tour="more" onClick={() => setMore(true)} aria-expanded={more} aria-haspopup="dialog">
-          <MoreHorizontal size={21} /><span>{t("shell.more")}</span></button>
+          <MoreHorizontal size={21} /><span>{t("shell.more")}</span><WaitingBadge count={waitingSuggestions} className="tab-badge" /></button>
       </nav>
       <MoreSheet open={more} onClose={() => setMore(false)} tree={tree} multiple={multiple} campaign={campaign} votes={votes} />
       <Palette />
@@ -328,6 +330,8 @@ function NavMore({ tree, guest, campaign, votes }: { tree: string; guest: boolea
     ] }]),
   ];
   const sections = groups.flatMap((g) => g.sections);
+  // What waits under More (suggestions to review) is counted on the button itself, as the account menu counts the steward's.
+  const waiting = suggestions?.count ?? 0;
   const inside = (seg: string) => path === `/${tree}/${seg}` || path.startsWith(`/${tree}/${seg}/`);
   const current = sections.find((s) => inside(s.seg) || (s.also && inside(s.also)));
 
@@ -356,11 +360,12 @@ function NavMore({ tree, guest, campaign, votes }: { tree: string; guest: boolea
       <button
         type="button" ref={button} className="nav-more-btn" onClick={toggle}
         aria-expanded={open} aria-controls={open ? id : undefined} data-status={current ? 'active' : undefined}
-        aria-label={current ? `${t('shell.more')}: ${current.label}` : undefined}
+        aria-label={current ? `${t('shell.more')}: ${current.label}${waiting ? `, ${t('suggest.nav_waiting', { count: waiting })}` : ''}` : undefined}
         title={current ? current.label : t('today.more_sections')}
       >
         {current ? current.icon(16) : <LayoutGrid size={16} />}
         <span className="nav-label">{current ? current.label : t('shell.more')} <ChevronDown size={11} className="nav-more-caret" aria-hidden /></span>
+        <WaitingBadge count={waiting} />
       </button>
       {open && (
         <ul className="nav-more-pop" id={id} aria-label={t('today.more_sections')} style={{ top: at.top, left: at.left }}>
@@ -450,6 +455,17 @@ function MoreSheet({ open, onClose, tree, multiple, campaign, votes }: { open: b
         <Switch checked={sound} onChange={toggleSound} labelFirst className="more-switch">{t("shell.sound_effects")}</Switch>
       </div>
     </Dialog>
+  );
+}
+
+/** How many suggestions wait for review, on a button that leads to them: the number, and a sentence for screen readers. */
+function WaitingBadge({ count, className }: { count: number; className?: string }) {
+  const t = useT();
+  if (!count) return null;
+  return (
+    <span className={`nav-badge${className ? ` ${className}` : ''}`}>
+      <span aria-hidden>{count}</span><span className="sr-only">{t('suggest.nav_waiting', { count })}</span>
+    </span>
   );
 }
 

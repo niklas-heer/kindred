@@ -113,6 +113,7 @@ export default {
   "suggest.page.mine_empty_text": "Otwórz czyjąś stronę i wybierz Zaproponuj zmianę.",
   "suggest.page.load_failed": "Nie udało się wczytać propozycji",
   "suggest.nav": "Propozycje",
+  "suggest.nav_waiting": { one: "{count} propozycja czeka", few: "{count} propozycje czekają", many: "{count} propozycji czeka", other: "{count} propozycji czeka" },
   "suggest.nav_hint_review": "Zmiany zaproponowane przez rodzinę",
   "suggest.nav_hint_mine": "Twoje i odpowiedzi na nie",
 

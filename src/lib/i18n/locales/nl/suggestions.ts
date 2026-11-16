@@ -113,6 +113,7 @@ export default {
   "suggest.page.mine_empty_text": "Open de pagina van iemand en kies Een wijziging voorstellen.",
   "suggest.page.load_failed": "De voorstellen konden niet worden geladen",
   "suggest.nav": "Voorstellen",
+  "suggest.nav_waiting": { one: "{count} voorstel wacht", other: "{count} voorstellen wachten" },
   "suggest.nav_hint_review": "Wijzigingen die de familie heeft voorgesteld",
   "suggest.nav_hint_mine": "Die van jou, en de antwoorden",
 

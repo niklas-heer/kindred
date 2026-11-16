@@ -110,6 +110,12 @@ test('suggestions: a viewer and a guest suggest, an editor adjusts, approves and
   await ed.goto(`/${tree}`);
   await settled(ed);
   const sections = ed.getByRole('navigation', { name: 'Sections' }).first();
+  // What waits is counted on More itself, so a reviewer is told without opening it; on a phone, on the More tab.
+  await expect(sections.getByRole('button', { name: /^More/ })).toHaveAccessibleName(/^More\s*1 suggestion waiting$/);
+  const wide = ed.viewportSize()!;
+  await ed.setViewportSize({ width: 390, height: 800 });
+  await expect(ed.locator('.tabbar').getByRole('button', { name: /^More\s*1 suggestion waiting$/ })).toBeVisible();
+  await ed.setViewportSize(wide);
   await sections.getByRole('button', { name: /^More/ }).click();
   await expect(sections.getByRole('list', { name: 'More sections' }).getByRole('link', { name: /^Suggestions/ })).toContainText('1');
   await sections.getByRole('list', { name: 'More sections' }).getByRole('link', { name: /^Suggestions/ }).click();

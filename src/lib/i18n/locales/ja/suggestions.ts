@@ -113,6 +113,7 @@ export default {
   "suggest.page.mine_empty_text": "人物のページを開いて「変更を提案する」を選んでください。",
   "suggest.page.load_failed": "提案を読み込めませんでした",
   "suggest.nav": "提案",
+  "suggest.nav_waiting": "提案{count}件が待機中",
   "suggest.nav_hint_review": "家族から寄せられた変更の提案",
   "suggest.nav_hint_mine": "あなたの提案と、その返事",
 

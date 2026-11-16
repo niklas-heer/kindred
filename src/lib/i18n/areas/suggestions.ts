@@ -114,6 +114,7 @@ export const en = {
   "suggest.page.mine_empty_text": "Open someone's page and choose Suggest a change.",
   "suggest.page.load_failed": "The suggestions could not be loaded",
   "suggest.nav": "Suggestions",
+  "suggest.nav_waiting": { one: "{count} suggestion waiting", other: "{count} suggestions waiting" },
   "suggest.nav_hint_review": "Changes the family suggested",
   "suggest.nav_hint_mine": "Yours, and their answers",
 

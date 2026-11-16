@@ -113,6 +113,7 @@ export default {
   "suggest.page.mine_empty_text": "Ouvre la page de quelqu’un et choisis Suggérer une modification.",
   "suggest.page.load_failed": "Impossible de charger les suggestions",
   "suggest.nav": "Suggestions",
+  "suggest.nav_waiting": { one: "{count} suggestion en attente", other: "{count} suggestions en attente" },
   "suggest.nav_hint_review": "Les modifications suggérées par la famille",
   "suggest.nav_hint_mine": "Les tiennes, et leurs réponses",
 
