@@ -4,10 +4,11 @@ import { issueMessage } from './issue-message.ts';
 // language. The file below is built to trigger every kind of note and conflict the reader can see.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { missingKeys, translate, type Key } from '../i18n/dictionary.ts';
+import { COMPLETE_LOCALES, isKnownMessage, missingKeys, translate, translateMessage, type Key } from '../i18n/dictionary.ts';
 import type { Vars } from '../i18n/types.ts';
 import { fixtureTree } from './fixture.ts';
-import { readGedcom } from './gedcom.ts';
+import { readGedcom, writeGedcom } from './gedcom.ts';
+import { markdownArchive } from './markdown.ts';
 import type { ExTree } from './model.ts';
 import { planImport } from './plan.ts';
 
@@ -143,6 +144,23 @@ test('date notes in the import preview translate every conversion and rejection'
       assert.ok(message.includes(date));
       assert.doesNotMatch(message, /exchange\.date|\{\w+\}/);
       if (locale !== 'en') assert.doesNotMatch(message, /read as|has a|is not a/);
+    }
+  }
+});
+
+test('the lines saying coat-of-arms proposals, suggestions and source files are left out are translated, one and many', () => {
+  for (const n of [1, 3]) {
+    const tree = fixtureTree();
+    Object.assign(tree.extras, { proposals: n, suggestions: n, sourceFiles: n });
+    const lines = [...writeGedcom(tree).losses, ...markdownArchive(tree).losses].filter((l) => /proposal|suggestion|source/.test(l));
+    assert.equal(lines.length, 6, lines.join('\n'));
+    for (const line of lines) {
+      assert.ok(isKnownMessage(line), `no key for “${line}”`);
+      for (const locale of COMPLETE_LOCALES.filter((l) => l !== 'en')) {
+        const said = translateMessage(line, locale);
+        assert.notEqual(said, line, `${locale}: “${line}”`);
+        assert.match(said, new RegExp(`${n}`), `${locale}: the count is kept`);
+      }
     }
   }
 });
