@@ -61,8 +61,8 @@ export const COPIED_TABLES: readonly string[] = [
   // is copied but names nobody on the target. The proposals' links from vote_option travel with that table's new columns.
   'arms_proposal',
   // Suggestions from the family (migration 0039): what members and guests suggested, with the name it was written under;
-  // the account ids are copied but name nobody on the target. Their files are keys in media storage (suggestion/), copied
-  // as the pictures are. `source_file` lists a source's files, after source.
+  // the account ids are copied but name nobody on the target. Their files are keys in media storage (`suggest/` while
+  // pending, `source/` once approved), copied as the pictures are. `source_file` lists a source's files, after source.
   'suggestion',
   'suggestion_file',
   'source_file',
@@ -70,11 +70,13 @@ export const COPIED_TABLES: readonly string[] = [
 
 /**
  * Tables left out on purpose. They are bookkeeping about the copy, not the family, and the target keeps its own.
- * `op` holds the retry keys of changes already sent, which expire after 30 days and mean nothing on another database.
+ * `op` holds the retry keys of changes already sent, which expire after 30 days and mean nothing on another database; an
+ * approval's step keys (suggestions/review.server.ts) are kept while their suggestion waits, so one approved half-way before
+ * the copy cannot be finished on the target (it is refused as `stuck`) and is closed there as partly applied.
  * `d1_migrations` is wrangler's record of the schema the target already has from `migrations apply`.
  */
 export const LEFT_OUT_TABLES: Record<string, string> = {
-  op: 'retry keys of changes already sent; they expire after 30 days',
+  op: 'retry keys of changes already sent; they expire after 30 days (an approval begun half-way is closed on the target)',
   d1_migrations: "wrangler's record of the migrations applied to the target",
   // The ancestry revision (migration 0011) counts changes to parent links on whichever database holds them. The copy's
   // parent rows bump the target's own counter as they are written, and the import guards only that the number it read

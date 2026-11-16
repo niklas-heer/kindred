@@ -169,7 +169,8 @@ and it calls neither D1 nor R2.
 A transfer copies all 18 tables the family's data lives in: its name and settings, houses, people, parent links,
 partnerships, memories, map pins, portraits, the Edit tab's fields, house succession, gallery albums and pictures, the
 tags on gallery pictures, painted portraits, house meanings and arms reviews, story translations, and the cached occupation translations. Three bookkeeping tables are left out on purpose.
-`op` holds the retry keys of changes already sent; they expire after 30 days and mean nothing on another database.
+`op` holds the retry keys of changes already sent; they expire after 30 days and mean nothing on another database (a suggestion
+whose approval stopped half-way before the copy is closed on the target as partly applied, [suggestions.md](suggestions.md)).
 `d1_migrations` is wrangler's record of the schema the target already has. `ancestry_rev` is the counter that the GEDCOM
 import guards (migration 0011): the target's own parent rows move its counter as they are written, so the source's
 value is not sent, and `--replace` leaves it to keep counting up. After the rows are written, the script reads
