@@ -334,7 +334,7 @@ test('files: images and PDFs whose bytes agree, up to the size and the count, st
   assert.equal(await refusal(S.addSuggestionFile(t, member(ada), id, file('image/png', PDF()), NOW)), 'suggest.err.file_type', 'bytes that disagree');
   assert.equal(await refusal(S.addSuggestionFile(t, member(ada), id, file('image/gif', enc('GIF89a....')), NOW)), 'suggest.err.file_type');
   assert.equal(await refusal(S.addSuggestionFile(t, member(ada), id, file('application/pdf', enc('%PDF-1.4\n/JavaScript (x)\n%%EOF\n')), NOW)), 'suggest.err.file_type');
-  assert.equal(await refusal(S.addSuggestionFile(t, member(ada), id, file('image/png', new Uint8Array()), NOW)), 'suggest.err.file_type');
+  assert.equal(await refusal(S.addSuggestionFile(t, member(ada), id, file('image/png', new Uint8Array()), NOW)), 'suggest.err.empty');
   const big = new Uint8Array(MAX_FILE_BYTES + 1);
   big.set(PNG());
   assert.equal(await refusal(S.addSuggestionFile(t, member(ada), id, file('image/png', big), NOW)), 'suggest.err.file_size');

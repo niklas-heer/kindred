@@ -199,6 +199,7 @@ export default {
   "suggest.err.too_many": "Er wachten veel voorstellen van jou. Probeer het opnieuw als er een paar zijn beslist.",
   "suggest.err.file_type": "Alleen afbeeldingen (JPEG, PNG, WebP) en pdf’s kunnen worden toegevoegd.",
   "suggest.err.file_size": "Een bestand mag maximaal 10 MB zijn.",
+  "suggest.err.empty": "Het bestand is leeg: er staat niets in om te versturen.",
   "suggest.err.files": "De bestanden zijn intussen veranderd, of er zitten er al zoveel als kunnen. Laad opnieuw en probeer het nog eens.",
   "suggest.err.pending": "De familie heeft te veel bestanden die op een beslissing wachten. Probeer het later opnieuw.",
   "suggest.err.gone": "Dit voorstel bestaat niet meer.",

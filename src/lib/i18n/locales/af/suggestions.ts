@@ -199,6 +199,7 @@ export default {
   "suggest.err.too_many": "Jy het baie voorstelle wat wag. Probeer weer sodra sommige besluit is.",
   "suggest.err.file_type": "Net prente (JPEG, PNG, WebP) en PDF’s kan aangeheg word.",
   "suggest.err.file_size": "’n Lêer mag hoogstens 10 MB wees.",
+  "suggest.err.empty": "Die lêer is leeg: daar is niks om te stuur nie.",
   "suggest.err.files": "Sy lêers het intussen verander, of dit het soveel as wat dit kan hou. Laai weer en probeer nog ’n keer.",
   "suggest.err.pending": "Die familie het te veel lêers wat op ’n besluit wag. Probeer later weer.",
   "suggest.err.gone": "Hierdie voorstel is nie meer daar nie.",

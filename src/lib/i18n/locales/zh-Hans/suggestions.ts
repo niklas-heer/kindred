@@ -199,6 +199,7 @@ export default {
   "suggest.err.too_many": "你有很多建议在等待处理。等其中一些有了结果之后再试。",
   "suggest.err.file_type": "只能附加图片（JPEG、PNG、WebP）和 PDF。",
   "suggest.err.file_size": "每个文件最大 10 MB。",
+  "suggest.err.empty": "文件是空的，没有可发送的内容。",
   "suggest.err.files": "它的文件在此期间发生了变化，或已达到可附加的上限。请刷新后重试。",
   "suggest.err.pending": "家族里有太多文件在等待决定。请稍后再试。",
   "suggest.err.gone": "这条建议已经不存在了。",

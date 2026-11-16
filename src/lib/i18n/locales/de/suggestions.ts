@@ -199,6 +199,7 @@ export default {
   "suggest.err.too_many": "Von dir warten viele Vorschläge. Versuche es wieder, wenn über einige entschieden ist.",
   "suggest.err.file_type": "Nur Bilder (JPEG, PNG, WebP) und PDFs lassen sich anhängen.",
   "suggest.err.file_size": "Eine Datei darf höchstens 10 MB groß sein.",
+  "suggest.err.empty": "Die Datei ist leer: Darin ist nichts zu senden.",
   "suggest.err.files": "Die Dateien haben sich inzwischen geändert, oder es sind schon so viele wie möglich. Lade neu und versuche es noch einmal.",
   "suggest.err.pending": "In der Familie warten zu viele Dateien auf eine Entscheidung. Versuche es später noch einmal.",
   "suggest.err.gone": "Diesen Vorschlag gibt es nicht mehr.",

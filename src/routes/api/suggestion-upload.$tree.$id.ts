@@ -4,10 +4,12 @@ import { FILE_TYPES, MAX_FILE_BYTES } from '~/lib/suggestions/types';
 // Attaches a file to a waiting suggestion: POST /api/suggestion-upload/<tree>/<suggestion id>, the file's bytes as the body,
 // its type as Content-Type and its name, URI-encoded, as X-File-Name. Its own suggester only: a member (requireMember), or a
 // share-link guest by their `kindred_voter` cookie while the family lets guests attach files (suggester.server.ts); the
-// same-site check in src/start.ts covers every POST. A body longer than MAX_FILE_BYTES is refused by its declared length
-// before a byte is read, or as soon as the bytes read pass it; nothing is stored until the whole file is checked
-// (suggest.server.ts `addSuggestionFile`: type, bytes, metadata, the counted media store). Answers `{ id }`, or `{ error }`
-// with a translation key or an auth error's text.
+// same-site check in src/start.ts covers every POST. A demo or a preview is refused first. Before a byte is read, the request
+// must be one that can be taken: a declared length within MAX_FILE_BYTES, a type the suggestion takes, and the suggester's own
+// waiting suggestion with room for another file (suggest.server.ts `mayAttach`). The body is then read until it passes
+// MAX_FILE_BYTES; an empty one is refused (`empty`), and nothing is stored until the whole file is checked (`addSuggestionFile`:
+// all of the above again, the bytes, metadata, the counted media store). Answers `{ id }`, or `{ error }` with a translation
+// key or an auth error's text.
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 const refuse = (code: string, status: number) => json({ error: `suggest.err.${code}` }, status);
@@ -53,7 +55,7 @@ export const Route = createFileRoute('/api/suggestion-upload/$tree/$id')({
     handlers: {
       POST: async ({ params, request }) => {
         if (!/^[a-z0-9-]{1,64}$/.test(params.tree) || !/^[0-9a-f-]{36}$/.test(params.id)) return json({ error: 'not found' }, 404);
-        const [{ AuthError }, { refuseReadOnly }, { suggesterOf }, { addSuggestionFile }] = await Promise.all([
+        const [{ AuthError }, { refuseReadOnly }, { suggesterOf }, { addSuggestionFile, mayAttach }] = await Promise.all([
           import('~/lib/auth/errors'), import('~/lib/read-only'), import('~/lib/suggestions/suggester.server'), import('~/lib/suggestions/suggest.server'),
         ]);
         try {
@@ -63,8 +65,10 @@ export const Route = createFileRoute('/api/suggestion-upload/$tree/$id')({
           if (Number.isFinite(declared) && declared > MAX_FILE_BYTES) return refuse('file_size', 413);
           const mime = (request.headers.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase();
           if (!(FILE_TYPES as readonly string[]).includes(mime)) return refuse('file_type', 415);
+          await mayAttach(params.tree, by, params.id);
           const bytes = await bodyUpTo(request, MAX_FILE_BYTES);
           if (!bytes) return refuse('file_size', 413);
+          if (!bytes.length) return refuse('empty', 400);
           return json(await addSuggestionFile(params.tree, by, params.id, { name: nameOf(request), mime, bytes }));
         } catch (e) {
           if (e instanceof AuthError) return json({ error: e.message }, e.status);

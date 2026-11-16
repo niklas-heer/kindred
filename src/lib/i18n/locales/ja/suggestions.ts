@@ -199,6 +199,7 @@ export default {
   "suggest.err.too_many": "あなたの提案がたくさん待機中です。いくつかが決まってから、もう一度お試しください。",
   "suggest.err.file_type": "添付できるのは、画像（JPEG、PNG、WebP）とPDFだけです。",
   "suggest.err.file_size": "ファイルは1件につき10 MBまでです。",
+  "suggest.err.empty": "ファイルが空です。送る内容がありません。",
   "suggest.err.files": "その間にファイルが変わったか、添付できる上限に達しています。再読み込みして、もう一度お試しください。",
   "suggest.err.pending": "決定を待つファイルが家族で多すぎます。しばらくしてから、もう一度お試しください。",
   "suggest.err.gone": "この提案は、もうありません。",

@@ -199,6 +199,7 @@ export default {
   "suggest.err.too_many": "Czeka za dużo Twoich propozycji. Spróbuj ponownie, gdy część z nich zostanie rozpatrzona.",
   "suggest.err.file_type": "Można dołączać tylko obrazy (JPEG, PNG, WebP) i pliki PDF.",
   "suggest.err.file_size": "Plik może mieć najwyżej 10 MB.",
+  "suggest.err.empty": "Plik jest pusty: nie ma w nim nic do wysłania.",
   "suggest.err.files": "Pliki propozycji zmieniły się w międzyczasie albo jest ich już tyle, ile może mieć. Wczytaj stronę ponownie i spróbuj jeszcze raz.",
   "suggest.err.pending": "Rodzina ma za dużo plików czekających na decyzję. Spróbuj później.",
   "suggest.err.gone": "Tej propozycji już nie ma.",

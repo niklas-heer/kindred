@@ -199,6 +199,7 @@ export default {
   "suggest.err.too_many": "Tienes muchas sugerencias pendientes. Inténtalo de nuevo cuando se hayan decidido algunas.",
   "suggest.err.file_type": "Solo se pueden adjuntar imágenes (JPEG, PNG, WebP) y PDF.",
   "suggest.err.file_size": "Un archivo puede pesar como máximo 10 MB.",
+  "suggest.err.empty": "El archivo está vacío: no contiene nada que enviar.",
   "suggest.err.files": "Sus archivos han cambiado entretanto, o ya tiene todos los que admite. Recarga e inténtalo de nuevo.",
   "suggest.err.pending": "La familia tiene demasiados archivos a la espera de una decisión. Inténtalo más tarde.",
   "suggest.err.gone": "Esta sugerencia ya no existe.",

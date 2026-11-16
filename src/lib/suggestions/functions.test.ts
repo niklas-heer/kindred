@@ -308,6 +308,51 @@ test('upload: only images and PDFs, of the type their bytes are', async () => {
   assert.deepEqual(await filesOf(s.id), []);
 });
 
+test('upload: who may attach is decided before the body is read; an empty body is a bad request', async () => {
+  asMember(ADA, 'Ada');
+  const s = (await call(fns.createSuggestionFn, bornIn('1912'))) as { id: string };
+  /** A body that never ends and says nothing of its length, counting what is read of it. */
+  const endless = () => {
+    const seen = { pulled: 0 };
+    return { seen, body: new ReadableStream<Uint8Array>({ pull(c) { seen.pulled++; c.enqueue(new Uint8Array(1024 * 1024)); } }) };
+  };
+  // Not your suggestion: refused before a byte is read.
+  asMember(DEE, 'Dee');
+  let e = endless();
+  const other = await upload(s.id, e.body, { length: null });
+  assert.equal(other.status, 404);
+  assert.ok(e.seen.pulled <= 1, `read ${e.seen.pulled} MB of a body it refused`);
+  // Your suggestion with all the files it can have.
+  asMember(ADA, 'Ada');
+  for (let n = 0; n < 5; n++) assert.equal((await upload(s.id, PNG())).status, 200);
+  e = endless();
+  const full = await upload(s.id, e.body, { length: null });
+  assert.equal(full.status, 400);
+  assert.equal(await errorOf(full), 'suggest.err.files');
+  assert.ok(e.seen.pulled <= 1, `read ${e.seen.pulled} MB though no file could be taken`);
+  // Nothing sent: not a wrong type, just nothing.
+  const fresh = (await call(fns.createSuggestionFn, bornIn('1911'))) as { id: string };
+  const empty = await upload(fresh.id, new Uint8Array());
+  assert.equal(empty.status, 400);
+  assert.equal(await errorOf(empty), 'suggest.err.empty');
+  assert.deepEqual(await filesOf(fresh.id), []);
+});
+
+test('upload: a demo stores nothing', async () => {
+  asMember(ADA, 'Ada');
+  const s = (await call(fns.createSuggestionFn, bornIn('1910'))) as { id: string };
+  process.env.KINDRED_DEMO = '1';
+  try {
+    asMember(ADA, 'Ada');
+    const res = await upload(s.id, PNG());
+    assert.equal(res.status, 403);
+    assert.match(await errorOf(res), /demo/i);
+  } finally {
+    delete process.env.KINDRED_DEMO;
+  }
+  assert.deepEqual(await filesOf(s.id), []);
+});
+
 test('upload: a guest attaches to their own suggestion by the cookie, while guests may attach files', async () => {
   asGuest();
   await call(fns.createSuggestionFn, { ...bornIn('1913'), name: 'Kit' });

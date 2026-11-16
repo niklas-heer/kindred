@@ -200,6 +200,7 @@ export const en = {
   "suggest.err.too_many": "You have many suggestions waiting. Try again once some have been decided.",
   "suggest.err.file_type": "Only pictures (JPEG, PNG, WebP) and PDFs can be attached.",
   "suggest.err.file_size": "A file can be at most 10 MB.",
+  "suggest.err.empty": "The file is empty: it holds nothing to send.",
   "suggest.err.files": "Its files changed meanwhile, or it has as many as it can take. Reload and try again.",
   "suggest.err.pending": "The family has too many files waiting for a decision. Try again later.",
   "suggest.err.gone": "This suggestion is no longer there.",

@@ -31,6 +31,7 @@
 //     guests       guests may not suggest here                     guest_files  guests may not attach files here
 //     limit        too many waiting from this network or link      too_many   the member has too many waiting
 //     file_type    not an image or PDF its bytes agree with        file_size  the file is too large
+//     empty        the file holds nothing
 //     files        the suggestion has its files                    pending    the family's pending files are full
 //     gone         no such suggestion of yours                     state      it is no longer waiting
 //     partial      an approval of it has begun: only approving it again (which finishes it) is left
@@ -457,7 +458,8 @@ const EXT: Record<(typeof FILE_TYPES)[number], string> = {
 
 /** The file's bytes to store: of a type the suggestion takes, its bytes agreeing with it, a picture without its metadata. */
 async function checkedBytes(mime: string, bytes: Uint8Array): Promise<Uint8Array> {
-  if (!(FILE_TYPES as readonly string[]).includes(mime) || !bytes.length) throw err('file_type');
+  if (!(FILE_TYPES as readonly string[]).includes(mime)) throw err('file_type');
+  if (!bytes.length) throw err('empty');
   if (bytes.length > MAX_FILE_BYTES) throw err('file_size');
   // The research documents' check: the bytes decide the type, and a PDF with active content is refused.
   if ('refused' in (await checkDocument(bytes, mime))) throw err('file_type');
@@ -472,6 +474,47 @@ const fileName = (name: string) => oneLine(name.split(/[\\/]/).pop() ?? '').slic
 /** The family's waiting suggestions' files, in bytes. */
 const PENDING_SUM = "SELECT coalesce(sum(f.size), 0) FROM suggestion_file f JOIN suggestion s ON s.id = f.suggestion WHERE s.status = 'waiting'";
 
+/** Refuses a suggester who may not attach at all (and a demo or a preview): a member below `suggest`, a guest without a key. */
+function attacher(by: Suggester) {
+  refuseReadOnly();
+  if (by.kind === 'member') needs(by.who, 'suggest');
+  else ownerCheck(by);
+}
+
+/**
+ * What a file may be attached to, as read in `d`: the suggester's own waiting suggestion, while guests may suggest and attach
+ * files (for a guest), about no one living (for a protecting link's guest), with room for another file. Returns the guards
+ * that hold it in the batch.
+ */
+async function attachable(d: Db, by: Suggester, suggestionId: string): Promise<Query[]> {
+  const own = await ownWaiting(d, by, suggestionId);
+  const guards: Query[] = [own.guard];
+  if (by.kind === 'guest') {
+    const settings = await settingsIn(d);
+    if (!settings.guests) throw err('guests');
+    if (!settings.guestFiles) throw err('guest_files');
+    guards.push(settingOn('suggest_guests'), settingOn('suggest_guest_files'));
+    // Someone marked living since: such a guest adds nothing about them.
+    if (by.protectLiving && own.row.person) {
+      await personFor(d, by, own.row.person);
+      guards.push(personThere(by, own.row.person));
+    }
+  }
+  const files = (await d.get<{ n: number }>('SELECT count(*) AS n FROM suggestion_file WHERE suggestion = ?', suggestionId))?.n ?? 0;
+  if (files >= MAX_FILES) throw err('files');
+  guards.push(guard('(SELECT count(*) FROM suggestion_file WHERE suggestion = ?) < ?', suggestionId, MAX_FILES));
+  return guards;
+}
+
+/**
+ * Whether the suggester may attach a file to `suggestionId` now, refused as `addSuggestionFile` would be: asked by the upload
+ * route before it reads the body, so a request that cannot be taken costs no upload. `addSuggestionFile` asks it all again.
+ */
+export async function mayAttach(tree: string, by: Suggester, suggestionId: string): Promise<void> {
+  attacher(by);
+  await attachable(db(tree), by, suggestionId);
+}
+
 /**
  * Attaches a file to the suggester's own waiting suggestion: stored under `suggest/<uuid>.<ext>` through the counted media
  * store, then its row; a row the database does not take leaves no file behind.
@@ -479,27 +522,11 @@ const PENDING_SUM = "SELECT coalesce(sum(f.size), 0) FROM suggestion_file f JOIN
 export async function addSuggestionFile(
   tree: string, by: Suggester, suggestionId: string, file: { name: string; mime: string; bytes: Uint8Array }, now: Date = new Date(),
 ): Promise<{ id: string }> {
-  refuseReadOnly();
-  if (by.kind === 'member') needs(by.who, 'suggest');
-  else ownerCheck(by);
+  attacher(by);
   const bytes = await checkedBytes(file.mime, file.bytes);
   const name = fileName(file.name);
   return once(tree, undefined, 'addSuggestionFile', async (d) => {
-    const own = await ownWaiting(d, by, suggestionId);
-    const guards: Query[] = [own.guard];
-    if (by.kind === 'guest') {
-      const settings = await settingsIn(d);
-      if (!settings.guests) throw err('guests');
-      if (!settings.guestFiles) throw err('guest_files');
-      guards.push(settingOn('suggest_guests'), settingOn('suggest_guest_files'));
-      // Someone marked living since: such a guest adds nothing about them.
-      if (by.protectLiving && own.row.person) {
-        await personFor(d, by, own.row.person);
-        guards.push(personThere(by, own.row.person));
-      }
-    }
-    const files = (await d.get<{ n: number }>('SELECT count(*) AS n FROM suggestion_file WHERE suggestion = ?', suggestionId))?.n ?? 0;
-    if (files >= MAX_FILES) throw err('files');
+    const guards = await attachable(d, by, suggestionId);
     const pending = (await d.get<{ n: number }>(`SELECT (${PENDING_SUM}) AS n`))?.n ?? 0;
     if (pending + bytes.length > PENDING_BYTES) throw err('pending');
     const id = crypto.randomUUID();
@@ -508,7 +535,6 @@ export async function addSuggestionFile(
     return {
       writes: [
         ...guards,
-        guard('(SELECT count(*) FROM suggestion_file WHERE suggestion = ?) < ?', suggestionId, MAX_FILES),
         // The ceiling as read: two uploads at once cannot both take the last room.
         guard(`(${PENDING_SUM}) + ? <= ?`, bytes.length, PENDING_BYTES),
         q('INSERT INTO suggestion_file (id, suggestion, key, mime, size, name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
