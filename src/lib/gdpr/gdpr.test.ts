@@ -451,6 +451,30 @@ test('suggestions: erasing a person deletes the suggestions about them and their
   assert.deepEqual(await containing(d, 'Nia Jessop'), [], 'her name is scrubbed from the suggestions that stay');
 });
 
+test('suggestions: a copy for a person in the tree has what was suggested about them, not who sent or decided it', async () => {
+  const tree = 'kettle';
+  await dbs.provisionFamily(tree, 'The Kettles');
+  const pia = user(66, 'Pia Kettle');
+  const rex = user(67, 'Rex Kettle');
+  for (const u of [pia, rex]) await addUser(u);
+  await member(pia, tree, 'steward');
+  await member(rex, tree, 'contributor');
+  const d = dbs.db(tree);
+  await d.run("INSERT INTO person (id, given, surname, living) VALUES ('uma_eeeeee', 'Uma', 'Kettle', 0)");
+  const rex_ = { kind: 'member' as const, who: { id: rex.id, name: rex.name, role: 'contributor' as const, person: null, personConfirmed: false } };
+  const made = await sugg.createSuggestion(tree, rex_, { kind: 'details', person: 'uma_eeeeee', payload: { born: '1901' }, note: 'From the bible' });
+  const pia_ = { id: pia.id, name: pia.name, role: 'steward' as const, person: null, personConfirmed: false };
+  await review.declineSuggestion(tree, pia_, made.id, 'Not so');
+  await d.run("INSERT INTO suggestion (id, kind, person, payload, note, status, guest_key, author_name, link, net, created_at) VALUES ('sg-kettle-guest', 'details', 'uma_eeeeee', '{\"nickname\":\"Um\"}', '', 'waiting', 'g:guest-key', 'Gwen', 'link-1', 7, '2026-11-01')");
+
+  const copy = await subject.subjectCopy(tree, 'uma_eeeeee');
+  const rows = copy.records.suggestion!;
+  assert.equal(rows.length, 2);
+  for (const r of rows) assert.deepEqual(Object.keys(r).sort(), ['author_name', 'created_at', 'decided_at', 'kind', 'note', 'payload', 'status']);
+  const text = JSON.stringify(copy);
+  for (const hidden of [rex.id, pia.id, 'g:guest-key', 'link-1', made.id]) assert.ok(!text.includes(hidden), `the copy leaves out ${hidden}`);
+});
+
 test('a deleted member\'s person in the tree goes from their posts, votes and voter rows, so no read shows their face', async () => {
   const tree = 'hollin';
   await dbs.provisionFamily(tree, 'The Hollins');

@@ -53,6 +53,14 @@ export function hasId(col: string, id: string): { sql: string; params: string[] 
 const PERSON_REF = new Set(['person', 'child', 'parent', 'a', 'b', 'head', 'heir', 'author_person', 'about']);
 /** Never searched or rewritten: secrets, files' bytes, and hashes. */
 const SKIP_COLUMN = /(^|_)(hash|sealed|secret|token|p256dh|auth|public_key|key_tail|fingerprint)$/;
+/**
+ * Tables whose rows a copy for a person shows only in part: a suggestion about them (or by the member who stands for them) is
+ * what was suggested and what became of it, never who sent or decided it (account ids, a guest's cookie hash, link and
+ * network) nor how it was applied.
+ */
+const COPY_COLUMNS: Record<string, readonly string[]> = {
+  suggestion: ['kind', 'payload', 'note', 'status', 'created_at', 'decided_at', 'author_name'],
+};
 /** Accounts tables never searched as text: a chat's pictures (their bytes as text); their conversation is what counts. */
 const SKIP_TABLE = new Set(['ai_chat_image', 'subject_action']);
 
@@ -216,6 +224,11 @@ export async function subjectCopy(tree: string, person: string, now = new Date()
     const personal = t.columns.some((c) => c.name === 'visibility') ? " AND visibility <> 'personal'" : '';
     const rows = await d.all<Record<string, unknown>>(`SELECT * FROM ${ident(t.name)} WHERE (${links.map((c) => `${ident(c.name)} = ?`).join(' OR ')})${personal}`, ...links.map(() => person));
     if (!rows.length) continue;
+    const only = COPY_COLUMNS[t.name];
+    if (only) {
+      records[t.name] = rows.map((r) => Object.fromEntries(only.map((k) => [k, r[k]])));
+      continue;
+    }
     records[t.name] = rows.map((r) => Object.fromEntries(Object.entries(r).filter(([k, v]) => !SKIP_COLUMN.test(k) && !(v instanceof Uint8Array) && k !== 'owner')));
     for (const r of rows) for (const c of links) if (typeof r[c.name] === 'string' && r[c.name] !== person) ids.add(r[c.name] as string);
   }
