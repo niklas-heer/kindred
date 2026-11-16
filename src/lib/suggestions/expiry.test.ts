@@ -88,6 +88,51 @@ test('waiting suggestions older than EXPIRY_DAYS expire at the run’s time, the
   assert.equal(await X.expireSuggestions(t, NOW), 0, 'again: nothing more');
 });
 
+test('EXPIRY_DAYS after a guest’s suggestion was settled, its cookie hash, link and network are forgotten; the name stays', async () => {
+  const t = await family();
+  const d = db.db(t);
+  const guest = { kind: 'guest' as const, key: 'g:key-1', name: 'Hal Hazel', link: 'link-1', net: 7, protectLiving: true };
+  /** A guest's suggestion, then set to `status`, decided `decided` days ago (null: never) and made `made` days ago. */
+  const settled = async (status: string, decided: number | null, made = (decided ?? 0) + 1) => {
+    const { id } = await S.createSuggestion(t, guest, { kind: 'details', person: 'fen', payload: { born: String(1800 + made) } as never }, NOW);
+    await d.run('UPDATE suggestion SET status = ?, decided_at = ?, created_at = ? WHERE id = ?', status, decided === null ? null : ago(decided), ago(made), id);
+    return id;
+  };
+  const forget = {
+    declined: await settled('declined', EXPIRY_DAYS + 1),
+    approved: await settled('approved', EXPIRY_DAYS + 2),
+    expired: await settled('expired', EXPIRY_DAYS + 3),
+    withdrawn: await settled('withdrawn', EXPIRY_DAYS + 4),
+    withdrawnUndated: await settled('withdrawn', null, EXPIRY_DAYS + 5),
+  };
+  const keep = {
+    recent: await settled('declined', EXPIRY_DAYS - 1),
+    // Still waiting, however old (as one partly applied, which is never expired): it is not settled yet.
+    waiting: await settled('waiting', null, EXPIRY_DAYS + 30),
+  };
+  const byMember = await waiting(t, EXPIRY_DAYS + 40);
+  await d.run("UPDATE suggestion SET status = 'declined', decided_at = ? WHERE id = ?", ago(EXPIRY_DAYS + 40), byMember);
+  const guestOf = (id: string) => d.get<{ guest_key: string | null; link: string | null; net: number | null; author_name: string; account: string | null }>(
+    'SELECT guest_key, link, net, author_name, account FROM suggestion WHERE id = ?', id);
+
+  assert.equal(await X.forgetGuests(t, NOW), Object.keys(forget).length);
+  for (const [what, id] of Object.entries(forget)) {
+    assert.deepEqual({ ...(await guestOf(id)) }, { guest_key: null, link: null, net: null, author_name: 'Hal Hazel', account: null }, what);
+  }
+  for (const [what, id] of Object.entries(keep)) {
+    assert.deepEqual({ ...(await guestOf(id)) }, { guest_key: 'g:key-1', link: 'link-1', net: 7, author_name: 'Hal Hazel', account: null }, what);
+  }
+  assert.equal((await guestOf(byMember))!.account, eli.id, 'a member’s suggestion keeps its account');
+  assert.equal(await X.forgetGuests(t, NOW), 0, 'again: nothing more');
+
+  // The daily job does it too, and says so.
+  const later = await settled('declined', EXPIRY_DAYS + 1);
+  const lines: string[] = [];
+  await suggestionsJob.run({ trees: [t], now: NOW, env: () => undefined, log: (m) => lines.push(m) });
+  assert.equal((await guestOf(later))!.guest_key, null);
+  assert.match(lines.join('\n'), /forgot 1 guests/);
+});
+
 test('the daily job expires and sweeps without push keys, and one family’s trouble does not stop the next', async () => {
   const a = await family();
   const b = await family();

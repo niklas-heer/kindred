@@ -83,7 +83,8 @@ record's values next to the suggested ones, "current to suggested".
 
 A suggester sees what they wrote, its state (**waiting**, **approved**, **approved with changes**, **approved in part** after a close as partly applied, **declined** with
 the reason, **expired**) and its files. They never see the record's values or who decided. A decided suggestion stays in their
-list for **90 days** after it was decided; a withdrawn one goes at once. A member also finds the outcome in **What's new**.
+list for **90 days** after it was decided; a withdrawn one goes at once. Either stays with the family's records (a withdrawn one
+only hidden from its suggester), as below. A member also finds the outcome in **What's new**.
 
 A waiting suggestion **expires after 90 days**, when the daily job marks it expired and deletes its pending files. One that is
 partly applied is left for an editor to close.
@@ -110,7 +111,7 @@ review, to a device unopened for 35 days, or to the suggester themselves, and a 
 | What | Where it is | How long |
 | --- | --- | --- |
 | A member's suggestion | the family's database: kind, person, values, note, status, reason, dates, the name shown and the person they stand for | with the family's records, like a story or a post |
-| A guest's suggestion | the same, with the **name they gave**, a **hash of their cookie** (different in each family), the share link and a **network value** (18 bits of an HMAC of the network under the server's secret; never the address, and it cannot be matched back to one) | with the family's records; a guest sees it for 90 days after it was decided |
+| A guest's suggestion | the same, with the **name they gave**, a **hash of their cookie** (different in each family), the share link and a **network value** (18 bits of an HMAC of the network under the server's secret; never the address, and it cannot be matched back to one) | with the family's records, the name too (the history shows it as "suggested by"); the guest sees it for 90 days after it was decided. 90 days after it was decided, expired or withdrawn, the daily `suggestions` job deletes the hash of the cookie, the link and the network value |
 | Files | media storage, under `suggest/` while pending, `source/` once approved | pending files are deleted on decline, expiry, withdrawal or closing; approved files are a source's |
 
 - **Deleting a member's account** ([gdpr.md](gdpr.md)): their suggestions, waiting ones too, are kept (they may hold a fact the

@@ -2,6 +2,10 @@
 // - `expireSuggestions`: a waiting suggestion older than EXPIRY_DAYS becomes `expired`, with `decided_at` the run's time (the
 //   suggester's list counts its window from it), and its pending files are deleted from storage. One that is partly applied
 //   (history rows name it) is left for a reviewer to close (review.server.ts `closePartlyApplied`).
+// - `forgetGuests`: EXPIRY_DAYS after a guest's suggestion was settled (`decided_at`: decided, expired or withdrawn; its
+//   `created_at` for a withdrawn one without it), what told the guest apart goes: the hash of their cookie (`guest_key`), the
+//   share link and the network value become NULL. The name they gave stays, as the history shows it ("suggested by"), and so
+//   does the row, a withdrawn one too (only hidden from its suggester). By then the guest no longer sees it (reads.server.ts).
 // - `sweepOrphanFiles`: deleting a person or a source deletes its rows but not the objects, so objects under `suggest/` that
 //   no `suggestion_file` row names, and under `source/` that no `source_file` row names, are deleted, but only once ORPHAN_DAYS
 //   old (by its counted row's `media_usage.at`; an object with no usage time is kept). The wait covers an upload whose row is
@@ -59,6 +63,23 @@ export async function expireSuggestions(tree: string, now: Date = new Date()): P
     }
   }
   return expired;
+}
+
+/** A guest's suggestion settled before the cutoff (the one parameter), whose guest is not forgotten yet. */
+const SETTLED_GUEST = "(guest_key IS NOT NULL OR link IS NOT NULL OR net IS NOT NULL) AND status <> 'waiting' AND coalesce(decided_at, created_at) < ?";
+
+/** Forgets the guest behind each suggestion settled more than EXPIRY_DAYS ago. Returns how many. */
+export async function forgetGuests(tree: string, now: Date = new Date()): Promise<number> {
+  const cutoff = new Date(now.getTime() - EXPIRY_DAYS * DAY_MS).toISOString();
+  return once(tree, undefined, 'forgetSuggestionGuests', async (d) => {
+    // Most days there is none: then nothing is written, and the family is not marked changed.
+    const due = (await d.get<{ n: number }>(`SELECT count(*) AS n FROM suggestion WHERE ${SETTLED_GUEST}`, cutoff))?.n ?? 0;
+    return {
+      writes: due ? [q(`UPDATE suggestion SET guest_key = NULL, link = NULL, net = NULL WHERE ${SETTLED_GUEST}`, cutoff)] : [],
+      history: NOT_A_RECORD,
+      result: (r) => r[0]?.changes ?? 0,
+    };
+  });
 }
 
 /** Deletes the family's stored objects under `suggest/` and `source/` that no row names. Returns how many. */
