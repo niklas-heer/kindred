@@ -26,6 +26,7 @@
 //     payload      the suggestion is not a valid one of its kind   person     no such person (or, for such a guest, living)
 //     unchanged    it changes nothing                              living     such a guest suggested someone living
 //     living_died  someone living with a date or place of death (the Edit tab hides them for the living)
+//     two_parents  a missing parent of someone with two         no_parents a missing sibling of someone with no parents
 //     event        no such event or partnership of this person, a custom event without its label, a burial of the living
 //     backs        the fact a source backs is not one of its person's
 //     note         the note is too long                            name       a guest's name is empty or too long
@@ -278,8 +279,19 @@ async function checkRelative(d: Db, by: Suggester, person: string | null, raw: u
   const p = await personFor(d, by, person);
   if (protects(by) && given.person.living) throw err('living');
   if (given.person.living && given.person.died) throw err('living_died');
+  // What the add-relative plan refuses (relations.server.ts), refused now rather than at the approval: a third parent, and a
+  // sibling, who shares the person's parents, of someone with none on record.
+  const guards = [personThere(by, p.id)];
+  if (given.link.kind === 'parent' || given.link.kind === 'sibling') {
+    const parents = (await d.get<{ n: number }>('SELECT count(*) AS n FROM parent WHERE child = ?', p.id))?.n ?? 0;
+    if (given.link.kind === 'parent' && parents >= 2) throw err('two_parents');
+    if (given.link.kind === 'sibling' && !parents) throw err('no_parents');
+    guards.push(given.link.kind === 'parent'
+      ? guard('(SELECT count(*) FROM parent WHERE child = ?) < 2', p.id)
+      : guard('EXISTS (SELECT 1 FROM parent WHERE child = ?)', p.id));
+  }
   const payload = { person: compact(given.person, true), link: compact(given.link) };
-  return { payload, basis: null, guards: [personThere(by, p.id)] };
+  return { payload, basis: null, guards };
 }
 
 const PARTNERSHIP_FIELDS = ['partnership', 'partnershipKind', 'start', 'startPlace'] as const;

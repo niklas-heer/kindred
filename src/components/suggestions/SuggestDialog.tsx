@@ -17,7 +17,7 @@ import { errorText } from '~/lib/errortext';
 import { AFTER_DEATH, EVENT_LABEL, EVENT_TYPES, type EventType } from '~/lib/events';
 import { personEventsQuery } from '~/lib/events.functions';
 import { useFamily } from '~/lib/family';
-import { displayName, fmtDate } from '~/lib/graph';
+import { displayName, fmtDate, parents } from '~/lib/graph';
 import { useT, type Key } from '~/lib/i18n';
 import { useSession } from '~/lib/session';
 import { createSuggestionFn, mySuggestionsQuery, suggestionKeys, suggestSettingsQuery } from '~/lib/suggestions/suggestions.functions';
@@ -75,7 +75,10 @@ export function SuggestDialog({ tree, p, onClose }: { tree: string; p: GPerson; 
   const [kind, setKind] = useState<SuggestionKind>('details');
   const [base] = useState(() => detailsOf(p));
   const [details, setDetails] = useState<Details>(base);
-  const [relative, setRelative] = useState<Relative>(NO_RELATIVE);
+  // What the add-relative plan refuses is not offered (suggest.server.ts): a third parent, or a sibling of someone with no parents.
+  const parentCount = parents(f, p.id).length;
+  const links = LINK_KINDS.filter((k) => !(k === 'parent' && parentCount >= 2) && !(k === 'sibling' && !parentCount));
+  const [relative, setRelative] = useState<Relative>(() => ({ ...NO_RELATIVE, link: links[0] }));
   const [event, setEvent] = useState<EventForm>(NO_EVENT);
   const [source, setSource] = useState<SourceForm>(NO_SOURCE);
   const [note, setNote] = useState('');
@@ -268,7 +271,7 @@ export function SuggestDialog({ tree, p, onClose }: { tree: string; p: GPerson; 
 
           {kind === 'relative' && (
             <div className="sg-grid">
-              <Choice label={t('suggest.link.label', { name })} value={relative.link} onChange={(link) => r({ link })} options={LINK_KINDS.map((k) => ({ value: k, label: t(`suggest.link.${k}`) }))} />
+              <Choice label={t('suggest.link.label', { name })} value={relative.link} onChange={(link) => r({ link })} options={links.map((k) => ({ value: k, label: t(`suggest.link.${k}`) }))} />
               {(relative.link === 'parent' || relative.link === 'child') && (
                 <Choice label={t('suggest.parent_kind')} value={relative.parentKind} onChange={(parentKind) => r({ parentKind })} options={PARENT_KINDS.map((k) => ({ value: k, label: t(`suggest.parent.${k}`) }))} />
               )}

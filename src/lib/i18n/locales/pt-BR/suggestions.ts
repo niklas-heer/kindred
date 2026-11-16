@@ -190,6 +190,8 @@ export default {
   "suggest.err.unchanged": "Nada foi alterado ainda: altere um valor primeiro.",
   "suggest.err.living": "Você só pode sugerir pessoas que já faleceram.",
   "suggest.err.living_died": "Quem ainda está vivo não tem data nem local de falecimento. Desligue “Ainda vivo” ou deixe o falecimento de fora.",
+  "suggest.err.two_parents": "Essa pessoa já tem dois pais na árvore. Para trocar um, diga isso em uma nota.",
+  "suggest.err.no_parents": "Irmãos têm um pai ou mãe em comum, e ainda não há nenhum na árvore. Sugira primeiro um pai ou mãe que falta.",
   "suggest.err.event": "Esse evento ou essa união não é desta pessoa, ou não pode ser sugerido assim (um evento personalizado precisa de um nome próprio).",
   "suggest.err.backs": "O que a fonte mostra deve ser um dos dados desta pessoa.",
   "suggest.err.note": "A nota é longa demais.",

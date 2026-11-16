@@ -322,8 +322,9 @@ test('a missing relative is added with its link through the add-relative path, o
   await db.once(t, undefined, 'linkRelative', (d) => Rel.linkPlan(d, { anchor: 'ada', person: 'kit', relation: 'sibling', parentKind: 'adoptive' }));
   assert.deepEqual((await db.db(t).all<{ kind: string }>("SELECT kind FROM parent WHERE child = 'kit'")).map((x) => x.kind), ['biological', 'biological']);
 
-  // The form's own rules still hold: a third parent is refused, and nothing is written.
-  const third = await suggest(t, member(ada), 'relative', 'ada', { person: { given: 'Ivo', living: false }, link: { kind: 'parent' } });
+  // The form's own rules still hold: a parent who would be the third since (Fen had one) is refused, and nothing is written.
+  const third = await suggest(t, member(ada), 'relative', 'fen', { person: { given: 'Ivo', living: false }, link: { kind: 'parent' } });
+  await db.db(t).run("INSERT INTO parent (child, parent) VALUES ('fen', 'cara')");
   const before = await records(t);
   assert.match(await refusal(R.approveSuggestion(t, fay, third.id)), /two parents/);
   assert.deepEqual(await records(t), before);

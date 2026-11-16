@@ -175,6 +175,20 @@ test('a missing relative is a new person and a link, checked like the add-relati
   assert.equal(await refusal(S.createSuggestion(t, member(ada), { kind: 'relative', person: null, payload: payload as never }, NOW)), 'suggest.err.person');
 });
 
+test('a missing relative the approval would refuse is refused now: a third parent, or a sibling of someone with no parents', async () => {
+  const t = await family();
+  const before = await records(t);
+  const parent = { person: { given: 'Ivo', living: false }, link: { kind: 'parent' } };
+  assert.equal(await refusal(S.createSuggestion(t, member(eli), { kind: 'relative', person: 'ada', payload: parent as never }, NOW)), 'suggest.err.two_parents', 'Ada has Bo and Cara');
+  const sibling = { person: { given: 'Ivo', living: false }, link: { kind: 'sibling' } };
+  assert.equal(await refusal(S.createSuggestion(t, member(eli), { kind: 'relative', person: 'bo', payload: sibling as never }, NOW)), 'suggest.err.no_parents', 'Bo has no parents on record');
+  assert.deepEqual(await records(t), before);
+  // One parent is room for another, and a parent is enough for a sibling.
+  await db.db(t).run("INSERT INTO parent (child, parent) VALUES ('dag', 'bo')");
+  await S.createSuggestion(t, member(eli), { kind: 'relative', person: 'dag', payload: parent as never }, NOW);
+  await S.createSuggestion(t, member(eli), { kind: 'relative', person: 'dag', payload: sibling as never }, NOW);
+});
+
 test('a life event is a new one on the person, or a correction of one of theirs (or of their partnership) kept with its values', async () => {
   const t = await family();
   const ev = (person: string | null, payload: unknown) => S.createSuggestion(t, member(ada), { kind: 'event', person, payload: payload as never }, NOW);

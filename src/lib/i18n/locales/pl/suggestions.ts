@@ -190,6 +190,8 @@ export default {
   "suggest.err.unchanged": "Nic jeszcze nie zmieniono: najpierw zmień jakąś wartość.",
   "suggest.err.living": "Możesz zaproponować tylko osoby, które już nie żyją.",
   "suggest.err.living_died": "Osoba, która wciąż żyje, nie ma daty ani miejsca śmierci. Wyłącz „Nadal żyje” albo pomiń śmierć.",
+  "suggest.err.two_parents": "Ta osoba ma już w drzewie dwoje rodziców. Jeśli któreś trzeba zmienić, napisz o tym w notatce.",
+  "suggest.err.no_parents": "Rodzeństwo ma wspólnego rodzica, a w drzewie nie ma jeszcze żadnego. Najpierw zaproponuj brakującego rodzica.",
   "suggest.err.event": "To wydarzenie lub ten związek nie należy do tej osoby albo nie można go tak zaproponować (własne wydarzenie wymaga własnej nazwy).",
   "suggest.err.backs": "To, co potwierdza źródło, musi być jedną z informacji o tej osobie.",
   "suggest.err.note": "Notatka jest za długa.",

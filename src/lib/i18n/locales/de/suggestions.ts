@@ -190,6 +190,8 @@ export default {
   "suggest.err.unchanged": "Noch ist nichts geändert: Ändere zuerst eine Angabe.",
   "suggest.err.living": "Du kannst nur Personen vorschlagen, die nicht mehr leben.",
   "suggest.err.living_died": "Wer noch lebt, hat kein Sterbedatum und keinen Sterbeort. Schalte „Lebt noch“ aus oder lass den Tod weg.",
+  "suggest.err.two_parents": "Diese Person hat im Stammbaum schon zwei Eltern. Soll einer geändert werden, schreibe es in eine Notiz.",
+  "suggest.err.no_parents": "Geschwister teilen sich einen Elternteil, und noch ist keiner im Stammbaum. Schlag zuerst einen fehlenden Elternteil vor.",
   "suggest.err.event": "Dieses Ereignis oder diese Partnerschaft gehört nicht zu dieser Person, oder es lässt sich so nicht vorschlagen (ein eigenes Ereignis braucht einen Namen).",
   "suggest.err.backs": "Was die Quelle belegt, muss eine Angabe dieser Person sein.",
   "suggest.err.note": "Die Notiz ist zu lang.",

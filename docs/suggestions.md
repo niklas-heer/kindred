@@ -22,7 +22,7 @@ most **100**.
 | Kind | What it can change |
 | --- | --- |
 | **A person's facts** | Given name, surname they go by now, surname at birth, nickname, title, sex, living, birth and death date and place; each to a value or to none. Only the fields it changes are kept. A suggestion that changes nothing is refused |
-| **A missing relative** | A person to add (given and further given names, surname, sex, born, died, living) and how they link to the person: parent, child, partner or sibling |
+| **A missing relative** | A person to add (given and further given names, surname, sex, born, died, living) and how they link to the person: parent, child, partner or sibling. As in the add-relative form, a third parent is refused, and so is a sibling of someone with no parents on record (a sibling shares them) |
 | **A life event** | A new event (a custom one needs its own name), or the correction of an event's date, place or note, or of a couple's kind, start and place |
 | **A source** | A source to add (title, author, publication, reference, and the fact it backs), with files |
 

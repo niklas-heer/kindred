@@ -190,6 +190,8 @@ export default {
   "suggest.err.unchanged": "Niks is nog verander nie: verander eers ’n waarde.",
   "suggest.err.living": "Jy kan net mense voorstel wat nie meer leef nie.",
   "suggest.err.living_died": "Iemand wat nog leef, het geen sterfdatum of -plek nie. Skakel “Leef nog” af, of laat die dood uit.",
+  "suggest.err.two_parents": "Hulle het reeds twee ouers in die stamboom. Sê in ’n nota as een moet verander.",
+  "suggest.err.no_parents": "’n Broer of suster deel ’n ouer, en nog geen ouer is in die stamboom nie. Stel eers ’n ontbrekende ouer voor.",
   "suggest.err.event": "Daardie gebeurtenis of verhouding is nie hierdie persoon s’n nie, of dit kan nie so voorgestel word nie (’n eie gebeurtenis het sy eie naam nodig).",
   "suggest.err.backs": "Wat die bron wys, moet een van hierdie persoon se feite wees.",
   "suggest.err.note": "Die nota is te lank.",

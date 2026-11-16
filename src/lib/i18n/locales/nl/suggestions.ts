@@ -190,6 +190,8 @@ export default {
   "suggest.err.unchanged": "Er is nog niets gewijzigd: wijzig eerst een waarde.",
   "suggest.err.living": "Je kunt alleen mensen voorstellen die niet meer in leven zijn.",
   "suggest.err.living_died": "Iemand die nog leeft, heeft geen overlijdensdatum of -plaats. Zet ‘Nog in leven’ uit, of laat het overlijden weg.",
+  "suggest.err.two_parents": "Deze persoon heeft al twee ouders in de stamboom. Moet er een anders, zeg het dan in een notitie.",
+  "suggest.err.no_parents": "Een broer of zus deelt een ouder, en er staat nog geen ouder in de stamboom. Stel eerst een ontbrekende ouder voor.",
   "suggest.err.event": "Die gebeurtenis of relatie hoort niet bij deze persoon, of kan zo niet worden voorgesteld (een eigen gebeurtenis heeft een eigen naam nodig).",
   "suggest.err.backs": "Wat de bron laat zien, moet een van de gegevens van deze persoon zijn.",
   "suggest.err.note": "De notitie is te lang.",

@@ -190,6 +190,8 @@ export default {
   "suggest.err.unchanged": "Rien n’est encore modifié : change d’abord une valeur.",
   "suggest.err.living": "Tu peux seulement suggérer des personnes qui ne sont plus en vie.",
   "suggest.err.living_died": "Une personne encore en vie n’a ni date ni lieu de décès. Désactive « Toujours en vie » ou laisse le décès de côté.",
+  "suggest.err.two_parents": "Cette personne a déjà deux parents dans l’arbre. Pour en changer un, dis-le dans une note.",
+  "suggest.err.no_parents": "Un frère ou une sœur partage un parent, et aucun n’est encore dans l’arbre. Suggère d’abord un parent manquant.",
   "suggest.err.event": "Cet événement ou cette union n’est pas celui de cette personne, ou ne peut pas être suggéré ainsi (un événement personnalisé a besoin de son propre nom).",
   "suggest.err.backs": "Ce que montre la source doit être l’une des informations de cette personne.",
   "suggest.err.note": "La note est trop longue.",
