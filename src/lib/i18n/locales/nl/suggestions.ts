@@ -87,6 +87,7 @@ export default {
   "suggest.file_remove": "{name} verwijderen",
   "suggest.file.too_big": "{name} is groter dan {size} MB.",
   "suggest.file.wrong_type": "{name} is geen afbeelding of pdf.",
+  "suggest.file.empty": "{name} is leeg: er staat niets in om te versturen.",
   "suggest.file.too_many": { one: "Hooguit {count} bestand.", other: "Hooguit {count} bestanden." },
   "suggest.file.sending": "{name} wordt verstuurd",
   "suggest.file.sent": "{name} is verstuurd.",

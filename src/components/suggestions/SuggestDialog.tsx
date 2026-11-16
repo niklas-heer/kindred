@@ -94,10 +94,12 @@ export function SuggestDialog({ tree, p, onClose }: { tree: string; p: GPerson; 
     switch (kind) {
       case 'details': {
         const out: Record<string, unknown> = {};
-        for (const k of Object.keys(details) as (keyof Details)[]) {
-          if (details[k] === base[k]) continue;
+        // Someone living has no death: turning "Still living" on takes away a death date and place, typed or on record.
+        const now: Details = details.living ? { ...details, died: '', diedPlace: '' } : details;
+        for (const k of Object.keys(now) as (keyof Details)[]) {
+          if (now[k] === base[k]) continue;
           if (protect && k === 'living') continue;
-          out[k] = k === 'living' ? details.living : k === 'given' ? details.given.trim() : orNull(String(details[k]));
+          out[k] = k === 'living' ? now.living : k === 'given' ? now.given.trim() : orNull(String(now[k]));
         }
         return out;
       }
@@ -190,6 +192,7 @@ export function SuggestDialog({ tree, p, onClose }: { tree: string; p: GPerson; 
     for (const file of list ? [...list] : []) {
       const problem = fileProblem(file);
       if (problem === 'type') why.push(t('suggest.file.wrong_type', { name: file.name }));
+      else if (problem === 'empty') why.push(t('suggest.file.empty', { name: file.name }));
       else if (problem === 'size') why.push(t('suggest.file.too_big', { name: file.name, size: MAX_MB }));
       else if (next.length >= MAX_FILES) why.push(t('suggest.file.too_many', { count: MAX_FILES }));
       else next.push(file);

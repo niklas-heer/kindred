@@ -87,6 +87,7 @@ export default {
   "suggest.file_remove": "Usuń: {name}",
   "suggest.file.too_big": "{name} jest większy niż {size} MB.",
   "suggest.file.wrong_type": "{name} nie jest obrazem ani plikiem PDF.",
+  "suggest.file.empty": "Plik {name} jest pusty: nie ma w nim nic do wysłania.",
   "suggest.file.too_many": { one: "Najwyżej {count} plik.", few: "Najwyżej {count} pliki.", many: "Najwyżej {count} plików.", other: "Najwyżej {count} pliku." },
   "suggest.file.sending": "Wysyłanie: {name}",
   "suggest.file.sent": "Wysłano: {name}.",

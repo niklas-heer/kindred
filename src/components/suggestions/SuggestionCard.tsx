@@ -27,6 +27,8 @@ import { eventMode, headingOf, nowOf, rowsFor, sizeText, useEventsOf, valueAt, v
 import './suggestions.css';
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+/** Refusals that mean the reviewer must look at the suggestion again before approving it. */
+const RELOOK = new Set(['suggest.err.changed', 'suggest.err.decided']);
 
 export function SuggestionCard({ tree, v }: { tree: string; v: SuggestionView }) {
   const t = useT();
@@ -42,7 +44,7 @@ export function SuggestionCard({ tree, v }: { tree: string; v: SuggestionView })
   const [asking, setAsking] = useState<'approve' | 'decline' | 'close' | null>(null);
   const [reason, setReason] = useState('');
   const matches = useQuery({ ...matchCandidatesQuery(tree, v.id), enabled: v.kind === 'relative' && v.may.approve }).data ?? [];
-  const rows = rowsFor(v.kind, adjusting ? values : v.payload);
+  const rows = rowsFor(v.kind, adjusting ? values : v.payload, v.payload);
   const adjusted = adjusting && !same(values, v.payload);
   const filesSource = v.files.length > 0 && v.kind !== 'source';
   const refresh = (keys: unknown[][]) => Promise.all(keys.map((queryKey) => qc.invalidateQueries({ queryKey })));
@@ -63,8 +65,12 @@ export function SuggestionCard({ tree, v }: { tree: string; v: SuggestionView })
       toast({ title: t('suggest.approved'), body: headingOf(v, f, t, events), icon: 'quill-ink' });
       await refresh(approvalKeys(tree));
     },
-    // The record moved on, or another reviewer acted: the list is read again, with the record's values now.
-    onError: () => void refresh(suggestionKeys(tree)),
+    // The record moved on, or another reviewer acted: the list is read again, with the record's values now, and the
+    // confirmation closes, so approving again means pressing Approve once the reviewer has seen them.
+    onError: (e) => {
+      if (e instanceof Error && RELOOK.has(e.message)) setAsking(null);
+      void refresh(suggestionKeys(tree));
+    },
   });
   const decline = useMutation({
     mutationFn: () => declineSuggestionFn({ data: { tree, id: v.id, reason: reason.trim() || undefined } }),
@@ -79,8 +85,17 @@ export function SuggestionCard({ tree, v }: { tree: string; v: SuggestionView })
   const chosenPerson = chosen ? f.byId.get(chosen.person) : undefined;
   const heading = headingOf(v, f, t, events);
   const correction = !!v.current;
-  // A correction sets a value to none; a new person, event or source simply leaves it out.
+  // A correction sets a value to none (an event's note to no words); a new person, event or source leaves it out.
   const corrects = v.kind === 'details' || (v.kind === 'event' && eventMode(v.payload as EventPayload) !== 'new');
+  const edit = (r: Row, x: unknown) => setValues((p) => {
+    let next = withValue(p, r.path, x === null || x === '' ? (corrects ? (r.path === 'note' ? '' : null) : undefined) : x);
+    // A relative's kind of parent or of partnership goes with the link it belongs to.
+    if (r.path === 'link.kind') {
+      if (x !== 'parent' && x !== 'child') next = withValue(next, 'link.parentKind', undefined);
+      if (x !== 'partner') next = withValue(next, 'link.partnerKind', undefined);
+    }
+    return next;
+  });
 
   return (
     <article className="ui-card sg-card" aria-labelledby={`${id}-h`}>
@@ -96,7 +111,7 @@ export function SuggestionCard({ tree, v }: { tree: string; v: SuggestionView })
       {v.note && <blockquote className="sg-note">{v.note}</blockquote>}
 
       <Change v={v} rows={rows} values={adjusting ? values : v.payload} correction={correction} events={events}
-        edit={adjusting ? (r, x) => setValues((p) => withValue(p, r.path, x === null || x === '' ? (corrects ? null : undefined) : x)) : undefined} />
+        edit={adjusting ? edit : undefined} />
       {adjusting && <p className="subtle sg-hint">{t('suggest.card.adjusting')}</p>}
 
       {v.files.length > 0 && <Files tree={tree} v={v} />}
@@ -132,6 +147,7 @@ export function SuggestionCard({ tree, v }: { tree: string; v: SuggestionView })
       )}
 
       {v.may.close && <p className="sg-begun" role="note">{t('suggest.card.begun')}</p>}
+      {approve.isError && asking !== 'approve' && <p className="err" role="alert">{errorText(approve.error, t.locale)}</p>}
 
       <div className="sg-actions">
         {v.may.approve && <button type="button" className="btn primary" disabled={busy} aria-haspopup="dialog" onClick={() => { approve.reset(); setAsking('approve'); }}><Check size={15} aria-hidden /> {t('suggest.approve')}</button>}

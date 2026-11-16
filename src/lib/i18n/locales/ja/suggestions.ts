@@ -87,6 +87,7 @@ export default {
   "suggest.file_remove": "{name}を削除",
   "suggest.file.too_big": "{name}が{size} MBを超えています。",
   "suggest.file.wrong_type": "{name}は画像でもPDFでもありません。",
+  "suggest.file.empty": "{name}は空です。送る内容がありません。",
   "suggest.file.too_many": { other: "ファイルは最大{count}件です。" },
   "suggest.file.sending": "{name}を送信中",
   "suggest.file.sent": "{name}を送信しました。",

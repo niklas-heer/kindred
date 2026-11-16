@@ -87,6 +87,7 @@ export default {
   "suggest.file_remove": "移除{name}",
   "suggest.file.too_big": "{name}超过了 {size} MB。",
   "suggest.file.wrong_type": "{name}不是图片或 PDF。",
+  "suggest.file.empty": "{name}是空的，没有可发送的内容。",
   "suggest.file.too_many": { other: "最多 {count} 个文件。" },
   "suggest.file.sending": "正在发送{name}",
   "suggest.file.sent": "{name}已发送。",

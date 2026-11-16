@@ -88,6 +88,7 @@ export const en = {
   "suggest.file_remove": "Remove {name}",
   "suggest.file.too_big": "{name} is larger than {size} MB.",
   "suggest.file.wrong_type": "{name} is not a picture or a PDF.",
+  "suggest.file.empty": "{name} is empty: it holds nothing to send.",
   "suggest.file.too_many": { one: "At most {count} file.", other: "At most {count} files." },
   "suggest.file.sending": "Sending {name}",
   "suggest.file.sent": "{name} is sent.",

@@ -1,9 +1,9 @@
 // Journey 43: suggestions from the family (docs/suggestions.md). A viewer (invited, in a browser of their own) suggests a
-// corrected birth year on a person's page; the steward finds it under Suggestions, adjusts the year and approves it; the
+// corrected birth year on a person's page; an editor (invited too) finds it under Suggestions, adjusts the year and approves it; the
 // person shows the adjusted year, their history says who suggested it, and the viewer sees "Approved with changes". A
 // guest of a share link (protecting living people) suggests a missing parent with a photo, giving their name; on a living
-// person they have no way to suggest. The steward sees the parent may be someone already in the tree, approves them as
-// someone new, and the photo is a file of the source made for it. A suggestion the steward declines loses its file, and
+// person they have no way to suggest. The editor sees the parent may be someone already in the tree, approves them as
+// someone new, and the photo is a file of the source made for it. A suggestion the editor declines loses its file, and
 // the viewer sees the reason.
 import { addPasskeyDevice, checkAxe, expect, openFamily, settled, STEWARD, test, type Issues } from './fixtures.ts';
 import type { Browser, Page } from '@playwright/test';
@@ -62,7 +62,7 @@ async function stewardPage(page: Page, tree: string) {
   return (await page.getByRole('complementary').getByRole('link', { name: new RegExp(`^${FULL}`) }).first().getAttribute('href'))!;
 }
 
-test('suggestions: a viewer and a guest suggest, the steward adjusts, approves and declines', async ({ page, browser, issues, baseURL }) => {
+test('suggestions: a viewer and a guest suggest, an editor adjusts, approves and declines', async ({ page, browser, issues, baseURL }) => {
   test.setTimeout(300_000);
   const tree = await openFamily(page);
   const edda = await addChild(page, tree, 'Edda', 'Suggs', '1990');
@@ -79,6 +79,8 @@ test('suggestions: a viewer and a guest suggest, the steward adjusts, approves a
 
   // ---------- a viewer suggests a corrected birth year ----------
   const { context, them } = await inviteMember(page, browser, issues, baseURL, tree, 'Bo Viewer', 'Viewer');
+  // Whoever reviews is an editor: the steward only sets the family up.
+  const { context: editing, them: ed } = await inviteMember(page, browser, issues, baseURL, tree, 'Dee Editor', 'Editor');
   await them.goto(edda);
   await settled(them);
   await expect(them.getByRole('tab', { name: 'Edit' })).toHaveCount(0);
@@ -96,38 +98,38 @@ test('suggestions: a viewer and a guest suggest, the steward adjusts, approves a
   await expect(theirs.getByText('Waiting')).toBeVisible();
   await expect(theirs.getByRole('button', { name: 'Withdraw' })).toBeVisible();
 
-  // ---------- the steward adjusts it and approves ----------
-  await page.goto(`/${tree}`);
-  await settled(page);
-  const sections = page.getByRole('navigation', { name: 'Sections' }).first();
+  // ---------- an editor adjusts it and approves ----------
+  await ed.goto(`/${tree}`);
+  await settled(ed);
+  const sections = ed.getByRole('navigation', { name: 'Sections' }).first();
   await sections.getByRole('button', { name: /^More/ }).click();
   await expect(sections.getByRole('list', { name: 'More sections' }).getByRole('link', { name: /^Suggestions/ })).toContainText('1');
   await sections.getByRole('list', { name: 'More sections' }).getByRole('link', { name: /^Suggestions/ }).click();
-  await page.waitForURL(new RegExp(`/${tree}/suggestions$`));
-  await settled(page);
-  const card = page.getByRole('article', { name: /Edda Suggs/ });
+  await ed.waitForURL(new RegExp(`/${tree}/suggestions$`));
+  await settled(ed);
+  const card = ed.getByRole('article', { name: /Edda Suggs/ });
   await expect(card.getByText('Suggested by Bo Viewer')).toBeVisible();
   await expect(card.getByText('Her baptism record says so.')).toBeVisible();
   const row = card.getByRole('row', { name: /^Born/ });
   await expect(row).toContainText('1990');
   await expect(row).toContainText('1991');
-  await checkAxe(page, 'suggestions');
+  await checkAxe(ed, 'suggestions');
   await card.getByRole('button', { name: 'Adjust' }).click();
   await card.getByRole('group', { name: 'Born' }).getByRole('textbox', { name: 'Year' }).fill('1992');
   await card.getByRole('button', { name: 'Approve' }).click();
-  const approving = page.getByRole('dialog', { name: 'Approve this suggestion?' });
+  const approving = ed.getByRole('dialog', { name: 'Approve this suggestion?' });
   await approving.getByRole('button', { name: 'Approve' }).click();
   await expect(approving).toBeHidden();
   await expect(card).toHaveCount(0);
-  await expect(page.getByText('Nothing is waiting')).toBeVisible();
+  await expect(ed.getByText('Nothing is waiting')).toBeVisible();
 
   // The person shows it, and their history says who suggested it.
-  await page.goto(edda);
-  await settled(page);
-  await expect(page.locator('.pp-keyfacts')).toContainText('1992');
-  await page.goto(`/${tree}/history?person=${edda.split('/').pop()}`);
-  await settled(page);
-  await expect(page.getByText(/\(suggested by Bo Viewer\)/).first()).toBeVisible();
+  await ed.goto(edda);
+  await settled(ed);
+  await expect(ed.locator('.pp-keyfacts')).toContainText('1992');
+  await ed.goto(`/${tree}/history?person=${edda.split('/').pop()}`);
+  await settled(ed);
+  await expect(ed.getByText(/\(suggested by Bo Viewer\)/).first()).toBeVisible();
   await them.reload();
   await settled(them);
   await expect(theirs.getByText('Approved with changes')).toBeVisible();
@@ -142,7 +144,8 @@ test('suggestions: a viewer and a guest suggest, the steward adjusts, approves a
   await expect(shown.first()).toBeVisible();
   const url = await shown.first().inputValue();
   const password = await shown.nth(1).inputValue();
-  issues.allow(/Failed to load resource: the server responded with a status of 40[134]/);
+  // The tree a guest lands on asks for what only members read, and is refused, as in journey 5.
+  issues.allow(/Failed to load resource: the server responded with a status of 40[13]/);
   const visit = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
   issues.watch(visit);
   const guest = await visit.newPage();
@@ -179,27 +182,27 @@ test('suggestions: a viewer and a guest suggest, the steward adjusts, approves a
   await expect(asking).toBeHidden();
   await expect(guest.getByRole('region', { name: 'Your suggestions' }).getByText('Waiting')).toBeVisible();
 
-  // ---------- the steward sees a possible match, and approves them as someone new ----------
-  await page.goto(`/${tree}/suggestions`);
-  await settled(page);
-  const parent = page.getByRole('article', { name: /parent of Edda Suggs/ });
+  // ---------- the editor sees a possible match, and approves them as someone new ----------
+  await ed.goto(`/${tree}/suggestions`);
+  await settled(ed);
+  const parent = ed.getByRole('article', { name: /parent of Edda Suggs/ });
   await expect(parent.getByText('Suggested by Cee Guest')).toBeVisible();
   await expect(parent.getByText('Guest', { exact: true })).toBeVisible();
   await expect(parent.getByRole('link', { name: 'carl.png' })).toHaveAttribute('href', new RegExp(`^/api/suggestion-file/${tree}/[0-9a-f-]{36}$`));
   const matches = parent.getByRole('radiogroup', { name: 'Is this someone already in the tree?' });
   await expect(matches.getByRole('radio', { name: /^This is Carl Suggs/ })).toBeVisible();
   await expect(matches.getByRole('radio', { name: 'No, add them as someone new' })).toBeChecked();
-  await checkAxe(page, 'suggestions, a missing relative');
+  await checkAxe(ed, 'suggestions, a missing relative');
   await parent.getByRole('button', { name: 'Approve' }).click();
-  await page.getByRole('dialog', { name: 'Approve this suggestion?' }).getByRole('button', { name: 'Approve' }).click();
+  await ed.getByRole('dialog', { name: 'Approve this suggestion?' }).getByRole('button', { name: 'Approve' }).click();
   await expect(parent).toHaveCount(0);
   // The photo is a file of the source made for it.
-  await page.goto(`/${tree}/research/sources`);
-  await settled(page);
-  const source = page.locator('.source-card', { hasText: 'Supplied with a suggestion by Cee Guest' });
+  await ed.goto(`/${tree}/research/sources`);
+  await settled(ed);
+  const source = ed.locator('.source-card', { hasText: 'Supplied with a suggestion by Cee Guest' });
   const file = source.getByRole('link', { name: 'carl.png' });
   await expect(file).toHaveAttribute('href', new RegExp(`^/api/source-file/${tree}/`));
-  expect((await page.request.get((await file.getAttribute('href'))!)).status()).toBe(200);
+  expect((await ed.request.get((await file.getAttribute('href'))!)).status()).toBe(200);
   await visit.close();
 
   // ---------- a declined suggestion loses its file, and the viewer sees why ----------
@@ -211,21 +214,22 @@ test('suggestions: a viewer and a guest suggest, the steward adjusts, approves a
   await dialog.locator('input[type=file]').setInputFiles({ name: 'register.png', mimeType: 'image/png', buffer: PNG });
   await dialog.getByRole('button', { name: 'Send the suggestion' }).click();
   await expect(dialog).toBeHidden();
-  await page.goto(`/${tree}/suggestions`);
-  await settled(page);
-  const register = page.getByRole('article', { name: /Parish register of Suggsby/ });
+  await ed.goto(`/${tree}/suggestions`);
+  await settled(ed);
+  const register = ed.getByRole('article', { name: /Parish register of Suggsby/ });
   const pending = (await register.getByRole('link', { name: 'register.png' }).getAttribute('href'))!;
-  expect((await page.request.get(pending)).status()).toBe(200);
+  expect((await ed.request.get(pending)).status()).toBe(200);
   await register.getByRole('button', { name: 'Decline' }).click();
-  const declining = page.getByRole('dialog', { name: 'Decline this suggestion?' });
+  const declining = ed.getByRole('dialog', { name: 'Decline this suggestion?' });
   await declining.getByRole('textbox', { name: 'Why (if you like)' }).fill('We have the original already.');
   await declining.getByRole('button', { name: 'Decline' }).click();
   await expect(declining).toBeHidden();
   await expect(register).toHaveCount(0);
-  expect((await page.request.get(pending)).status()).toBe(404);
+  expect((await ed.request.get(pending)).status()).toBe(404);
   await them.reload();
   await settled(them);
   await expect(theirs.getByText('Declined')).toBeVisible();
   await expect(theirs.getByText('Reason: We have the original already.')).toBeVisible();
   await context.close();
+  await editing.close();
 });

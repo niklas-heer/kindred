@@ -87,6 +87,7 @@ export default {
   "suggest.file_remove": "Remover {name}",
   "suggest.file.too_big": "{name} é maior que {size} MB.",
   "suggest.file.wrong_type": "{name} não é uma imagem nem um PDF.",
+  "suggest.file.empty": "{name} está vazio: não há nada nele para enviar.",
   "suggest.file.too_many": { one: "No máximo {count} arquivo.", other: "No máximo {count} arquivos." },
   "suggest.file.sending": "Enviando {name}",
   "suggest.file.sent": "{name} foi enviado.",

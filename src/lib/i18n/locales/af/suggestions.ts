@@ -87,6 +87,7 @@ export default {
   "suggest.file_remove": "Verwyder {name}",
   "suggest.file.too_big": "{name} is groter as {size} MB.",
   "suggest.file.wrong_type": "{name} is nie ’n prent of ’n PDF nie.",
+  "suggest.file.empty": "{name} is leeg: daar is niks om te stuur nie.",
   "suggest.file.too_many": { one: "Hoogstens {count} lêer.", other: "Hoogstens {count} lêers." },
   "suggest.file.sending": "{name} word gestuur",
   "suggest.file.sent": "{name} is gestuur.",

@@ -87,6 +87,7 @@ export default {
   "suggest.file_remove": "Retirer {name}",
   "suggest.file.too_big": "{name} dépasse {size} Mo.",
   "suggest.file.wrong_type": "{name} n’est ni une image ni un PDF.",
+  "suggest.file.empty": "{name} est vide : il ne contient rien à envoyer.",
   "suggest.file.too_many": { one: "{count} fichier au plus.", other: "{count} fichiers au plus." },
   "suggest.file.sending": "Envoi de {name}",
   "suggest.file.sent": "{name} est envoyé.",

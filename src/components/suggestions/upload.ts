@@ -22,10 +22,11 @@ export function uploadSuggestionFile(tree: string, id: string, file: File, onPro
   });
 }
 
-/** Why a chosen file cannot be sent, before it is: its type or its size; null when it can. */
-export function fileProblem(file: File): 'type' | 'size' | null {
+/** Why a chosen file cannot be sent, before it is: its type, that it is empty, or its size; null when it can. */
+export function fileProblem(file: File): 'type' | 'empty' | 'size' | null {
   if (!(FILE_TYPES as readonly string[]).includes(file.type)) return 'type';
-  if (file.size > MAX_FILE_BYTES || file.size === 0) return file.size === 0 ? 'type' : 'size';
+  if (file.size === 0) return 'empty';
+  if (file.size > MAX_FILE_BYTES) return 'size';
   return null;
 }
 

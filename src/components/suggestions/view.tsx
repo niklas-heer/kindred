@@ -65,21 +65,25 @@ export function withValue<P>(payload: P, path: string, value: unknown): P {
 /** Whether an event suggestion corrects an event, a couple, or adds an event. */
 export const eventMode = (p: EventPayload) => (p.partnership !== undefined ? 'couple' : p.event !== undefined ? 'fix' : 'new');
 
-/** The rows a suggestion of this kind can have, in order (a correction's only those it changes). */
-export function rowsFor(kind: SuggestionView['kind'], payload: SuggestionPayload): Row[] {
-  if (kind === 'details') return DETAILS.filter((r) => valueAt(payload, r.path) !== undefined);
+/**
+ * The rows a suggestion of this kind can have, in order (a correction's only those it changes). While a reviewer adjusts it,
+ * `original` is the payload as suggested, so a value they empty keeps its row.
+ */
+export function rowsFor(kind: SuggestionView['kind'], payload: SuggestionPayload, original?: SuggestionPayload): Row[] {
+  const has = (path: string) => valueAt(payload, path) !== undefined || (original !== undefined && valueAt(original, path) !== undefined);
+  if (kind === 'details') return DETAILS.filter((r) => has(r.path));
   if (kind === 'relative') {
     const link = (payload as RelativePayload).link?.kind;
     return RELATIVE.filter((r) =>
-      r.path === 'link.parentKind' ? link === 'parent' || link === 'child' : r.path === 'link.partnerKind' ? link === 'partner' : r.path !== 'person.furtherGiven' || valueAt(payload, r.path) !== undefined);
+      r.path === 'link.parentKind' ? link === 'parent' || link === 'child' : r.path === 'link.partnerKind' ? link === 'partner' : r.path !== 'person.furtherGiven' || has(r.path));
   }
   if (kind === 'event') {
     const p = payload as EventPayload;
     const mode = eventMode(p);
-    if (mode === 'new') return NEW_EVENT.filter((r) => r.path !== 'label' || p.kind === 'custom' || p.label !== undefined);
-    return (mode === 'couple' ? COUPLE_FIX : EVENT_FIX).filter((r) => valueAt(payload, r.path) !== undefined);
+    if (mode === 'new') return NEW_EVENT.filter((r) => r.path !== 'label' || p.kind === 'custom' || has('label'));
+    return (mode === 'couple' ? COUPLE_FIX : EVENT_FIX).filter((r) => has(r.path));
   }
-  return SOURCE.filter((r) => r.path === 'title' || valueAt(payload, r.path) !== undefined);
+  return SOURCE.filter((r) => r.path === 'title' || has(r.path));
 }
 
 /** The value in words. */
