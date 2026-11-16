@@ -383,6 +383,28 @@ test('a file whose row the database refuses is deleted from storage again', asyn
   assert.equal(usage?.n, 0, 'and no longer counted');
 });
 
+test('a file whose row is refused and whose delete fails is logged, by its key alone', async (t) => {
+  const f = await family();
+  const { id } = await details(f, member(ada), 'bo', { born: '1919' });
+  await db.db(f).run("CREATE TRIGGER no_files BEFORE INSERT ON suggestion_file BEGIN SELECT RAISE(ABORT, 'CHECK constraint failed: test'); END");
+  const logged = t.mock.method(console, 'error', () => {});
+  const del = t.mock.method(db.media, 'delete', async () => { throw new Error('storage down'); });
+  assert.match(await refusal(S.addSuggestionFile(f, member(ada), id, file('image/png', PNG(), 'Ada Alder birth.png'), NOW)), /constraint failed/);
+  del.mock.restore();
+  const lines = logged.mock.calls.map((c) => c.arguments);
+  assert.equal(lines.length, 1, 'the failed delete is logged once');
+  assert.equal(lines[0]![0], 'suggest.err.delete_failed');
+  assert.match(String(lines[0]![1]), /^suggest\/[0-9a-f-]{36}\.png$/);
+  assert.doesNotMatch(JSON.stringify(lines[0]!.slice(0, 2)), /Ada/, 'no names');
+});
+
+test('a note that is not text is refused as a payload, not thrown as a type error', async () => {
+  const t = await family();
+  assert.equal(await refusal(details(t, member(ada), 'bo', { born: '1919' }, 5 as never)), 'suggest.err.payload');
+  assert.equal(await refusal(details(t, member(ada), 'bo', { born: '1919' }, { text: 'x' } as never)), 'suggest.err.payload');
+  assert.equal(await count(t, 'suggestion'), 0);
+});
+
 // ---------- withdrawing ----------
 
 test('withdrawing your own waiting suggestion deletes its files from storage and their rows', async () => {

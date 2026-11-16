@@ -383,7 +383,7 @@ export async function createSuggestion(
   tree: string, by: Suggester, input: { kind: SuggestionKind; person: string | null; payload: SuggestionPayload; note?: string }, now: Date = new Date(),
 ): Promise<{ id: string }> {
   const name = authorName(by);
-  if (!SUGGESTION_KINDS.includes(input.kind)) throw err('payload');
+  if (!SUGGESTION_KINDS.includes(input.kind) || (input.note !== undefined && typeof input.note !== 'string')) throw err('payload');
   const note = cleanComment(input.note ?? '').trim();
   if (note.length > MAX_NOTE) throw err('note');
   return once(tree, undefined, 'createSuggestion', async (d) => {
@@ -506,7 +506,8 @@ export async function addSuggestionFile(
       ],
       history: NOT_A_RECORD,
       result: { id },
-      abandon: () => media.delete(tree, key).catch(() => {}),
+      // Logged by its key alone, as a withdrawal's: the sweep (expiry.server.ts) takes the stray object later.
+      abandon: () => media.delete(tree, key).catch((e) => console.error('suggest.err.delete_failed', key, e)),
     };
   });
 }
