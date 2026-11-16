@@ -435,6 +435,40 @@ test('files move to source/ through the counted store, on a source made for them
 
 // ---------- Review Focus 4: an approval that fails half-way ----------
 
+test('near the storage cap an approval moves its files without counting them twice; over it, it is refused before anything is written', async () => {
+  const t = await family();
+  asReviewer(fay);
+  const used = async () => (await db.store.accounts().get<{ n: number }>('SELECT coalesce(sum(bytes), 0) AS n FROM media_usage WHERE tree = ?', t))!.n;
+  const cap = (n: number | null) =>
+    db.store.accounts().run('INSERT INTO family_admin (tree, cap_bytes) VALUES (?, ?) ON CONFLICT(tree) DO UPDATE SET cap_bytes = excluded.cap_bytes', t, n);
+  try {
+    const { id } = await suggest(t, member(ada), 'details', 'bo', { born: '1919' });
+    await S.addSuggestionFile(t, member(ada), id, file('image/png', PNG(), 'birth.png'), NOW);
+    // Full: the pending file fits, a second copy of it would not.
+    const full = await used();
+    await cap(full);
+    const r = await R.approveSuggestion(t, fay, id);
+    assert.equal((await row(t, id))!.status, 'approved');
+    assert.equal(await used(), full, 'the moved file is counted once');
+    assert.deepEqual(await usage(t, 'source/'), r.applied.files);
+    assert.deepEqual(await usage(t, 'suggest/'), []);
+
+    // Over the cap (lowered since): refused as full before its decision or any step, so it can still be declined.
+    await cap(null);
+    const other = await suggest(t, member(ada), 'details', 'cara', { born: '1923' });
+    await S.addSuggestionFile(t, member(ada), other.id, file('image/png', PNG(), 'cara.png'), NOW);
+    await cap((await used()) - 1);
+    const before = await records(t);
+    assert.match(await refusal(R.approveSuggestion(t, fay, other.id)), /storage is full/);
+    assert.deepEqual(await records(t), before, 'nothing written');
+    assert.equal(await count(t, 'op', `key LIKE 'sugg:${other.id}:%'`), 0, 'not even its decision');
+    await R.declineSuggestion(t, fay, other.id);
+    assert.equal((await row(t, other.id))!.status, 'declined');
+  } finally {
+    await cap(null);
+  }
+});
+
 test('an approval that fails at its second step is retried without duplicates, and its status flips once', async () => {
   const t = await family();
   asReviewer(fay);
@@ -486,6 +520,7 @@ test('an approval that fails at its last step (the files) is retried: nothing tw
   assert.deepEqual(await stored(t, 'suggest/'), pending, 'the file is still pending');
   assert.deepEqual(await stored(t, 'source/'), [], 'the copy made for the refused batch is taken back');
   assert.deepEqual(await usage(t, 'source/'), []);
+  assert.deepEqual(await usage(t, 'suggest/'), pending, 'the pending file is still counted');
   // Half-way, it can be neither declined nor withdrawn.
   assert.equal(await refusal(R.declineSuggestion(t, fay, id)), 'suggest.err.partial');
   assert.equal(await refusal(S.withdrawSuggestion(t, member(ada), id)), 'suggest.err.partial');

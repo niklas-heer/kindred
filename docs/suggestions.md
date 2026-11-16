@@ -51,7 +51,9 @@ taken out when it is attached.
 - **Pending**: a file is stored under `suggest/` and counts against the family's storage. Only editors and stewards, and the
   suggester while it waits, can open it. The family's pending files may total at most 200 MB.
 - **Approved**: the files move to `source/` and become the files of a source (the one suggested, or one made for the change,
-  which cites the facts it changed). Sources and their files are for members only.
+  which cites the facts it changed). Sources and their files are for members only. A moving file is counted once against the
+  family's storage cap, so a full family can still approve; a family over its cap (one lowered since) is told its storage is
+  full before the approval writes anything.
 - **Deleted** when the suggestion is declined, expires or is withdrawn, and when an approval is closed as partly applied.
 - **Stray files**: deleting a person or a source deletes its rows but not the stored objects. The daily `suggestions` job deletes
   an object under `suggest/` or `source/` that no row names, but only once it is **30 days old**, so an upload whose row is about

@@ -27,8 +27,9 @@
 //   `changed` and nothing is written.
 // - A person whose processing is restricted (GDPR Art. 18) is not changed, as the edit forms refuse it.
 // - Files move from `suggest/` to `source/<uuid>.<ext>` through the counted media store (stored anew, then the pending
-//   object deleted), as files of the suggested source or of a source made for them that cites the facts changed. They had
-//   their metadata taken out when they were attached. Declining deletes them from storage.
+//   object deleted; counted once, `putInPlaceOf`), as files of the suggested source or of a source made for them that cites
+//   the facts changed. A family over its storage cap is refused (the store's storage-full error) before anything is written.
+//   They had their metadata taken out when they were attached. Declining deletes them from storage.
 // - Errors are translation keys (`suggest.err.*`), as in suggest.server.ts, or the refusals of the write paths themselves:
 //     gone      no such suggestion                   state    it is no longer waiting
 //     changed   the record moved on since            payload  adjusted values are not a valid suggestion of its kind
@@ -45,6 +46,7 @@ import { saveEvent, type LifeReader } from '../events.server.ts';
 import type { EventType, Fact } from '../events.ts';
 import { needsMember, type Who } from '../feed/posts.server.ts';
 import { refuseRestricted } from '../gdpr/subject.server.ts';
+import { refuseUnlessMovable } from '../operator/storage.server.ts';
 import { correctPerson, fillGaps, type Correctable } from '../person.server.ts';
 import { addRelativePlan, linkPlan, partnershipDetailsPlan } from '../relations.server.ts';
 import { cleanComment } from '../responses.ts';
@@ -346,6 +348,10 @@ export async function approveSuggestion(
   // Only a source may be about no one, and then it backs nothing.
   const person = row.person ?? '';
   if (row.person) await notRestricted(tree, row.person);
+  // Its files must have room to move before anything is written: a family over its storage cap is told so now, rather than
+  // at the last step, when the records would be changed and the approval could only be closed.
+  const pending = await d.all<{ key: string; size: number }>('SELECT key, size FROM suggestion_file WHERE suggestion = ?', id);
+  if (pending.length) await refuseUnlessMovable(tree, pending.map((f) => f.key), pending.reduce((n, f) => n + f.size, 0));
   const kept = await decisions(d, id);
   const latest = kept[0];
   const bound = await boundDecision(d, id, kept);
@@ -374,7 +380,7 @@ export async function approveSuggestion(
     }
   }
   if (decision.existing) await notRestricted(tree, decision.existing);
-  const files = (await d.get<{ n: number }>('SELECT count(*) AS n FROM suggestion_file WHERE suggestion = ?', id))?.n ?? 0;
+  const files = pending.length;
   const opOf = (n: number): OpKey => ({ key: `sugg:${id}:${n}`, user: keyUser(id), payload: { decision: k } });
   const c: Ctx = {
     tree, d, row, person, payload: decision.payload, existing: decision.existing ?? undefined,
@@ -430,12 +436,13 @@ function finish(c: Ctx, out: Applied, source: string | undefined, adjusted: bool
          (SELECT group_concat(name, ', ') FROM (SELECT name FROM source_file WHERE source = s.id ORDER BY ord)) AS names FROM source s WHERE s.id = ?`, source) : undefined;
     if (source && !at) throw new Error('sources.err.gone');
     // Stored anew under source/, then (after the batch) the pending objects deleted; a batch that does not commit takes the new ones back.
+    // Each is stored in place of the pending ones moved so far, so a full family's move is not refused for counting them twice.
     const moved: { key: string; mime: string; name: string }[] = [];
     const abandon = async () => {
       for (const m of moved) await media.delete(tree, m.key).catch(() => {});
     };
     try {
-      for (const f of files) {
+      for (const [i, f] of files.entries()) {
         const obj = await media.get(tree, f.key);
         if (!obj) {
           console.error('suggest.err.file_gone', f.key);
@@ -443,7 +450,7 @@ function finish(c: Ctx, out: Applied, source: string | undefined, adjusted: bool
         }
         const bytes = obj.body instanceof Uint8Array ? obj.body : new Uint8Array(await new Response(obj.body).arrayBuffer());
         const key = `source/${crypto.randomUUID()}.${f.key.split('.').pop()}`;
-        await media.put(tree, key, bytes, f.mime);
+        await media.putInPlaceOf(tree, key, bytes, f.mime, files.slice(0, i + 1).map((x) => x.key));
         moved.push({ key, mime: f.mime, name: f.name });
       }
     } catch (e) {
