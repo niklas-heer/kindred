@@ -191,6 +191,12 @@ test('what the format cannot carry is listed for the report', () => {
   const withProposals = fixtureTree();
   withProposals.extras.proposals = 2;
   assert.match(writeGedcom(withProposals).losses.join('\n'), /2 coat-of-arms proposals are not exported/);
+  const withSuggestions = fixtureTree();
+  withSuggestions.extras.suggestions = 2;
+  withSuggestions.extras.sourceFiles = 4;
+  const lost = writeGedcom(withSuggestions).losses.join('\n');
+  assert.match(lost, /2 suggestions \(waiting or decided\) and their files are not exported/);
+  assert.match(lost, /4 files of sources are not exported/);
 });
 
 test('an empty family writes a valid file and reads back with nothing', () => {

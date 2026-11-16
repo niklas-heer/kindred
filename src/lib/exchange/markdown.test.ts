@@ -52,6 +52,20 @@ test('a marriage is an event on the lower-id partner’s note, a partnership a p
   assert.equal(note('jonas').partners, undefined, 'the partnership is declared once');
 });
 
+test('suggestions and source files are listed as not in the archive', () => {
+  const t = fixtureTree();
+  t.extras.suggestions = 3;
+  t.extras.sourceFiles = 1;
+  const losses = markdownArchive(t).losses;
+  assert.ok(losses.includes('3 suggestions (waiting or decided) and their files are not in the archive'));
+  assert.ok(losses.includes('1 file of a source is not in the archive (the sources are)'));
+  t.extras.suggestions = 1;
+  assert.ok(markdownArchive(t).losses.includes('1 suggestion (waiting or decided) and its files are not in the archive'));
+  t.extras.suggestions = 0;
+  t.extras.sourceFiles = 0;
+  assert.ok(!markdownArchive(t).losses.some((l) => /suggestion|source/.test(l)));
+});
+
 test('coat-of-arms proposals are listed as not in the archive', () => {
   const t = fixtureTree();
   t.extras.proposals = 1;

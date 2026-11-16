@@ -145,3 +145,17 @@ test('the comments on a vote are under it, open or closed, written as text', asy
   const text = (await archiveOf(open, `votes/${from.toISOString().slice(0, 4)}.md`))!;
   assert.match(text, /Still open[^]*### Comments\n\n\*\*Ada Alder\*\*, \d{4}-\d{2}-\d{2}:\n\n> Any song but that one\n$/);
 });
+
+test('the archive counts suggestions and source files, and says they are not in it', async () => {
+  const t = await tree('archive-suggestions');
+  const d = db.db(t);
+  await d.run("INSERT INTO person (id, given, living) VALUES ('p1', 'Ada', 0)");
+  await d.run("INSERT INTO suggestion (id, kind, person, payload, status, author_name, created_at) VALUES ('s1', 'details', 'p1', '{}', 'waiting', 'Bo', '2026-11-01'), ('s2', 'details', 'p1', '{}', 'declined', 'Bo', '2026-11-01'), ('s3', 'details', 'p1', '{}', 'withdrawn', 'Bo', '2026-11-01')");
+  await d.run("INSERT INTO source (id, title, created_at, updated_at) VALUES ('src1', 'Register', '2026-11-01', '2026-11-01')");
+  await d.run("INSERT INTO source_file (source, media_key, mime, name, ord, added_at) VALUES ('src1', 'source/a.pdf', 'application/pdf', 'a.pdf', 0, '2026-11-01')");
+  const read = await readTree(d, {});
+  assert.equal(read.extras.suggestions, 2, 'a withdrawn one is not counted');
+  assert.equal(read.extras.sourceFiles, 1);
+  const { losses } = markdownArchive(read, new Set(), new Date('2026-11-15T00:00:00Z'));
+  assert.ok(losses.includes('2 suggestions (waiting or decided) and their files are not in the archive'));
+});

@@ -335,6 +335,8 @@ export function writeGedcom(tree: ExTree, now: Date = new Date()): { text: strin
   lost(tree.extras.stories, 'story, memory or saying is not exported', 'stories, memories and sayings are not exported');
   lost(tree.extras.fields, 'contact detail or other field is not exported (they hold private data)', 'contact details and other fields are not exported (they hold private data)');
   lost(tree.extras.proposals ?? 0, 'coat-of-arms proposal is not exported', 'coat-of-arms proposals are not exported');
+  lost(tree.extras.suggestions ?? 0, 'suggestion (waiting or decided) and its files are not exported', 'suggestions (waiting or decided) and their files are not exported');
+  lost(tree.extras.sourceFiles ?? 0, 'file of a source is not exported', 'files of sources are not exported');
   lost(tree.extras.houses, 'house and its arms are not exported', 'houses and their arms are not exported');
   lost(tree.extras.places, 'place coordinate is not exported; place names are', 'place coordinates are not exported; place names are');
   lost(people.filter((p) => p.epithet).length, 'epithet is not exported', 'epithets are not exported');

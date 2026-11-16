@@ -77,6 +77,10 @@ export function markdownArchive(tree: ExTree, portraits: Set<string> = new Set()
   if (tree.extras.fields) losses.push(`${tree.extras.fields} ${tree.extras.fields === 1 ? 'contact detail or other field is' : 'contact details and other fields are'} not in the archive`);
   const proposals = tree.extras.proposals ?? 0;
   if (proposals) losses.push(`${proposals} ${proposals === 1 ? 'coat-of-arms proposal is' : 'coat-of-arms proposals are'} not in the archive`);
+  const suggestions = tree.extras.suggestions ?? 0;
+  if (suggestions) losses.push(`${suggestions} ${suggestions === 1 ? 'suggestion' : 'suggestions'} (waiting or decided) and ${suggestions === 1 ? 'its' : 'their'} files are not in the archive`);
+  const sourceFiles = tree.extras.sourceFiles ?? 0;
+  if (sourceFiles) losses.push(`${sourceFiles} ${sourceFiles === 1 ? 'file of a source is' : 'files of sources are'} not in the archive (the sources are)`);
   if (tree.extras.houses) losses.push(`${tree.extras.houses} ${tree.extras.houses === 1 ? 'house and its arms are' : 'houses and their arms are'} not in the archive`);
   const byId = new Map(tree.people.map((p) => [p.id, p]));
   const link = (id: string) => `[[people/${names.get(id)}]]`;

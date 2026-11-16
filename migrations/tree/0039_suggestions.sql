@@ -3,7 +3,8 @@
 --
 -- `suggestion` is one suggestion: its `kind` (`details`, `relative`, `event` or `source`), the `person` it is about (NULL
 -- for a source that backs no one yet; deleting the person deletes their suggestions), the `payload` as JSON, an optional
--- `basis` (what the suggestion rests on, as the writer said) and a `note`. `status` is `waiting` until it is decided or
+-- `basis` (the record's values when the suggestion was made, which an approval compares with to see that the record has not
+-- moved on) and a `note`. `status` is `waiting` until it is decided or
 -- withdrawn; `expired` is set by the daily job. `adjusted` is 1 when the editor approved it with changes, `reason` is a
 -- decline text. The writer is a member (`account`) or a guest (`guest_key`, the votes cookie's key), with the
 -- `author_name` and `author_person` shown then, so it outlives the membership; `link` and `net` are a guest's, as for a

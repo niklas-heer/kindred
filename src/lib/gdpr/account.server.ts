@@ -56,6 +56,7 @@ const NAME_OF: Record<string, string[]> = {
  */
 const CLEARED_WITH_ACCOUNT: Record<string, string[]> = {
   arms_proposal: ['author_person'],
+  suggestion: ['author_person'],
   post: ['author_person'],
   vote: ['author_person'],
   vote_voter: ['person'],
@@ -233,7 +234,12 @@ const clean = (row: Record<string, unknown>) =>
   Object.fromEntries(Object.entries(row).filter(([k, v]) => !SECRET.test(k) && !(v instanceof Uint8Array)));
 
 /** Columns a family's table may export for the account's rows: the history keeps only what the account did and when. */
-const FAMILY_COLUMNS: Record<string, string[]> = { history: ['at', 'kind', 'action'] };
+const FAMILY_COLUMNS: Record<string, string[]> = {
+  history: ['at', 'kind', 'action'],
+  // A suggestion: what the member wrote and what became of it. Not `basis` (the record's values, about someone else), who decided,
+  // or what the approval wrote.
+  suggestion: ['id', 'kind', 'person', 'payload', 'note', 'status', 'adjusted', 'reason', 'created_at', 'decided_at'],
+};
 /** Family tables not exported: retry keys, and the operator's game log. */
 const FAMILY_SKIPPED = new Set(['op']);
 
@@ -248,6 +254,12 @@ async function familyRows(d: Db, tables: Table[], userId: string): Promise<Recor
     const where = owner.map((c) => `${ident(c.name)} = ?`).join(' OR ');
     const rows = await d.all<Record<string, unknown>>(`SELECT ${cols} FROM ${ident(t.name)} WHERE ${where}`, ...owner.map(() => userId));
     if (rows.length) out[t.name] = rows.map(clean);
+  }
+  // The names of the files they attached to their suggestions (the files themselves are not in the copy).
+  if (tables.some((t) => t.name === 'suggestion_file')) {
+    const files = await d.all<Record<string, unknown>>(
+      'SELECT f.suggestion, f.name, f.mime, f.size, f.created_at FROM suggestion_file f JOIN suggestion s ON s.id = f.suggestion WHERE s.account = ? ORDER BY f.created_at, f.id', userId);
+    if (files.length) out.suggestion_file = files;
   }
   if (tables.some((t) => t.name === 'ballot')) {
     const ballots = await ballotRows(d, userId);

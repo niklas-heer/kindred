@@ -7,7 +7,8 @@
 //
 // Erasure goes further than removing a person (relations.server.ts removePlan, which it builds on):
 //   - the person, and with them (foreign keys) their links, fields, events, stories, contacts, photo, portraits, tags,
-//     citations, research links and their tags on posts;
+//     citations, research links, their tags on posts, and the suggestions about them with their attached files (the objects in
+//     storage are deleted with them, not left to the daily sweep);
 //   - every gallery picture in which they are the only person tagged (a picture with others keeps its other tags), with its
 //     reactions and comments, and the files of all of these;
 //   - every history row about them, and their name and id wherever text still holds them: other people's fields, stories,
@@ -375,11 +376,17 @@ export async function erasePerson(tree: string, person: string, by: string, requ
     // The texts as read here: their guards before the removal changes any (it unlinks fields), their rewrites after it, and
     // last the names the removal itself may have written into a field it unlinked.
     const scrub = await scrubText(dd, tables, who);
-    const g = 1 + scrub.guards.length;
+    // The files of the suggestions about them, read before the removal deletes their rows (a person's deletion cascades to
+    // them): their objects in storage are deleted with the person, not left to the daily sweep.
+    const suggested = JSON.stringify((await dd.all<{ key: string }>(
+      'SELECT f.key FROM suggestion_file f JOIN suggestion s ON s.id = f.suggestion WHERE s.person = ?', person)).map((r) => r.key));
+    const g = 2 + scrub.guards.length;
     const writes: Query[] = [
       // Guarded on the tags read, so a picture tagged with someone else meanwhile is not deleted.
       guard('(SELECT count(*) FROM media_person WHERE media IN (SELECT value FROM json_each(?)) AND person <> ?) = 0', pictures, person),
       ...scrub.guards,
+      // Guarded on the same files, so one attached meanwhile is not left behind: the plan is read again.
+      guard('(SELECT count(*) FROM suggestion_file f JOIN suggestion s ON s.id = f.suggestion WHERE s.person = ? AND f.key NOT IN (SELECT value FROM json_each(?))) = 0', person, suggested),
       ...base.writes,
       q('SELECT key, thumb FROM media WHERE key IN (SELECT value FROM json_each(?))', pictures),
       q('DELETE FROM media WHERE key IN (SELECT value FROM json_each(?))', pictures),
@@ -396,6 +403,7 @@ export async function erasePerson(tree: string, person: string, by: string, requ
         await base.after?.(r.slice(g, g + nPlan));
         const rows = r[g + nPlan]!.rows as { key: string; thumb: string | null }[];
         for (const x of rows) for (const k of [x.key, x.thumb]) if (k) { await media.delete(tree, k).catch((e) => console.error('[media] could not delete', k, e)); files++; }
+        for (const k of JSON.parse(suggested) as string[]) { await media.delete(tree, k).catch((e) => console.error('[media] could not delete', k, e)); files++; }
         files += (r[g + 1]?.rows.length ?? 0) + (r[g + 2]?.rows.length ?? 0);
       },
     };

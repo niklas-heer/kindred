@@ -68,6 +68,8 @@ const votes = await load<typeof import('../votes/votes.server.ts')>('/src/lib/vo
 const arms = await load<typeof import('../arms-proposals/proposals.server.ts')>('/src/lib/arms-proposals/proposals.server.ts');
 const posts = await load<typeof import('../feed/posts.server.ts')>('/src/lib/feed/posts.server.ts');
 const feed = await load<typeof import('../feed/feed.server.ts')>('/src/lib/feed/feed.server.ts');
+const sugg = await load<typeof import('../suggestions/suggest.server.ts')>('/src/lib/suggestions/suggest.server.ts');
+const review = await load<typeof import('../suggestions/review.server.ts')>('/src/lib/suggestions/review.server.ts');
 const { closeDatabases } = await load<typeof import('../store/node.ts')>('/src/lib/store/node.ts');
 
 after(async () => {
@@ -356,6 +358,97 @@ test('coat-of-arms proposals: a deleted proposer\'s person in the tree goes too,
   const shown = read.proposals.find((p) => p.id === proposal.id)!;
   assert.equal(shown.author!.person, null, 'no face beside it');
   assert.equal(shown.author!.name, 'A former member');
+});
+
+test('suggestions: deleting an account pseudonymises its waiting and decided suggestions, and a data request lists its own', async () => {
+  const tree = 'ilsley';
+  await dbs.provisionFamily(tree, 'The Ilsleys');
+  const ida = user(61, 'Ida Ilsley');
+  const jon = user(62, 'Jon Ilsley');
+  const kit = user(63, 'Kit Ilsley');
+  for (const u of [ida, jon, kit]) await addUser(u);
+  await member(ida, tree, 'editor', 'ida_aaaaaa');
+  await member(jon, tree, 'contributor');
+  await member(kit, tree, 'steward');
+  await a().run('UPDATE membership SET person_confirmed = 1 WHERE user = ? AND tree = ?', ida.id, tree);
+  const d = dbs.db(tree);
+  await d.run("INSERT INTO person (id, given, surname, born, living) VALUES ('ida_aaaaaa', 'Ida', 'Ilsley', '1980', 1), ('ola_bbbbbb', 'Ola', 'Ilsley', '1930', 0)");
+  const as = (u: U, role: 'contributor' | 'editor' | 'steward', person: string | null = null) =>
+    ({ kind: 'member' as const, who: { id: u.id, name: u.name, role, person, personConfirmed: !!person } });
+  const idaWho = as(ida, 'editor', 'ida_aaaaaa'), jonWho = as(jon, 'contributor');
+  const mine = await sugg.createSuggestion(tree, idaWho, { kind: 'details', person: 'ola_bbbbbb', payload: { born: '1931' }, note: 'From the family Bible' });
+  const decided = await sugg.createSuggestion(tree, idaWho, { kind: 'details', person: 'ola_bbbbbb', payload: { diedPlace: 'Hull' } });
+  const jons = await sugg.createSuggestion(tree, jonWho, { kind: 'details', person: 'ola_bbbbbb', payload: { bornPlace: 'Leeds' }, note: 'Jon\'s note' });
+  const theirs = await sugg.createSuggestion(tree, jonWho, { kind: 'details', person: 'ola_bbbbbb', payload: { nickname: 'Olly' } });
+  const bytes = new Uint8Array([1, 2, 3]);
+  await dbs.media.put(tree, 'suggest/ida-1.png', bytes, 'image/png');
+  await d.run("INSERT INTO suggestion_file (id, suggestion, key, mime, size, name, created_at) VALUES ('sf-1', ?, 'suggest/ida-1.png', 'image/png', 3, 'bible.png', '2026-11-01')", mine.id);
+  await d.run("INSERT INTO suggestion (id, kind, person, payload, note, status, guest_key, author_name, link, net, created_at) VALUES ('sg-guest', 'details', 'ola_bbbbbb', '{\"nickname\":\"Ol\"}', '', 'waiting', 'g:guest-key', 'Gwen', 'link-1', 7, '2026-11-01')");
+  await review.declineSuggestion(tree, { id: ida.id, name: ida.name, role: 'editor' }, theirs.id, 'Not enough to go on');
+  await review.declineSuggestion(tree, { id: kit.id, name: kit.name, role: 'steward' }, decided.id, 'Already known');
+
+  // A data request lists her own suggestions (what she wrote and what became of them), and her files by name.
+  const x = await account.exportAccount(ida.id);
+  const rows = x.families[tree]!.tables.suggestion!;
+  assert.deepEqual(rows.map((r) => r.id).sort(), [decided.id, mine.id].sort());
+  const row = rows.find((r) => r.id === mine.id)!;
+  for (const k of ['kind', 'person', 'payload', 'note', 'status', 'created_at']) assert.ok(row[k] !== undefined, k);
+  assert.equal(row.note, 'From the family Bible');
+  assert.equal(rows.find((r) => r.id === decided.id)!.reason, 'Already known');
+  for (const hidden of ['basis', 'guest_key', 'link', 'net', 'decided_by', 'decided_by_name', 'applied']) assert.ok(!(hidden in row), `${hidden} is not exported`);
+  assert.deepEqual(x.families[tree]!.tables.suggestion_file!.map((f) => f.name), ['bible.png']);
+  const text = JSON.stringify(x);
+  for (const other of [jons.id, theirs.id, 'sg-guest', 'Gwen', 'Jon\'s note']) assert.ok(!text.includes(other), `nothing of ${other}`);
+
+  await account.deleteAccount(ida, ida.name);
+  assert.deepEqual(await containing(d, ida.id), [], 'no id of hers remains');
+  assert.deepEqual(await containing(d, ida.name), [], 'nor her name, as author or decider');
+  assert.deepEqual(await containing(d, 'ida_aaaaaa', new Set(['person'])), [], 'nor her person in the tree, beside the person row itself');
+  const kept = await d.get<{ status: string; account: string; author_name: string; author_person: string | null; note: string; payload: string }>(
+    'SELECT status, account, author_name, author_person, note, payload FROM suggestion WHERE id = ?', mine.id);
+  assert.equal(kept!.status, 'waiting', 'a waiting suggestion is kept: it may hold a useful fact');
+  assert.match(kept!.account, /^former-/);
+  assert.equal(kept!.author_name, 'A former member');
+  assert.equal(kept!.author_person, null);
+  assert.equal(kept!.note, 'From the family Bible');
+  assert.ok(await dbs.media.get(tree, 'suggest/ida-1.png'), 'and its file');
+  const decidedByHer = await d.get<{ decided_by: string; decided_by_name: string }>('SELECT decided_by, decided_by_name FROM suggestion WHERE id = ?', theirs.id);
+  assert.match(decidedByHer!.decided_by, /^former-/);
+  assert.equal(decidedByHer!.decided_by_name, 'A former member');
+  const byKit = await d.get<{ decided_by: string; account: string }>('SELECT decided_by, account FROM suggestion WHERE id = ?', decided.id);
+  assert.match(byKit!.account, /^former-/, 'her decided suggestion is pseudonymised too');
+  assert.equal(byKit!.decided_by, kit.id, 'a steward\'s decision on it is not hers');
+  assert.equal((await d.get<{ account: string }>('SELECT account FROM suggestion WHERE id = ?', jons.id))!.account, jon.id, 'others\' are untouched');
+  assert.deepEqual({ ...(await d.get('SELECT guest_key, author_name, link, net FROM suggestion WHERE id = ?', 'sg-guest')) }, { guest_key: 'g:guest-key', author_name: 'Gwen', link: 'link-1', net: 7 }, 'a guest\'s is not tied to an account');
+});
+
+test('suggestions: erasing a person deletes the suggestions about them and their files from storage', async () => {
+  const tree = 'jessop';
+  await dbs.provisionFamily(tree, 'The Jessops');
+  const lou = user(64, 'Lou Jessop');
+  const max = user(65, 'Max Jessop');
+  for (const u of [lou, max]) await addUser(u);
+  await member(lou, tree, 'steward');
+  await member(max, tree, 'contributor');
+  const d = dbs.db(tree);
+  await d.run("INSERT INTO person (id, given, surname, living) VALUES ('nia_cccccc', 'Nia', 'Jessop', 1), ('oz_dddddd', 'Oz', 'Jessop', 1)");
+  const max_ = { kind: 'member' as const, who: { id: max.id, name: max.name, role: 'contributor' as const, person: null, personConfirmed: false } };
+  const about = await sugg.createSuggestion(tree, max_, { kind: 'details', person: 'nia_cccccc', payload: { born: '1990' }, note: 'Nia Jessop was born in spring' });
+  const other = await sugg.createSuggestion(tree, max_, { kind: 'details', person: 'oz_dddddd', payload: { born: '1991' }, note: 'About Nia Jessop\'s brother' });
+  const bytes = new Uint8Array([1, 2, 3]);
+  for (const [n, id] of [['a', about.id], ['b', other.id]] as const) {
+    await dbs.media.put(tree, `suggest/${n}.png`, bytes, 'image/png');
+    await d.run("INSERT INTO suggestion_file (id, suggestion, key, mime, size, name, created_at) VALUES (?, ?, ?, 'image/png', 3, 'f.png', '2026-11-01')", `sf-${n}`, id, `suggest/${n}.png`);
+  }
+  const report = await subject.subjectReport(tree, 'nia_cccccc');
+  assert.ok(report.traces.some((t) => t.table === 'suggestion'), 'the report shows the suggestions about them');
+
+  await subject.erasePerson(tree, 'nia_cccccc', lou.id);
+  assert.equal(await d.get('SELECT 1 FROM suggestion WHERE id = ?', about.id), undefined);
+  assert.equal(await d.get('SELECT 1 FROM suggestion_file WHERE id = ?', 'sf-a'), undefined);
+  assert.equal(await dbs.media.get(tree, 'suggest/a.png'), undefined, 'the file is deleted from storage now, not left to the sweep');
+  assert.ok(await dbs.media.get(tree, 'suggest/b.png'), 'a suggestion about someone else keeps its file');
+  assert.deepEqual(await containing(d, 'Nia Jessop'), [], 'her name is scrubbed from the suggestions that stay');
 });
 
 test('a deleted member\'s person in the tree goes from their posts, votes and voter rows, so no read shows their face', async () => {

@@ -30,7 +30,7 @@ responsible depends on who runs the server.
 | Right | For a member (has an account) | For someone in a tree who is not a member |
 | --- | --- | --- |
 | **Information** (Art. 13, 14) | The operator's privacy policy and terms on `/legal`, with the subprocessors this server uses, generated from its configuration. | The family tells its relatives; Kindred keeps no contact details for notices (Art. 14 notices are a later round). |
-| **Access** (Art. 15) | Account menu → *Your data* → *Download (JSON)*: their account, sign-ins (without secrets), memberships, settings, their messages to the assistant, and what they wrote or did in each family, including their own coat-of-arms proposals and their own ballots in votes (a secret vote's too: the server finds it through the key only it can compute). Nothing about other people beyond what they wrote themselves. | `/privacy-request` reaches the operator, who forwards it to the stewards. Access → *A request about someone*: find the person, see where they appear, *Download a copy for them* (their record, the rows that point at them, the names of the people their links point to; no member's personal notes). |
+| **Access** (Art. 15) | Account menu → *Your data* → *Download (JSON)*: their account, sign-ins (without secrets), memberships, settings, their messages to the assistant, and what they wrote or did in each family, including their own coat-of-arms proposals, their own suggestions ([suggestions.md](suggestions.md): what they wrote and what became of it, and the names of their files) and their own ballots in votes (a secret vote's too: the server finds it through the key only it can compute). Nothing about other people beyond what they wrote themselves. | `/privacy-request` reaches the operator, who forwards it to the stewards. Access → *A request about someone*: find the person, see where they appear, *Download a copy for them* (their record, the rows that point at them, the names of the people their links point to; no member's personal notes). |
 | **Rectification** (Art. 16) | They change their own name; the family corrects its records. | The stewards correct the record. While a correction is checked, *Restrict* holds it. |
 | **Erasure** (Art. 17) | *Delete my account* (see below). | *Erase…* (see below). |
 | **Restriction** (Art. 18) | – | *Restrict*: the person is kept, and changes to them are refused until a steward lifts it. Recorded with the request. |
@@ -53,9 +53,9 @@ by later features are covered without a list:
 - **Goes**: the account, its passkeys, passwords and second factors, every session (so every device is signed out), memberships,
   push devices, presence, visits, view-as previews, join requests, feedback it sent, its conversations with the assistant, and in
   each family its reactions, quiz answers, game state, push opt-ins, its personal notes and their history, and its retry keys.
-- **Stays, without the account**: stories, posts, comments, pictures, votes, coat-of-arms proposals ([arms-proposals.md](arms-proposals.md)), options it added to a vote, its ballots (which keep
+- **Stays, without the account**: stories, posts, comments, pictures, votes, coat-of-arms proposals ([arms-proposals.md](arms-proposals.md)), suggestions ([suggestions.md](suggestions.md); waiting ones too, with their files), options it added to a vote, its ballots (which keep
   counting) and changes it made in a family stay with the family, shown as by **"A former member"**. The account id in them is replaced by a random pseudonym, one per deletion, and the person
-  the account stood for in the tree is cleared from them (a post's, a vote's, a voter's and a proposal's author), so no face of theirs is shown beside them. The family keeps its
+  the account stood for in the tree is cleared from them (a post's, a vote's, a voter's, a proposal's and a suggestion's author), so no face of theirs is shown beside them. The family keeps its
   records (it is their controller, or within the household exemption); a member who wants their writing gone deletes it before
   deleting the account, or asks the stewards. Names that older features copied as plain text (who uploaded a picture) are replaced
   where no other member of that family has the same name.
@@ -77,7 +77,8 @@ by later features are covered without a list:
 Access → *A request about someone* → *Erase…*, with the person's name typed and the steward's passkey once more:
 
 - The person and everything that hangs on them: links, fields, life events, stories about them, contacts, photo and painted
-  portraits (and their files), tags, citations, research links, tags on posts.
+  portraits (and their files), tags, citations, research links, tags on posts, and the suggestions about them
+  ([suggestions.md](suggestions.md)) with their attached files, which are deleted from storage at once.
 - Every gallery picture in which they are the only person tagged, with its file, thumbnail, reactions and comments. A picture
   with other people keeps them; only the tag goes.
 - Every history row about them. In everything else the family keeps as text (other people's fields, stories, posts, comments,
@@ -118,6 +119,10 @@ after the day's list was made fails that claim and is kept exactly as it was. On
 visit no longer counts as use; its families are cleaned and then the account goes. A retirement that stopped part-way is
 finished by the next day's run, with the same pseudonym. The report says how many were deleted, kept that way, or could not
 be deleted (tried again the next day; the server's log names the account and why).
+
+Suggestions ([suggestions.md](suggestions.md)) expire after 90 days waiting, and their pending files are deleted then. A decided
+or expired suggestion stays with the family's records, with a guest's name and the hashes the family's limits needed, until
+the family deletes it. Stray files are swept after 30 days.
 
 Kept by other jobs: the change history (3 years, `KINDRED_HISTORY_YEARS`), join requests (30 days unanswered) and guest
 statistics (90 days after the last visit), usage statistics (3 years). A family's own records stay until the family deletes them,

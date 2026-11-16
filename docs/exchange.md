@@ -105,6 +105,7 @@ that is not counted.
 - the family's votes and their results;
 - contact details and other person fields, private or not;
 - houses and their arms, and coat-of-arms proposals ([arms-proposals.md](arms-proposals.md));
+- suggestions from the family, waiting or decided, and their files ([suggestions.md](suggestions.md)), and the files of sources;
 - place coordinates (place names are kept);
 - epithets;
 - the pictures themselves (portraits are referenced by key only);
@@ -150,7 +151,7 @@ and the script says how many.
 
 **What the archive leaves out:** step-parent links, because v1 has no step relation and writing one as a biological
 claim would be a false fact in v1; contact details and other fields; houses and arms; pictures other than portraits, and
-the comments on gallery photos; the pictures of the feed's messages (they are gallery pictures); and reactions. Stories
+the comments on gallery photos; suggestions from the family and their files, and the files of sources (the report says how many; [suggestions.md](suggestions.md)); the pictures of the feed's messages (they are gallery pictures); and reactions. Stories
 and their comments are in `memories/`, the feed's messages in `feed/` and the votes in `votes/`, which the v1 tools and
 `import-kindred.ts` do not read.
 

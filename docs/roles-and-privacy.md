@@ -225,6 +225,10 @@ browser's local storage under `kindred:vote-guest-name:<family>` and goes nowher
 [votes.md](votes.md). A guest never sees a coat-of-arms proposal, its proposer or its note; in an arms vote that allows guests
 they see only each option's shield and the design's name ([arms-proposals.md](arms-proposals.md)).
 
+A guest may also suggest a change (a person's facts, a missing relative, a life event or a source) while a steward allows it,
+under a name they give and known only by a cookie; a link that protects living people allows none on or about the living. A
+guest sees only their own suggestions, and only editors and stewards read the rest ([suggestions.md](suggestions.md)).
+
 Before you share a link, decide what it should show: anyone who has the link and the password can read the names, the dates
 of the dead (and of the living, if the link does not protect them), biographies and stories, for as long as the link works,
 and can pass it on.
