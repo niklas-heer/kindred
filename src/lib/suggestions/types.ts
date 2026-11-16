@@ -114,6 +114,22 @@ export interface SuggestionView {
   decidedAt: string | null;
   files: { id: string; name: string; mime: string; size: number }[];
   mine: boolean;
+  /** For a reviewer: when an approval of it first changed the records (it has begun), else null. */
+  begunAt: string | null;
   /** What this reader may do now; `close` is closing a begun approval as partly applied (a reviewer's). */
   may: { withdraw: boolean; approve: boolean; decline: boolean; close: boolean };
+}
+
+/** How long an approval stands begun before closing it as partly applied is offered without one failing on the card. */
+export const CLOSE_OFFER_MS = 10 * 60_000;
+
+/**
+ * Whether a card offers to close a begun approval as partly applied: only where the server allows it, and then once an
+ * approval of it failed on this card (`failedHere`), or once it has stood begun for CLOSE_OFFER_MS, so an approval still
+ * under way (another reviewer's, or a slow one) is not closed under it. `now` is null until the browser has a clock.
+ */
+export function offersClose(v: Pick<SuggestionView, 'may' | 'begunAt'>, failedHere: boolean, now: number | null): boolean {
+  if (!v.may.close) return false;
+  if (failedHere) return true;
+  return now !== null && v.begunAt !== null && now - Date.parse(v.begunAt) > CLOSE_OFFER_MS;
 }

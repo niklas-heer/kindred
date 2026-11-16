@@ -51,12 +51,12 @@ const NOT_LIVING = `(s.person IS NULL OR s.person NOT IN (${LIVING_IDS}))
 interface Row {
   id: string; kind: SuggestionKind; person: string | null; payload: string; basis: string | null; note: string; status: SuggestionStatus;
   adjusted: number; reason: string | null; account: string | null; guest_key: string | null; author_name: string; author_person: string | null;
-  created_at: string; decided_at: string | null; applied: string | null; begun: number;
+  created_at: string; decided_at: string | null; applied: string | null; begun_at: string | null;
 }
 interface FileRow { id: string; suggestion: string; name: string; mime: string; size: number }
 
 const COLUMNS = `s.id, s.kind, s.person, s.payload, s.basis, s.note, s.status, s.adjusted, s.reason, s.account, s.guest_key, s.author_name,
-  s.author_person, s.created_at, s.decided_at, s.applied, EXISTS (SELECT 1 FROM history h WHERE h.suggestion = s.id) AS begun`;
+  s.author_person, s.created_at, s.decided_at, s.applied, (SELECT min(h.at) FROM history h WHERE h.suggestion = s.id) AS begun_at`;
 
 /** The record's values now for each correction among the suggestions `where` selects, by suggestion id: "current → suggested". */
 async function currentValues(tree: string, where: string, params: (string | number)[]): Promise<Map<string, Record<string, FactValue>>> {
@@ -101,7 +101,7 @@ async function views(tree: string, where: string, params: (string | number)[], r
   return rows.map((r): SuggestionView => {
     const applied = r.applied ? (JSON.parse(r.applied) as { partial?: true; adjustedUnknown?: true }) : {};
     const waiting = r.status === 'waiting';
-    const begun = r.begun === 1;
+    const begun = r.begun_at !== null;
     const mine = reader.own(r);
     return {
       id: r.id, kind: r.kind, person: r.person, payload: JSON.parse(r.payload) as SuggestionPayload,
@@ -115,6 +115,7 @@ async function views(tree: string, where: string, params: (string | number)[], r
       createdAt: r.created_at, decidedAt: r.decided_at,
       files: filesOf.get(r.id) ?? [],
       mine,
+      begunAt: reader.reviewer ? r.begun_at : null,
       may: {
         withdraw: mine && waiting && !begun,
         approve: reader.reviewer && waiting,

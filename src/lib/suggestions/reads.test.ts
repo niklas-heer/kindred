@@ -235,8 +235,21 @@ test('a waiting suggestion whose approval has begun can be closed by a reviewer,
   await db.db(t).run("INSERT INTO history (at, account, name, kind, record, action, level, count, fn, suggestion) VALUES (?, 'acc-fay', 'Fay Fir', 'person', 'bo', 'changed', 'family', 1, 'x', ?)", NOW.toISOString(), s.id);
   const [r] = await V.waitingSuggestions(t, fay);
   assert.deepEqual(r!.may, { withdraw: false, approve: true, decline: false, close: true });
+  assert.equal(r!.begunAt, NOW.toISOString(), 'a reviewer sees when it began');
   const [m] = await V.mySuggestions(t, member(ada));
   assert.equal(m!.may.withdraw, false);
+  assert.equal(m!.begunAt, null, 'its suggester does not');
+
+  // Closing is offered once an approval failed on the card, or once it has stood begun for ten minutes: an approval still
+  // under way (another reviewer's, or a slow one) is not closed under it.
+  const { offersClose, CLOSE_OFFER_MS } = await load<typeof import('./types.ts')>('/src/lib/suggestions/types.ts');
+  assert.equal(CLOSE_OFFER_MS, 10 * 60_000);
+  const at = NOW.getTime();
+  assert.equal(offersClose(r!, false, at + 60_000), false, 'begun a minute ago');
+  assert.equal(offersClose(r!, true, at + 60_000), true, 'an approval failed here');
+  assert.equal(offersClose(r!, false, at + CLOSE_OFFER_MS + 1), true, 'begun over ten minutes ago');
+  assert.equal(offersClose({ ...r!, may: { ...r!.may, close: false } }, true, at + CLOSE_OFFER_MS + 1), false, 'never what the server does not allow');
+  assert.equal(offersClose(r!, false, null), false, 'no clock yet (the server\'s render)');
 });
 
 // ---------- files ----------

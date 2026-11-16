@@ -3,13 +3,14 @@
 // "what · now · suggested". The reviewer may adjust the suggested values first, say a missing relative is someone already
 // in the tree, and name the source its files go to. The buttons are exactly what the server's `may` allows: Approve (after
 // a confirmation), Decline (with an optional reason the suggester sees), and Close as partly applied for an approval that
-// began and cannot finish. The server checks again; an approval refused because the record moved on reads the record anew.
+// began and cannot finish (offered once an approval failed on the card, or ten minutes after it began). The server checks
+// again; an approval refused because the record moved on reads the record anew.
 //
 //   {list.map((v) => <SuggestionCard key={v.id} tree={tree} v={v} />)}
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { Check, FileText, PencilLine, RotateCcw, Undo2, X } from 'lucide-react';
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Portrait } from '~/components/Portrait';
 import { When } from '~/components/votes/When';
 import { ConfirmDialog, Dialog } from '~/components/ui';
@@ -22,7 +23,7 @@ import {
   approvalKeys, approveSuggestionFn, closePartlyAppliedFn, declineSuggestionFn, matchCandidatesQuery, suggestionKeys,
 } from '~/lib/suggestions/suggestions.functions';
 import type { LifeEvent } from '~/lib/events';
-import { MAX_REASON, type EventPayload, type SuggestionView } from '~/lib/suggestions/types';
+import { MAX_REASON, offersClose, type EventPayload, type SuggestionView } from '~/lib/suggestions/types';
 import { toast } from '~/lib/toast';
 import { eventMode, headingOf, nowOf, rowsFor, sizeText, useEventsOf, valueAt, valueText, ValueInput, withValue, type Row } from './view';
 import './suggestions.css';
@@ -51,6 +52,16 @@ export function SuggestionCard({ tree, v }: { tree: string; v: SuggestionView })
   const refresh = (keys: unknown[][]) => Promise.all(keys.map((queryKey) => qc.invalidateQueries({ queryKey })));
   // A decline or a close sent again after a lost response is the same one, not refused as already decided.
   const ops = useRef(opKeys());
+  // Closing as partly applied is offered once an approval failed here, or once it has stood begun a while (offersClose); the
+  // clock is the browser's, read after the page is drawn, so the server's render and the browser's agree.
+  const [failed, setFailed] = useState(false);
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    if (!v.may.close) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, [v.may.close]);
 
   const approve = useMutation({
     mutationFn: () => approveSuggestionFn({
@@ -71,6 +82,7 @@ export function SuggestionCard({ tree, v }: { tree: string; v: SuggestionView })
     // The record moved on, or another reviewer acted: the list is read again, with the record's values now, and the
     // confirmation closes, so approving again means pressing Approve once the reviewer has seen them.
     onError: (e) => {
+      setFailed(true);
       if (e instanceof Error && RELOOK.has(e.message)) setAsking(null);
       void refresh(suggestionKeys(tree));
     },
@@ -87,6 +99,7 @@ export function SuggestionCard({ tree, v }: { tree: string; v: SuggestionView })
     onSuccess: async () => { setAsking(null); await refresh(approvalKeys(tree)); },
   });
   const busy = approve.isPending || decline.isPending || close.isPending;
+  const closable = offersClose(v, failed, now);
   const chosen = matches.find((m) => m.person === existing);
   const chosenPerson = chosen ? f.byId.get(chosen.person) : undefined;
   const heading = headingOf(v, f, t, events);
@@ -152,7 +165,7 @@ export function SuggestionCard({ tree, v }: { tree: string; v: SuggestionView })
         </label>
       )}
 
-      {v.may.close && <p className="sg-begun" role="note">{t('suggest.card.begun')}</p>}
+      {v.may.close && <p className="sg-begun" role="note">{t(closable ? 'suggest.card.begun' : 'suggest.card.begun_retry')}</p>}
       {approve.isError && asking !== 'approve' && <p className="err" role="alert">{errorText(approve.error, t.locale)}</p>}
 
       <div className="sg-actions">
@@ -161,7 +174,7 @@ export function SuggestionCard({ tree, v }: { tree: string; v: SuggestionView })
           ? <button type="button" className="btn ghost" disabled={busy} onClick={() => { setValues(v.payload); setAdjusting(false); }}><RotateCcw size={15} aria-hidden /> {t('suggest.card.reset')}</button>
           : <button type="button" className="btn" disabled={busy} onClick={() => setAdjusting(true)}><PencilLine size={15} aria-hidden /> {t('suggest.card.adjust')}</button>)}
         {v.may.decline && <button type="button" className="btn ghost" disabled={busy} aria-haspopup="dialog" onClick={() => { decline.reset(); setAsking('decline'); }}><X size={15} aria-hidden /> {t('suggest.decline')}</button>}
-        {v.may.close && <button type="button" className="btn ghost" disabled={busy} aria-haspopup="dialog" onClick={() => { close.reset(); setAsking('close'); }}><Undo2 size={15} aria-hidden /> {t('suggest.close_partial')}</button>}
+        {closable && <button type="button" className="btn ghost" disabled={busy} aria-haspopup="dialog" onClick={() => { close.reset(); setAsking('close'); }}><Undo2 size={15} aria-hidden /> {t('suggest.close_partial')}</button>}
       </div>
 
       <ConfirmDialog

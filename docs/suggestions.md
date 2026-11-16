@@ -76,7 +76,8 @@ record's values next to the suggested ones, "current to suggested".
   safe to repeat. If it stops half-way, approve it again to finish it; a suggestion whose approval changed records cannot be
   declined or withdrawn. If a later step can no longer be written (the fact it cites was deleted meanwhile, the person is
   restricted), an editor **closes it as partly applied**: what was written stays, the rest is not applied, and its files are
-  deleted.
+  deleted for good. The card offers this once an approval failed on it, or once the approval has stood begun for 10 minutes,
+  so an approval still under way is not closed under it.
 - **Two reviewers** may open the same suggestion. Their steps carry the same retry keys, so the second reviewer's approval
   replays what the first wrote instead of writing it twice. Once a step is written, the approval finishes with the decision it
   was begun with; the other reviewer is told to reload.
