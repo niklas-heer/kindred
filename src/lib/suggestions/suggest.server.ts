@@ -54,13 +54,17 @@ import {
 
 /**
  * Who suggests: a member, or a share-link guest. A guest's `key` is their `kindred_voter` cookie's key in this family
- * (`guestVoterKey`/`voterCookie` in votes/guest-voter.server.ts); `link` is the share link they came through, `net` their
- * network (`netOf`, under one fixed scope for the family's suggestions, so the limits count it across them), and
+ * (`guestVoterKey`/`voterCookie` in votes/guest-voter.server.ts); `link` is the share link they came through, and
  * `protectLiving` whether that link protects living people.
  */
-export type Suggester =
-  | { kind: 'member'; who: Who }
-  | { kind: 'guest'; key: string; name: string; link: string; net: number; protectLiving: boolean };
+export type Suggester = { kind: 'member'; who: Who } | GuestSuggester;
+export type GuestSuggester = { kind: 'guest'; key: string; link: string; protectLiving: boolean };
+/**
+ * Who makes a suggestion: a guest also with the `name` they give (or gave before) and their `net`work (`netOf`, under one
+ * fixed scope for the family's suggestions, so the limits count it across them). Only making one needs these, so only
+ * then are they worked out (suggester.server.ts `makerOf`).
+ */
+export type Maker = { kind: 'member'; who: Who } | (GuestSuggester & { name: string; net: number });
 
 const err = (code: string) => new Error(`suggest.err.${code}`);
 /** The person column's value: the id when that person is in the tree, else NULL. */
@@ -76,7 +80,7 @@ function needs(who: Who, action: Action) {
 }
 
 /** Refuses a suggester who may not suggest at all: a member below `suggest`, a guest without a key or a name. Returns the name shown. */
-function authorName(by: Suggester): string {
+function authorName(by: Maker): string {
   if (by.kind === 'member') {
     needs(by.who, 'suggest');
     return by.who.name;
@@ -359,7 +363,7 @@ export async function checkPayload(d: Db, who: Who, kind: SuggestionKind, person
 // ---------- making one ----------
 
 /** The guards that keep this suggester within their limits, as counted now; refused when they are at one. */
-async function withinLimits(d: Db, by: Suggester): Promise<Query[]> {
+async function withinLimits(d: Db, by: Maker): Promise<Query[]> {
   if (by.kind === 'member') {
     const mine = await d.get<{ n: number }>("SELECT count(*) AS n FROM suggestion WHERE status = 'waiting' AND account = ?", by.who.id);
     if ((mine?.n ?? 0) >= MEMBER_WAITING) throw err('too_many');
@@ -380,7 +384,7 @@ async function withinLimits(d: Db, by: Suggester): Promise<Query[]> {
  * payload is checked against the record as it is now and stored as checked; see the top of this file for the rules.
  */
 export async function createSuggestion(
-  tree: string, by: Suggester, input: { kind: SuggestionKind; person: string | null; payload: SuggestionPayload; note?: string }, now: Date = new Date(),
+  tree: string, by: Maker, input: { kind: SuggestionKind; person: string | null; payload: SuggestionPayload; note?: string }, now: Date = new Date(),
 ): Promise<{ id: string }> {
   const name = authorName(by);
   if (!SUGGESTION_KINDS.includes(input.kind) || (input.note !== undefined && typeof input.note !== 'string')) throw err('payload');

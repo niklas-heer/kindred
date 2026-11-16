@@ -167,6 +167,20 @@ test('a guest’s first suggestion needs a name; only a suggestion taken sets th
   assert.deepEqual(((await call(fns.getMySuggestions, { tree: TREE })) as { id: string }[]).map((s) => s.id), [id]);
 });
 
+test('a guest’s name and network are worked out only to make a suggestion, not to read, withdraw or attach', async () => {
+  const suggester = await load<typeof import('./suggester.server.ts')>('/src/lib/suggestions/suggester.server.ts');
+  asGuest();
+  await call(fns.createSuggestionFn, { ...bornIn('1925'), name: 'Lia' });
+  const cookie = setCookies()[0]!.split(';')[0]!;
+  asGuest(cookie);
+  const { by } = await suggester.suggesterOf(TREE, g.__request!);
+  assert.deepEqual(Object.keys(by).sort(), ['key', 'kind', 'link', 'protectLiving'], 'no name looked up, no network computed');
+  asGuest(cookie);
+  const making = await suggester.makerOf(TREE, g.__request!, {});
+  assert.equal(making.by.kind === 'guest' && making.by.name, 'Lia', 'the name they gave before stands');
+  assert.equal(making.by.kind === 'guest' && typeof making.by.net, 'number');
+});
+
 test('a protecting link’s guest suggests nothing about the living, and sets no cookie', async () => {
   asGuest(undefined, true);
   await assert.rejects(call(fns.createSuggestionFn, { tree: TREE, kind: 'details', person: 'ada', payload: { born: '1951' }, name: 'Ivy' }), /suggest\.err\.person/);

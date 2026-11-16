@@ -39,10 +39,16 @@ async function reviewer(t: string, action: 'review-suggestions' | 'manage-access
   return { id: m.user.id, name: m.user.name, role: m.role, person: m.person, personConfirmed: m.personConfirmed };
 }
 
-/** Who is suggesting in this request (suggester.server.ts). */
-async function asking(t: string, o: { name?: string; newCookie?: boolean } = {}) {
+/** Who is asking in this request, to read or withdraw their own (suggester.server.ts). */
+async function asking(t: string) {
   const [{ getRequest }, { suggesterOf }] = await Promise.all([import('@tanstack/react-start/server'), import('./suggester.server')]);
-  return suggesterOf(t, getRequest(), o);
+  return suggesterOf(t, getRequest());
+}
+
+/** Who is making a suggestion in this request, with a guest's name and network (suggester.server.ts). */
+async function making(t: string, name: string | undefined) {
+  const [{ getRequest }, { makerOf }] = await Promise.all([import('@tanstack/react-start/server'), import('./suggester.server')]);
+  return makerOf(t, getRequest(), { name });
 }
 
 /** The retry key for a change, bound to who sends it and to everything else they sent (see db.server.ts `once`). */
@@ -132,7 +138,7 @@ export const createSuggestionFn = createServerFn({ method: 'POST' })
     tree, kind: z.enum(SUGGESTION_KINDS), person: person.nullable(), payload, note, name: z.string().max(MAX_GUEST_NAME * 2).optional(),
   }))
   .handler(async ({ data }): Promise<{ id: string }> => {
-    const { by, account, setCookie } = await asking(data.tree, { name: data.name, newCookie: true });
+    const { by, account, setCookie } = await making(data.tree, data.name);
     const made = await (await suggest()).createSuggestion(data.tree, by, {
       kind: data.kind, person: data.person ?? null, payload: data.payload as SuggestionPayload, note: data.note,
     });
