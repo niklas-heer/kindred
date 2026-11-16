@@ -601,6 +601,10 @@ test('the guest host answers only what a guest needs', () => {
   }
 });
 
+test('the guest host opens the suggestions page, where a guest sees their own', () => {
+  assert.equal(guestHost.guestHostAllows('/fam/suggestions'), true);
+});
+
 test('signing out also ends a guest visit in that browser and forgets it was one', async () => {
   const made = await makeLink();
   const { cookie } = await openAs(made.token, made.password!);

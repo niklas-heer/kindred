@@ -322,7 +322,8 @@ stays exactly as it is:
 
 The guest host is open to the internet, so Kindred locks it down itself (`src/lib/auth/guest-host.ts`):
 
-- It answers only a guest's own paths: `/share/*`, a family's pages (not its Access or settings pages), the app's server functions and
+- It answers only a guest's own paths: `/share/*`, a family's pages (not its Access or settings pages; their own suggestions at
+  `/<family>/suggestions` included), the app's server functions and
   assets, and pictures (`/api/photo/*`, `/api/portrait/*`, `/api/media/*`, `/api/research/*`, and a guest's own suggestion's files at
   `/api/suggestion-file/*`, and attaching one at `/api/suggestion-upload/*`). Everything else is a 404: `/signin`, `/setup`,
   `/invite/*`, `/api/auth/*`, exports.
