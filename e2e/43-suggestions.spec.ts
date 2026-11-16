@@ -35,12 +35,20 @@ async function inviteMember(page: Page, browser: Browser, issues: Issues, baseUR
   return { context, them };
 }
 
-/** Adds a child of the steward who is no longer living, born in `year`, and returns their page's path. */
+/**
+ * Adds a child of the steward alone (whoever she has a partner in, from an earlier journey, is not their other parent), no
+ * longer living, born in `year`, and returns their page's path. With one parent, a missing parent may be suggested.
+ */
 async function addChild(page: Page, tree: string, given: string, surname: string, year: string) {
   await page.goto(`/${tree}`);
   await settled(page);
   await page.getByRole('button', { name: `Add a child of ${FULL}` }).click();
   const add = page.getByRole('dialog', { name: `Add a child of ${FULL}` });
+  const other = add.getByRole('combobox', { name: 'Other parent' });
+  if (await other.count()) {
+    await other.click();
+    await page.getByRole('option', { name: 'Someone else / unknown' }).click();
+  }
   await add.getByLabel('Given name').fill(given);
   await add.getByLabel('Surname at birth').fill(surname);
   await add.getByRole('radiogroup', { name: 'Born' }).getByRole('radio', { name: 'Year only' }).click();
