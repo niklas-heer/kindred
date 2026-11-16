@@ -9,10 +9,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { Check, FileText, PencilLine, RotateCcw, Undo2, X } from 'lucide-react';
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { Portrait } from '~/components/Portrait';
 import { When } from '~/components/votes/When';
 import { ConfirmDialog, Dialog } from '~/components/ui';
+import { opKeys } from '~/lib/api';
 import { errorText } from '~/lib/errortext';
 import { useFamily } from '~/lib/family';
 import { displayName, lifespan } from '~/lib/graph';
@@ -48,6 +49,8 @@ export function SuggestionCard({ tree, v }: { tree: string; v: SuggestionView })
   const adjusted = adjusting && !same(values, v.payload);
   const filesSource = v.files.length > 0 && v.kind !== 'source';
   const refresh = (keys: unknown[][]) => Promise.all(keys.map((queryKey) => qc.invalidateQueries({ queryKey })));
+  // A decline or a close sent again after a lost response is the same one, not refused as already decided.
+  const ops = useRef(opKeys());
 
   const approve = useMutation({
     mutationFn: () => approveSuggestionFn({
@@ -73,11 +76,14 @@ export function SuggestionCard({ tree, v }: { tree: string; v: SuggestionView })
     },
   });
   const decline = useMutation({
-    mutationFn: () => declineSuggestionFn({ data: { tree, id: v.id, reason: reason.trim() || undefined } }),
+    mutationFn: () => {
+      const data = { tree, id: v.id, reason: reason.trim() || undefined };
+      return declineSuggestionFn({ data: { ...data, opKey: ops.current.for('decline', data) } });
+    },
     onSuccess: async () => { setAsking(null); await refresh(suggestionKeys(tree)); },
   });
   const close = useMutation({
-    mutationFn: () => closePartlyAppliedFn({ data: { tree, id: v.id } }),
+    mutationFn: () => closePartlyAppliedFn({ data: { tree, id: v.id, opKey: ops.current.for('close', v.id) } }),
     onSuccess: async () => { setAsking(null); await refresh(approvalKeys(tree)); },
   });
   const busy = approve.isPending || decline.isPending || close.isPending;

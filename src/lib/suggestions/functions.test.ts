@@ -208,6 +208,36 @@ test('a suggestion sent again with its retry key is the same suggestion, for a m
   await assert.rejects(call(fns.createSuggestionFn, { ...bornIn('1928'), name: 'Mo', opKey: 'retry-mo-00001' }), /already sent as something else/);
 });
 
+test('withdrawing, declining and closing as partly applied, sent again with their retry key, are done once and not refused', async () => {
+  const status = async (id: string) => (await dbs.db(TREE).get<{ status: string }>('SELECT status FROM suggestion WHERE id = ?', id))!.status;
+  asMember(ADA, 'Ada');
+  const mine = (await call(fns.createSuggestionFn, bornIn('1915'))) as { id: string };
+  for (let i = 0; i < 2; i++) await call(fns.withdrawSuggestionFn, { tree: TREE, id: mine.id, opKey: 'withdraw-0001' });
+  assert.equal(await status(mine.id), 'withdrawn');
+
+  const theirs = (await call(fns.createSuggestionFn, bornIn('1914'))) as { id: string };
+  asMember(BO, 'Bo');
+  for (let i = 0; i < 2; i++) await call(fns.declineSuggestionFn, { tree: TREE, id: theirs.id, reason: 'Not so', opKey: 'decline-0001' });
+  assert.equal(await status(theirs.id), 'declined');
+
+  asMember(ADA, 'Ada');
+  const rel = (await call(fns.createSuggestionFn, {
+    tree: TREE, kind: 'relative', person: 'bo', payload: { person: { given: 'Una', born: '1950', living: false }, link: { kind: 'child' } },
+  })) as { id: string };
+  await dbs.media.put(TREE, 'suggest/una.png', PNG(), 'image/png');
+  await dbs.db(TREE).run("INSERT INTO suggestion_file (id, suggestion, key, mime, size, name, created_at) VALUES ('sf-una', ?, 'suggest/una.png', 'image/png', 3, 'una.png', '2026-11-01')", rel.id);
+  // The files' source can never be written: the approval stops after adding Una.
+  await dbs.db(TREE).run("CREATE TRIGGER no_sources BEFORE INSERT ON source BEGIN SELECT RAISE(ABORT, 'test: no sources'); END");
+  try {
+    asMember(BO, 'Bo');
+    await assert.rejects(call(fns.approveSuggestionFn, { tree: TREE, id: rel.id }));
+    for (let i = 0; i < 2; i++) await call(fns.closePartlyAppliedFn, { tree: TREE, id: rel.id, opKey: 'close-000001' });
+    assert.equal(await status(rel.id), 'approved');
+  } finally {
+    await dbs.db(TREE).run('DROP TRIGGER no_sources');
+  }
+});
+
 test('a protecting link’s guest suggests nothing about the living, and sets no cookie', async () => {
   asGuest(undefined, true);
   await assert.rejects(call(fns.createSuggestionFn, { tree: TREE, kind: 'details', person: 'ada', payload: { born: '1951' }, name: 'Ivy' }), /suggest\.err\.person/);

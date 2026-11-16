@@ -154,10 +154,10 @@ export const createSuggestionFn = createServerFn({ method: 'POST' })
 
 /** Withdraws the reader's own waiting suggestion (a guest's by their cookie); its files go. */
 export const withdrawSuggestionFn = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, id: suggestionId }))
+  .validator(z.object({ tree, id: suggestionId, opKey }))
   .handler(async ({ data }) => {
     const { by } = await asking(data.tree);
-    await (await suggest()).withdrawSuggestion(data.tree, by, data.id);
+    await (await suggest()).withdrawSuggestion(data.tree, by, data.id, undefined, opOf(by.kind === 'member' ? by.who.id : by.key, data));
   });
 
 /**
@@ -179,16 +179,16 @@ export const approveSuggestionFn = createServerFn({ method: 'POST' })
 
 /** Declines a waiting suggestion, with an optional reason its suggester sees; its files are deleted. */
 export const declineSuggestionFn = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, id: suggestionId, reason }))
+  .validator(z.object({ tree, id: suggestionId, reason, opKey }))
   .handler(async ({ data }) => {
     const me = await reviewer(data.tree, 'review-suggestions');
-    await (await review()).declineSuggestion(data.tree, me, data.id, data.reason);
+    await (await review()).declineSuggestion(data.tree, me, data.id, data.reason, undefined, opOf(me.id, data));
   });
 
 /** Closes an approval that changed records but cannot finish, as approved in part. */
 export const closePartlyAppliedFn = createServerFn({ method: 'POST' })
-  .validator(z.object({ tree, id: suggestionId }))
+  .validator(z.object({ tree, id: suggestionId, opKey }))
   .handler(async ({ data }) => {
     const me = await reviewer(data.tree, 'review-suggestions');
-    return (await review()).closePartlyApplied(data.tree, me, data.id);
+    return (await review()).closePartlyApplied(data.tree, me, data.id, undefined, opOf(me.id, data));
   });

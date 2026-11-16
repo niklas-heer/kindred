@@ -577,10 +577,13 @@ export const partlyApproved = async (d: Db, id: string) => !!(await d.get('SELEC
 /** The guard of the same: no change of the records names the suggestion yet. */
 export const NOT_PARTLY_APPROVED = (id: string) => guard('NOT EXISTS (SELECT 1 FROM history WHERE suggestion = ?)', id);
 
-/** Withdraws the suggester's own waiting suggestion: its files go from storage, with their rows. */
-export async function withdrawSuggestion(tree: string, by: Suggester, id: string, now: Date = new Date()): Promise<void> {
+/**
+ * Withdraws the suggester's own waiting suggestion: its files go from storage, with their rows. With a retry key (`op`, bound
+ * to the member's account or the guest's key), sending it again after a lost response is not refused as already withdrawn.
+ */
+export async function withdrawSuggestion(tree: string, by: Suggester, id: string, now: Date = new Date(), op?: OpKey): Promise<void> {
   ownerCheck(by);
-  return once(tree, undefined, 'withdrawSuggestion', async (d) => {
+  return once(tree, op, 'withdrawSuggestion', async (d) => {
     const own = await ownWaiting(d, by, id);
     if (await partlyApproved(d, id)) throw err('partial');
     const keys = (await d.all<{ key: string }>('SELECT key FROM suggestion_file WHERE suggestion = ?', id)).map((r) => r.key);

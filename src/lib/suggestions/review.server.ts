@@ -485,9 +485,9 @@ function finish(c: Ctx, out: Applied, source: string | undefined, adjusted: bool
  * history says was written, with `partial`; its pending files are deleted from storage, as a declined suggestion's are. The
  * records written stay; an editor changes them as any other. A suggestion with nothing written is approved or declined instead.
  */
-export async function closePartlyApplied(tree: string, who: Who, id: string, now: Date = new Date()): Promise<{ applied: Applied }> {
+export async function closePartlyApplied(tree: string, who: Who, id: string, now: Date = new Date(), op?: OpKey): Promise<{ applied: Applied }> {
   needsReviewer(who);
-  return once(tree, undefined, 'closePartlyApplied', async (d) => {
+  return once(tree, op, 'closePartlyApplied', async (d) => {
     await waiting(d, id);
     const rows = await d.all<{ kind: string; record: string; action: string }>('SELECT kind, record, action FROM history WHERE suggestion = ? ORDER BY id', id);
     if (!rows.length) throw err('not_partial');
@@ -523,12 +523,15 @@ export async function closePartlyApplied(tree: string, who: Who, id: string, now
 
 // ---------- declining ----------
 
-/** Declines a waiting suggestion, with an optional reason the suggester sees; its files are deleted from storage. */
-export async function declineSuggestion(tree: string, who: Who, id: string, reason?: string, now: Date = new Date()): Promise<void> {
+/**
+ * Declines a waiting suggestion, with an optional reason the suggester sees; its files are deleted from storage. Closing and
+ * declining take the reviewer's retry key (`op`), so one sent again after a lost response is not refused as decided.
+ */
+export async function declineSuggestion(tree: string, who: Who, id: string, reason?: string, now: Date = new Date(), op?: OpKey): Promise<void> {
   needsReviewer(who);
   const text = cleanComment(reason ?? '');
   if (text.length > MAX_REASON) throw err('reason');
-  return once(tree, undefined, 'declineSuggestion', async (d) => {
+  return once(tree, op, 'declineSuggestion', async (d) => {
     await waiting(d, id);
     if (await partlyApproved(d, id)) throw err('partial');
     const keys = (await d.all<{ key: string }>('SELECT key FROM suggestion_file WHERE suggestion = ?', id)).map((r) => r.key);

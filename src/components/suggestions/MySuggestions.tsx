@@ -7,9 +7,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { Undo2 } from 'lucide-react';
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { When } from '~/components/votes/When';
 import { ConfirmDialog } from '~/components/ui';
+import { opKeys } from '~/lib/api';
 import { errorText } from '~/lib/errortext';
 import { useFamily } from '~/lib/family';
 import { useT } from '~/lib/i18n';
@@ -34,8 +35,10 @@ function Mine({ tree, v }: { tree: string; v: SuggestionView }) {
   const qc = useQueryClient();
   const events = useEventsOf(tree, v);
   const [asking, setAsking] = useState(false);
+  const ops = useRef(opKeys());
   const withdraw = useMutation({
-    mutationFn: () => withdrawSuggestionFn({ data: { tree, id: v.id } }),
+    // Sent again after a lost response, the same withdrawal: not refused as no longer waiting.
+    mutationFn: () => withdrawSuggestionFn({ data: { tree, id: v.id, opKey: ops.current.for('withdraw', v.id) } }),
     onSuccess: async () => {
       setAsking(false);
       await Promise.all(suggestionKeys(tree).map((queryKey) => qc.invalidateQueries({ queryKey })));
