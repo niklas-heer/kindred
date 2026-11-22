@@ -360,9 +360,9 @@ test('leaving a ballotless vote takes the option out; the last proposal leaving 
   const a = await propose(t, ada, 'The stag');
   const b = await propose(t, bo, 'The oak', arms('key'));
   const [v] = await armsVotes(t);
-  await P.withdrawProposal(t, ada, a.id);
+  await P.withdrawProposal(t, ada, a.id, undefined, NOW);
   assert.deepEqual((await options(t, v!.id)).map((o) => o.proposal), [null, b.id]);
-  await P.declineProposal(t, eve, b.id, 'Not now');
+  await P.declineProposal(t, eve, b.id, 'Not now', undefined, NOW);
   assert.equal(await count(t, 'vote'), 0);
   assert.equal(await count(t, 'vote_option'), 0);
   assert.equal((await row(t, b.id))?.status, 'declined');
@@ -373,8 +373,8 @@ test('leaving a ballotless vote takes the option out; the last proposal leaving 
   const [w] = await armsVotes(u);
   const [keep] = await options(u, w!.id);
   await V.castBallot(u, member(carl), w!.id, [keep!.id], later(1000));
-  await assert.rejects(P.withdrawProposal(u, ada, c.id), /arms\.err\.locked/);
-  await assert.rejects(P.declineProposal(u, eve, d.id), /arms\.err\.locked/);
+  await assert.rejects(P.withdrawProposal(u, ada, c.id, undefined, later(2000)), /arms\.err\.locked/);
+  await assert.rejects(P.declineProposal(u, eve, d.id, undefined, undefined, later(2000)), /arms\.err\.locked/);
   assert.equal((await row(u, c.id))?.status, 'voting');
 });
 
