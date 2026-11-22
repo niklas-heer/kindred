@@ -9,6 +9,11 @@ yourself, each family lives in its own database, and you can take it with you wh
 
 **[Try the demo](https://kindred-demo.niklas-heer.workers.dev)**: two invented families, read-only, nothing to sign up for. The demo offers the **grand tour** first: a walk through everything Kindred does, on those families.
 
+**[Watch the 55-second film](https://youtu.be/UoeDqWzIjes)** on YouTube: the tree, Today, the question of the week, the daily
+quiz, the Atlas and the Campaign, on the demo's invented families.
+
+[![A thumbnail for the film on YouTube: "More than a family tree" beside the tree and the daily quiz of an invented family, with a "Watch the film, 0:55" button.](docs/images/video.webp)](https://youtu.be/UoeDqWzIjes)
+
 ![The Dynasty view of an invented medieval realm: generations of portrait cards under house shields, a minimap of the whole tree, and the person panel beside it.](docs/images/tree.webp)
 
 In most families, one person keeps the records, in a folder or a program nobody else can open. Kindred puts them somewhere
